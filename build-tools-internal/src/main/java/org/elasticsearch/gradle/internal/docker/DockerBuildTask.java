@@ -70,22 +70,15 @@ public abstract class DockerBuildTask extends DefaultTask {
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
-        onlyIf(
-            "Docker supports all requested platforms",
-            task -> {
-                var platforms = getPlatforms().getOrElse(Collections.emptySet());
-                if (platforms.isEmpty()) {
-                    return false;
-                }
-                DockerSupportService support = getDockerSupport().get();
-                return platforms.stream()
-                    .allMatch(
-                        platform -> Architecture.fromDockerPlatform(platform)
-                            .map(support::isArchitectureSupported)
-                            .orElse(false)
-                    );
+        onlyIf("Docker supports all requested platforms", task -> {
+            var platforms = getPlatforms().getOrElse(Collections.emptySet());
+            if (platforms.isEmpty()) {
+                return false;
             }
-        );
+            DockerSupportService support = getDockerSupport().get();
+            return platforms.stream()
+                .allMatch(platform -> Architecture.fromDockerPlatform(platform).map(support::isArchitectureSupported).orElse(false));
+        });
     }
 
     @TaskAction

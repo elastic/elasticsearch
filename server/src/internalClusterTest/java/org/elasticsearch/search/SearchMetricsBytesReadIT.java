@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
@@ -271,7 +272,6 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
             .sort("id", SortOrder.ASC);
-        ;
         SearchRequest searchRequest = new SearchRequest(indexName).source(searchSourceBuilder);
 
         // warm up
@@ -280,17 +280,24 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
         long bytesRead = assertBytesReadHeader(searchRequest);
 
         // now as scroll search
-        AtomicReference<String> scrollidReference = new AtomicReference<>();
+        AtomicReference<String> scrollIdReference = new AtomicReference<>();
         try {
             searchRequest = new SearchRequest(indexName).source(searchSourceBuilder).scroll(TimeValue.ONE_MINUTE);
             long bytesReadScrollSearch = assertBytesReadHeader(
                 searchRequest,
-                searchResponse -> scrollidReference.set(searchResponse.getScrollId())
+                searchResponse -> scrollIdReference.set(searchResponse.getScrollId())
             );
             assertThat(bytesReadScrollSearch, equalTo(bytesRead));
 
+            // send scroll continuation requests and verify each emits the header
+            long scrollContinuationBytesRead = assertBytesReadHeaderOnScrollContinuation(
+                scrollIdReference.get(),
+                searchResponse -> scrollIdReference.set(searchResponse.getScrollId())
+            );
+            assertThat(scrollContinuationBytesRead, greaterThan(0L));
+
         } finally {
-            client().prepareClearScroll().addScrollId(scrollidReference.get()).get();
+            client().prepareClearScroll().addScrollId(scrollIdReference.get()).get();
         }
     }
 
@@ -446,6 +453,39 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
                     assertThat(responseHeaders.get("X-Elasticsearch-Bytes-Read"), hasSize(1));
                     Long actual = Long.valueOf(responseHeaders.get("X-Elasticsearch-Bytes-Read").get(0));
                     assertThat(actual, greaterThan(10L));
+                    bytesRead.set(actual);
+                    consumer.accept(searchResponse);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+                fail("no error expected");
+            }
+        }));
+        latch.await(10, TimeUnit.SECONDS);
+        assertThat(bytesRead.get(), notNullValue());
+        return bytesRead.get();
+    }
+
+    private long assertBytesReadHeaderOnScrollContinuation(String scrollId, Consumer<SearchResponse> consumer) throws InterruptedException {
+        SetOnce<Long> bytesRead = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        final Client client = client();
+        SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId).scroll(TimeValue.ONE_MINUTE);
+        client.searchScroll(scrollRequest, ActionListener.assertOnce(new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
+                    assertThat(responseHeaders, hasKey("X-Elasticsearch-Bytes-Read"));
+                    assertThat(responseHeaders.get("X-Elasticsearch-Bytes-Read"), hasSize(1));
+                    Long actual = Long.valueOf(responseHeaders.get("X-Elasticsearch-Bytes-Read").get(0));
+                    assertThat(actual, greaterThan(0L));
                     bytesRead.set(actual);
                     consumer.accept(searchResponse);
                 } finally {

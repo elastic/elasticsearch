@@ -606,8 +606,6 @@ SET unmapped_fields="nullify"\;
 TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = does_not_exist
 ;
 
-// column name should be cluster
-// https://github.com/elastic/elasticsearch/issues/143395
-max_bytes:long | does_not_exist:null
+max_bytes:long | cluster:null
 10797          | null
 ;

@@ -59,18 +59,24 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  * {@code RoundTo} function. It then rewrites the {@code EsQueryExec.query()} into a corresponding list of {@code QueryBuilder}s and tags,
  * each mapped to its respective range.
  *
- * Here are some examples:
+ * <p>Here are some examples:
  *
- * 1. Aggregation with date_histogram.
- *    The {@code DATE_TRUNC} function in the query below can be rewritten to {@code RoundTo} by {@code ReplaceDateTruncBucketWithRoundTo}.
+ * <ol>
+ * <li>Aggregation with date_histogram.
+ * <p>The {@code DATE_TRUNC} function in the query below can be rewritten to {@code RoundTo} by {@code ReplaceDateTruncBucketWithRoundTo}.
  *    This rule pushes down the {@code RoundTo} function by creating a list of {@code QueryBuilderAndTags}, so that
  *    {@code EsPhysicalOperationProviders} can build {@code LuceneSliceQueue} with the corresponding list of {@code QueryAndTags} to process
  *    further.
+ *    <pre>
  *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    </pre>
  *    becomes, the rounding points are calculated according to SearchStats and predicates from the query.
+ *    <pre>
  *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
  *    | STATS COUNT(*) BY d
+ *    </pre>
  *    becomes
+ *    <pre>
  *    [QueryBuilderAndTags[query={
  *     "esql_single_value" : {
  *      "field" : "date",
@@ -130,16 +136,23 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  *     "boost" : 1.0
  *    }
  *   }, tags=[null]]]
+ *    </pre>
+ * </li>
  *
- * 2. Aggregation with date_histogram and the other pushdown functions
- *    When there are other functions that can also be pushed down to Lucene, this rule combines the main query with the {@code RoundTo}
+ * <li>Aggregation with date_histogram and the other pushdown functions
+ * <p>When there are other functions that can also be pushed down to Lucene, this rule combines the main query with the {@code RoundTo}
  *    ranges to create a list of {@code QueryBuilderAndTags}. The main query is then applied to each query leg.
+ *    <pre>
  *    | WHERE keyword : "keyword"
  *    | STATS COUNT(*) BY d = DATE_TRUNC(1 day, date)
+ *    </pre>
  *    becomes
+ *    <pre>
  *    | EVAL d = ROUND_TO(hire_date, 1697760000000, 1697846400000, 1697932800000)
  *    | STATS COUNT(*) BY d
+ *    </pre>
  *    becomes
+ *    <pre>
  *    [QueryBuilderAndTags[query={
  *    "bool" : {
  *     "filter" : [
@@ -259,12 +272,17 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  *     "boost" : 1.0
  *     }
  *    }, tags=[null]]]
+ *    </pre>
+ * </li>
+ * </ol>
  *
- * There are some restrictions:
- * 1. Tags are not supported by {@code LuceneTopNSourceOperator}, if the sort is pushed down to Lucene, this rewrite does not apply.
- * 2. Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.
- * 3. Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
- *    is not supported by {@code EsStatsQueryExec} today.
+ * <p>There are some restrictions:
+ * <ol>
+ * <li>Tags are not supported by {@code LuceneTopNSourceOperator}, if the sort is pushed down to Lucene, this rewrite does not apply.</li>
+ * <li>Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.</li>
+ * <li>Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
+ *    is not supported by {@code EsStatsQueryExec} today.</li>
+ * </ol>
  */
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     EvalExec,

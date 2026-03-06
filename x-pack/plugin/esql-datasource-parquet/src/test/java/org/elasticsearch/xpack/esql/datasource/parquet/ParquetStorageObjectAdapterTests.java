@@ -197,6 +197,84 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         }
     }
 
+    public void testReadByteBufferWithNonZeroPosition() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createStorageObject(data);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            ByteBuffer buffer = ByteBuffer.allocate(10);
+            buffer.position(3);
+            int bytesRead = stream.read(buffer);
+            assertEquals(7, bytesRead);
+            assertEquals(10, buffer.position());
+            buffer.flip();
+            buffer.position(3);
+            assertEquals(1, buffer.get());
+            assertEquals(2, buffer.get());
+            assertEquals(3, buffer.get());
+        }
+    }
+
+    public void testReadFullyByteBufferWithNonZeroPosition() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createStorageObject(data);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            ByteBuffer buffer = ByteBuffer.allocate(8);
+            buffer.position(3);
+            stream.readFully(buffer);
+            assertEquals(8, buffer.position());
+            buffer.flip();
+            buffer.position(3);
+            assertEquals(1, buffer.get());
+            assertEquals(2, buffer.get());
+            assertEquals(3, buffer.get());
+            assertEquals(4, buffer.get());
+            assertEquals(5, buffer.get());
+        }
+    }
+
+    public void testReadDirectByteBuffer() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createStorageObject(data);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            ByteBuffer buffer = ByteBuffer.allocateDirect(5);
+            assertFalse(buffer.hasArray());
+            int bytesRead = stream.read(buffer);
+            assertEquals(5, bytesRead);
+            buffer.flip();
+            assertEquals(1, buffer.get());
+            assertEquals(2, buffer.get());
+            assertEquals(3, buffer.get());
+        }
+    }
+
+    public void testReadFullyDirectByteBuffer() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject storageObject = createStorageObject(data);
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            ByteBuffer buffer = ByteBuffer.allocateDirect(5);
+            assertFalse(buffer.hasArray());
+            stream.readFully(buffer);
+            buffer.flip();
+            assertEquals(1, buffer.get());
+            assertEquals(2, buffer.get());
+            assertEquals(3, buffer.get());
+            assertEquals(4, buffer.get());
+            assertEquals(5, buffer.get());
+        }
+    }
+
     public void testSeekableInputStreamSkip() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
         StorageObject storageObject = createStorageObject(data);

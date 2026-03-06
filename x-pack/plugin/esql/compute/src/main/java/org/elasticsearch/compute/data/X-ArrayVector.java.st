@@ -200,13 +200,13 @@ $endif$
 $if(BytesRef)$
     /**
      * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
-     * underlying byte data exceeds {@code overestimateThreshold}. This compensates for heap
+     * average value length exceeds {@code overestimateThreshold}. This compensates for heap
      * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
      * {@link BytesRefArray} when loading large text fields from {@code _source}.
      */
     public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
         long valuesSize = RamUsageEstimator.sizeOf(values);
-        if (valuesSize > overestimateThreshold) {
+        if (values.size() > 0 && valuesSize / values.size() > overestimateThreshold) {
             valuesSize = Math.round(valuesSize * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valuesSize;

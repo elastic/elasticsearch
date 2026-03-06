@@ -128,12 +128,16 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
             if (split.isSourceShard(shardId.id())) {
                 targetShardId = new ShardId(shardId.getIndex(), split.targetShard(shardId.id()));
             }
-            final var newReshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(targetShardId, IndexReshardingState.Split.TargetShardState.SPLIT);
+            final var newReshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                targetShardId,
+                IndexReshardingState.Split.TargetShardState.SPLIT
+            );
             return IndexMetadata.builder(indexMetadata).reshardingMetadata(newReshardingMetadata).build();
         } else {
             return indexMetadata;
         }
     }
+
     /**
      * This method is used in the context of the resharding feature.
      * Given a {@code shardId} and {@code minShardState} i.e. the minimum target shard state required for

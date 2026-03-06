@@ -747,6 +747,7 @@ SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, unmapped_message
 | WHERE unmapped_message == "Disconnection error"
+| SORT @timestamp DESC
 ;
 
 @timestamp:date          | unmapped_message:keyword
@@ -762,6 +763,7 @@ SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, message, unmapped_message
 | WHERE message == "Connection error?" AND unmapped_message == "Disconnection error"
+| SORT @timestamp DESC
 ;
 
 @timestamp:date          | message:keyword   | unmapped_message:keyword
@@ -843,7 +845,7 @@ SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, unmapped_message
 | SORT unmapped_message
-| LIMIT 5
+| LIMIT 4
 ;
 
 @timestamp:date          | unmapped_message:keyword
@@ -851,7 +853,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
 2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
-2024-10-23T13:52:55.015Z | Disconnection error
 ;
 
 sortOnExpressionOnUnmappedField

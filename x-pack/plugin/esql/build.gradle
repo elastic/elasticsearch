@@ -685,6 +685,12 @@ tasks.register("analyzePromqlQueries", JavaExec) {
     "--input", project.findProperty("queriesFile") ?: "",
     "--output", project.findProperty("outputFile") ?: ""
   ]
+  if (project.hasProperty("outputFormat")) {
+    arguments += ["--format", project.findProperty("outputFormat")]
+  }
+  if (project.hasProperty("verbose")) {
+    arguments += ["--verbose", project.findProperty("verbose")]
+  }
   args arguments as List<String>
 }
 

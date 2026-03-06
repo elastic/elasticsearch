@@ -103,6 +103,10 @@ public class PromqlCoverageAnalyzer implements Closeable {
         var inputOpt = parser.accepts("input", "Path to query file").withRequiredArg().required();
         var outputOpt = parser.accepts("output", "Path to output file").withRequiredArg().required();
         var verboseOpt = parser.accepts("verbose", "Include full query details").withOptionalArg().ofType(Boolean.class).defaultsTo(true);
+        var formatOpt = parser.accepts("format", "Output format: auto, json, markdown")
+            .withRequiredArg()
+            .ofType(String.class)
+            .defaultsTo("auto");
         parser.acceptsAll(List.of("h", "help"), "Show help").forHelp();
 
         OptionSet options = parser.parse(args);
@@ -118,10 +122,20 @@ public class PromqlCoverageAnalyzer implements Closeable {
         Path inputFile = PathUtils.get(options.valueOf(inputOpt));
         Path outputFile = PathUtils.get(options.valueOf(outputOpt));
         boolean verbose = options.valueOf(verboseOpt);
+        String outputFormat = options.valueOf(formatOpt).toLowerCase(Locale.ROOT);
 
         var writer = Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE);
 
-        var printer = outputFile.toString().endsWith(".json") ? new Printer.Json(writer, verbose) : new Printer.Markdown(writer, verbose);
+        var printer = switch (outputFormat) {
+            case "auto" -> outputFile.toString().endsWith(".json")
+                ? new Printer.Json(writer, verbose)
+                : new Printer.Markdown(writer, verbose);
+            case "json" -> new Printer.Json(writer, verbose);
+            case "markdown", "md" -> new Printer.Markdown(writer, verbose);
+            default -> throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Unknown output format [%s]. Supported values: auto, json, markdown", outputFormat)
+            );
+        };
 
         try (var coverageAnalyzer = new PromqlCoverageAnalyzer(printer)) {
             var lineCounter = new AtomicInteger(0);

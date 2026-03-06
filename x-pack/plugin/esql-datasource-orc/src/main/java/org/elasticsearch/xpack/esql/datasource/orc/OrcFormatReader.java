@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,9 +269,30 @@ public class OrcFormatReader implements FormatReader {
 
         private Block createBlock(ColumnVector vector, DataType dataType, int rowCount) {
             return switch (dataType) {
-                case BOOLEAN -> createBooleanBlock((LongColumnVector) vector, rowCount);
-                case INTEGER -> createIntBlock((LongColumnVector) vector, rowCount);
-                case LONG -> createLongBlock((LongColumnVector) vector, rowCount);
+                case BOOLEAN -> ColumnBlockConversions.booleanColumnFromLongs(
+                    blockFactory,
+                    ((LongColumnVector) vector).vector,
+                    rowCount,
+                    vector.noNulls,
+                    vector.isRepeating,
+                    vector.isNull
+                );
+                case INTEGER -> ColumnBlockConversions.intColumnFromLongs(
+                    blockFactory,
+                    ((LongColumnVector) vector).vector,
+                    rowCount,
+                    vector.noNulls,
+                    vector.isRepeating,
+                    vector.isNull
+                );
+                case LONG -> ColumnBlockConversions.longColumn(
+                    blockFactory,
+                    ((LongColumnVector) vector).vector,
+                    rowCount,
+                    vector.noNulls,
+                    vector.isRepeating,
+                    vector.isNull
+                );
                 case DOUBLE -> createDoubleBlock(vector, rowCount);
                 case KEYWORD, TEXT -> createBytesRefBlock(vector, rowCount);
                 case DATETIME -> createDatetimeBlock(vector, rowCount);
@@ -277,119 +300,111 @@ public class OrcFormatReader implements FormatReader {
             };
         }
 
-        private Block createBooleanBlock(LongColumnVector vector, int rowCount) {
-            try (var builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (vector.noNulls == false && vector.isNull[i]) {
-                        builder.appendNull();
-                    } else {
-                        int idx = vector.isRepeating ? 0 : i;
-                        builder.appendBoolean(vector.vector[idx] != 0);
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block createIntBlock(LongColumnVector vector, int rowCount) {
-            try (var builder = blockFactory.newIntBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (vector.noNulls == false && vector.isNull[i]) {
-                        builder.appendNull();
-                    } else {
-                        int idx = vector.isRepeating ? 0 : i;
-                        builder.appendInt((int) vector.vector[idx]);
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block createLongBlock(LongColumnVector vector, int rowCount) {
-            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (vector.noNulls == false && vector.isNull[i]) {
-                        builder.appendNull();
-                    } else {
-                        int idx = vector.isRepeating ? 0 : i;
-                        builder.appendLong(vector.vector[idx]);
-                    }
-                }
-                return builder.build();
-            }
-        }
-
         private Block createDoubleBlock(ColumnVector vector, int rowCount) {
-            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
-                if (vector instanceof DoubleColumnVector doubleVector) {
-                    for (int i = 0; i < rowCount; i++) {
-                        if (doubleVector.noNulls == false && doubleVector.isNull[i]) {
-                            builder.appendNull();
-                        } else {
-                            int idx = doubleVector.isRepeating ? 0 : i;
-                            builder.appendDouble(doubleVector.vector[idx]);
-                        }
-                    }
-                } else if (vector instanceof LongColumnVector longVector) {
-                    // DECIMAL types may come as LongColumnVector
-                    for (int i = 0; i < rowCount; i++) {
-                        if (longVector.noNulls == false && longVector.isNull[i]) {
-                            builder.appendNull();
-                        } else {
-                            int idx = longVector.isRepeating ? 0 : i;
-                            builder.appendDouble(longVector.vector[idx]);
-                        }
-                    }
-                } else {
-                    throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
-                }
-                return builder.build();
+            if (vector instanceof DoubleColumnVector doubleVector) {
+                return ColumnBlockConversions.doubleColumn(
+                    blockFactory,
+                    doubleVector.vector,
+                    rowCount,
+                    doubleVector.noNulls,
+                    doubleVector.isRepeating,
+                    doubleVector.isNull
+                );
+            } else if (vector instanceof LongColumnVector longVector) {
+                return ColumnBlockConversions.doubleColumnFromLongs(
+                    blockFactory,
+                    longVector.vector,
+                    rowCount,
+                    longVector.noNulls,
+                    longVector.isRepeating,
+                    longVector.isNull
+                );
             }
+            throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
         }
 
         private Block createBytesRefBlock(ColumnVector vector, int rowCount) {
+            Check.isTrue(vector instanceof BytesColumnVector, "Unsupported column type: " + vector.getClass().getSimpleName());
+            BytesColumnVector bytesVector = (BytesColumnVector) vector;
+            if (bytesVector.isRepeating) {
+                if (bytesVector.noNulls == false && bytesVector.isNull[0]) {
+                    return blockFactory.newConstantNullBlock(rowCount);
+                }
+                return blockFactory.newConstantBytesRefBlockWith(
+                    new org.apache.lucene.util.BytesRef(bytesVector.vector[0], bytesVector.start[0], bytesVector.length[0]),
+                    rowCount
+                );
+            }
             try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                Check.isTrue(vector instanceof BytesColumnVector, "Unsupported column type: " + vector.getClass().getSimpleName());
-                BytesColumnVector bytesVector = (BytesColumnVector) vector;
                 for (int i = 0; i < rowCount; i++) {
                     if (bytesVector.noNulls == false && bytesVector.isNull[i]) {
                         builder.appendNull();
                     } else {
-                        int idx = bytesVector.isRepeating ? 0 : i;
-                        byte[] src = bytesVector.vector[idx];
-                        int start = bytesVector.start[idx];
-                        int len = bytesVector.length[idx];
-                        builder.appendBytesRef(new org.apache.lucene.util.BytesRef(src, start, len));
+                        builder.appendBytesRef(
+                            new org.apache.lucene.util.BytesRef(bytesVector.vector[i], bytesVector.start[i], bytesVector.length[i])
+                        );
                     }
                 }
                 return builder.build();
             }
         }
 
+        /**
+         * Timestamps and dates need special handling since they require per-element
+         * transformation (getTime or days→millis), so they still use a builder.
+         * The repeating case is optimized via constant block.
+         */
         private Block createDatetimeBlock(ColumnVector vector, int rowCount) {
-            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                if (vector instanceof TimestampColumnVector tsVector) {
+            if (vector instanceof TimestampColumnVector tsVector) {
+                if (tsVector.isRepeating) {
+                    if (tsVector.noNulls == false && tsVector.isNull[0]) {
+                        return blockFactory.newConstantNullBlock(rowCount);
+                    }
+                    return blockFactory.newConstantLongBlockWith(tsVector.getTime(0), rowCount);
+                }
+                try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
                     for (int i = 0; i < rowCount; i++) {
                         if (tsVector.noNulls == false && tsVector.isNull[i]) {
                             builder.appendNull();
                         } else {
-                            int idx = tsVector.isRepeating ? 0 : i;
-                            builder.appendLong(tsVector.getTime(idx));
+                            builder.appendLong(tsVector.getTime(i));
                         }
                     }
-                } else if (vector instanceof LongColumnVector longVector) {
-                    // DATE type uses LongColumnVector with days since epoch
-                    for (int i = 0; i < rowCount; i++) {
-                        if (longVector.noNulls == false && longVector.isNull[i]) {
-                            builder.appendNull();
-                        } else {
-                            int idx = longVector.isRepeating ? 0 : i;
-                            builder.appendLong(longVector.vector[idx] * MILLIS_PER_DAY);
-                        }
-                    }
+                    return builder.build();
                 }
-                return builder.build();
+            } else if (vector instanceof LongColumnVector longVector) {
+                if (longVector.isRepeating) {
+                    if (longVector.noNulls == false && longVector.isNull[0]) {
+                        return blockFactory.newConstantNullBlock(rowCount);
+                    }
+                    return blockFactory.newConstantLongBlockWith(longVector.vector[0] * MILLIS_PER_DAY, rowCount);
+                }
+                long[] millis = new long[rowCount];
+                for (int i = 0; i < rowCount; i++) {
+                    millis[i] = longVector.vector[i] * MILLIS_PER_DAY;
+                }
+                if (longVector.noNulls) {
+                    return blockFactory.newLongArrayVector(millis, rowCount).asBlock();
+                }
+                return blockFactory.newLongArrayBlock(
+                    millis,
+                    rowCount,
+                    null,
+                    toBitSet(longVector.isNull, rowCount),
+                    Block.MvOrdering.UNORDERED
+                );
             }
+            return blockFactory.newConstantNullBlock(rowCount);
+        }
+
+        private static BitSet toBitSet(boolean[] isNull, int length) {
+            BitSet bits = new BitSet(length);
+            for (int i = 0; i < length; i++) {
+                if (isNull[i]) {
+                    bits.set(i);
+                }
+            }
+            return bits;
         }
 
         @Override

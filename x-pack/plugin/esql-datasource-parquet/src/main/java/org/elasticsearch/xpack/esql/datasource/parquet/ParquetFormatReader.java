@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
-import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.InputFile;
-import org.apache.parquet.io.MessageColumnIO;
-import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.io.api.Converter;
+import org.apache.parquet.io.api.GroupConverter;
+import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -27,18 +28,20 @@ import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -122,10 +125,10 @@ public class ParquetFormatReader implements FormatReader {
             }
         }
 
-        // Build a projected Parquet schema so ColumnIOFactory only reads requested columns
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+        String createdBy = fileMetaData.getCreatedBy();
 
-        return new ParquetPageIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT);
+        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT, createdBy);
     }
 
     @Override
@@ -156,7 +159,8 @@ public class ParquetFormatReader implements FormatReader {
         }
 
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-        return new ParquetPageIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, rowLimit);
+        String createdBy = fileMetaData.getCreatedBy();
+        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, rowLimit, createdBy);
     }
 
     @Override
@@ -222,35 +226,66 @@ public class ParquetFormatReader implements FormatReader {
         };
     }
 
-    private static class ParquetPageIterator implements CloseableIterator<Page> {
+    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+
+    /**
+     * Column-at-a-time Parquet iterator. Uses {@link ColumnReadStoreImpl} and {@link ColumnReader}
+     * to decode each column independently into typed arrays, eliminating Group object materialization
+     * and per-row type dispatch. Primitive columns are converted via {@link ColumnBlockConversions}.
+     */
+    private static class ParquetColumnIterator implements CloseableIterator<Page> {
         private final ParquetFileReader reader;
-        private final MessageType parquetSchema;
+        private final MessageType projectedSchema;
         private final List<Attribute> attributes;
         private final int batchSize;
-        private final MessageColumnIO columnIO;
         private final BlockFactory blockFactory;
+        private final String createdBy;
         private int rowBudget;
 
-        private PageReadStore currentRowGroup;
-        private RecordReader<Group> recordReader;
+        /** Per-attribute column metadata; null for attributes not present in the file. */
+        private final ColumnInfo[] columnInfos;
+
+        private ColumnReader[] columnReaders;
         private long rowsRemainingInGroup;
         private boolean exhausted = false;
 
-        ParquetPageIterator(
+        ParquetColumnIterator(
             ParquetFileReader reader,
-            MessageType parquetSchema,
+            MessageType projectedSchema,
             List<Attribute> attributes,
             int batchSize,
             BlockFactory blockFactory,
-            int rowLimit
+            int rowLimit,
+            String createdBy
         ) {
             this.reader = reader;
-            this.parquetSchema = parquetSchema;
+            this.projectedSchema = projectedSchema;
             this.attributes = attributes;
             this.batchSize = batchSize;
-            this.columnIO = new ColumnIOFactory().getColumnIO(parquetSchema);
             this.blockFactory = blockFactory;
             this.rowBudget = rowLimit;
+            this.createdBy = createdBy != null ? createdBy : "";
+
+            this.columnInfos = new ColumnInfo[attributes.size()];
+            Map<String, ColumnDescriptor> descByName = new HashMap<>();
+            for (ColumnDescriptor desc : projectedSchema.getColumns()) {
+                descByName.put(desc.getPath()[0], desc);
+            }
+            for (int i = 0; i < attributes.size(); i++) {
+                Attribute attr = attributes.get(i);
+                if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
+                    continue;
+                }
+                ColumnDescriptor desc = descByName.get(attr.name());
+                if (desc != null) {
+                    columnInfos[i] = new ColumnInfo(
+                        desc,
+                        desc.getPrimitiveType().getPrimitiveTypeName(),
+                        attr.dataType(),
+                        desc.getMaxDefinitionLevel()
+                    );
+                }
+            }
         }
 
         @Override
@@ -266,17 +301,32 @@ public class ParquetFormatReader implements FormatReader {
                 return true;
             }
             try {
-                currentRowGroup = reader.readNextRowGroup();
-                if (currentRowGroup == null) {
-                    exhausted = true;
-                    return false;
-                }
-                rowsRemainingInGroup = currentRowGroup.getRowCount();
-                recordReader = columnIO.getRecordReader(currentRowGroup, new GroupRecordConverter(parquetSchema));
-                return rowsRemainingInGroup > 0;
+                return advanceRowGroup();
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read Parquet row group", e);
             }
+        }
+
+        private boolean advanceRowGroup() throws IOException {
+            PageReadStore rowGroup = reader.readNextRowGroup();
+            if (rowGroup == null) {
+                exhausted = true;
+                return false;
+            }
+            rowsRemainingInGroup = rowGroup.getRowCount();
+            ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                rowGroup,
+                new NoOpGroupConverter(projectedSchema),
+                projectedSchema,
+                createdBy
+            );
+            columnReaders = new ColumnReader[columnInfos.length];
+            for (int i = 0; i < columnInfos.length; i++) {
+                if (columnInfos[i] != null) {
+                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
+                }
+            }
+            return rowsRemainingInGroup > 0;
         }
 
         @Override
@@ -284,158 +334,167 @@ public class ParquetFormatReader implements FormatReader {
             if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
+            int effectiveBatch = batchSize;
+            if (rowBudget != FormatReader.NO_LIMIT) {
+                effectiveBatch = Math.min(effectiveBatch, rowBudget);
+            }
+            int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
 
+            Block[] blocks = new Block[attributes.size()];
             try {
-                int effectiveBatch = batchSize;
-                if (rowBudget != FormatReader.NO_LIMIT) {
-                    effectiveBatch = Math.min(effectiveBatch, rowBudget);
-                }
-                List<Group> batch = new ArrayList<>(effectiveBatch);
-                int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
-
-                for (int i = 0; i < rowsToRead; i++) {
-                    Group group = recordReader.read();
-                    if (group != null) {
-                        batch.add(group);
-                        rowsRemainingInGroup--;
+                for (int col = 0; col < columnInfos.length; col++) {
+                    ColumnInfo info = columnInfos[col];
+                    if (info == null) {
+                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                    } else {
+                        blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead);
                     }
                 }
-
-                if (batch.isEmpty()) {
-                    throw new NoSuchElementException("No more records");
-                }
-
-                if (rowBudget != FormatReader.NO_LIMIT) {
-                    rowBudget -= batch.size();
-                }
-                return convertToPage(batch);
             } catch (Exception e) {
+                Releasables.closeExpectNoException(blocks);
                 throw new RuntimeException("Failed to create Page batch", e);
             }
-        }
 
-        private Page convertToPage(List<Group> batch) {
-            int rowCount = batch.size();
-            Block[] blocks = new Block[attributes.size()];
-
-            // Create a block for each attribute
-            for (int col = 0; col < attributes.size(); col++) {
-                Attribute attribute = attributes.get(col);
-                String fieldName = attribute.name();
-                DataType dataType = attribute.dataType();
-
-                blocks[col] = createBlock(batch, fieldName, dataType, rowCount);
+            rowsRemainingInGroup -= rowsToRead;
+            if (rowBudget != FormatReader.NO_LIMIT) {
+                rowBudget -= rowsToRead;
             }
-
             return new Page(blocks);
         }
 
-        private Block createBlock(List<Group> batch, String fieldName, DataType dataType, int rowCount) {
-            // Find field index in Parquet schema
-            int fieldIndex = findFieldIndex(batch.get(0), fieldName);
-            if (fieldIndex == -1) {
-                // Field not found, return null block
-                return blockFactory.newConstantNullBlock(rowCount);
-            }
-
-            return switch (dataType) {
-                case BOOLEAN -> createBooleanBlock(batch, fieldName, fieldIndex, rowCount);
-                case INTEGER -> createIntBlock(batch, fieldName, fieldIndex, rowCount);
-                case LONG -> createLongBlock(batch, fieldName, fieldIndex, rowCount);
-                case DOUBLE -> createDoubleBlock(batch, fieldName, fieldIndex, rowCount);
-                case KEYWORD, TEXT -> createBytesRefBlock(batch, fieldName, fieldIndex, rowCount);
-                case DATETIME -> createLongBlock(batch, fieldName, fieldIndex, rowCount); // Timestamps as longs
-                default -> blockFactory.newConstantNullBlock(rowCount);
+        private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead) {
+            return switch (info.esqlType) {
+                case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel, rowsToRead);
+                case INTEGER -> readIntColumn(cr, info.maxDefLevel, rowsToRead);
+                case LONG -> readLongColumn(cr, info.maxDefLevel, rowsToRead);
+                case DOUBLE -> readDoubleColumn(cr, info.parquetType, info.maxDefLevel, rowsToRead);
+                case KEYWORD, TEXT -> readBytesRefColumn(cr, info.maxDefLevel, rowsToRead);
+                case DATETIME -> readDatetimeColumn(cr, info.parquetType, info.maxDefLevel, rowsToRead);
+                default -> {
+                    skipValues(cr, rowsToRead);
+                    yield blockFactory.newConstantNullBlock(rowsToRead);
+                }
             };
         }
 
-        private int findFieldIndex(Group group, String fieldName) {
-            GroupType groupType = group.getType();
-            int fieldCount = groupType.getFieldCount();
-            for (int i = 0; i < fieldCount; i++) {
-                Type fieldType = groupType.getType(i);
-                String name = fieldType.getName();
-                if (name.equals(fieldName)) {
-                    return i;
+        private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
+            boolean[] values = new boolean[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    values[i] = cr.getBoolean();
                 }
+                cr.consume();
             }
-            return -1;
+            if (noNulls) {
+                return blockFactory.newBooleanArrayVector(values, rows).asBlock();
+            }
+            return blockFactory.newBooleanArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
         }
 
-        private Block createBooleanBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
-            try (var builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
-                for (Group group : batch) {
-                    if (group.getFieldRepetitionCount(fieldIndex) == 0) {
+        private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
+            int[] values = new int[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    values[i] = cr.getInteger();
+                }
+                cr.consume();
+            }
+            if (noNulls) {
+                return blockFactory.newIntArrayVector(values, rows).asBlock();
+            }
+            return blockFactory.newIntArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
+        }
+
+        private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
+            long[] values = new long[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    values[i] = cr.getLong();
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private Block readDoubleColumn(ColumnReader cr, PrimitiveType.PrimitiveTypeName pType, int maxDef, int rows) {
+            double[] values = new double[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            boolean isFloat = pType == PrimitiveType.PrimitiveTypeName.FLOAT;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    values[i] = isFloat ? cr.getFloat() : cr.getDouble();
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private Block readBytesRefColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
+                for (int i = 0; i < rows; i++) {
+                    if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
                         builder.appendNull();
                     } else {
-                        builder.appendBoolean(group.getBoolean(fieldName, 0));
+                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
                     }
+                    cr.consume();
                 }
                 return builder.build();
             }
         }
 
-        private Block createIntBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
-            try (var builder = blockFactory.newIntBlockBuilder(rowCount)) {
-                for (Group group : batch) {
-                    if (group.getFieldRepetitionCount(fieldIndex) == 0) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendInt(group.getInteger(fieldName, 0));
-                    }
+        private Block readDatetimeColumn(ColumnReader cr, PrimitiveType.PrimitiveTypeName pType, int maxDef, int rows) {
+            long[] values = new long[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            boolean isDate = pType == PrimitiveType.PrimitiveTypeName.INT32;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else if (isDate) {
+                    values[i] = cr.getInteger() * MILLIS_PER_DAY;
+                } else {
+                    values[i] = cr.getLong();
                 }
-                return builder.build();
+                cr.consume();
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private static void skipValues(ColumnReader cr, int rows) {
+            for (int i = 0; i < rows; i++) {
+                cr.consume();
             }
         }
 
-        private Block createLongBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
-            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                for (Group group : batch) {
-                    if (group.getFieldRepetitionCount(fieldIndex) == 0) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendLong(group.getLong(fieldName, 0));
-                    }
+        private static java.util.BitSet toBitSet(boolean[] isNull, int length) {
+            java.util.BitSet bits = new java.util.BitSet(length);
+            for (int i = 0; i < length; i++) {
+                if (isNull[i]) {
+                    bits.set(i);
                 }
-                return builder.build();
             }
-        }
-
-        private Block createDoubleBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
-            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
-                for (Group group : batch) {
-                    if (group.getFieldRepetitionCount(fieldIndex) == 0) {
-                        builder.appendNull();
-                    } else {
-                        // Handle both float and double
-                        GroupType groupType = group.getType();
-                        Type fieldType = groupType.getType(fieldIndex);
-                        PrimitiveType primitiveType = fieldType.asPrimitiveType();
-                        PrimitiveType.PrimitiveTypeName typeName = primitiveType.getPrimitiveTypeName();
-                        if (typeName == PrimitiveType.PrimitiveTypeName.FLOAT) {
-                            builder.appendDouble(group.getFloat(fieldName, 0));
-                        } else {
-                            builder.appendDouble(group.getDouble(fieldName, 0));
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private Block createBytesRefBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (Group group : batch) {
-                    if (group.getFieldRepetitionCount(fieldIndex) == 0) {
-                        builder.appendNull();
-                    } else {
-                        String value = group.getString(fieldName, 0);
-                        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-                        builder.appendBytesRef(new BytesRef(bytes));
-                    }
-                }
-                return builder.build();
-            }
+            return bits;
         }
 
         @Override
@@ -443,4 +502,37 @@ public class ParquetFormatReader implements FormatReader {
             reader.close();
         }
     }
+
+    private record ColumnInfo(
+        ColumnDescriptor descriptor,
+        PrimitiveType.PrimitiveTypeName parquetType,
+        DataType esqlType,
+        int maxDefLevel
+    ) {}
+
+    /**
+     * Minimal GroupConverter that satisfies {@link ColumnReadStoreImpl}'s constructor.
+     * We never call {@code writeCurrentValueToConverter()}, so all converters are no-ops.
+     */
+    private static class NoOpGroupConverter extends GroupConverter {
+        private final GroupType schema;
+
+        NoOpGroupConverter(GroupType schema) {
+            this.schema = schema;
+        }
+
+        @Override
+        public Converter getConverter(int fieldIndex) {
+            Type field = schema.getType(fieldIndex);
+            return field.isPrimitive() ? new NoOpPrimitiveConverter() : new NoOpGroupConverter(field.asGroupType());
+        }
+
+        @Override
+        public void start() {}
+
+        @Override
+        public void end() {}
+    }
+
+    private static class NoOpPrimitiveConverter extends PrimitiveConverter {}
 }

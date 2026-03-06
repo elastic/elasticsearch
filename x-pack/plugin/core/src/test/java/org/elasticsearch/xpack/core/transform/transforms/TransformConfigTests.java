@@ -343,7 +343,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return new TransformConfig(
             instance.getId(),
             SourceConfigTests.mutateForVersion(instance.getSource(), version),
-            instance.getDestination(),
+            DestConfigTests.mutateForVersion(instance.getDestination(), version),
             instance.getFrequency(),
             instance.getSyncConfig(),
             instance.getHeaders(),

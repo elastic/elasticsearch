@@ -103,6 +103,14 @@ public class DestConfig implements Writeable, ToXContentObject {
         return action;
     }
 
+    /**
+     * Returns a copy of this config with the action reset to the default ({@link #ACTION_INDEX}).
+     * Used for BWC serialization when old transport versions don't support the action field.
+     */
+    DestConfig withDefaultAction() {
+        return new DestConfig(index, aliases, pipeline, ACTION_INDEX);
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (index.isEmpty()) {
             validationException = addValidationError("dest.index must not be empty", validationException);

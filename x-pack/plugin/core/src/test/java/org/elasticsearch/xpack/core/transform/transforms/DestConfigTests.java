@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
@@ -57,6 +58,18 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     @Override
     protected DestConfig mutateInstance(DestConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected DestConfig mutateInstanceForVersion(DestConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static DestConfig mutateForVersion(DestConfig instance, TransportVersion version) {
+        if (version.before(DestConfig.TRANSFORM_DEST_ACTION)) {
+            return instance.withDefaultAction();
+        }
+        return instance;
     }
 
     @Override

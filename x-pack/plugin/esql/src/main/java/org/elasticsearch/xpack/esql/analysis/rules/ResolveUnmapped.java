@@ -121,7 +121,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
         // This handles cases like: ROW x = 1 | EVAL y = unmapped_field
         transformed = transformed.transformUp(
-            n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && (leaf instanceof EsRelation == false),
+            n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
         return transformed.transformUp(
@@ -267,7 +267,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
-            if (child instanceof LeafPlan source && (source instanceof EsRelation == false)) {
+            if (child instanceof LeafPlan source && source instanceof EsRelation == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;

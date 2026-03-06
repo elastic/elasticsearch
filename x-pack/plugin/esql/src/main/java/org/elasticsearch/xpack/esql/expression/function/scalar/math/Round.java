@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Math
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,6 +44,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsi
 
 public class Round extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
+    public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.binary(Round.class, Round::new, "round")
+        .withSubCapabilities(
+            List.of(
+                // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
+                "ul_fixes"
+            )
+        );
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 

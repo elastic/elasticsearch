@@ -134,13 +134,11 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
      */
     public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
-
     /**
      * The first byte for the groups of time-series, and subsequent bytes for time-series in that groups.
      * Ideally, we should use 2 bytes, but that might incur overhead for small segments. 32 partitions
      */
     static final int PARTITION_PREFIX_BITS = 13;
-
 
     final int numericBlockShift;
     final int skipIndexIntervalSize;

@@ -742,7 +742,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             Arrays.fill(ords, -1);
         }
 
-
         private static int prefix(BytesRef term) {
             if (term.length < 2) {
                 return term.length == 0 ? 0 : (term.bytes[term.offset] & 0xFF) << (PARTITION_PREFIX_BITS - Byte.SIZE);

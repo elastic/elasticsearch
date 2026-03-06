@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -62,7 +61,7 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (TDigestBlockBuilder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
+    try (TDigestBlock.Builder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendTDigest(evalValue(vector, p, scratchPad));
@@ -84,7 +83,7 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (TDigestBlockBuilder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
+    try (TDigestBlock.Builder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);

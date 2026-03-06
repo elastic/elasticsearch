@@ -22,6 +22,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.apache.lucene.util.BytesRef;
@@ -51,7 +52,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -87,7 +87,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
 
@@ -164,7 +163,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
 
                             @Override
                             protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
-                                if (msg instanceof io.netty.handler.codec.http.HttpResponse httpResponse) {
+                                if (msg instanceof HttpResponse httpResponse) {
                                     assertEquals(200, httpResponse.status().code());
                                     assertEquals(0L, bytesReceived);
                                 } else if (msg instanceof HttpContent hc) {
@@ -172,8 +171,6 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
                                     if (bytesReceived > closeAfterBytes) {
                                         ctx.close();
                                     }
-                                } else {
-                                    assertThat(msg, instanceOf(HttpResponse.class));
                                 }
                             }
                         });

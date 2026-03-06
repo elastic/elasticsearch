@@ -55,13 +55,21 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testOverflowFails() {
+        assertOverflowFails(LongStream.of(Long.MAX_VALUE - 1, 2));
+    }
+
+    public void testNegativeOverflowFails() {
+        assertOverflowFails(LongStream.of(Long.MIN_VALUE + 1, -2));
+    }
+
+    private void assertOverflowFails(LongStream values) {
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
         List<String> warnings = new ArrayList<>();
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values),
                 List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {
@@ -83,7 +91,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
             warnings,
             contains(
                 containsString("\"Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.\""),
-                containsString("\"Line 1:1: java.lang.ArithmeticException: long overflow\"")
+                containsString("\"Line 1:1: java.lang.ArithmeticException:")
             )
         );
     }

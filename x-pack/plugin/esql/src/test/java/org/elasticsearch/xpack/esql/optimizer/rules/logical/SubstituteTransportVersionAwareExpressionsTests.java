@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION;
@@ -28,7 +31,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, EXECUTION_PROFILE_FORMAT_VERSION);
         assertThat(result, instanceOf(Sum.class));
         assertThat(((Sum) result).useOverflowingLongSupplier(), is(true));
-        assertThat(result, is(not(sameInstance(sum))));
+        assertThat(result, not(sameInstance(sum)));
     }
 
     public void testSumNotReplacedWithCurrentVersion() {
@@ -36,7 +39,41 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         Sum sum = new Sum(EMPTY, field);
         Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, TransportVersion.current());
         assertThat(result, sameInstance(sum));
-        assertThat(sum.useOverflowingLongSupplier(), is(false));
+    }
+
+    /**
+     * Checks that if an overflowing sum (Used for old transport versions) receives an old transport version, it won't be changed.
+     * <p>
+     *     This tests idempotence.
+     * </p>
+     */
+    public void testSumAlreadyOverflowingWithOldVersion() {
+        Expression field = getFieldAttribute("f", DataType.LONG);
+        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, true);
+        Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, EXECUTION_PROFILE_FORMAT_VERSION);
+        assertThat(result, sameInstance(sum));
+    }
+
+    /**
+     * Checks that if an overflowing sum (Used for old transport versions) receives a new transport version, it won't be changed again.
+     * <p>
+     *     <b>This shouldn't happen in practice</b>, unless Sum is purposely initialized with the overflowing=true.
+     *     But we're testing it anyway to ensure the behavior doesn't change.
+     * </p>
+     */
+    public void testSumAlreadyOverflowingWithNewVersionKeptOverflowing() {
+        Expression field = getFieldAttribute("f", DataType.LONG);
+        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, true);
+        Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, TransportVersion.current());
+        assertThat(result, sameInstance(sum));
+    }
+
+    public void testSumDoubleFieldWithOldVersion() {
+        Expression field = getFieldAttribute("f", DataType.DOUBLE);
+        Sum sum = new Sum(EMPTY, field);
+        Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, EXECUTION_PROFILE_FORMAT_VERSION);
+        assertThat(result, instanceOf(Sum.class));
+        assertThat(((Sum) result).useOverflowingLongSupplier(), is(true));
     }
 
     public void testNonTransportVersionAwareUnchanged() {

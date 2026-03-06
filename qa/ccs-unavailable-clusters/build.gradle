@@ -15,3 +15,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 tasks.withType(StandaloneRestIntegTestTask).configureEach  {
   usesDefaultDistribution("to be triaged")
 }
+
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}

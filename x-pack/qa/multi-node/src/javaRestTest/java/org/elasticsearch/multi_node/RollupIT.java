@@ -40,6 +40,7 @@ public class RollupIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
+        .module("codecs-common")
         .module("x-pack-rollup")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")

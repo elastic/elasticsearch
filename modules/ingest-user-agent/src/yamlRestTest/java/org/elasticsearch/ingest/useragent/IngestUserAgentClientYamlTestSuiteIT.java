@@ -28,6 +28,7 @@ public class IngestUserAgentClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .configFile("ingest-user-agent/test-regexes.yml", Resource.fromClasspath("test-regexes.yml"))
         .module("ingest-user-agent")
+        .module("codecs-common")
         .build();
 
     @Override

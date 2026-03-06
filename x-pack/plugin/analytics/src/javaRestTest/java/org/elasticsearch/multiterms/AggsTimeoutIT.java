@@ -56,6 +56,7 @@ public class AggsTimeoutIT extends ESRestTestCase {
         .distribution(DistributionType.INTEG_TEST)
         .plugin("x-pack-analytics")
         .module("aggregations")
+        .module("codecs-common")
         .jvmArg("-Xmx1g")
         .build();
 

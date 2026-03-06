@@ -61,7 +61,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").build();
 
     @Override
     protected String getTestRestCluster() {

@@ -16,4 +16,5 @@ esplugin {
 
 dependencies {
   clusterModules project(':modules:reindex')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
 }

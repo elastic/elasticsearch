@@ -20,6 +20,7 @@ public abstract class AbstractFleetIT extends ESRestTestCase {
         .module("mapper-version")
         .module("x-pack-inference")
         .module("data-streams")
+        .module("codecs-common")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user("x_pack_rest_user", "x-pack-test-password")

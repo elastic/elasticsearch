@@ -45,6 +45,7 @@ dependencies {
     spi project('spi')
     clusterModules project(':modules:mapper-extras')
     clusterModules project(':modules:codecs-common')
+    testImplementation(project(':modules:codecs-common'))
 }
 
 tasks.named("dependencyLicenses").configure {

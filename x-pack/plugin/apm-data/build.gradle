@@ -22,6 +22,7 @@ dependencies {
   testImplementation project(':modules:data-streams')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:ingest-geoip')
   clusterModules project(':modules:ingest-user-agent')
   clusterModules project(':modules:lang-mustache')

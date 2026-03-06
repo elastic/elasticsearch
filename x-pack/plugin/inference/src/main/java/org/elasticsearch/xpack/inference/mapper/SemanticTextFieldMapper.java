@@ -176,7 +176,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
-                if (isPresent && Strings.isEmpty(value)) {
+                if (isPresent && Strings.isNullOrBlank(value)) {
                     throw new IllegalArgumentException("[index.semantic_text.default_inference_id] must not be empty");
                 }
             }
@@ -200,9 +200,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
-        String userDefault = INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
-        if (Strings.isEmpty(userDefault) == false) {
-            return userDefault;
+        if (INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.exists(indexSettings.getSettings())) {
+            return INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
         }
         if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
             return DEFAULT_EIS_ELSER_INFERENCE_ID;

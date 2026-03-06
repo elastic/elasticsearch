@@ -169,32 +169,48 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 serverToClientId,
                 listener) -> {
                 planningStartNanos = System.nanoTime();
-                LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
-                    source,
-                    matchFieldsMapping.reindexedMatchFields(),
-                    joinOnConditions,
-                    rightPreJoinPlan,
-                    loadFields
-                );
-                PhysicalPlan preBuiltLookupPlan = new FragmentExec(source, logicalPlan, null, 0);
-
-                // Create setup request for this server
-                // clientToServerId is per-server unique, serverToClientId is shared across all servers
-                LookupFromIndexService.Request setupRequest = new LookupFromIndexService.Request(
-                    sessionId,
-                    lookupIndex,
-                    lookupIndexPattern,
-                    matchFieldsMapping.reindexedMatchFields(),
-                    new Page(0), // Empty page for setup
-                    List.of(), // extractFields embedded in the logical plan's Project node
-                    source,
-                    preBuiltLookupPlan, // Full logical plan wrapped in FragmentExec
-                    null, // joinOnConditions embedded in the logical plan's ParameterizedQuery
-                    clientToServerId,
-                    serverToClientId,
-                    profile,
-                    configuration
-                );
+                LookupFromIndexService.Request setupRequest;
+                if (configuration != null) {
+                    LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
+                        source,
+                        matchFieldsMapping.reindexedMatchFields(),
+                        joinOnConditions,
+                        rightPreJoinPlan,
+                        loadFields
+                    );
+                    PhysicalPlan preBuiltLookupPlan = new FragmentExec(source, logicalPlan, null, 0);
+                    setupRequest = new LookupFromIndexService.Request(
+                        sessionId,
+                        lookupIndex,
+                        lookupIndexPattern,
+                        matchFieldsMapping.reindexedMatchFields(),
+                        new Page(0),
+                        List.of(),
+                        source,
+                        preBuiltLookupPlan,
+                        null,
+                        clientToServerId,
+                        serverToClientId,
+                        profile,
+                        configuration
+                    );
+                } else {
+                    setupRequest = new LookupFromIndexService.Request(
+                        sessionId,
+                        lookupIndex,
+                        lookupIndexPattern,
+                        matchFieldsMapping.reindexedMatchFields(),
+                        new Page(0),
+                        loadFields,
+                        source,
+                        rightPreJoinPlan,
+                        joinOnConditions,
+                        clientToServerId,
+                        serverToClientId,
+                        profile,
+                        null
+                    );
+                }
 
                 lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {
                     planningEndNanos = System.nanoTime();

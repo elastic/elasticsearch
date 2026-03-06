@@ -36,6 +36,7 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -64,9 +65,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -175,7 +180,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
+        PhysicalPlan lookupNodePlan = mapFragmentToPhysical(request.rightPreJoinPlan);
         Expression rightOnlyFilter = lookupNodePlan instanceof FilterExec filterExec ? filterExec.condition() : null;
         return buildQueryGenerator(request.matchFields, request.joinOnConditions, rightOnlyFilter, null, context, aliasFilter, warnings);
     }
@@ -231,16 +236,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     /**
-     * This function will perform any planning needed on the local node
-     * For now, we will just do mapping of the logical plan to physical plan
-     * In the future we can also do local physical and logical optimizations.
-     * We only support a FragmentExec node containing a logical plan or a null plan
-     * If any other plan is sent we will just return null. This can happen in cases
-     * where the coordinator is running an older version that does not support
-     * keeping the plan as Logical Plan inside FragmentExec yet
-     * In those cases, it is safe to ignore the plan sent and return null
+     * Maps the logical plan inside a {@link FragmentExec} to a physical plan.
+     * Returns {@code null} if the input is not a {@link FragmentExec} (e.g. older coordinator
+     * that does not wrap the plan in a {@link FragmentExec}).
      */
-    private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
+    private static PhysicalPlan mapFragmentToPhysical(@Nullable PhysicalPlan physicalPlan) {
         return physicalPlan instanceof FragmentExec fragmentExec ? LocalMapper.INSTANCE.map(fragmentExec.fragment()) : null;
     }
 
@@ -650,8 +650,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             SearchStats searchStats = SearchContextStats.from(List.of(shardContext.executionContext()));
             EsqlFlags flags = new EsqlFlags(clusterService.getClusterSettings());
 
-            LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+            PhysicalPlan physicalPlan;
+            LookupExecutionPlanner.QueryListFromPlanFactory queryListFactory;
+            if (configuration != null) {
+                LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
+                physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+                queryListFactory = this::queryListFromPlan;
+            } else {
+                // BWC: old data node without Configuration
+                // Do not do logical and physical planning (It will fail without configuration)
+                // We just build the physical plan directly using the legacy code
+                physicalPlan = createLegacyLookupPhysicalPlan(request);
+                queryListFactory = (mf, joc, pq, ctx, af, w) -> queryList(request, ctx, af, w);
+            }
             String planString = request.isProfile() ? physicalPlan.toString() : null;
 
             // Build operators using the planning system with the actual source factory
@@ -661,7 +672,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 BlockOptimization.NONE,
                 sourceFactory,
                 foldCtx,
-                this::queryListFromPlan
+                queryListFactory
             );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(
@@ -850,6 +861,48 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             searchStats
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
+    }
+
+    /**
+     * BWC: builds a flat physical plan directly (no logical planning or optimization).
+     * Used when the data node does not send a {@link Configuration}.
+     */
+    private static PhysicalPlan createLegacyLookupPhysicalPlan(TransportRequest request) {
+        FieldAttribute docAttribute = new FieldAttribute(
+            request.source,
+            null,
+            null,
+            EsQueryExec.DOC_ID_FIELD.getName(),
+            EsQueryExec.DOC_ID_FIELD
+        );
+        List<Attribute> sourceOutput = List.of(docAttribute, AbstractLookupService.LOOKUP_POSITIONS_FIELD);
+
+        PhysicalPlan plan = new ParameterizedQueryExec(request.source, sourceOutput, request.matchFields, request.joinOnConditions, null);
+
+        if (request.extractFields.isEmpty() == false) {
+            List<Attribute> extractAttributes = request.extractFields.stream()
+                .<Attribute>map(LookupFromIndexService::getExtractFieldAttribute)
+                .toList();
+            plan = new FieldExtractExec(request.source, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
+        }
+
+        List<Attribute> childOutput = plan.output();
+        List<NamedExpression> projections = new ArrayList<>(childOutput.size() - 1);
+        for (int i = 1; i < childOutput.size(); i++) {
+            projections.add(childOutput.get(i));
+        }
+        plan = new ProjectExec(request.source, plan, projections);
+        return new OutputExec(request.source, plan, null);
+    }
+
+    private static FieldAttribute getExtractFieldAttribute(NamedExpression extractField) {
+        if (extractField instanceof FieldAttribute fieldAttribute) {
+            return fieldAttribute;
+        }
+        throw new EsqlIllegalArgumentException(
+            "Expected extract field to be a FieldAttribute but found [{}]",
+            extractField.getClass().getSimpleName()
+        );
     }
 
     record LookupQueryPlan(

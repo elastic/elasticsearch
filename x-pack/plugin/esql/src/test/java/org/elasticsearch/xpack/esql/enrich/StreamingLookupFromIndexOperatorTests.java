@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -231,6 +232,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         final FragmentExec finalRightPlan = rightPlanWithOptionalPreJoinFilter;
         final Expression finalJoinOnExpression = joinOnExpression;
         final int exchangeBufferSize = QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY);
+        final Configuration finalConfiguration = randomBoolean() ? EsqlTestUtils.TEST_CFG : null;
 
         // Create a factory that produces StreamingLookupFromIndexOperator
         return new Operator.OperatorFactory() {
@@ -252,7 +254,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalJoinOnExpression,
                     exchangeBufferSize,
                     true, // profile - enables plan tracking for mode verification
-                    EsqlTestUtils.TEST_CFG
+                    finalConfiguration
                 );
             }
 

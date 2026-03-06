@@ -193,22 +193,32 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return 0;
             }
 
-            int bytesToRead = buf.remaining();
-            byte[] temp = new byte[bytesToRead];
-            int bytesRead = read(temp, 0, bytesToRead);
+            if (buf.hasArray()) {
+                int bytesRead = read(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
+                if (bytesRead > 0) {
+                    buf.position(buf.position() + bytesRead);
+                }
+                return bytesRead;
+            }
 
+            byte[] temp = new byte[buf.remaining()];
+            int bytesRead = read(temp, 0, temp.length);
             if (bytesRead > 0) {
                 buf.put(temp, 0, bytesRead);
             }
-
             return bytesRead;
         }
 
         @Override
         public void readFully(java.nio.ByteBuffer buf) throws IOException {
-            int remaining = buf.remaining();
-            byte[] temp = new byte[remaining];
-            readFully(temp, 0, remaining);
+            if (buf.hasArray()) {
+                readFully(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
+                buf.position(buf.limit());
+                return;
+            }
+
+            byte[] temp = new byte[buf.remaining()];
+            readFully(temp, 0, temp.length);
             buf.put(temp);
         }
     }

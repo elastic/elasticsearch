@@ -95,7 +95,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         protected void before() {
             assumeFalse(
                 "Tests not currently working correctly with IPv6",
-                Booleans.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "true"))
+                Booleans.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"))
             );
         }
     };

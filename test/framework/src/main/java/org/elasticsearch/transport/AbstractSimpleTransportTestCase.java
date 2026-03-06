@@ -3227,7 +3227,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
         serviceB.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, EmptyRequest::new, (request, channel, task) -> {
             String address = serviceB.getLocalNode().getAddress().toString();
-            address = address.replace("::1", "0:0:0:0:0:0:0:1");
+            address = address.replaceFirst("^::1$", "0:0:0:0:0:0:0:1");
 
             assertThat(
                 channel.toString(),

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -117,6 +118,22 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
         return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
     }
 
+    public IndexMetadata updateMetadataForSearch(IndexMetadata indexMetadata, ShardId shardId) {
+        final var metadataSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
+        if (metadataSummary.compareTo(this) < 0) {
+            final var reshardingMetadata = indexMetadata.getReshardingMetadata();
+            assert reshardingMetadata != null;
+            final var split = reshardingMetadata.getSplit();
+            ShardId targetShardId = shardId;
+            if (split.isSourceShard(shardId.id())) {
+                targetShardId = new ShardId(shardId.getIndex(), split.targetShard(shardId.id()));
+            }
+            final var newReshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(targetShardId, IndexReshardingState.Split.TargetShardState.SPLIT);
+            return IndexMetadata.builder(indexMetadata).reshardingMetadata(newReshardingMetadata).build();
+        } else {
+            return indexMetadata;
+        }
+    }
     /**
      * This method is used in the context of the resharding feature.
      * Given a {@code shardId} and {@code minShardState} i.e. the minimum target shard state required for

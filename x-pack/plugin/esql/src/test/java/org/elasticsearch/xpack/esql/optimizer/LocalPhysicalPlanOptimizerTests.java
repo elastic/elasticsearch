@@ -134,7 +134,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+/**
+ * Unit tests for local physical plan optimization rules. For pushdown-related tests (filter, sort),
+ * prefer adding new cases to {@link PushdownGoldenTests} instead.
+ */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
@@ -892,19 +896,22 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var source = as(eval.child(), EsQueryExec.class);
     }
 
-    /*
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],FINAL,[language_code{r}#7, $
-     *      $c$count{r}#32, $$c$seen{r}#33],12]
-     *   \_ExchangeExec[[language_code{r}#7, $$c$count{r}#32, $$c$seen{r}#33],true]
-     *     \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],INITIAL,[language_code{r}#7,
-     *          $$c$count{r}#34, $$c$seen{r}#35],12]
-     *       \_GrokExec[first_name{f}#19,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@75389ac1],[foo{r}#12]]
-     *         \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
-     *           \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
-     *             \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
-     *               \_EvalExec[[null[INTEGER] AS languages#21]]
-     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[112]
+    /**
+     * Expects
+     * <pre>{@code
+     * LimitExec[1000[INTEGER],12]
+     * \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],FINAL,[l
+     * anguage_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],12]
+     *   \_ExchangeExec[[language_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],true]
+     *     \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],INITIAL,
+     * [language_code{r}#8, $$c$count{r}#35, $$c$seen{r}#36],12]
+     *       \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *         \_ProjectExec[[emp_no{f}#19, languages{r}#22 AS language_code#8]]
+     *           \_FieldExtractExec[emp_no{f}#19]<[],[]>
+     *             \_EvalExec[[null[INTEGER] AS languages#22]]
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
+     *               [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }</pre>
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -925,8 +932,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        var grok = as(agg.child(), GrokExec.class);
-        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var mvexpand = as(agg.child(), MvExpandExec.class);
         var project = as(mvexpand.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);

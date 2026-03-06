@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -60,6 +61,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
      */
     public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
 
+    public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
+        return DiscoveryNode.isStateless(environment.settings())
+            ? new StatelessReindexRelocationNodePicker()
+            : new StatefulReindexRelocationNodePicker();
+    }
+
     @Override
     public List<ActionHandler> getActions() {
         return Arrays.asList(
@@ -86,7 +93,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature),
+            new RestReindexAction(clusterSupportsFeature, settings),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
@@ -101,12 +108,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(
-                ReindexRelocationNodePicker.class,
-                DiscoveryNode.isStateless(services.environment().settings())
-                    ? new StatelessReindexRelocationNodePicker()
-                    : new StatefulReindexRelocationNodePicker()
-            )
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
         );
     }
 

@@ -10,8 +10,8 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -86,10 +87,9 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
 
@@ -98,7 +98,7 @@ public class EvalBenchmark {
     static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod
             selfTest();
@@ -129,6 +129,8 @@ public class EvalBenchmark {
             "coalesce_2_lazy",
             "date_trunc",
             "equal_to_const",
+            "json_extract",
+            "json_extract_object",
             "long_equal_to_long",
             "long_equal_to_int",
             "mv_min",
@@ -233,6 +235,22 @@ public class EvalBenchmark {
                     FOLD_CONTEXT,
                     new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataType.LONG)),
                     layout(longField)
+                ).get(driverContext);
+            }
+            case "json_extract" -> {
+                FieldAttribute keywordField = keywordField();
+                yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)),
+                    layout(keywordField)
+                ).get(driverContext);
+            }
+            case "json_extract_object" -> {
+                FieldAttribute keywordField = keywordField();
+                yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
+                    layout(keywordField)
                 ).get(driverContext);
             }
             case "long_equal_to_long" -> {
@@ -576,6 +594,14 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "json_extract" -> {
+                BytesRef expected = new BytesRef("John");
+                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
+            }
+            case "json_extract_object" -> {
+                BytesRef expected = new BytesRef("{\"name\":\"John\",\"age\":30}");
+                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
+            }
             case "to_lower" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
             case "to_lower_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
             case "to_upper" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
@@ -642,6 +668,14 @@ public class EvalBenchmark {
                     f2.appendLong(-i);
                 }
                 yield new Page(f1.build(), f2.build());
+            }
+            case "json_extract", "json_extract_object" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(json);
+                }
+                yield new Page(builder.build().asBlock());
             }
             case "long_equal_to_long" -> {
                 var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);

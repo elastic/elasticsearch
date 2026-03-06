@@ -168,15 +168,16 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
-         */
-        OPTIONAL_FIELDS(Build.current().isSnapshot()),
-
-        /**
          * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
          * capability until we enable the LOAD option mentioned above.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
+         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         */
+        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1023,6 +1024,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
 
         /**
+         * Support avg as a possible default metric for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1494,9 +1500,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.
@@ -1595,6 +1606,11 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
+         * COALESCE function support for dense_vector type.
+         */
+        COALESCE_DENSE_VECTOR,
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),
@@ -1683,6 +1699,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/120272
          */
         FIX_NO_COLUMNS,
+
+        /**
+         * Fix LimitOperator truncation with zero columns
+         * https://github.com/elastic/elasticsearch/issues/142473
+         */
+        FIX_LIMIT_TRUNCATION_WITH_ZERO_COLUMNS,
 
         /**
          * Support for dots in FUSE attributes
@@ -2151,6 +2173,12 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
@@ -2184,14 +2212,68 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
+         * Produce a {@code warning} and {@code null} when you run
+         * {@code ABS} on {@code Long.MIN_VALUE}.
+         */
+        FN_ABS_MIN_WARNING,
+
+        /**
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,
 
         /**
+         * The {@code GROK}, {@code DISSECT}, {@code URI_PARTS}, and {@code REGISTERED_DOMAIN}
+         * commands accept {@code null} typed parameters and produce {@code null} results.
+         */
+        STR_COMMANDS_ACCEPT_NULL,
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
+        /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
+
+        /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
+         * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
+         */
+        TS_INFO_COMMAND,
+
+        /**
+         * FORK with no implicit LIMIT
+         */
+        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
+        /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
+        /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
+
+        /**
+         * Support for intra-row field references in ROW command.
+         * https://github.com/elastic/elasticsearch/issues/140217
+         */
+        ROW_FIELD_RESOLUTION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

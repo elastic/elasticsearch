@@ -118,7 +118,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
     }
 
-    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    public static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
         // These all should be believably small because we sum them if we have multiple workers
         int total = between(0, 10000000);
         int updated = between(0, total);
@@ -368,5 +368,67 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             includeCreated = true;
         }
         return new ToXContent.MapParams(params);
+    }
+
+    /**
+     * Verifies that {@link BulkByScrollTask.Status#getWriteableName()} returns the expected name used for wire serialization.
+     */
+    public void testGetWriteableName() {
+        BulkByScrollTask.Status status = randomStatusWithoutException();
+        assertEquals(BulkByScrollTask.Status.NAME, status.getWriteableName());
+    }
+
+    /**
+     * Verifies that {@link BulkByScrollTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
+     * that differ only in {@code updated} as equal when {@code includeUpdated} is false.
+     */
+    public void testEqualsWithoutSliceStatusRespectsIncludeUpdated() {
+        BulkByScrollTask.Status status = randomWorkingStatus(null);
+        long otherUpdated = randomValueOtherThan(status.getUpdated(), () -> (long) between(0, 10000));
+        BulkByScrollTask.Status sameExceptUpdated = new BulkByScrollTask.Status(
+            status.getSliceId(),
+            status.getTotal(),
+            otherUpdated,
+            status.getCreated(),
+            status.getDeleted(),
+            status.getBatches(),
+            status.getVersionConflicts(),
+            status.getNoops(),
+            status.getBulkRetries(),
+            status.getSearchRetries(),
+            status.getThrottled(),
+            status.getRequestsPerSecond(),
+            status.getReasonCancelled(),
+            status.getThrottledUntil()
+        );
+        assertTrue(status.equalsWithoutSliceStatus(sameExceptUpdated, false, true));
+        assertFalse(status.equalsWithoutSliceStatus(sameExceptUpdated, true, true));
+    }
+
+    /**
+     * Verifies that {@link BulkByScrollTask.Status#equalsWithoutSliceStatus(Object, boolean, boolean)} treats two statuses
+     * that differ only in {@code created} as equal when {@code includeCreated} is false.
+     */
+    public void testEqualsWithoutSliceStatusRespectsIncludeCreated() {
+        BulkByScrollTask.Status status = randomWorkingStatus(null);
+        long otherCreated = randomValueOtherThan(status.getCreated(), () -> (long) between(0, 10000));
+        BulkByScrollTask.Status sameExceptCreated = new BulkByScrollTask.Status(
+            status.getSliceId(),
+            status.getTotal(),
+            status.getUpdated(),
+            otherCreated,
+            status.getDeleted(),
+            status.getBatches(),
+            status.getVersionConflicts(),
+            status.getNoops(),
+            status.getBulkRetries(),
+            status.getSearchRetries(),
+            status.getThrottled(),
+            status.getRequestsPerSecond(),
+            status.getReasonCancelled(),
+            status.getThrottledUntil()
+        );
+        assertTrue(status.equalsWithoutSliceStatus(sameExceptCreated, true, false));
+        assertFalse(status.equalsWithoutSliceStatus(sameExceptCreated, true, true));
     }
 }

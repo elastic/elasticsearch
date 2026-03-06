@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.MinimalServiceSettingsTests;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -176,6 +178,64 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
                     ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build()
                 )
             )
+        );
+    }
+
+    public void testWithAddedModel_UpdatesGivenExistingWithChangedFingerprint() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newSettings = copySettingsWithNewEndpointMetadataInternal(
+            settings,
+            new EndpointMetadata.Internal(
+                randomValueOtherThan(settings.endpointMetadata().internal().fingerprint(), () -> randomAlphaOfLength(5)),
+                settings.endpointMetadata().internal().version()
+            )
+        );
+
+        var newMetadata = metadata.withAddedModel(inferenceId, newSettings);
+
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
+        assertThat(
+            newMetadata,
+            is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, newSettings)).build()))
+        );
+    }
+
+    public void testWithAddedModel_UpdatesGivenExistingWithChangedVersion() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newSettings = copySettingsWithNewEndpointMetadataInternal(
+            settings,
+            new EndpointMetadata.Internal(
+                settings.endpointMetadata().internal().fingerprint(),
+                randomValueOtherThan(
+                    settings.endpointMetadata().internal().version(),
+                    () -> randomLongBetween(
+                        Optional.ofNullable(settings.endpointMetadata().internal().version()).orElse(0L),
+                        Long.MAX_VALUE
+                    )
+                )
+            )
+        );
+
+        var newMetadata = metadata.withAddedModel(inferenceId, newSettings);
+
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
+        assertThat(
+            newMetadata,
+            is(new ModelRegistryClusterStateMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, newSettings)).build()))
         );
     }
 
@@ -408,5 +468,19 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
 
         var serviceEndpoints = metadata.getServiceInferenceIds(serviceA);
         expectThrows(UnsupportedOperationException.class, () -> serviceEndpoints.add("newId"));
+    }
+
+    private static MinimalServiceSettings copySettingsWithNewEndpointMetadataInternal(
+        MinimalServiceSettings settings,
+        EndpointMetadata.Internal internal
+    ) {
+        return new MinimalServiceSettings(
+            settings.service(),
+            settings.taskType(),
+            settings.dimensions(),
+            settings.similarity(),
+            settings.elementType(),
+            new EndpointMetadata(settings.endpointMetadata().heuristics(), internal, settings.endpointMetadata().display())
+        );
     }
 }

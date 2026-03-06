@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 143567
+summary: "[Inference API] Update authorized endpoints when their fingerprint or version\
+  \ changed"
+type: enhancement

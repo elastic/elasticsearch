@@ -171,7 +171,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                     assertThat(filteredSource, equalTo("{\"count\":42}"));
 
                     LeafStoredFieldLoader sf3 = StoredFieldLoader.empty().getLoader(leaf, docIds);
-                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf.reader(), docIds).source(sf3, 0).internalSourceRef().utf8ToString();
+                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf.reader(), docIds)
+                        .source(sf3, 0)
+                        .internalSourceRef()
+                        .utf8ToString();
                     assertThat(filteredSourceWithDocCount, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
                 }
             }

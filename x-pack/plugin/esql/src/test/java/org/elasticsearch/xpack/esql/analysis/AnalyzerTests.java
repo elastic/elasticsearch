@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVe
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -2602,6 +2603,55 @@ public class AnalyzerTests extends ESTestCase {
                     + "error [notcorrect is not a valid hex string: not a hexadecimal digit: \"n\" = 110]"
             )
         );
+    }
+
+    public void testCoalesceDenseVectorImplicitCastingFromNumeric() {
+        var plan = analyze("""
+            from test | eval v = coalesce(float_vector, [0, 0, 0])
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var coalesce = as(alias.child(), Coalesce.class);
+        var first = as(coalesce.children().get(0), FieldAttribute.class);
+        assertThat(first.name(), is("float_vector"));
+        var second = as(coalesce.children().get(1), ToDenseVector.class);
+        var literal = as(second.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 0, 0)));
+    }
+
+    public void testCoalesceDenseVectorImplicitCastingFromHexString() {
+        var plan = analyze("""
+            from test | eval v = coalesce(float_vector, "3f8000003f8000003f800000")
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var coalesce = as(alias.child(), Coalesce.class);
+        var first = as(coalesce.children().get(0), FieldAttribute.class);
+        assertThat(first.name(), is("float_vector"));
+        assertThat(coalesce.children().get(1), instanceOf(Literal.class));
+        assertThat(coalesce.children().get(1).dataType(), is(DENSE_VECTOR));
+    }
+
+    public void testCoalesceDenseVectorImplicitCastingNullFirst() {
+        var plan = analyze("""
+            from test | eval v = coalesce(null, float_vector, [0, 0, 0])
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var coalesce = as(alias.child(), Coalesce.class);
+        assertThat(coalesce.children().get(1), instanceOf(FieldAttribute.class));
+        var third = as(coalesce.children().get(2), ToDenseVector.class);
+        var literal = as(third.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 0, 0)));
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {

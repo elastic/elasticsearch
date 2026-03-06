@@ -2254,6 +2254,11 @@ public class EsqlCapabilities {
         TS_INFO_COMMAND,
 
         /**
+         * Implicit casting of numeric and keyword arguments to dense_vector in COALESCE.
+         */
+        COALESCE_DENSE_VECTOR_IMPLICIT_CASTING,
+
+        /**
          * Dense_vector SUM aggregation function
          */
         DENSE_VECTOR_SUM_FUNCTION,

@@ -254,7 +254,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null, null, null),
+            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
             finishReason,
             0
         );

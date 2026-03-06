@@ -39,8 +39,7 @@ public class ReasoningDetailTests extends ESTestCase {
     public void testParsingReasoningDetail_UnsupportedTypeValue_ThrowsException() throws IOException {
         String requestJson = """
             {
-                "type": "unknown",
-                "data": "some encrypted data"
+                "type": "unknown"
             }
             """;
 
@@ -56,6 +55,25 @@ public class ReasoningDetailTests extends ESTestCase {
                     "Unrecognized type [unknown] in object [reasoning_detail_type], must be one of [reasoning.encrypted, reasoning.summary, reasoning.text]"
                 )
             );
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testParsingReasoningDetail_NegativeIndex_ThrowsException() throws IOException {
+        String requestJson = """
+            {
+                "type": "reasoning.encrypted",
+                "index": -1
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Field [index] must be non-negative, but was [-1]"));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }

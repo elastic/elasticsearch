@@ -29,6 +29,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCL
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.validateNonNegativeLong;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -78,19 +79,8 @@ public record Reasoning(
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ENABLED_FIELD));
     }
 
-    public Reasoning(
-        @Nullable ReasoningEffort effort,
-        @Nullable Long maxTokens,
-        @Nullable ReasoningSummary summary,
-        @Nullable Boolean exclude,
-        @Nullable Boolean enabled
-    ) {
-        this.effort = effort;
-        this.maxTokens = maxTokens;
-        this.summary = summary;
-        this.exclude = exclude;
-        this.enabled = enabled;
-        validate();
+    public Reasoning {
+        validateFields(effort, maxTokens, enabled);
     }
 
     /**
@@ -100,9 +90,13 @@ public record Reasoning(
      *     <li>Either [effort] is not null, [max_tokens] is not null, or [enabled] is true.
      *     If none of these conditions are met, an exception is thrown.</li>
      *     <li>Both [effort] and [max_tokens] cannot be specified together. If both are non-null, an exception is thrown.</li>
+     *     <li>[max_tokens] must be greater than or equal to 0. If [max_tokens] is negative, an exception is thrown.</li>
      * </ul>
+     * @param effort The reasoning effort level to validate.
+     * @param maxTokens The maximum number of tokens for reasoning to validate.
+     * @param enabled `enabled` field to validate.
      */
-    private void validate() {
+    private static void validateFields(ReasoningEffort effort, Long maxTokens, Boolean enabled) {
         if ((effort == null && maxTokens == null) && Boolean.TRUE.equals(enabled) == false) {
             throw new ElasticsearchStatusException(
                 "Either [effort] or [max_tokens] must not be null, or [enabled] must be true.",
@@ -112,6 +106,7 @@ public record Reasoning(
         if (effort != null && maxTokens != null) {
             throw new ElasticsearchStatusException("[effort] and [max_tokens] cannot be specified together.", RestStatus.BAD_REQUEST);
         }
+        validateNonNegativeLong(maxTokens, MAX_TOKENS_FIELD);
     }
 
     public Reasoning(StreamInput in) throws IOException {

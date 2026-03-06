@@ -56,16 +56,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
 
         var messages = request.messages()
             .stream()
-            .map(
-                message -> new Message(
-                    message.content(),
-                    message.role(),
-                    message.toolCallId(),
-                    message.toolCalls(),
-                    message.reasoning(),
-                    message.reasoningDetails()
-                )
-            )
+            .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
             .toList();
 
         switch (serviceSettings.provider()) {

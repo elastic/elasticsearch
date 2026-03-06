@@ -42,6 +42,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMM
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.validateNonNegativeLong;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -138,6 +139,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
     private final Long index;
 
     protected ReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index) {
+        validateNonNegativeLong(index, INDEX_FIELD);
         this.format = format;
         this.id = id;
         this.index = index;

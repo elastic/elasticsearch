@@ -178,6 +178,24 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         }
     }
 
+    public void testParsingReasoning_MaxTokensLessThanZero_ThrowsException() throws IOException {
+        String requestJson = """
+            {
+                "max_tokens": -1
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Field [max_tokens] must be non-negative, but was [-1]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
     @Override
     protected Reasoning mutateInstanceForVersion(Reasoning instance, TransportVersion version) {
         // checks for version compatibility are done outside of Reasoning class, so we can return the instance as is without mutation

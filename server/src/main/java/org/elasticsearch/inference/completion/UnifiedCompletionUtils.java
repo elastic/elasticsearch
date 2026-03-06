@@ -12,6 +12,7 @@ package org.elasticsearch.inference.completion;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -153,6 +154,15 @@ public final class UnifiedCompletionUtils {
             Strings.format("Unrecognized type [%s] in object [%s], must be one of %s", name, containingObject, EnumSet.allOf(clazz)),
             RestStatus.BAD_REQUEST
         );
+    }
+
+    public static void validateNonNegativeLong(@Nullable Long index, String fieldName) {
+        if (index != null && index < 0) {
+            throw new ElasticsearchStatusException(
+                Strings.format("Field [%s] must be non-negative, but was [%d]", fieldName, index),
+                RestStatus.BAD_REQUEST
+            );
+        }
     }
 
     private UnifiedCompletionUtils() {}

@@ -419,8 +419,13 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             @Nullable Integer cachedTokens,
             @Nullable CompletionTokenDetails completionTokenDetails
         ) implements Writeable {
+
+            public Usage(int completionTokens, int promptTokens, int totalTokens, @Nullable Integer cachedTokens) {
+                this(completionTokens, promptTokens, totalTokens, cachedTokens, null);
+            }
+
             public Usage(int completionTokens, int promptTokens, int totalTokens) {
-                this(completionTokens, promptTokens, totalTokens, null, null);
+                this(completionTokens, promptTokens, totalTokens, null);
             }
 
             private Usage(StreamInput in) throws IOException {

@@ -1179,7 +1179,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a possibly-{@code null} collection of {@link NamedWriteable} objects which can then be read using {@link
      * StreamInput#readOptionalNamedWriteableCollectionAsList}.
      */
-    public void writeOptionalNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
+    public void writeOptionalNamedWriteableCollection(@Nullable Collection<? extends NamedWriteable> list) throws IOException {
         if (list == null) {
             writeBoolean(false);
         } else {

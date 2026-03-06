@@ -73,7 +73,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int flatVectorThreshold
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
-        his.useDirectIOReads = useDirectIOReads;
+        this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
         this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;

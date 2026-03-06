@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -52,9 +52,15 @@ import java.util.concurrent.ExecutorService;
 public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final String NAME = "ES940DiskBBQVectorsFormat";
+    // centroid ordinals -> centroid values, offsets
+    public static final String CENTROID_EXTENSION = "cenivf";
+    // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized vectors
+    public static final String CLUSTER_EXTENSION = "clivf";
+    public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 1;
     public static final int VERSION_CURRENT = VERSION_START;
+    public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatVectorScorer.INSTANCE

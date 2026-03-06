@@ -35,7 +35,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;

@@ -49,7 +49,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -129,8 +129,8 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.IndexVersions.DISK_BBQ_QUANTIZE_BITS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es92;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {

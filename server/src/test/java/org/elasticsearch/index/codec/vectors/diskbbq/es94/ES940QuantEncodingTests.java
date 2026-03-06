@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.elasticsearch.test.ESTestCase;
 

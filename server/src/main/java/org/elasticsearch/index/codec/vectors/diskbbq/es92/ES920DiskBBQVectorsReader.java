@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es92;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -22,6 +22,11 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
+import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -32,7 +37,7 @@ import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectors
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormat.BULK_SIZE;
 import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
 
 /**
@@ -42,7 +47,18 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
-        super(state, getFormatReader);
+        super(
+            state,
+            getFormatReader,
+            ES920DiskBBQVectorsFormat.NAME,
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES920DiskBBQVectorsFormat.VERSION_START,
+            ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+        );
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)

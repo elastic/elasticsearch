@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -30,6 +30,16 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -82,6 +92,11 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             useDirectIOReads,
             rawVectorDelegate,
             ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.NAME,
+            ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            true,
             flatVectorThreshold
         );
         this.vectorPerCluster = vectorPerCluster;

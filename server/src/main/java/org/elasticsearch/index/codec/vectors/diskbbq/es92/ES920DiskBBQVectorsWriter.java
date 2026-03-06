@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es92;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
@@ -27,6 +27,15 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -39,7 +48,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormat.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -91,7 +100,19 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         int numMergeWorkers,
         int flatVectorThreshold
     ) throws IOException {
-        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, writeVersion, flatVectorThreshold);
+        super(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            rawVectorDelegate,
+            writeVersion,
+            ES920DiskBBQVectorsFormat.NAME,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            flatVectorThreshold
+        );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.mergeExec = mergeExec;

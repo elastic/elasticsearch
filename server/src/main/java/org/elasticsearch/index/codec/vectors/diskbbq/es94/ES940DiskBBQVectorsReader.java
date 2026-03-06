@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -30,6 +30,13 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -51,7 +58,18 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
 
     public ES940DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
-        super(state, getFormatReader);
+        super(
+            state,
+            getFormatReader,
+            ES940DiskBBQVectorsFormat.NAME,
+            ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES940DiskBBQVectorsFormat.VERSION_START,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+        );
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

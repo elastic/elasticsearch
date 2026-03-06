@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -50,13 +50,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;

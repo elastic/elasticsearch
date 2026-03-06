@@ -186,7 +186,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 MinimalServiceSettings.textEmbedding(
                     ElasticInferenceService.NAME,
                     1024,
-                    SimilarityMeasure.DOT_PRODUCT,
+                    SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 ),
                 mock(InferenceService.class)
@@ -329,16 +329,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.isEmpty());
     }
 
-    public void testDefaultInferenceIdUsesElserForPreJinaV5Indices() throws Exception {
-        // The version gate applies only to jina v5; pre-jina indices without EIS ELSER fall back to ML-node ELSER.
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        IndexVersion preJinaV5Version = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, preJinaV5Version);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-    }
-
     public void testDefaultInferenceIdFallsBackWhenEisUnavailable() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
@@ -350,7 +340,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultInferenceIdFallsBackToEisElserWhenJinaV5Unavailable() throws Exception {
-        // When jina v5 is unavailable but EIS ELSER is available, a new index should default to EIS ELSER.
+        // When jina v5 is unavailable but EIS ELSER is available, default to EIS ELSER.
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
@@ -362,8 +352,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultInferenceIdUsesEisElserForPreJinaV5Indices() throws Exception {
-        // The version gate applies only to jina v5. EIS ELSER → ML-node ELSER was the legacy
-        // fallback behavior and should be preserved for pre-jina v5 indices.
+        // On pre jina v5 indices, default to EIS ELSER.
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
@@ -378,12 +367,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID), removalFuture);
         assertTrue("Failed to remove default EIS Jina v5 endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
-    }
-
-    private void removeDefaultEisElserEndpoint() {
-        PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
-        globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);
-        assertTrue("Failed to remove default EIS ELSER endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
     }
 
     private void registerDefaultEisElserEndpoint() {
@@ -738,6 +721,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             oldInferenceId,
+            null,
             previousModelSettings,
             IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5
         );
@@ -1806,15 +1790,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private MapperService mapperServiceForFieldWithModelSettings(String fieldName, String inferenceId, MinimalServiceSettings modelSettings)
         throws IOException {
         return mapperServiceForFieldWithModelSettings(fieldName, inferenceId, null, modelSettings);
-    }
-
-    private MapperService mapperServiceForFieldWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        MinimalServiceSettings modelSettings,
-        IndexVersion minIndexVersion
-    ) throws IOException {
-        return mapperServiceForFieldWithModelSettings(fieldName, inferenceId, null, modelSettings, minIndexVersion);
     }
 
     private MapperService mapperServiceForFieldWithModelSettings(

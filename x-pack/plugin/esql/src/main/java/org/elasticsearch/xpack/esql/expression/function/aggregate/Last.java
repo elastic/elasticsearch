@@ -16,6 +16,12 @@ import org.elasticsearch.compute.aggregation.AllLastDoubleByLongAggregatorFuncti
 import org.elasticsearch.compute.aggregation.AllLastFloatByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastIntByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -159,15 +165,30 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        final DataType type = field().dataType();
-        return switch (type) {
+        final DataType searchFieldType = field().dataType();
+        final DataType sortFieldType = sort().dataType();
+
+        if (sortFieldType == DataType.NULL || sort().foldable()) {
+            return switch (searchFieldType) {
+                // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
+                case LONG, DATETIME, DATE_NANOS -> new AnyLongAggregatorFunctionSupplier();
+                case INTEGER -> new AnyIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
+                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AnyBytesRefAggregatorFunctionSupplier();
+                case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        return switch (searchFieldType) {
             case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
             case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
             case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
             case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
             case KEYWORD, TEXT, IP -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
             case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
         };
     }
 

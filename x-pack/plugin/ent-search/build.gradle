@@ -39,6 +39,7 @@ dependencies {
   javaRestTestImplementation(project(':modules:codecs-common'))
 
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

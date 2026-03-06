@@ -33,6 +33,7 @@ public class ConnectorSecretsSystemIndexIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-ent-search")
+        .module("codecs-common")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user("x_pack_rest_user", "x-pack-test-password")

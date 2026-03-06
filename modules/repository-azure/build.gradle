@@ -87,6 +87,7 @@ dependencies {
   // runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
+  testImplementation(project(':modules:codecs-common'))
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
 }
 

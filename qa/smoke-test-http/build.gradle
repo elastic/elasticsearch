@@ -15,5 +15,6 @@ dependencies {
   internalClusterTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   internalClusterTestImplementation project(':modules:rest-root')
   clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:codecs-common")
   internalClusterTestImplementation(project(':modules:codecs-common'))
 }

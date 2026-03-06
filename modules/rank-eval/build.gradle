@@ -23,4 +23,5 @@ restResources {
 
 dependencies {
   clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:codecs-common')
 }

@@ -33,6 +33,7 @@ public class AsyncSearchDeleteIT extends ESRestTestCase {
 
     private static ElasticsearchCluster getCluster() {
         var builder = ElasticsearchCluster.local().module("x-pack-async-search").user("user1", "x-pack-test-password", "user1", false);
+        builder.module("codecs-common");
         if (Build.current().isSnapshot()) {
             // Only in non-release builds we can use the error_query
             builder = builder.module("test-error-query");

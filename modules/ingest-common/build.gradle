@@ -23,6 +23,7 @@ dependencies {
   api project(':libs:grok')
   api project(':libs:dissect')
   api project(':libs:web-utils')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
 }
 
 restResources {

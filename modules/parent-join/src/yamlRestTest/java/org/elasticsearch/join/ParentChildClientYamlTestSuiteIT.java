@@ -28,7 +28,7 @@ public class ParentChildClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("parent-join").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").module("parent-join").build();
 
     @Override
     protected String getTestRestCluster() {

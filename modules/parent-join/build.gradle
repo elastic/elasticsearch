@@ -20,3 +20,7 @@ restResources {
     include '_common', 'bulk', 'cluster', 'get', 'nodes', 'indices', 'index', 'search'
   }
 }
+
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}

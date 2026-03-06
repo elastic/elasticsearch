@@ -23,6 +23,7 @@ dependencies {
   runtimeOnly 'org.ow2.asm:asm-commons:9.9'
   runtimeOnly 'org.ow2.asm:asm-tree:9.9'
   runtimeOnly 'org.ow2.asm:asm-analysis:9.9'
+  internalClusterTestImplementation(project(':modules:codecs-common'))
   clusterModules project(':modules:codecs-common')
 }
 restResources {

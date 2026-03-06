@@ -13,31 +13,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ClampMin}.
+ * {@link ExpressionEvaluator} implementation for {@link ClampMin}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ClampMinBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ClampMinBytesRefEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ClampMinBytesRefEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
-  private final EvalOperator.ExpressionEvaluator min;
+  private final ExpressionEvaluator min;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ClampMinBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      EvalOperator.ExpressionEvaluator min, DriverContext driverContext) {
+  public ClampMinBytesRefEvaluator(Source source, ExpressionEvaluator field,
+      ExpressionEvaluator min, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.min = min;
@@ -135,15 +135,15 @@ public final class ClampMinBytesRefEvaluator implements EvalOperator.ExpressionE
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    private final EvalOperator.ExpressionEvaluator.Factory min;
+    private final ExpressionEvaluator.Factory min;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory min) {
+    public Factory(Source source, ExpressionEvaluator.Factory field,
+        ExpressionEvaluator.Factory min) {
       this.source = source;
       this.field = field;
       this.min = min;

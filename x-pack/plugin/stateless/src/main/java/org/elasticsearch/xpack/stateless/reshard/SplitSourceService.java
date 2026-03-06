@@ -42,6 +42,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -415,7 +416,8 @@ public class SplitSourceService {
         private enum Outcome {
             HANDOFF_SUCCESS,
             SOURCE_PRIMARY_ADVANCED,
-            TARGET_PRIMARY_ADVANCED
+            TARGET_PRIMARY_ADVANCED,
+            INDEX_DELETED
         }
 
         private static final class Decision {
@@ -489,6 +491,10 @@ public class SplitSourceService {
                                 logger.debug(message);
                                 listener.onFailure(new StaleSplitRequestException(message));
                             }
+                            case INDEX_DELETED -> {
+                                logger.debug("Index [{}] was deleted while waiting for handoff", targetShardId.getIndex());
+                                listener.onFailure(new IndexNotFoundException(targetShardId.getIndex()));
+                            }
                         }
                     }
 
@@ -512,7 +518,12 @@ public class SplitSourceService {
 
         private boolean hasConverged(ClusterState clusterState) {
             Index index = targetShardId.getIndex();
-            IndexMetadata indexMetadata = clusterState.metadata().projectFor(index).getIndexSafe(index);
+            Optional<IndexMetadata> indexMetadataOpt = clusterState.metadata().findIndex(index);
+            if (indexMetadataOpt.isEmpty()) {
+                decision.outcome = Outcome.INDEX_DELETED;
+                return true;
+            }
+            IndexMetadata indexMetadata = indexMetadataOpt.get();
 
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 

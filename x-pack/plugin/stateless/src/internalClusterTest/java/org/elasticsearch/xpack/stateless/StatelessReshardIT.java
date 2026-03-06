@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocat
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -159,6 +160,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
 
 public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -1729,14 +1731,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         ensureStableCluster(1);
 
-        final String successIndexName = "test-index-success";
         final String failsIndexName = "test-index-fails";
-        createIndex(successIndexName, indexSettings(1, 0).build());
         createIndex(failsIndexName, indexSettings(1, 0).build());
-        ensureGreen(successIndexName, failsIndexName);
+        ensureGreen(failsIndexName);
 
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(successIndexName, 2)).actionGet();
-
+        // We are allowed only to double the number of shards
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(failsIndexName, 4)).actionGet()
@@ -2020,7 +2019,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")
     public void testReshardTargetWillNotTransitionToHandoffIfSourcePrimaryTermChanged() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
@@ -2076,6 +2074,54 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // The primary term has synchronized with the source
         assertThat(getCurrentPrimaryTerm(index, 1), equalTo(getCurrentPrimaryTerm(index, 0)));
+    }
+
+    public void testDeleteIndexOnceHandoffInitiated() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+        indexDocs(indexName, 100);
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait for the first handoff attempt (UpdateSplitTargetShardStateAction sent to target shard)
+        handoffAttemptedLatch.await();
+
+        // Delete the index while handoff is in progress
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
+
+        // Release the handoff so the in-flight request proceeds; reshard will see index is gone
+        handoffLatch.countDown();
+
+        // Index must be gone from cluster state
+        IndexNotFoundException inf = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get()
+        );
+
+        assertThat(inf.getMessage(), equalTo("no such index [" + indexName + "]"));
+        ensureStableCluster(2);
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")

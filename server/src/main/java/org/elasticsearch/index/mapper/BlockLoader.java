@@ -215,17 +215,6 @@ public interface BlockLoader {
          *                      will have a value for field x whether x is dense or sparse in the index.
          */
         BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
-
-        /**
-         * Reads a single document's value directly into {@code builder}, avoiding
-         * the overhead of creating and closing a temporary {@link Block}. Returns
-         * {@code true} if the value was written, {@code false} if this reader does
-         * not support single-doc reads and the caller should fall back to
-         * {@link #read}.
-         */
-        default boolean readSingleDoc(int docId, Builder builder) throws IOException {
-            return false;
-        }
     }
 
     /**

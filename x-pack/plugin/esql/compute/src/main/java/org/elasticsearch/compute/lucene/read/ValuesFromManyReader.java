@@ -121,7 +121,7 @@ class ValuesFromManyReader extends ValuesReader {
                     .newBlockBuilder(docs.getPositionCount() - offset, operator.driverContext.blockFactory());
             }
             int bytesRefFieldCount = bytesRefFieldCount();
-            if (docs.singleShardSingleSegment() && bytesRefFieldCount > 100) {
+            if (docs.singleShardSingleSegment() && bytesRefFieldCount >= operator.docSequenceBytesRefFieldThreshold) {
                 if (log.isDebugEnabled()) {
                     log.debug("load according to doc sequence, the number of BytesRef fields is {}", bytesRefFieldCount);
                 }
@@ -216,31 +216,11 @@ class ValuesFromManyReader extends ValuesReader {
 
         /**
          * Reads column-at-a-time fields for a single position in the doc vector.
-         * Prefers {@link BlockLoader.ColumnAtATimeReader#readSingleDoc} which writes
-         * directly into the builder, falling back to the Block-based path when unsupported.
          */
         private void readColumnAtATimeSingleDoc(int position) throws IOException {
             if (columnAtATime.isEmpty()) {
                 return;
             }
-            /*
-            int docId = docs.docs().getInt(position);
-            ValuesReaderDocs readerDocs = null;
-            for (CurrentWork c : columnAtATime) {
-                assert c.rowStride == null;
-                if (c.columnAtATime.readSingleDoc(docId, (BlockLoader.Builder) c.builder)) {
-                    continue;
-                }
-                if (readerDocs == null) {
-                    readerDocs = new ValuesReaderDocs(docs);
-                    readerDocs.setCount(position + 1);
-                }
-                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, position, c.field.info.nullsFiltered())) {
-                    assert read.getPositionCount() == 1 : read.getPositionCount() + " != 1 " + read;
-                    c.builder.copyFrom(read, 0, 1);
-                }
-            }
-             */
             ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs);
             readerDocs.setCount(position + 1);
             for (CurrentWork c : columnAtATime) {
@@ -250,7 +230,6 @@ class ValuesFromManyReader extends ValuesReader {
                     c.builder.copyFrom(read, 0, 1);
                 }
             }
-
         }
 
         /**

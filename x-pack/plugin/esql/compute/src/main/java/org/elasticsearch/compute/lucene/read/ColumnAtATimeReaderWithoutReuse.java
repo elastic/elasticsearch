@@ -32,14 +32,6 @@ public record ColumnAtATimeReaderWithoutReuse(
     }
 
     @Override
-    public boolean readSingleDoc(int docId, BlockLoader.Builder builder) throws IOException {
-        try (BlockLoader.ColumnAtATimeReader reader = fn.apply(breaker)) {
-            track.accept(reader);
-            return reader.readSingleDoc(docId, builder);
-        }
-    }
-
-    @Override
     public boolean canReuse(int startingDocID) {
         // There's no state preserved to reuse
         return true;

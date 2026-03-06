@@ -70,12 +70,6 @@ public class ConstantBytes implements BlockLoader {
         }
 
         @Override
-        public boolean readSingleDoc(int docId, Builder builder) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(value);
-            return true;
-        }
-
-        @Override
         public boolean canReuse(int startingDocID) {
             return true;
         }

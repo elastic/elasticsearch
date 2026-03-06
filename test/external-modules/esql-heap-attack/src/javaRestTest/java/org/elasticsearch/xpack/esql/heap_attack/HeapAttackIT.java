@@ -761,7 +761,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
                     bulk.append(randomNumericValue(type));
                 } else {
                     bulk.append('"');
-                    bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
+                    bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f == 0 ? d % 10 : f % 10).repeat(fieldSize));
                     bulk.append('"');
                 }
             }

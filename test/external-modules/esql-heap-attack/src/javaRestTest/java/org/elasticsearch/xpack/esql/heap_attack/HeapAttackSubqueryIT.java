@@ -16,6 +16,7 @@ import org.elasticsearch.test.ListMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,7 +74,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
-        // TODO OOM, TopN does not split large page in buildResult()
         int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
@@ -131,8 +131,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
-        // TODO OOM, different from sort with giant text field, VTopN does not split large page in buildResult(),
-        // also ValuesFromManyReader doesn't honor jumboBytes
         int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
@@ -247,6 +245,70 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
+    /**
+     * Verifies that loadDocSequence in ValuesFromManyReader returns correct field values
+     * when reading 1000 keyword fields. Uses 10 docs to stay under the circuit breaker limit.
+     */
+    public void testLoadDocSequenceReturnsCorrectResultsKeyword() throws IOException {
+        int docs = 10;
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
+
+        List<Map<String, String>> columns = new ArrayList<>();
+        for (int f = 0; f < 1000; f++) {
+            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", "keyword");
+            columns.add(column);
+        }
+
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithSortInMainQuery(subquery, "manybigfields", "f000");
+            assertEquals(columns, response.get("columns"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) response.get("values");
+            assertEquals(docs * subquery, values.size());
+
+            int count = 0;
+            for (List<Object> row : values) {
+                assertEquals(1000, row.size());
+                for (int f = 0; f < 1000; f++) {
+                    String value = f == 0 ? Integer.toString(count / subquery) : Integer.toString(f % 10);
+                    assertEquals(value.repeat(1024), row.get(f));
+                }
+                count++;
+            }
+        }
+    }
+
+    public void testLoadDocSequenceReturnsCorrectResultsText() throws IOException {
+        int docs = 10;
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", false);
+
+        List<Map<String, String>> columns = new ArrayList<>();
+        for (int f = 0; f < 1000; f++) {
+            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", "text");
+            columns.add(column);
+        }
+
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithSortInMainQuery(subquery, "manybigfields", "f000");
+            assertEquals(columns, response.get("columns"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) response.get("values");
+            assertEquals(docs * subquery, values.size());
+
+            int count = 0;
+            for (List<Object> row : values) {
+                assertEquals(1000, row.size());
+                for (int f = 0; f < 1000; f++) {
+                    String value = f == 0 ? Integer.toString(count / subquery) : Integer.toString(f % 10);
+                    assertEquals(value.repeat(1024), row.get(f));
+                }
+                count++;
+            }
+        }
+    }
+
     private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
         StringBuilder query = startQuery();
         String subquery = "(FROM " + indexName + " )";
@@ -254,7 +316,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);
         }
-        // the limit should not be necessary, it is just to limit the result size for giant text test temporarily
         query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
@@ -279,7 +340,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     private Map<String, Object> buildSubqueriesWithSort(int subqueries, String indexName, String sortKeys) throws IOException {
         StringBuilder query = startQuery();
         StringBuilder subquery = new StringBuilder();
-        // the limit is added to avoid unbounded sort
         subquery.append("(FROM ").append(indexName).append(" | SORT ").append(sortKeys).append(" )");
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
@@ -287,5 +347,16 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
         query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    private Map<String, Object> buildSubqueriesWithSortInMainQuery(int subqueries, String indexName, String sortKeys) throws IOException {
+        StringBuilder query = startQuery();
+        String subquery = "(FROM " + indexName + " )";
+        query.append("FROM ").append(subquery);
+        for (int i = 1; i < subqueries; i++) {
+            query.append(", ").append(subquery);
+        }
+        query.append(" | SORT ").append(sortKeys).append(" \"}");
+        return responseAsMap(query(query.toString(), "columns, values"));
     }
 }

@@ -531,7 +531,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             ),
             true,
             0,
-            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
     }
 

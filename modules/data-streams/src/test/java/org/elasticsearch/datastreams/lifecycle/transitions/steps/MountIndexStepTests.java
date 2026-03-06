@@ -38,7 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -54,19 +53,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.datastreams.lifecycle.transitions.steps.IndexCreationStep.DLM_FROZEN_INDEX_PREFIX;
-import static org.elasticsearch.datastreams.lifecycle.transitions.steps.IndexCreationStep.SNAPSHOT_NAME_PREFIX;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MountIndexStep.DLM_FROZEN_INDEX_PREFIX;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MountIndexStep.SNAPSHOT_NAME_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndexCreationStepTests extends ESTestCase {
+public class MountIndexStepTests extends ESTestCase {
 
     private static final String TEST_REPOSITORY = "test-repo";
 
-    private IndexCreationStep indexCreationStep;
+    private MountIndexStep mountIndexStep;
     private ProjectId projectId;
     private String indexName;
     private Index index;
@@ -80,7 +79,7 @@ public class IndexCreationStepTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
-        indexCreationStep = new IndexCreationStep();
+        mountIndexStep = new MountIndexStep();
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
         index = new Index(indexName, randomAlphaOfLength(10));
@@ -111,24 +110,24 @@ public class IndexCreationStepTests extends ESTestCase {
 
     public void testStepNotCompletedWhenMountedIndexDoesNotExist() {
         ProjectState projectState = projectStateBuilder().build();
-        assertFalse(indexCreationStep.stepCompleted(index, projectState));
+        assertFalse(mountIndexStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenMountedIndexExistsButShardsNotActive() {
         ProjectState projectState = projectStateBuilder().withMountedIndex().withRouting(false).build();
-        assertFalse(indexCreationStep.stepCompleted(index, projectState));
+        assertFalse(mountIndexStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenMountedIndexExistsAndAllPrimaryShardsActive() {
         ProjectState projectState = projectStateBuilder().withMountedIndex().withRouting(true).build();
-        assertTrue(indexCreationStep.stepCompleted(index, projectState));
+        assertTrue(mountIndexStep.stepCompleted(index, projectState));
     }
 
     public void testMaybeMountSnapshotSendsMountRequest() {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
 
         assertThat("mount request should have been captured", capturedMountRequest.get(), is(notNullValue()));
         MountSearchableSnapshotRequest req = capturedMountRequest.get();
@@ -144,7 +143,7 @@ public class IndexCreationStepTests extends ESTestCase {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
 
         assertThat(capturedMountRequest.get(), is(notNullValue()));
         String[] ignored = capturedMountRequest.get().ignoreIndexSettings();
@@ -152,65 +151,11 @@ public class IndexCreationStepTests extends ESTestCase {
         assertThat(ignored[0], equalTo("index.routing.allocation.total_shards_per_node"));
     }
 
-    public void testMountSnapshotWithUnexpectedStatusRecordsError() {
-        ProjectState projectState = projectStateBuilder().build();
-        DlmStepContext stepContext = createStepContext(projectState);
-
-        AtomicReference<ActionListener<RestoreSnapshotResponse>> listenerRef = new AtomicReference<>();
-        Client badStatusClient = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
-            @Override
-            @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (request instanceof MountSearchableSnapshotRequest) {
-                    listenerRef.set((ActionListener<RestoreSnapshotResponse>) listener);
-                }
-            }
-        };
-        DlmStepContext badStatusContext = new DlmStepContext(
-            index,
-            projectState,
-            deduplicator,
-            errorStore,
-            randomIntBetween(1, 10),
-            badStatusClient,
-            Clock.systemDefaultZone()
-        );
-
-        indexCreationStep.maybeMountSnapshot(badStatusContext);
-        assertThat(listenerRef.get(), is(notNullValue()));
-
-        // Simulate a bad-status response by calling onFailure with a suitable exception.
-        // (The production code calls l.onFailure for non-OK/ACCEPTED, so we verify error recording.)
-        listenerRef.get()
-            .onFailure(
-                new ElasticsearchException(
-                    "DLM failed to mount frozen index ["
-                        + DLM_FROZEN_INDEX_PREFIX
-                        + indexName
-                        + "] for original index ["
-                        + indexName
-                        + "], got response ["
-                        + RestStatus.INTERNAL_SERVER_ERROR
-                        + "]"
-                )
-            );
-
-        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(
-            Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(),
-            containsString("DLM failed to mount frozen index")
-        );
-    }
-
     public void testMaybeMountSnapshotWithFailureRecordsError() {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
         ElasticsearchException failure = new ElasticsearchException("mount failed");
@@ -224,7 +169,7 @@ public class IndexCreationStepTests extends ESTestCase {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
         RestoreInfo restoreInfo = new RestoreInfo("test-snap", List.of(DLM_FROZEN_INDEX_PREFIX + indexName), 1, 1);
@@ -237,7 +182,7 @@ public class IndexCreationStepTests extends ESTestCase {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
         capturedMountListener.get().onResponse(new RestoreSnapshotResponse((RestoreInfo) null));
@@ -249,7 +194,7 @@ public class IndexCreationStepTests extends ESTestCase {
         ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        indexCreationStep.maybeMountSnapshot(stepContext);
+        mountIndexStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
         ElasticsearchException networkFailure = new ElasticsearchException("connection refused");
@@ -274,7 +219,7 @@ public class IndexCreationStepTests extends ESTestCase {
     /**
      * Builder for creating {@link ProjectState} instances for testing, using a cluster-level
      * metadata setting that provides the default repository name required by
-     * {@link IndexCreationStep#maybeMountSnapshot}.
+     * {@link MountIndexStep#maybeMountSnapshot}.
      */
     private class ProjectStateBuilder {
         private boolean withMountedIndex = false;

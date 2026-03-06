@@ -11,29 +11,26 @@ package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.List;
 import java.util.Optional;
 
-public class IndexCreationStep implements DlmStep {
+public class MountIndexStep implements DlmStep {
 
-    private static final Logger logger = LogManager.getLogger(IndexCreationStep.class);
+    private static final Logger logger = LogManager.getLogger(MountIndexStep.class);
     public static final String DLM_FROZEN_INDEX_PREFIX = "dlm-frozen-";
 
     /**
@@ -72,7 +69,7 @@ public class IndexCreationStep implements DlmStep {
      */
     @Override
     public String stepName() {
-        return "Index Creation";
+        return "Mount Frozen Index";
     }
 
     @Override
@@ -109,17 +106,6 @@ public class IndexCreationStep implements DlmStep {
         stepContext.client()
             .projectClient(stepContext.projectId())
             .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest, listener.delegateFailureAndWrap((l, response) -> {
-                if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {
-                    String errorMessage = Strings.format(
-                        "DLM failed to mount frozen index [%s] for original index [%s], got response [%s]",
-                        getMountedIndexName(stepContext.indexName()),
-                        stepContext.indexName(),
-                        response.status()
-                    );
-                    ElasticsearchException e = new ElasticsearchException(errorMessage);
-                    l.onFailure(e);
-                    return;
-                }
                 logger.info(
                     "DLM successfully mounted frozen index [{}] for original index [{}]",
                     getMountedIndexName(stepContext.indexName()),

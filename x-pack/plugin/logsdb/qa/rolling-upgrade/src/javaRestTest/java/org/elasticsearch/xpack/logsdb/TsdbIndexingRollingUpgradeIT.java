@@ -29,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.logsdb.TsdbIT.formatInstant;
 import static org.elasticsearch.xpack.logsdb.TsdbIT.getTemplate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -47,7 +46,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         // If cluster has support for synthetic id, randomly set index.mapping.synthetic_id to true/false
         // If cluster doesn't have support, don't set index.mapping.synthetic_id at all (null),
         // indicated by oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)==false
-        Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
+        Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID_DEFAULT) ? randomBoolean() : null;
 
         String dataStreamName = "k9s";
         createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), getTemplate(useSyntheticId));

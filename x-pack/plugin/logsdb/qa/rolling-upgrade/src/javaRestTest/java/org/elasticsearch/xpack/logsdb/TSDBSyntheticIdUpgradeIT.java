@@ -38,7 +38,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         int numNodes = getCluster().getNumNodes();
         boolean isServerless = isServerless();
 
-        if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
+        if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID_DEFAULT)) {
             // Should be able to create synthetic id index throughout the rolling upgrade
             String index_0 = indexName(0);
             assertIndexCanBeCreated(index_0);

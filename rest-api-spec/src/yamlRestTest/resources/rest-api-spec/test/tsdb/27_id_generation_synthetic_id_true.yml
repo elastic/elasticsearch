@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      cluster_features: "index.time_series_synthetic_id"
+      cluster_features: "index.time_series_synthetic_id_default"
       reason: index.mapping.synthetic_id requires the tsdb_synthetic_id feature flag
   - requires:
       cluster_features: "gte_v8.14.0"

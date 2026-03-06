@@ -3,7 +3,7 @@ setup:
       cluster_features: ["mapper.tsdb_nested_field_support"]
       reason: "tsdb index with nested field support enabled"
   - requires:
-      cluster_features: ["index.time_series_synthetic_id"]
+      cluster_features: ["index.time_series_synthetic_id_default"]
       reason: "index.mapping.synthetic_id requires support for synthetic id in the cluster"
 
 ---

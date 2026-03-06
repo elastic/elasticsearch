@@ -5,7 +5,7 @@ setup:
       reason: _tsid hashing introduced in 8.13 and tsid routing changed in 8.14
 
   - skip:
-      cluster_features: "index.time_series_synthetic_id"
+      cluster_features: "index.time_series_synthetic_id_default"
       reason: when cluster has synthetic_id feature use 26_id_generation_synthetic_id_false instead
 
   - do:

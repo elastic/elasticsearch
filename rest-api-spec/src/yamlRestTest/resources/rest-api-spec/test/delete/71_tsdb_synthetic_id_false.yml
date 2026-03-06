@@ -1,7 +1,7 @@
 ---
 "basic tsdb delete":
   - requires:
-      cluster_features: "index.time_series_synthetic_id"
+      cluster_features: "index.time_series_synthetic_id_default"
       reason: explicit synthetic_id false only applies when cluster has the feature
   - requires:
       cluster_features: ["gte_v8.13.0"]

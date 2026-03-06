@@ -133,7 +133,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        boolean hasSupport = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID);
+        boolean hasSupport = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID_DEFAULT);
         Boolean useSyntheticId = hasSupport ? randomBoolean() : null;
 
         String dataStreamName = "k8s";

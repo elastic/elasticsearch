@@ -12,7 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockBuilder;
-import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
+import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * A source operator whose output is rows specified as a list {@link List} values.
  */
-public class ListRowsBlockSourceOperator extends TypedAbstractBlockSourceBuilder {
+public class ListRowsBlockSourceOperator extends AbstractTypedBlockSourceOperator {
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<ElementType> types;

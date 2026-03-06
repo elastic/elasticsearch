@@ -43,7 +43,7 @@ import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
+import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
@@ -99,7 +99,6 @@ import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
@@ -1203,7 +1202,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     protected <T, S> List<Page> topNMultipleColumns(
         DriverContext driverContext,
-        TypedAbstractBlockSourceBuilder sourceOperator,
+        AbstractTypedBlockSourceOperator sourceOperator,
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders,

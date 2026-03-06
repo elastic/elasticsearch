@@ -13,8 +13,8 @@ import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOp
 
 import java.util.List;
 
-public abstract class TypedAbstractBlockSourceBuilder extends AbstractBlockSourceOperator {
-    protected TypedAbstractBlockSourceBuilder(BlockFactory blockFactory, int maxPagePositions) {
+public abstract class AbstractTypedBlockSourceOperator extends AbstractBlockSourceOperator {
+    protected AbstractTypedBlockSourceOperator(BlockFactory blockFactory, int maxPagePositions) {
         super(blockFactory, maxPagePositions);
     }
 

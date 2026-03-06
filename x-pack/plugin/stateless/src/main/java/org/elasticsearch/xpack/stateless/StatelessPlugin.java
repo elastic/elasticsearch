@@ -1405,11 +1405,6 @@ public class StatelessPlugin extends Plugin
             StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
-            // TODO: Before merging to elasticsearch, make sure that serverless-gitops has been updated and remove the following 4:
-            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
             StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,

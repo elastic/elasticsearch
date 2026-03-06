@@ -80,9 +80,7 @@ public class IndexBalanceMetricsTests extends ESTestCase {
 
         final var routingBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numAssigned; i++) {
-            routingBuilder.addShard(
-                newShardRouting(new ShardId(index, i), "idx_" + (i % numIndexNodes), true, ShardRoutingState.STARTED)
-            );
+            routingBuilder.addShard(newShardRouting(new ShardId(index, i), "idx_" + (i % numIndexNodes), true, ShardRoutingState.STARTED));
             routingBuilder.addShard(
                 newShardRouting(new ShardId(index, i), "search_" + (i % numSearchNodes), false, ShardRoutingState.STARTED)
             );

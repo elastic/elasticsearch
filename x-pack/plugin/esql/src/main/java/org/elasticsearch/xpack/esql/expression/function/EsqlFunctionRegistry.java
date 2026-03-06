@@ -1039,7 +1039,6 @@ public class EsqlFunctionRegistry {
 
     protected final void addCapabilities(Set<String> filterAliases, EsqlCapabilities.Builder capabilities, boolean enabled) {
         for (FunctionDefinition def : defs.values()) {
-            System.err.println("checking " + def.name());
             if (false == filterAliases.add(def.name())) {
                 continue;
             }

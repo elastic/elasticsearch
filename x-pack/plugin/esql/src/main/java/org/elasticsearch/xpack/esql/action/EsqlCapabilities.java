@@ -27,7 +27,7 @@ import java.util.Set;
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
-public record EsqlCapabilities(Set<String> capabilities) {
+public class EsqlCapabilities {
     /**
      * ESQL capabilities.
      *
@@ -68,7 +68,6 @@ public record EsqlCapabilities(Set<String> capabilities) {
 
         public void add(String cap, boolean enabled) {
             if (all || enabled) {
-                System.err.println("adding " + cap);
                 boolean firstTime = capabilities.add(cap);
                 if (firstTime == false) {
                     throw new IllegalStateException("duplicate capability [" + cap + "]");
@@ -2262,5 +2261,15 @@ public record EsqlCapabilities(Set<String> capabilities) {
     public static String cap(NodeFeature feature) {
         assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
+    }
+
+    private final Set<String> capabilities;
+
+    private EsqlCapabilities(Set<String> capabilities) {
+        this.capabilities = capabilities;
+    }
+
+    public Set<String> capabilities() {
+        return capabilities;
     }
 }

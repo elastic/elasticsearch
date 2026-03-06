@@ -341,6 +341,52 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
+    public void testIndexSettingWithCustomInferenceId() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        final String customEndpoint = "my-custom-elser-endpoint";
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), customEndpoint)
+            .build();
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
+        assertInferenceEndpoints(mapperService, fieldName, customEndpoint, customEndpoint);
+    }
+
+    public void testExplicitFieldInferenceIdTakesPrecedenceOverIndexSetting() throws Exception {
+        final String fieldName = "field";
+        final String explicitEndpoint = "explicit-endpoint";
+        final XContentBuilder fieldMapping = fieldMapping(
+            b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitEndpoint)
+        );
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), "my-custom-endpoint")
+            .build();
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
+        assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);
+    }
+
+    public void testEmptyDefaultInferenceIdSettingThrows() throws Exception {
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        for (String blank : new String[] { null, "", " ", "   " }) {
+            var settings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+                .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), blank)
+                .build();
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
+            );
+            assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be blank"));
+        }
+    }
+
     private void removeDefaultEisEndpoint() {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);

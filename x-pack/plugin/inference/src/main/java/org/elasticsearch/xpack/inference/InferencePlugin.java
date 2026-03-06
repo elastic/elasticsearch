@@ -750,10 +750,12 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(getInferenceSettings());
+        List<Setting<?>> settings = new ArrayList<>(getClusterSettings());
+        settings.add(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID);
+        return Collections.unmodifiableList(settings);
     }
 
-    public static Set<Setting<?>> getInferenceSettings() {
+    public static Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());

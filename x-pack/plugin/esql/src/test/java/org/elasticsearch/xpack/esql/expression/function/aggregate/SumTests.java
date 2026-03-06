@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.closeTo;
@@ -100,8 +101,11 @@ public class SumTests extends AbstractAggregationTestCase {
                     );
 
                 })
+
             )
         );
+
+        suppliers.addAll(MultiRowTestCaseSupplier.denseVectorCases(1, 100).stream().map(SumTests::makeSupplier).toList());
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
@@ -111,12 +115,14 @@ public class SumTests extends AbstractAggregationTestCase {
         return new Sum(source, args.get(0));
     }
 
+    @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
             DataType type = fieldTypedData.type().widenSmallNumeric();
             var data = fieldTypedData.multiRowData();
+            String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
                 expected = switch (type) {
@@ -137,10 +143,28 @@ public class SumTests extends AbstractAggregationTestCase {
                     case TDIGEST -> {
                         var sums = data.stream()
                             .map(obj -> (TDigestHolder) obj)
-                            .filter(obj -> obj.getValueCount() > 0)
+                            .filter(obj -> obj.size() > 0)
                             .mapToDouble(TDigestHolder::getSum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                    }
+                    case DENSE_VECTOR -> {
+                        List<List<Float>> vectors = data.stream().map(v -> (List<Float>) v).collect(Collectors.toList());
+                        if (vectors.isEmpty()) {
+                            yield null;
+                        }
+                        List<Float> sum = new ArrayList<>(vectors.get(0));
+                        for (int i = 1; i < vectors.size(); i++) {
+                            for (int j = 0; j < sum.size(); j++) {
+                                sum.set(j, sum.get(j) + vectors.get(i).get(j));
+                            }
+                        }
+                        Float failedValue = sum.stream().filter(v -> Float.isFinite(v) == false).findFirst().orElse(null);
+                        if (failedValue == null) {
+                            yield sum;
+                        }
+                        expectedWarning = "java.lang.ArithmeticException: not a finite float number: " + failedValue;
+                        yield null;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
@@ -154,14 +178,24 @@ public class SumTests extends AbstractAggregationTestCase {
                 expected instanceof Double d && Double.isFinite(d) == false
             );
 
-            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
+            var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
+                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
+                : DataType.LONG;
 
-            return new TestCaseSupplier.TestCase(
+            var testCase = new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
             );
+
+            if (expectedWarning != null) {
+                testCase = testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedWarning);
+            }
+
+            return testCase;
         });
     }
 }

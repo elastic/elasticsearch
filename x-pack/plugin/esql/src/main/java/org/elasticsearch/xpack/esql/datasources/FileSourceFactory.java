@@ -102,7 +102,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
-            FormatReader reader = formatRegistry.byExtension(storagePath.objectName());
+            FormatReader reader = resolveFormatReader(storagePath.objectName(), config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
@@ -111,7 +111,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SplitProvider splitProvider() {
-        return new FileSplitProvider();
+        return new FileSplitProvider(FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE, codecRegistry, storageRegistry, settings);
     }
 
     @Override
@@ -127,7 +127,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            FormatReader format = formatRegistry.byExtension(path.objectName());
+            FormatReader format = resolveFormatReader(path.objectName(), config);
 
             Map<String, Object> partitionValues = Map.of();
             if (context.split() instanceof FileSplit fileSplit) {
@@ -141,6 +141,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
+                context.rowLimit(),
                 context.executor(),
                 context.fileSet(),
                 context.partitionColumnNames(),
@@ -148,5 +149,20 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.sliceQueue()
             );
         };
+    }
+
+    static final String CONFIG_FORMAT = "format";
+
+    private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
+        if (config != null) {
+            Object formatOverride = config.get(CONFIG_FORMAT);
+            if (formatOverride != null) {
+                String formatName = formatOverride.toString();
+                if (formatName.isEmpty() == false) {
+                    return formatRegistry.byName(formatName);
+                }
+            }
+        }
+        return formatRegistry.byExtension(objectName);
     }
 }

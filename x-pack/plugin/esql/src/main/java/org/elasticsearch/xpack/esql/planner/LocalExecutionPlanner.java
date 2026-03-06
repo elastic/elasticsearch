@@ -1015,7 +1015,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
             ),
             true
         );
@@ -1112,7 +1112,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
             ),
             true
         );
@@ -1239,13 +1239,29 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
+        int pushedLimit = externalSource.pushedLimit();
+
+        // Shrink buffer for small limits
+        int effectiveBufferSize = 10;
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
+        }
+
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
         if (splitCount > 1) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
-            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
+            int maxParallelism = context.queryPragmas().taskConcurrency();
+            if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
+                instanceCount = 1;
+            } else if (pushedLimit != FormatReader.NO_LIMIT) {
+                int pagesNeeded = Math.max(1, (pushedLimit + pageSize - 1) / pageSize);
+                instanceCount = Math.min(pagesNeeded, Math.min(splitCount, maxParallelism));
+            } else {
+                instanceCount = Math.min(splitCount, maxParallelism);
+            }
         }
 
         FileSet fileSet = externalSource.fileSet();
@@ -1263,7 +1279,8 @@ public class LocalExecutionPlanner {
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
             .batchSize(pageSize)
-            .maxBufferSize(10)
+            .maxBufferSize(effectiveBufferSize)
+            .rowLimit(pushedLimit)
             .executor(operatorFactoryRegistry.executor())
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -1307,13 +1324,14 @@ public class LocalExecutionPlanner {
         // Parse the storage path
         StoragePath path = StoragePath.of(externalSource.sourcePath());
 
-        // Create the operator factory using the generic abstraction
         SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
             formatReader,
             path,
             externalSource.output(),
-            pageSize
+            pageSize,
+            externalSource.pushedLimit(),
+            null
         );
 
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)

@@ -1285,16 +1285,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int last = 0;
                 for (int i = 0; i < size; i++) {
                     final int diff = slice.readVInt();
-                    final int doc = last + diff;
-                    prefixes[i] = doc;
-                    last = doc;
+                    last = prefixes[i] = last + diff;
                 }
                 last = 0;
                 for (int i = 0; i < size; i++) {
                     final int diff = slice.readVInt();
-                    final int doc = last + diff;
-                    startDocs[i] = doc;
-                    last = doc;
+                    last = startDocs[i] = last + diff;
                 }
                 return new PrefixedStartDocs(prefixes, startDocs);
             } else {

@@ -400,9 +400,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (preference != null) {
             pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
-        if (randomBoolean()) {
-            addRandomPragma(pragmaBuilder);
-        }
+        addRandomPragma(pragmaBuilder);
+
         Settings pragma = pragmaBuilder.build();
         if (pragma.isEmpty() == false) {
             builder.pragmas(pragma);
@@ -417,6 +416,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
             pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
+        }
+        if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
+            pragma.put("fork_implicit_limit", false);
         }
     }
 

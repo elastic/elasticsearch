@@ -8,45 +8,48 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigestReadView;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.Collection;
 import java.util.Objects;
 
 /**
- * This exists to hold the values from a {@link TDigestBlock}.  It is roughly parallel to
- * {@link org.elasticsearch.search.aggregations.metrics.TDigestState} in classic aggregations, which we are not using directly because
- * the serialization format is pretty bad for ESQL's use case (specifically, encoding the near-constant compression and merge strategy
- * data inline as opposed to in a dedicated column isn't great).
- *
- * This is writable to support ESQL literals of this type, even though those should not exist.  Literal support, and thus a writeable
- * object here, are required for ESQL testing.  See for example ShowExecSerializationTest.
+ * This is a {@link TDigestReadView} annotated with some extra information: The sum, min and max of all observations.
+ * In addition, it stores the size as a dedicated field for faster access.
+ * The TDigest is represented a list of centroids and their counts, encoded in a byte array.
+ * This class does not own the underlying memory used to store the digest, it is merely a pointer/accessor for e.g.
+ * a single value in a {@link TDigestBlock}.
+ * <br>
+ * This class supports serialization, but this is only intended for use in ES|QL Literals, as it uses untracked memory on deserialization.
  */
-public class TDigestHolder implements GenericNamedWriteable {
+public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
 
-    private static final TDigestHolder EMPTY;
-    static {
-        try {
-            EMPTY = new TDigestHolder(encodeCentroidsAndCounts(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+    /**
+     * This size of a single TDigestHolder instance in bytes, excluding the underlying encoded digest bytes array.
+     * The encoded digest bytes are not owned by this class, so they are not included in the accounting.
+     */
+    static final long RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(TDigestHolder.class) + RamUsageEstimator.shallowSizeOfInstance(
+        BytesRef.class
+    ) + EncodedTDigest.RAM_BYTES;
+
+    private static final TDigestHolder EMPTY = new TDigestHolder() {
+        @Override
+        public void reset(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
+            throw new UnsupportedOperationException("This instance is immutable");
         }
-    }
+    };
 
     private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
 
@@ -56,58 +59,44 @@ public class TDigestHolder implements GenericNamedWriteable {
         TDigestHolder::new
     );
 
-    private final double min;
-    private final double max;
-    private final double sum;
-    private final long valueCount;
-    private final BytesRef encodedDigest;
+    private final EncodedTDigest encodedDigest = new EncodedTDigest();
+    private final BytesRef scratchBytesRef = new BytesRef();
 
-    // TODO - Deal with the empty array case better
-    public TDigestHolder(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
-        this.encodedDigest = encodedDigest;
-        this.min = min;
-        this.max = max;
-        this.sum = sum;
-        this.valueCount = valueCount;
+    private double min = Double.NaN;
+    private double max = Double.NaN;
+    private double sum = Double.NaN;
+    private long valueCount = 0L;
+
+    public TDigestHolder() {}
+
+    BytesRef scratchBytesRef() {
+        return scratchBytesRef;
     }
 
-    public TDigestHolder(TDigestState rawTDigest, double min, double max, double sum, long valueCount) {
-        try {
-            this.encodedDigest = encodeCentroidsAndCounts(rawTDigest);
-        } catch (IOException e) {
-            throw new IllegalStateException("Error encoding TDigest", e);
-        }
-        this.min = min;
-        this.max = max;
-        this.sum = sum;
-        this.valueCount = valueCount;
-    }
-
-    // TODO: Probably TDigestHolder and ParsedTDigest should be the same object
-    public TDigestHolder(TDigestParser.ParsedTDigest parsed) throws IOException {
-        this(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
-    }
-
-    public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
-        throws IOException {
-        this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
-    }
-
-    public static TDigestHolder empty() {
-        return EMPTY;
-    }
-
+    // Note that this constructor allocates the bytes without memory accounting
     public TDigestHolder(StreamInput in) throws IOException {
-        this.encodedDigest = in.readBytesRef();
+        this.encodedDigest.reset(in.readBytesRef());
         this.min = in.readDouble();
         this.max = in.readDouble();
         this.sum = in.readDouble();
         this.valueCount = in.readVLong();
     }
 
+    public void reset(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
+        this.min = min;
+        this.max = max;
+        this.sum = sum;
+        this.valueCount = valueCount;
+        this.encodedDigest.reset(encodedDigest);
+    }
+
+    public static TDigestHolder empty() {
+        return EMPTY;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesRef(encodedDigest);
+        out.writeBytesRef(encodedDigest.encodedDigest());
         out.writeDouble(min);
         out.writeDouble(max);
         out.writeDouble(sum);
@@ -121,84 +110,47 @@ public class TDigestHolder implements GenericNamedWriteable {
                 && Double.compare(max, that.max) == 0
                 && Double.compare(sum, that.sum) == 0
                 && valueCount == that.valueCount
-                && Objects.equals(encodedDigest, that.encodedDigest);
+                && Objects.equals(encodedDigest.encodedDigest(), that.encodedDigest.encodedDigest());
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(min, max, sum, valueCount, encodedDigest);
-    }
-
-    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
-        // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-        for (int i = 0; i < centroids.size(); i++) {
-            long count = counts.get(i);
-            assert count >= 0;
-            // we do not add elements with count == 0
-            if (count > 0) {
-                streamOutput.writeVLong(count);
-                streamOutput.writeDouble(centroids.get(i));
-            }
-        }
-
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return docValue;
-    }
-
-    private static BytesRef encodeCentroidsAndCounts(TDigestState rawTDigest) throws IOException {
-        // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-        for (Iterator<Centroid> it = rawTDigest.uniqueCentroids(); it.hasNext();) {
-            Centroid centroid = it.next();
-            if (centroid.count() > 0) {
-                streamOutput.writeVLong(centroid.count());
-                streamOutput.writeDouble(centroid.mean());
-            }
-        }
-
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return docValue;
-    }
-
-    public void addTo(TDigestState state) {
-        try {
-            // TODO: The decoding is copied from TDigestFieldMapper. It would be nice to find a way to reuse that code
-            ByteArrayStreamInput values = new ByteArrayStreamInput();
-            values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
-            while (values.available() > 0) {
-                long count = values.readVLong();
-                double centroid = values.readDouble();
-                state.add(centroid, count);
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Malformed TDigest bytes", e);
-        }
+        return Objects.hash(min, max, sum, valueCount, encodedDigest.encodedDigest());
     }
 
     public BytesRef getEncodedDigest() {
-        return encodedDigest;
+        return encodedDigest.encodedDigest();
     }
 
-    // TODO - compute these if they're not given? or do that at object creation time, maybe.
+    @Override
     public double getMax() {
         return max;
     }
 
+    @Override
     public double getMin() {
         return min;
     }
 
-    public double getSum() {
-        return sum;
+    @Override
+    public long size() {
+        return valueCount;
     }
 
-    public long getValueCount() {
-        return valueCount;
+    @Override
+    public Collection<Centroid> centroids() {
+        return encodedDigest.centroids();
+    }
+
+    @Override
+    public int centroidCount() {
+        return encodedDigest.centroidCount();
+    }
+
+    public double getSum() {
+        return sum;
     }
 
     @Override
@@ -217,26 +169,20 @@ public class TDigestHolder implements GenericNamedWriteable {
                 builder.field("sum", this.getSum());
             }
 
-            // TODO: Would be nice to wrap all of this in reusable objects and minimize allocations here
-            ByteArrayStreamInput values = new ByteArrayStreamInput();
-            values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
-            List<Double> centroids = new ArrayList<>();
-            List<Long> counts = new ArrayList<>();
-            while (values.available() > 0) {
-                counts.add(values.readVLong());
-                centroids.add(values.readDouble());
-            }
-
             // TODO: reuse the constans from the field type
+
             builder.startArray("centroids");
-            for (Double centroid : centroids) {
-                builder.value(centroid.doubleValue());
+
+            EncodedTDigest.CentroidIterator iterator = encodedDigest.centroidIterator();
+            while (iterator.next()) {
+                builder.value(iterator.currentMean());
             }
             builder.endArray();
 
             builder.startArray("counts");
-            for (Long count : counts) {
-                builder.value(count.longValue());
+            iterator = encodedDigest.centroidIterator();
+            while (iterator.next()) {
+                builder.value(iterator.currentCount());
             }
             builder.endArray();
             builder.endObject();

@@ -43,7 +43,7 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
         TDigestBlock build();
     }
 
-    TDigestHolder getTDigestHolder(int offset);
+    TDigestHolder getTDigestHolder(int offset, TDigestHolder scratch);
 
     interface SerializedTDigestOutput {
         void appendDouble(double value);

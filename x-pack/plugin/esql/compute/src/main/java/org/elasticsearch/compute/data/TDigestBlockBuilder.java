@@ -176,7 +176,7 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
         } else {
             sumsBuilder.appendDouble(val.getSum());
         }
-        valueCountsBuilder.appendLong(val.getValueCount());
+        valueCountsBuilder.appendLong(val.size());
     }
 
     public void deserializeAndAppend(TDigestBlock.SerializedTDigestInput input) {

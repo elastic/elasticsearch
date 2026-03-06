@@ -83,6 +83,48 @@ public interface StorageObject {
     }
 
     /**
+     * Async byte read into a caller-provided ByteBuffer.
+     * <p>
+     * Avoids per-call allocation by reading directly into the target buffer.
+     * For heap-backed buffers, reads directly into the backing array.
+     * For direct buffers, falls back to allocating a temporary array.
+     * <p>
+     * The buffer's position is advanced by the number of bytes read.
+     * The listener receives the number of bytes actually read.
+     *
+     * @param position the starting byte position in the storage object
+     * @param target the ByteBuffer to read into; bytes are written starting at {@code target.position()}
+     * @param executor executor for running the async operation
+     * @param listener callback with the number of bytes read, or failure
+     */
+    default void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
+        executor.execute(() -> {
+            int toRead = target.remaining();
+            try (InputStream stream = newStream(position, toRead)) {
+                if (target.hasArray()) {
+                    int totalRead = 0;
+                    int off = target.arrayOffset() + target.position();
+                    while (totalRead < toRead) {
+                        int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
+                        if (n < 0) {
+                            break;
+                        }
+                        totalRead += n;
+                    }
+                    target.position(target.position() + totalRead);
+                    listener.onResponse(totalRead);
+                } else {
+                    byte[] bytes = stream.readAllBytes();
+                    target.put(bytes);
+                    listener.onResponse(bytes.length);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
      * Returns true if this object has native async support.
      * <p>
      * Columnar formats (Parquet) can use this to determine whether to use

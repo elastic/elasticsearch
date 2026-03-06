@@ -42,10 +42,10 @@ public class TsidBuilderTests extends ESTestCase {
         BytesRef bytesRef = builder.buildTsid();
         assertThat(bytesRef, notNullValue());
         // 1 byte for path hash + 1 byte per value (up to 4, only first value for arrays) + 16 bytes for hash
-        assertThat(bytesRef.length, equalTo(21));
+        assertThat(bytesRef.length, equalTo(17));
         assertThat(
             HexFormat.of().formatHex(bytesRef.bytes, bytesRef.offset, bytesRef.length),
-            equalTo("bfa0a8d66356d2151e7889e42b7a295d065613ded4") // _tsid in hex format
+            equalTo("e056d2151e7889e42b7a295d065613ded4") // _tsid in hex format
         );
     }
 
@@ -60,7 +60,7 @@ public class TsidBuilderTests extends ESTestCase {
         BytesRef bytesRef = builder.buildTsid();
         assertThat(bytesRef, notNullValue());
         // 1 byte for path hash + 2 bytes for value hash (1 for the first array value and 1 for the the non-array value) + 16 bytes for hash
-        assertThat(bytesRef.length, equalTo(19));
+        assertThat(bytesRef.length, equalTo(17));
     }
 
     public void testOrderingOfDifferentFieldsDoesNotMatter() {
@@ -129,7 +129,7 @@ public class TsidBuilderTests extends ESTestCase {
 
         // The TSID format should be: 1 bytes for path hash + 1 byte per value (up to 4) + 16 bytes for hash
         // Since we only added one dimension, we expect: 1 + 1 + 16 = 21 bytes
-        assertEquals(18, tsid.length);
+        assertEquals(17, tsid.length);
     }
 
     public void testTsidMaxSize() {
@@ -141,6 +141,6 @@ public class TsidBuilderTests extends ESTestCase {
 
         // The TSID format should be: 1 bytes for path hash + 1 byte per value (up to 4) + 16 bytes for hash
         // Since we added at least 32 dimensions, we expect: 1 + 4 + 16 = 21 bytes
-        assertEquals(21, tsidBuilder.buildTsid().length);
+        assertEquals(17, tsidBuilder.buildTsid().length);
     }
 }

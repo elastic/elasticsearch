@@ -31,13 +31,9 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    /**
-     * The maximum number of fields to use for the value similarity part of the TSID.
-     * This is a trade-off between clustering similar time series together and the size of the TSID.
-     * More fields improve clustering but also increase the size of the TSID.
-     */
-    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
+    public static final String OTEL_METRIC_FIELD = "_metric_names_hash";
+    public static final String PROMETHEUS_LABEL_FIELD = "labels.__name__";
 
     private final List<Dimension> dimensions;
 
@@ -221,16 +217,16 @@ public class TsidBuilder {
      * The TSID is a hash that includes:
      * <ul>
      *     <li>
-     *         A hash of the dimension field names (1 byte).
-     *         This is to cluster time series that are using the same dimensions together, which makes the encodings more effective.
+     *         Byte 0 — 8-bit hash of the first dimension value.
+     *         This separates different metric types to prevent interleaving in sort order.
      *     </li>
      *     <li>
-     *         A hash of the dimension field values (1 byte each, up to a maximum of 4 fields).
-     *         This is to cluster time series with similar values together, also helping with making encodings more effective.
+     *         Byte 1 — high 4 bits: SimHash of dimension values (clustering similar time series),
+     *         low 4 bits: from the full hash (partitioning entropy).
      *     </li>
      *     <li>
-     *         A hash of all names and values combined (16 bytes).
-     *         This is to avoid hash collisions.
+     *         Bytes 2-15 — 112-bit hash of all dimension names and values combined to ensure
+     *         uniqueness and provide within-metric ordering.
      *     </li>
      * </ul>
      *
@@ -239,59 +235,72 @@ public class TsidBuilder {
      */
     public BytesRef buildTsid() {
         throwIfEmpty();
-        int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
-        byte[] hash = new byte[1 + numberOfValues + 16];
-        int index = 0;
-
         Collections.sort(dimensions);
 
+        byte[] tsid = new byte[16];
         MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
         murmur3Hasher.reset();
-        // similarity hash for dimension names
-        for (int i = 0; i < dimensions.size(); i++) {
-            Dimension dim = dimensions.get(i);
-            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
-        }
-        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
-
-        // similarity hash for dimension values
-        String previousPath = null;
-        for (int i = 0; index < numberOfValues + 1 && i < dimensions.size(); i++) {
-            Dimension dim = dimensions.get(i);
-            String path = dim.path();
-            if (path.equals(previousPath)) {
-                // only add the first value for array fields
-                continue;
-            }
-            MurmurHash3.Hash128 valueHash = dim.valueHash();
-            murmur3Hasher.reset();
-            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
-            hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
-            previousPath = path;
-        }
-
-        murmur3Hasher.reset();
-        // full hash for all dimension names and values for uniqueness
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
-        index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
-        return new BytesRef(hash, 0, index);
+        MurmurHash3.Hash128 fullHash = murmur3Hasher.digestHash(hashBuffer);
+        ByteUtils.writeLongLE(fullHash.h1, tsid, 0);
+        ByteUtils.writeLongLE(fullHash.h2, tsid, 8);
+        tsid[0] = clusteringByte(hashBuffer);
+        // Override byte 1: high 4 bits = SimHash for clustering, low 4 bits = random hash for partitioning
+        int simHash = 0;
+        String previousPath = null;
+        int count = 0;
+        for (int i = 1; i < dimensions.size() && count < 3; i++) {
+            Dimension dim = dimensions.get(i);
+            if (dim.path().equals(previousPath)) {
+                continue; // skip array values
+            }
+            simHash ^= (int) (dim.valueHash().h1 >>> count);
+            previousPath = dim.path();
+            count++;
+        }
+        int randomBits = tsid[1] & 0x0F;
+        tsid[1] = (byte) ((simHash & 0xF0) | randomBits);
+        return new BytesRef(tsid, 0, 16);
+    }
+
+    private byte clusteringByte(MurmurHash3.Hash128 hash128) {
+        murmur3Hasher.reset();
+        Dimension otelMetric = findDimensionName(dimensions, OTEL_METRIC_FIELD);
+        if (otelMetric != null) {
+            murmur3Hasher.addLong(otelMetric.valueHash().h1 ^ otelMetric.valueHash().h2);
+            return (byte) murmur3Hasher.digestHash(hash128).h1;
+        }
+        Dimension prometheusLabel = findDimensionName(dimensions, PROMETHEUS_LABEL_FIELD);
+        if (prometheusLabel != null) {
+            murmur3Hasher.addLong(prometheusLabel.valueHash().h1 ^ prometheusLabel.valueHash().h2);
+            return (byte) murmur3Hasher.digestHash(hash128).h1;
+        }
+        // similarity hash for dimension names
+        for (Dimension dim : dimensions) {
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
+        }
+        return (byte) murmur3Hasher.digestHash(hash128).h1;
+    }
+
+    static Dimension findDimensionName(List<Dimension> sortedDimensions, String name) {
+        for (Dimension dim : sortedDimensions) {
+            int cmp = dim.path.compareTo(name);
+            if (cmp > 0) {
+                return null;
+            } else if (cmp == 0) {
+                return dim;
+            }
+        }
+        return null;
     }
 
     private void throwIfEmpty() {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimensions are empty");
         }
-    }
-
-    private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
-        ByteUtils.writeLongLE(hash128.h2, buffer, index);
-        index += 8;
-        ByteUtils.writeLongLE(hash128.h1, buffer, index);
-        index += 8;
-        return index;
     }
 
     public int size() {

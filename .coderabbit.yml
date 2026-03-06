@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  # Do not post "Review skipped" on PRs without the labels below
+  review_status: false
+  auto_review:
+    labels:
+      - "Team:Delivery"
+      - "Team:Search - Inference"

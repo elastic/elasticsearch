@@ -168,15 +168,16 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
-         */
-        OPTIONAL_FIELDS(Build.current().isSnapshot()),
-
-        /**
          * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
          * capability until we enable the LOAD option mentioned above.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
+         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         */
+        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2172,6 +2173,12 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
@@ -2246,6 +2253,27 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
+
+        /**
+         * FORK with no implicit LIMIT
+         */
+        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
+        /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
+        /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
+
+        /**
+         * Support for intra-row field references in ROW command.
+         * https://github.com/elastic/elasticsearch/issues/140217
+         */
+        ROW_FIELD_RESOLUTION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -68,7 +68,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
         int persistentTasksRemaining = randomIntBetween(0, 10);
         int autoReassignRemaining = randomIntBetween(0, persistentTasksRemaining);
-        SingleNodeShutdownMetadata.Status persistentTaskStatus = persistentTasksRemaining == 0
+        SingleNodeShutdownMetadata.Status persistentTaskStatus = autoReassignRemaining == 0
             ? SingleNodeShutdownMetadata.Status.COMPLETE
             : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
         return new SingleNodeShutdownStatus(

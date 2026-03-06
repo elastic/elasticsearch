@@ -29,7 +29,7 @@ import org.elasticsearch.core.Releasable;
  * </p>
  * <pre>{@code
  *   Block lhs = this.lhs.eval(page);
- *   Block rhs = this.lhs.eval(page);
+ *   Block rhs = this.rhs.eval(page);
  *   try (Block.Builder result = ...) {
  *       for (int p = 0; p < lhs.getPositionCount(); p++) {
  *           result.add(doTheThing(lhs.get(p), rhs.get(p)));

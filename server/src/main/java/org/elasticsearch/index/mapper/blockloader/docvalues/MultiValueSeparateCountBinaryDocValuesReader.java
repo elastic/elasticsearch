@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -59,39 +60,30 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
     }
 
     public void readMin(BytesRef bytes, int count, BlockLoader.BytesRefBuilder builder) throws IOException {
-        if (count == 1) {
-            builder.appendBytesRef(bytes);
-            return;
-        }
-
-        BytesRef min = null;
-        scratch.bytes = bytes.bytes;
-        in.reset(bytes.bytes, bytes.offset, bytes.length);
-        for (int v = 0; v < count; v++) {
-            initializeScratch();
-            if (min == null || scratch.compareTo(min) < 0) {
-                min = new BytesRef(scratch.bytes, scratch.offset, scratch.length);
-            }
-        }
-        builder.appendBytesRef(min);
+        readExtreme(bytes, count, builder, (a, b) -> a.compareTo(b) < 0);
     }
 
     public void readMax(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder) throws IOException {
+        readExtreme(bytes, count, builder, (a, b) -> a.compareTo(b) > 0);
+    }
+
+    private void readExtreme(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder, BiPredicate<BytesRef, BytesRef> predicate)
+        throws IOException {
         if (count == 1) {
             builder.appendBytesRef(bytes);
             return;
         }
 
-        BytesRef max = null;
+        BytesRef extreme = null;
         scratch.bytes = bytes.bytes;
         in.reset(bytes.bytes, bytes.offset, bytes.length);
         for (int v = 0; v < count; v++) {
             initializeScratch();
-            if (max == null || scratch.compareTo(max) > 0) {
-                max = BytesRef.deepCopyOf(scratch);
+            if (extreme == null || predicate.test(extreme, scratch)) {
+                extreme = BytesRef.deepCopyOf(scratch);
             }
         }
-        builder.appendBytesRef(max);
+        builder.appendBytesRef(extreme);
     }
 
     private void initializeScratch() throws IOException {

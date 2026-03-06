@@ -35,7 +35,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -78,7 +78,6 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -670,9 +669,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 .getIndexOptions();
             assertEquals(4, indexOptions.bits, 0.0F);
             assertNull(indexOptions.rescoreVector);
-            assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
+            assertEquals(ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
             assertEquals(-1, indexOptions.getFlatIndexThreshold());
-            assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
+            assertEquals(0.0, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
             DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
@@ -719,38 +718,40 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(1, indexOptions.bits, 0.0);
         }
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(experimentalDisabled, fieldMapping(b -> {
-                    b.field("type", "dense_vector");
-                    b.field("dims", 128);
-                    b.field("index", true);
-                    b.field("similarity", "dot_product");
-                    b.startObject("index_options");
-                    b.field("type", "bbq_disk");
-                    b.field("bits", 4);
-                    b.endObject();
-                }))
-            );
-            assertThat(e.getMessage(), containsString("unsupported parameters"));
-            assertThat(e.getMessage(), containsString("bits"));
+            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_disk");
+                b.field("bits", 4);
+                b.endObject();
+            })).documentMapper();
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(4, indexOptions.bits, 0.0F);
         }
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(experimentalDisabled, fieldMapping(b -> {
-                    b.field("type", "dense_vector");
-                    b.field("dims", 128);
-                    b.field("index", true);
-                    b.field("similarity", "dot_product");
-                    b.startObject("index_options");
-                    b.field("type", "bbq_disk");
-                    b.field("precondition", true);
-                    b.endObject();
-                }))
-            );
-            assertThat(e.getMessage(), containsString("unsupported parameters"));
-            assertThat(e.getMessage(), containsString("precondition"));
+            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_disk");
+                b.field("precondition", true);
+                b.endObject();
+            })).documentMapper();
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertTrue(indexOptions.doPrecondition());
         }
     }
 

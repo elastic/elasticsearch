@@ -30,21 +30,10 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
     static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 65536;
 
     public ES819Version3TSDBDocValuesFormat() {
-        super(
-            CODEC_NAME,
-            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
-            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
-            OPTIMIZED_MERGE_ENABLE_DEFAULT,
-            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
-            true,
-            NUMERIC_BLOCK_SHIFT,
-            DocOffsetsCodec.BITPACKING,
-            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
-        );
+        this(false, false);
     }
 
-    public ES819Version3TSDBDocValuesFormat(boolean useLargeNumericBlock) {
+    public ES819Version3TSDBDocValuesFormat(boolean largeNumericBlock, boolean largeBinaryBlock) {
         super(
             CODEC_NAME,
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -52,10 +41,10 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
-            useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            largeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
             DocOffsetsCodec.BITPACKING,
-            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
+            largeBinaryBlock ? BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            largeBinaryBlock ? BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
         );
     }
 

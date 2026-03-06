@@ -655,10 +655,7 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
         });
     }
 
-    float32x4_t total = vaddq_f32(
-        vaddq_f32(vaddq_f32(sums[0], sums[1]), vaddq_f32(sums[2], sums[3])),
-        vaddq_f32(vaddq_f32(sums[4], sums[5]), vaddq_f32(sums[6], sums[7]))
-    );
+    float32x4_t total = tree_reduce<batches, float32x4_t, vaddq_f32>(sums);
     f32_t result = vaddvq_f32(total);
 
     // Handle remaining elements
@@ -707,10 +704,7 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
         });
     }
 
-    float32x4_t total = vaddq_f32(
-        vaddq_f32(vaddq_f32(sums[0], sums[1]), vaddq_f32(sums[2], sums[3])),
-        vaddq_f32(vaddq_f32(sums[4], sums[5]), vaddq_f32(sums[6], sums[7]))
-    );
+    float32x4_t total = tree_reduce<batches, float32x4_t, vaddq_f32>(sums);
     f32_t result = vaddvq_f32(total);
 
     // Handle remaining elements

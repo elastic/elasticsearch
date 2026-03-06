@@ -81,7 +81,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
-            description = "Interval; expressed using the timespan literal syntax."
+            description = "Interval; expressed using the [timespan literal syntax](/reference/query-languages/esql/esql-time-spans.md). See [time spans](/reference/query-languages/esql/esql-time-spans.md) for DATE_PERIOD and TIME_DURATION and valid units."
         ) Expression interval,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,
         Configuration configuration

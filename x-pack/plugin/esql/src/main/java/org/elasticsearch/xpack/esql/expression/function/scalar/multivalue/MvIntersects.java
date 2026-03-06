@@ -100,7 +100,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "field2",
@@ -123,7 +123,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);

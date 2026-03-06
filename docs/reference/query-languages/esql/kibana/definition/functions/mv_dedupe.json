@@ -11,7 +11,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -23,7 +23,7 @@
           "name" : "field",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -35,7 +35,7 @@
           "name" : "field",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -47,7 +47,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -59,7 +59,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -71,7 +71,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -83,7 +83,7 @@
           "name" : "field",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -95,7 +95,7 @@
           "name" : "field",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -107,7 +107,7 @@
           "name" : "field",
           "type" : "geohash",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -119,7 +119,7 @@
           "name" : "field",
           "type" : "geohex",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -131,7 +131,7 @@
           "name" : "field",
           "type" : "geotile",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -143,7 +143,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -155,7 +155,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -167,7 +167,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -179,7 +179,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -191,7 +191,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -203,7 +203,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,
@@ -215,7 +215,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         }
       ],
       "variadic" : false,

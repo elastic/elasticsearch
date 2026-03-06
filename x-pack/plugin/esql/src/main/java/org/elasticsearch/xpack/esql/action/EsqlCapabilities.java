@@ -14,11 +14,11 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -28,6 +28,58 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
+    /**
+     * ESQL capabilities.
+     *
+     * @param all if {@code false} then only <strong>enabled</strong> capabilities are returned,
+     *            otherwise <strong>all</strong> known capabilities are returned.
+     */
+    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, boolean all) {
+        Builder builder = new Builder(all);
+        for (Cap cap : Cap.values()) {
+            builder.add(cap.capabilityName(), cap.isEnabled());
+        }
+
+        /*
+         * Add all of our cluster features without the leading "esql."
+         */
+        for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
+            builder.add(cap(feature), true);
+        }
+
+        if (all) {
+            functions = functions.snapshotRegistry();
+        }
+        functions.addCapabilities(builder);
+        return builder.build();
+    }
+
+    public static class Builder {
+        private final Set<String> capabilities = new HashSet<>();
+        private final boolean all;
+
+        public Builder(boolean all) {
+            this.all = all;
+        }
+
+        public boolean all() {
+            return all;
+        }
+
+        public void add(String cap, boolean enabled) {
+            if (all || enabled) {
+                boolean firstTime = capabilities.add(cap);
+                if (firstTime == false) {
+                    throw new IllegalStateException("duplicate capability [" + cap + "]");
+                }
+            }
+        }
+
+        public EsqlCapabilities build() {
+            return new EsqlCapabilities(Set.copyOf(capabilities));
+        }
+    }
+
     public enum Cap {
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -196,61 +248,11 @@ public class EsqlCapabilities {
         COUNTER_TYPES,
 
         /**
-         * Support for function {@code BIT_LENGTH}. Done in #115792
-         */
-        FN_BIT_LENGTH,
-
-        /**
-         * Support for function {@code BYTE_LENGTH}.
-         */
-        FN_BYTE_LENGTH,
-
-        /**
-         * Support for function {@code REVERSE}.
-         */
-        FN_REVERSE,
-
-        /**
          * Support for reversing whole grapheme clusters. This is not supported
          * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
          * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
          */
         FN_REVERSE_GRAPHEME_CLUSTERS,
-
-        /**
-         * Support for function {@code CONTAINS}. Done in <a href="https://github.com/elastic/elasticsearch/pull/133016">#133016.</a>
-         */
-        FN_CONTAINS,
-
-        /**
-         * Support for function {@code CBRT}. Done in #108574.
-         */
-        FN_CBRT,
-
-        /**
-         * Support for function {@code HYPOT}.
-         */
-        FN_HYPOT,
-
-        /**
-         * Support for {@code MV_APPEND} function. #107001
-         */
-        FN_MV_APPEND,
-
-        /**
-         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
-         */
-        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
-
-        /**
-         * Support for {@code MV_PERCENTILE} function.
-         */
-        FN_MV_PERCENTILE,
-
-        /**
-         * Support for function {@code IP_PREFIX}.
-         */
-        FN_IP_PREFIX,
 
         /**
          * Fix a bug leading to the scratch leaking data to other rows.
@@ -268,30 +270,10 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
-         * Support for function {@code SCALB}.
-         */
-        FN_SCALB,
-
-        /**
-         * Support for function DAY_NAME
-         */
-        FN_DAY_NAME,
-
-        /**
-         * Support for function MONTH_NAME
-         */
-        FN_MONTH_NAME,
-
-        /**
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
         FN_MV_CONTAINS_V1,
-
-        /**
-         * support for MV_INTERSECTS function
-         */
-        FN_MV_INTERSECTS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -1588,11 +1570,6 @@ public class EsqlCapabilities {
         ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
-         * Support for the Present function
-         */
-        FN_PRESENT,
-
-        /**
          * Bugfix for STATS {{expression}} WHERE {{condition}} when the
          * expression is replaced by something else on planning
          * e.g. STATS SUM(1) WHERE x==3 is replaced by
@@ -1616,11 +1593,6 @@ public class EsqlCapabilities {
         QUERY_PARAMS_MULTI_VALUES(),
 
         FIX_PERCENTILE_PRECISION(),
-
-        /**
-         * Support for the Absent function
-         */
-        FN_ABSENT,
 
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
@@ -1836,11 +1808,6 @@ public class EsqlCapabilities {
         HANDLE_DETERMINIZATION_COMPLEXITY,
 
         /**
-         * Support for the TRANGE function
-         */
-        FN_TRANGE,
-
-        /**
          * https://github.com/elastic/elasticsearch/issues/136851
          */
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
@@ -2031,16 +1998,6 @@ public class EsqlCapabilities {
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
         FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
-
-        /**
-         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
-         */
-        FN_MV_INTERSECTION,
-
-        /**
-         * Support for the MV_UNION function which returns the set union of two multivalued fields
-         */
-        FN_MV_UNION,
 
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
@@ -2239,11 +2196,6 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         /**
-         * Support for function {@code JSON_EXTRACT}.
-         */
-        FN_JSON_EXTRACT,
-
-        /**
          * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
          * https://github.com/elastic/elasticsearch/issues/142180
          */
@@ -2302,30 +2254,6 @@ public class EsqlCapabilities {
         }
     }
 
-    public static final Set<String> CAPABILITIES = capabilities(false);
-
-    /**
-     * Get a {@link Set} of all capabilities. If the {@code all} parameter is {@code false}
-     * then only <strong>enabled</strong> capabilities are returned - otherwise <strong>all</strong>
-     * known capabilities are returned.
-     */
-    public static Set<String> capabilities(boolean all) {
-        List<String> caps = new ArrayList<>();
-        for (Cap cap : Cap.values()) {
-            if (all || cap.isEnabled()) {
-                caps.add(cap.capabilityName());
-            }
-        }
-
-        /*
-         * Add all of our cluster features without the leading "esql."
-         */
-        for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        return Set.copyOf(caps);
-    }
-
     /**
      * Convert a {@link NodeFeature} from {@link EsqlFeatures} into a
      * capability.
@@ -2333,5 +2261,15 @@ public class EsqlCapabilities {
     public static String cap(NodeFeature feature) {
         assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
+    }
+
+    private final Set<String> capabilities;
+
+    private EsqlCapabilities(Set<String> capabilities) {
+        this.capabilities = capabilities;
+    }
+
+    public Set<String> capabilities() {
+        return capabilities;
     }
 }

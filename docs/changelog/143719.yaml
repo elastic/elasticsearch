@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 143719
+summary: '`ShutdownPersistentTaskStatus` tracks persistent task reassignment'
+type: feature

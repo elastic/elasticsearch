@@ -341,7 +341,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         ExecResult result = execOperations.javaexec(spec -> {
             if (javaHome.isPresent()) {
-                spec.setExecutable(javaHome.get() + "/bin/java");
+                spec.getExecutable().set(javaHome.map(it -> it + "/bin/java"));
             }
             spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
             // Enable explicitly for each release as appropriate and just the vector module.
@@ -357,11 +357,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
-            spec.setErrorOutput(errorOut);
+            spec.getErrorOutput().set(errorOut);
             if (getLogger().isInfoEnabled() == false) {
-                spec.setStandardOutput(new NullOutputStream());
+                spec.getStandardOutput().set(new NullOutputStream());
             }
-            spec.setIgnoreExitValue(true);
+            spec.getIgnoreExitValue().set(true);
         });
         if (OS.current().equals(OS.LINUX) && result.getExitValue() == SIG_KILL_EXIT_VALUE) {
             throw new IllegalStateException("Third party audit was killed buy SIGKILL, could be a victim of the Linux OOM killer");
@@ -390,11 +390,11 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             spec.classpath(getJdkJarHellClasspath(), getThirdPartyClasspath());
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
-            spec.setIgnoreExitValue(true);
+            spec.getIgnoreExitValue().set(true);
             if (javaHome.isPresent()) {
-                spec.setExecutable(javaHome.get() + "/bin/java");
+                spec.getExecutable().set(javaHome.map (it -> it + "/bin/java"));
             }
-            spec.setStandardOutput(standardOut);
+            spec.getStandardOutput().set(standardOut);
         });
         if (execResult.getExitValue() == 0) {
             return Collections.emptySet();

@@ -58,10 +58,10 @@ public abstract class DockerValueSource implements ValueSource<DockerResult, Doc
 
         final ExecResult execResult = getExecOperations().exec(spec -> {
             // The redundant cast is to silence a compiler warning.
-            spec.setCommandLine(args);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
+            spec.commandLine(args);
+            spec.getStandardOutput().set(stdout);
+            spec.getErrorOutput().set(stderr);
+            spec.getIgnoreExitValue().set(true);
         });
         return new DockerResult(execResult.getExitValue(), filtered(stdout.toString()), stderr.toString());
     }

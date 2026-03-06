@@ -46,8 +46,8 @@ public class GitWrapper {
 
         execOperations.exec(spec -> {
             // The redundant cast is to silence a compiler warning.
-            spec.setCommandLine((Object[]) args);
-            spec.setStandardOutput(stdout);
+            spec.commandLine((Object[]) args);
+            spec.getStandardOutput().set(stdout);
         });
 
         return stdout.toString(StandardCharsets.UTF_8);

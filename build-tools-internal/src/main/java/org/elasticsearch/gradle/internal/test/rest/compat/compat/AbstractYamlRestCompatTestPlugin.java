@@ -244,11 +244,11 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
             FileCollection outputFileCollection = yamlCompatTestSourceSet.getOutput();
-            testTask.setTestClassesDirs(
+            testTask.getTestClassesDirs().setFrom(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
             testTask.onlyIf("Compatibility tests are available", t -> outputFileCollection.isEmpty() == false);
-            testTask.setClasspath(
+            testTask.getClasspath().setFrom(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests
                     .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))

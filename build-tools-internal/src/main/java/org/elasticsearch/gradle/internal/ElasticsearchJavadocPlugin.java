@@ -43,7 +43,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             // the "value" -quiet is added, separated by a space. This is ok since the javadoc
             // command already adds -quiet, so we are just duplicating it
             // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-            javadoc.getOptions().setEncoding("UTF8");
+            javadoc.getOptions().getEncoding().set("UTF8");
             ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing", "-quiet");
 
             // ensure that modular dependencies can be found on the module path
@@ -100,7 +100,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             project.getTasks().named("javadoc", Javadoc.class).configure(javadoc -> {
                 Javadoc upstreamJavadoc = upstreamProject.getTasks().named("javadoc", Javadoc.class).get();
                 javadoc.setSource(javadoc.getSource().plus(upstreamJavadoc.getSource()));
-                javadoc.setClasspath(javadoc.getClasspath().plus(upstreamJavadoc.getClasspath()));
+                javadoc.getClasspath().setFrom(javadoc.getClasspath().plus(upstreamJavadoc.getClasspath()));
             });
             /*
              * Instead we need the upstream project's javadoc classpath so
@@ -128,10 +128,11 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                     public void execute(Task task) {
                         List<JavadocOfflineLink> existingJavadocOfflineLinks = ((StandardJavadocDocletOptions) javadoc.getOptions())
                             .getLinksOffline()
+                            .get()
                             .stream()
                             .filter(javadocOfflineLink -> new File(projectDir, javadocOfflineLink.getPackagelistLoc()).exists())
                             .toList();
-                        ((StandardJavadocDocletOptions) javadoc.getOptions()).setLinksOffline(existingJavadocOfflineLinks);
+                        ((StandardJavadocDocletOptions) javadoc.getOptions()).getLinksOffline().set(existingJavadocOfflineLinks);
 
                     }
                 });

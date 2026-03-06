@@ -119,7 +119,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
                         sourceSet -> project.getTasks()
                             .withType(Checkstyle.class)
                             .named(sourceSet.getTaskName("checkstyle", null))
-                            .configure(t -> t.setClasspath(project.getObjects().fileCollection()))
+                            .configure(t -> t.getClasspath().setFrom(project.getObjects().fileCollection()))
                     )
             );
 

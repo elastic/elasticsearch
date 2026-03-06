@@ -51,8 +51,8 @@ public class RestTestUtil {
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
 
-            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
-            testTask.setClasspath(sourceSet.getRuntimeClasspath());
+            testTask.getTestClassesDirs().setFrom(sourceSet.getOutput().getClassesDirs());
+            testTask.getClasspath().setFrom(sourceSet.getRuntimeClasspath());
         });
     }
 

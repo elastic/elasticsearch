@@ -159,7 +159,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // remove compiled classes from the Javadoc classpath:
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-        javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+        javadoc.configure(doc -> doc.getClasspath().setFrom(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));

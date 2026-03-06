@@ -99,7 +99,7 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
             FileCollection classpath = task.getClasspath();
             if (isIdea() == false && task.getClasspath() != null) {
                 FileCollection trimmedClasspath = classpath.minus(moduleCompileClasspath);
-                task.setClasspath(project.files(trimmedClasspath));
+                task.getClasspath().setFrom(project.files(trimmedClasspath));
             }
             task.doLast(new Action<Task>() {
                 @Override

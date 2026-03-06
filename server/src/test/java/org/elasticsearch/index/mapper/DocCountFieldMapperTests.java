@@ -151,12 +151,14 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapper = createSytheticSourceMapperService(mapping(b -> b.startObject("count").field("type", "integer").endObject()));
         int count = between(1, 1000);
         SourceFilter filter = new SourceFilter(new String[] { "count" }, null);
+        SourceFilter filterWithDocCount = new SourceFilter(new String[] { "count", "_doc_count" }, null);
         withLuceneIndex(
             mapper,
             iw -> iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("count", 42).field(CONTENT_TYPE, count))).rootDoc()),
             reader -> {
                 SourceLoader withoutFilter = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
                 SourceLoader withFilter = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
+                SourceLoader withFilterAndDocCount = mapper.mappingLookup().newSourceLoader(filterWithDocCount, SourceFieldMetrics.NOOP);
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
 
@@ -167,6 +169,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                     LeafStoredFieldLoader sf2 = StoredFieldLoader.empty().getLoader(leaf, docIds);
                     String filteredSource = withFilter.leaf(leaf.reader(), docIds).source(sf2, 0).internalSourceRef().utf8ToString();
                     assertThat(filteredSource, equalTo("{\"count\":42}"));
+
+                    LeafStoredFieldLoader sf3 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                    String filteredSourceWithDocCount = withFilterAndDocCount.leaf(leaf.reader(), docIds).source(sf3, 0).internalSourceRef().utf8ToString();
+                    assertThat(filteredSourceWithDocCount, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
                 }
             }
         );

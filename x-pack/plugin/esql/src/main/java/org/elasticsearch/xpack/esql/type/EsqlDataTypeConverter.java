@@ -859,7 +859,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String tDigestBlockToString(TDigestBlock tDigestBlock, int index) {
-        TDigestHolder digest = tDigestBlock.getTDigestHolder(index);
+        TDigestHolder digest = tDigestBlock.getTDigestHolder(index, new TDigestHolder());
         return tDigestToString(digest);
     }
 

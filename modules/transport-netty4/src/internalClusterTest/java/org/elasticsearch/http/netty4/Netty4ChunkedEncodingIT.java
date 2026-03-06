@@ -67,6 +67,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
@@ -144,7 +145,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
             releasables.add(() -> eventLoopGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS).awaitUninterruptibly());
 
             final var gracefulClose = randomBoolean();
-            final var chunkSizeBytes = between(1, ByteSizeUnit.KB.toIntBytes(512));
+            final var chunkSizeBytes = between(1, Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2); // sometimes write in slices
             final var closeAfterBytes = between(0, chunkSizeBytes * 5);
             final var chunkDelayMillis = randomBoolean() ? 0 : between(10, 100);
 

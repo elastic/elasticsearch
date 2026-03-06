@@ -128,7 +128,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "beta",
+              "status": "ga",
               "properties": [
                 "multilingual",
                 "open-weights"
@@ -258,7 +258,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "beta",
+              "status": "ga",
               "properties": [
                 "multilingual",
                 "open-weights"
@@ -284,7 +284,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "beta",
+              "status": "ga",
               "properties": [
                 "multilingual"
               ],
@@ -309,7 +309,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/dense",
                 "elasticsearch": "embedding"
               },
-              "status": "beta",
+              "status": "ga",
               "properties": [
                 "multilingual",
                 "multimodal",
@@ -584,7 +584,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V3_ENDPOINT_ID,
             JINA_EMBED_V3_MODEL_NAME,
             createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
-            "beta",
+            "ga",
             List.of("multilingual", "open-weights"),
             RELEASE_DATE_STRING,
             null,

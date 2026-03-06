@@ -363,10 +363,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
      */
     private void setDefaultEisEndpoints(boolean jinaEnabled, boolean eisElserEnabled) {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
-        globalModelRegistry.removeDefaultConfigs(
-            Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID),
-            removalFuture
-        );
+        globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);
         removalFuture.actionGet(TEST_REQUEST_TIMEOUT);
 
         if (jinaEnabled) {

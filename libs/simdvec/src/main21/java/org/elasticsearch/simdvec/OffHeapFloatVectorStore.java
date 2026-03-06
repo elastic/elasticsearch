@@ -17,38 +17,48 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Off-heap float vector storage backed by {@link MemorySegment}s.
- * Each vector is individually allocated in a shared {@link Arena},
- * keeping vector data out of the Java heap.
+ * Off-heap float vector storage backed by paged {@link MemorySegment}s.
+ * Vectors are packed into pages of {@link #PAGE_SIZE} vectors each,
+ * reducing allocation overhead and improving spatial locality compared
+ * to one-segment-per-vector. The last page may be partially filled.
  */
 public class OffHeapFloatVectorStore implements Closeable {
 
+    static final int PAGE_SIZE = 64;
+
     private final int dim;
+    private final long vectorByteSize;
     private final Arena arena;
-    private final List<MemorySegment> vectors;
+    private final List<MemorySegment> pages;
+    private int count;
 
     public OffHeapFloatVectorStore(int dim) {
         this.dim = dim;
+        this.vectorByteSize = (long) dim * Float.BYTES;
         this.arena = Arena.ofShared();
-        this.vectors = new ArrayList<>();
+        this.pages = new ArrayList<>();
     }
 
     public void addVector(float[] vector) {
-        MemorySegment segment = arena.allocate((long) dim * Float.BYTES);
-        MemorySegment.copy(vector, 0, segment, ValueLayout.JAVA_FLOAT, 0, dim);
-        vectors.add(segment);
+        int offsetInPage = count % PAGE_SIZE;
+        if (offsetInPage == 0) {
+            pages.add(arena.allocate(PAGE_SIZE * vectorByteSize));
+        }
+        MemorySegment page = pages.getLast();
+        MemorySegment.copy(vector, 0, page, ValueLayout.JAVA_FLOAT, offsetInPage * vectorByteSize, dim);
+        count++;
     }
 
     public float[] getVector(int i) {
-        return vectors.get(i).toArray(ValueLayout.JAVA_FLOAT);
+        return getVectorSegment(i).toArray(ValueLayout.JAVA_FLOAT);
     }
 
     public MemorySegment getVectorSegment(int i) {
-        return vectors.get(i);
+        return pages.get(i / PAGE_SIZE).asSlice((long) (i % PAGE_SIZE) * vectorByteSize, vectorByteSize);
     }
 
     public int size() {
-        return vectors.size();
+        return count;
     }
 
     /**
@@ -60,9 +70,9 @@ public class OffHeapFloatVectorStore implements Closeable {
      * @param length     number of vectors to normalize (must equal {@link #size()})
      */
     public void normalizeByMagnitudes(float[] magnitudes, int offset, int length) {
-        assert length == vectors.size();
+        assert length == count;
         for (int i = 0; i < length; i++) {
-            MemorySegment seg = vectors.get(i);
+            MemorySegment seg = getVectorSegment(i);
             float magnitude = magnitudes[offset + i];
             for (int j = 0; j < dim; j++) {
                 float val = seg.getAtIndex(ValueLayout.JAVA_FLOAT, j);

@@ -17,38 +17,46 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Off-heap byte vector storage backed by {@link MemorySegment}s.
- * Each vector is individually allocated in a shared {@link Arena},
- * keeping vector data out of the Java heap.
+ * Off-heap byte vector storage backed by paged {@link MemorySegment}s.
+ * Vectors are packed into pages of {@link #PAGE_SIZE} vectors each,
+ * reducing allocation overhead and improving spatial locality compared
+ * to one-segment-per-vector. The last page may be partially filled.
  */
 public class OffHeapByteVectorStore implements Closeable {
 
+    static final int PAGE_SIZE = 64;
+
     private final int dim;
     private final Arena arena;
-    private final List<MemorySegment> vectors;
+    private final List<MemorySegment> pages;
+    private int count;
 
     public OffHeapByteVectorStore(int dim) {
         this.dim = dim;
         this.arena = Arena.ofShared();
-        this.vectors = new ArrayList<>();
+        this.pages = new ArrayList<>();
     }
 
     public void addVector(byte[] vector) {
-        MemorySegment segment = arena.allocate(dim);
-        MemorySegment.copy(vector, 0, segment, ValueLayout.JAVA_BYTE, 0, dim);
-        vectors.add(segment);
+        int offsetInPage = count % PAGE_SIZE;
+        if (offsetInPage == 0) {
+            pages.add(arena.allocate((long) PAGE_SIZE * dim));
+        }
+        MemorySegment page = pages.getLast();
+        MemorySegment.copy(vector, 0, page, ValueLayout.JAVA_BYTE, (long) offsetInPage * dim, dim);
+        count++;
     }
 
     public byte[] getVector(int i) {
-        return vectors.get(i).toArray(ValueLayout.JAVA_BYTE);
+        return getVectorSegment(i).toArray(ValueLayout.JAVA_BYTE);
     }
 
     public MemorySegment getVectorSegment(int i) {
-        return vectors.get(i);
+        return pages.get(i / PAGE_SIZE).asSlice((long) (i % PAGE_SIZE) * dim, dim);
     }
 
     public int size() {
-        return vectors.size();
+        return count;
     }
 
     @Override

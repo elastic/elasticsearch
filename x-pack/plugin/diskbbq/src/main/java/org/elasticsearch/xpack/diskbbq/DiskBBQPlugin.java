@@ -50,7 +50,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
                 if (Build.current().isSnapshot()) {
                     return new ESNextDiskBBQVectorsFormat(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
                         clusterSize,
                         ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,

@@ -49,12 +49,12 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     @Before
     @Override
     public void setUp() throws Exception {
-        org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.QuantEncoding encoding =
-            org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-                org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.QuantEncoding.values().length
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding =
+            ES940DiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
+                ES940DiskBBQVectorsFormat.QuantEncoding.values().length
             )];
         if (rarely()) {
-            format = new org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat(
+            format = new ES940DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -66,7 +66,7 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         } else if (rarely()) {
-            format = new org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat(
+            format = new ES940DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -79,7 +79,7 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
             );
         } else {
             // run with low numbers to force many clusters with parents
-            format = new org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat(
+            format = new ES940DiskBBQVectorsFormat(
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),

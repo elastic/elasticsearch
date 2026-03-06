@@ -51,7 +51,6 @@ public record LaunchDescriptor(
     public static final String DESCRIPTOR_FILENAME = "launch-descriptor.bin";
 
     private static final int MAGIC = 0x45534C44; // "ESLD" - ElasticSearch Launch Descriptor
-    private static final int VERSION = 1;
 
     /**
      * Writes this descriptor to a binary file.
@@ -67,7 +66,6 @@ public record LaunchDescriptor(
      */
     public void writeTo(DataOutputStream out) throws IOException {
         out.writeInt(MAGIC);
-        out.writeInt(VERSION);
 
         out.writeUTF(command);
         writeStringList(out, jvmOptions);
@@ -98,10 +96,6 @@ public record LaunchDescriptor(
         int magic = in.readInt();
         if (magic != MAGIC) {
             throw new IOException("Invalid launch descriptor: bad magic number");
-        }
-        int version = in.readInt();
-        if (version != VERSION) {
-            throw new IOException("Unsupported launch descriptor version: " + version);
         }
 
         String command = in.readUTF();

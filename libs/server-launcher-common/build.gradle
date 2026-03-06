@@ -10,6 +10,7 @@ apply plugin: 'elasticsearch.build'
 
 // This library has zero ES dependencies - only JDK classes
 dependencies {
+  testImplementation(project(":test:framework"))
 }
 
 // Since this library does not depend on :server, it cannot run the jarHell task

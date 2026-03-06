@@ -172,6 +172,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
      * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
      */
+    // Maybe using ResolvingProjects at the top of the Fork branches would be a more simple solution; adding the `*` pattern
+    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the fork output.
     private static Project patchForkProject(Project project) {
         List<Attribute> projectOutput = project.output();
         List<Attribute> childOutput = project.child().output();

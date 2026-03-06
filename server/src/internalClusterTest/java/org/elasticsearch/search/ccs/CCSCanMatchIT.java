@@ -51,13 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
-public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
-    static final String REMOTE_CLUSTER = "cluster_a";
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of("cluster_a");
-    }
+public class CCSCanMatchIT extends AbstractCrossClusterSearchTestCase {
 
     private static class EngineWithExposingTimestamp extends InternalEngine {
         EngineWithExposingTimestamp(EngineConfig engineConfig) {

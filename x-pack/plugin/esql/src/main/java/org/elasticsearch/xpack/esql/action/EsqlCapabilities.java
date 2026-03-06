@@ -1605,6 +1605,11 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
+         * COALESCE function support for dense_vector type.
+         */
+        COALESCE_DENSE_VECTOR,
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),
@@ -1693,6 +1698,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/120272
          */
         FIX_NO_COLUMNS,
+
+        /**
+         * Fix LimitOperator truncation with zero columns
+         * https://github.com/elastic/elasticsearch/issues/142473
+         */
+        FIX_LIMIT_TRUNCATION_WITH_ZERO_COLUMNS,
 
         /**
          * Support for dots in FUSE attributes
@@ -2161,6 +2172,12 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
@@ -2241,6 +2258,21 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142180
          */
         FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
+         * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
+         */
+        TS_INFO_COMMAND,
+
+        /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
+        /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

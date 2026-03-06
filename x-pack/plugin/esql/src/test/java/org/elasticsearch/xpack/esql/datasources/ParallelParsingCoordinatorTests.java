@@ -92,7 +92,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         StringBuilder sb = new StringBuilder();
         int lineCount = 200;
         for (int i = 0; i < lineCount; i++) {
-            sb.append("line-").append(String.format("%04d", i)).append("\n");
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
         }
         String content = sb.toString();
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
@@ -127,7 +127,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
             assertEquals("All lines should be read", lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("Lines must be in order", "line-" + String.format("%04d", i), allLines.get(i));
+                assertEquals("Lines must be in order", "line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
             }
         } finally {
             exec.shutdown();

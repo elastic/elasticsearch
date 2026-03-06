@@ -93,7 +93,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature, settings),
+            new RestReindexAction(clusterSupportsFeature, restHandlersServices.settings()),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),

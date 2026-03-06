@@ -208,7 +208,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
-        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;
@@ -619,6 +619,10 @@ public final class CsvTestUtils {
         public static Type asType(ElementType elementType, Type actualType) {
             if (actualType == Type.UNSUPPORTED) {
                 return UNSUPPORTED;
+            }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
             }
             return switch (elementType) {
                 case INT -> INTEGER;

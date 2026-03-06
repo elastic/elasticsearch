@@ -328,43 +328,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_CreatesASparseEmbeddingModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
+            var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -407,7 +384,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 chunkingSettingsMap,
                 Map.of()
             );
-            var model = service.parsePersistedConfigWithSecrets("id", taskType, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("id", taskType, ElasticInferenceService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
             assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
@@ -423,45 +402,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
+            var mockedPersistedConfig = getExtraKeyInConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -477,43 +433,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
+            var mockedPersistedConfig = getExtraKeyInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -525,43 +458,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
+            var mockedPersistedConfig = getRateLimitInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -579,43 +489,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
+            var mockedPersistedConfig = getExtraKeyInTaskSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -626,43 +513,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
+            var mockedPersistedConfig = getExtraKeyInSecretsSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 

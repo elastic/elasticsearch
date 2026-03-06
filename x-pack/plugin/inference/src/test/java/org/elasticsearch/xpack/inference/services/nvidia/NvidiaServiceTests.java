@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
@@ -147,7 +146,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TEXT_EMBEDDING, SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return NvidiaServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -319,7 +318,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         assertThat(nvidiaModel.getTaskType(), is(RERANK));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
@@ -882,7 +881,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "nvidia",
-                       "name": "Nvidia",
+                       "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
@@ -895,7 +894,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "model_id": {
-                               "description": "The name of the model to use for the inference task. Refer to the Nvidia models \
+                               "description": "The name of the model to use for the inference task. Refer to the NVIDIA models \
                 documentation for the list of available models.",
                                "label": "Model ID",
                                "required": true,

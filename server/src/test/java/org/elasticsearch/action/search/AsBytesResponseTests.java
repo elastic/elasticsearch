@@ -80,6 +80,29 @@ public class AsBytesResponseTests extends ESTestCase {
         super.tearDown();
     }
 
+    public void testNetworkPathBytesResponseRoundTrip() throws Exception {
+        var sentResponse = new AtomicReference<TransportResponse>();
+
+        var channel = new TestTransportChannel(ActionListener.wrap(resp -> {
+            resp.mustIncRef();
+            sentResponse.set(resp);
+        }, e -> fail("unexpected failure: " + e)));
+
+        var original = new SimpleTestResponse("round-trip-test");
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {});
+
+        listener.onResponse(original);
+
+        assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
+        var bytesResp = (BytesTransportResponse) sentResponse.get();
+        try (StreamInput in = bytesResp.streamInput()) {
+            var deserialized = new SimpleTestResponse(in);
+            assertThat(deserialized.value, equalTo("round-trip-test"));
+        } finally {
+            bytesResp.decRef();
+        }
+    }
+
     public void testNetworkPathCallsAfterSerializeOnSuccess() {
         var afterSerializeCalled = new AtomicBoolean(false);
         var sentResponse = new AtomicReference<TransportResponse>();
@@ -120,30 +143,7 @@ public class AsBytesResponseTests extends ESTestCase {
         listener.onResponse(new FailingTestResponse());
 
         assertTrue("afterSerialize must be called even on serialization failure", afterSerializeCalled.get());
-        assertThat(sentException.get(), notNullValue());
-    }
-
-    public void testNetworkPathBytesResponseRoundTrip() throws Exception {
-        var sentResponse = new AtomicReference<TransportResponse>();
-
-        var channel = new TestTransportChannel(ActionListener.wrap(resp -> {
-            resp.mustIncRef();
-            sentResponse.set(resp);
-        }, e -> fail("unexpected failure: " + e)));
-
-        var original = new SimpleTestResponse("round-trip-test");
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {});
-
-        listener.onResponse(original);
-
-        assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
-        var bytesResp = (BytesTransportResponse) sentResponse.get();
-        try (StreamInput in = bytesResp.streamInput()) {
-            var deserialized = new SimpleTestResponse(in);
-            assertThat(deserialized.value, equalTo("round-trip-test"));
-        } finally {
-            bytesResp.decRef();
-        }
+        assertThat(sentException.get(), instanceOf(IOException.class));
     }
 
     public void testNetworkPathReleasesCircuitBreakerBytesAfterSerialization() {
@@ -400,5 +400,4 @@ public class AsBytesResponseTests extends ESTestCase {
             return used.get();
         }
     }
-
 }

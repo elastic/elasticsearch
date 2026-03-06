@@ -695,92 +695,111 @@ public class SearchTransportService {
     }
 
     /**
-     * Wraps a transport channel so that the circuit-breaker bytes reserved for the response are released as
-     * early as possible -- right after the response has been converted to bytes, rather than after those bytes
-     * have been fully written to the network.
+     * Returns a listener that invokes {@code afterSerialize} as soon as the response has been serialized
+     * (network path) or handed off (direct/same-node path), so circuit-breaker bytes can be released before
+     * the network send completes.
      *
-     * <p><b>Why this exists:</b> search responses (fetch results, query+fetch results) reserve circuit-breaker
-     * memory while their {@link org.elasticsearch.search.SearchHits} are held in Java objects. Without this
-     * wrapper the reservation is only freed after the full network send completes, keeping the breaker
-     * artificially inflated under high concurrency and causing spurious {@code CircuitBreakingException}s.
-     *
-     * <p><b>How it works -- two paths:</b>
-     * <ol>
-     *   <li><b>Network (remote node):</b> the response is serialized into a {@link BytesTransportResponse}.
-     *       Once the bytes are produced, {@code afterSerialize} is called to release the breaker, and only
-     *       then are the bytes sent over the wire. The original in-memory response can be freed immediately.</li>
-     *   <li><b>Direct (same node):</b> no serialization is needed -- the Java object is handed directly to
-     *       the response handler. {@code afterSerialize} is called right after {@code channel.sendResponse()}
-     *       returns. This is safe because the callback only updates breaker <em>accounting</em>; the actual
-     *       response data is protected by ref-counting and stays alive until the handler is done with it.</li>
-     * </ol>
-     *
-     * <p>The caller is responsible for calling {@code response.decRef()} (typically via
-     * {@link ActionListener#respondAndRelease}); this method never calls it.
-     *
-     * @param afterSerialize callback invoked once the response bytes have been produced (network) or once
-     *                       {@code channel.sendResponse()} returns (direct); used to release circuit-breaker
-     *                       reservations. Must not throw.
+     * <p>On the network path the response is pre-serialized into a {@link BytesTransportResponse}; on the
+     * direct path the original object is forwarded as-is. In both cases {@code afterSerialize} runs before
+     * the bytes hit the wire.
      */
     static <T extends TransportResponse> ActionListener<T> asBytesResponse(
         TransportService transportService,
         TransportChannel channel,
         Consumer<T> afterSerialize
     ) {
-        TransportChannel innerChannel = channel instanceof TaskTransportChannel ttc ? ttc.getChannel() : channel;
-        if (TransportService.isDirectResponseChannel(innerChannel)) {
-            var channelListener = new ChannelActionListener<T>(channel);
-            return new ActionListener<>() {
-                @Override
-                public void onResponse(T response) {
-                    try {
-                        channelListener.onResponse(response);
-                    } finally {
-                        afterSerialize.accept(response);
-                    }
-                }
+        if (isDirectResponseChannel(channel)) {
+            return new DirectPathListener<>(channel, afterSerialize);
+        }
+        return new NetworkPathListener<>(transportService, channel, afterSerialize);
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    channelListener.onFailure(e);
-                }
-            };
+    private static boolean isDirectResponseChannel(TransportChannel channel) {
+        if (channel instanceof TaskTransportChannel ttc) {
+            channel = ttc.getChannel();
+        }
+        return TransportService.isDirectResponseChannel(channel);
+    }
+
+    /**
+     * Forwards the original Java response as-is and invokes {@code afterSerialize} immediately afterwards.
+     * */
+    private static class DirectPathListener<T extends TransportResponse> implements ActionListener<T> {
+        private final ChannelActionListener<T> channelListener;
+        private final Consumer<T> afterSerialize;
+
+        DirectPathListener(TransportChannel channel, Consumer<T> afterSerialize) {
+            this.channelListener = new ChannelActionListener<>(channel);
+            this.afterSerialize = afterSerialize;
         }
 
-        var channelListener = new ChannelActionListener<BytesTransportResponse>(channel);
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T response) {
-                RecyclerBytesStreamOutput out = transportService.newNetworkBytesStream();
-                try {
-                    out.setTransportVersion(channel.getVersion());
-                    response.writeTo(out);
-                } catch (Exception e) {
-                    Releasables.close(out);
-                    try {
-                        afterSerialize.accept(response);
-                    } catch (Exception suppressed) {
-                        e.addSuppressed(suppressed);
-                    }
-                    channelListener.onFailure(e);
-                    return;
-                }
-                var bytesRef = out.moveToBytesReference();
-                try {
-                    afterSerialize.accept(response);
-                } catch (Exception e) {
-                    Releasables.close(bytesRef);
-                    channelListener.onFailure(e);
-                    return;
-                }
-                ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, out.getTransportVersion()));
+        @Override
+        public void onResponse(T response) {
+            try {
+                channelListener.onResponse(response);
+            } finally {
+                afterSerialize.accept(response);
             }
+        }
 
-            @Override
-            public void onFailure(Exception e) {
+        @Override
+        public void onFailure(Exception e) {
+            channelListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Serializes the response into a {@link BytesTransportResponse}, invokes {@code afterSerialize} to release circuit-breaker bytes,
+     * and then sends the pre-serialized bytes over the wire.
+     */
+    private static class NetworkPathListener<T extends TransportResponse> implements ActionListener<T> {
+        private final TransportService transportService;
+        private final TransportChannel channel;
+        private final Consumer<T> afterSerialize;
+        private final ChannelActionListener<BytesTransportResponse> channelListener;
+
+        NetworkPathListener(TransportService transportService, TransportChannel channel, Consumer<T> afterSerialize) {
+            this.transportService = transportService;
+            this.channel = channel;
+            this.afterSerialize = afterSerialize;
+            this.channelListener = new ChannelActionListener<>(channel);
+        }
+
+        @Override
+        public void onResponse(T response) {
+            RecyclerBytesStreamOutput out = transportService.newNetworkBytesStream();
+            try {
+                out.setTransportVersion(channel.getVersion());
+                response.writeTo(out);
+            } catch (Exception e) {
+                Releasables.close(out);
+                invokeAfterSerializeSafely(response, e);
                 channelListener.onFailure(e);
+                return;
             }
-        };
+            var bytesRef = out.moveToBytesReference();
+            try {
+                afterSerialize.accept(response);
+            } catch (Exception e) {
+                Releasables.close(bytesRef);
+                channelListener.onFailure(e);
+                return;
+            }
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, out.getTransportVersion()));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            channelListener.onFailure(e);
+        }
+
+        private void invokeAfterSerializeSafely(T response, Exception primary) {
+            try {
+                afterSerialize.accept(response);
+            } catch (Exception suppressed) {
+                primary.addSuppressed(suppressed);
+            }
+        }
     }
 
     public void cancelSearchTask(SearchTask task, String reason) {

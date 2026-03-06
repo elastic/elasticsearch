@@ -66,10 +66,15 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     }
 
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
+        int persistentTasksRemaining = randomIntBetween(0, 10);
+        int autoReassignRemaining = randomIntBetween(0, persistentTasksRemaining);
+        SingleNodeShutdownMetadata.Status persistentTaskStatus = persistentTasksRemaining == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
         return new SingleNodeShutdownStatus(
             randomNodeShutdownMetadata(),
             new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-            new ShutdownPersistentTasksStatus(),
+            new ShutdownPersistentTasksStatus(persistentTaskStatus, persistentTasksRemaining, autoReassignRemaining),
             new ShutdownPluginsStatus(randomBoolean())
         );
     }

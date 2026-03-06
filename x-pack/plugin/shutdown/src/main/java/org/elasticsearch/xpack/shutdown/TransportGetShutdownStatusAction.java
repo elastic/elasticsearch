@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.persistent.PersistentTasks;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -68,6 +70,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final PluginShutdownService pluginShutdownService;
+    private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
 
     @Inject
     public TransportGetShutdownStatusAction(
@@ -79,7 +82,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationDeciders allocationDeciders,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        PluginShutdownService pluginShutdownService
+        PluginShutdownService pluginShutdownService,
+        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry
     ) {
         super(
             GetShutdownStatusAction.NAME,
@@ -97,6 +101,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.pluginShutdownService = pluginShutdownService;
+        this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
     }
 
     @Override
@@ -130,14 +135,13 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             allocationService,
                             allocationDeciders
                         ),
-                        new ShutdownPersistentTasksStatus(),
+                        persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
                 )
                 .collect(Collectors.toList());
             response = new GetShutdownStatusAction.Response(shutdownStatuses);
         } else {
-            new ArrayList<>();
             final List<SingleNodeShutdownStatus> shutdownStatuses = Arrays.stream(request.getNodeIds())
                 .map(nodesShutdownMetadata::get)
                 .filter(Objects::nonNull)
@@ -155,7 +159,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             allocationService,
                             allocationDeciders
                         ),
-                        new ShutdownPersistentTasksStatus(),
+                        persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
 
@@ -165,6 +169,29 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         listener.onResponse(response);
+    }
+
+    // pkg-private for testing
+    static ShutdownPersistentTasksStatus persistentTasksStatus(ClusterState state, String nodeId, boolean nodeSeen) {
+        if (state.nodes().get(nodeId) == null && nodeSeen == false) {
+            return new ShutdownPersistentTasksStatus(SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, 0);
+        }
+        final int[] statusCounters = { 0, 0 };
+        PersistentTasks.getAllTasks(state)
+            .flatMap(tuple -> tuple.v2().tasks().stream())
+            .filter(task -> nodeId.equals(task.getAssignment().getExecutorNode()))
+            .forEach(task -> {
+                statusCounters[0]++;
+                if (PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled(task.getTaskName()) == false) {
+                    statusCounters[1]++;
+                }
+            });
+        final int remaining = statusCounters[0];
+        final int autoReassign = statusCounters[1];
+        SingleNodeShutdownMetadata.Status status = autoReassign == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return new ShutdownPersistentTasksStatus(status, remaining, autoReassign);
     }
 
     // pkg-private for testing

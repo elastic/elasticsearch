@@ -71,6 +71,12 @@ public class MockPluginsService extends PluginsService {
         this.classpathPlugins = List.copyOf(pluginsLoaded);
     }
 
+    /**
+     * This method differs from {@link PluginsService#loadExtensions(Collection)} in that it
+     * loads extensions from all plugins for each {@link ExtensiblePlugin}.
+     * That is because {@link MockPluginsService} loads plugins from the classpath, and uses a mock {@link PluginDescriptor}
+     * for plugins that do not expose information on extended plugins.
+     */
     static void loadExtensions(Collection<LoadedPlugin> plugins) {
         for (LoadedPlugin pluginTuple : plugins) {
             if (pluginTuple.instance() instanceof ExtensiblePlugin extensiblePlugin) {

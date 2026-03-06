@@ -9,20 +9,20 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
@@ -33,25 +33,15 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values != null) {
-            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            assert counts != null
-                : "no counts field ["
-                    + countsFieldName
-                    + "], this block loader only works with ["
-                    + MultiValuedBinaryDocValuesField.SeparateCount.class.getSimpleName()
-                    + "]";
-            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-            if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
-                return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
-            }
-            return new MvMaxBinary(values, counts);
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
+            return ConstantNull.COLUMN_READER;
         }
-        return ConstantNull.READER;
+        if (bc.counts() == null) {
+            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
+        }
+        return new MvMaxBytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
     }
 
     @Override
@@ -59,50 +49,37 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         return factory.bytesRefs(expectedCount);
     }
 
-    private static class MvMaxBinary extends BlockDocValuesReader {
-        private final BinaryDocValues values;
-        private final NumericDocValues counts;
+    private static class MvMaxBytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+        private final TrackingNumericDocValues counts;
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-        MvMaxBinary(BinaryDocValues values, NumericDocValues counts) {
-            this.values = Objects.requireNonNull(values);
+        MvMaxBytesRefsFromBinarySeparateCount(TrackingBinaryDocValues values, TrackingNumericDocValues counts) {
+            super(values);
             this.counts = Objects.requireNonNull(counts);
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (var builder = factory.bytesRefs(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int docId = docs.get(i);
-                    read(docId, builder);
-                }
-                return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
-        private void read(int docId, BytesRefBuilder builder) throws IOException {
-            if (false == counts.advanceExact(docId)) {
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == counts.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            boolean advanced = values.advanceExact(docId);
+
+            boolean advanced = docValues.docValues().advanceExact(doc);
             assert advanced;
-            reader.readMax(values.binaryValue(), counts.longValue(), builder);
+
+            int count = (int) counts.docValues().longValue();
+            reader.readMax(docValues.docValues().binaryValue(), count, builder);
         }
 
         @Override
-        public int docId() {
-            return counts.docID();
+        public void close() {
+            Releasables.close(super::close, counts);
         }
 
         @Override
         public String toString() {
-            return "MvMaxBytesRefs.Binary";
+            return "MvMaxBytesRefsFromBinary.SeparateCount";
         }
     }
 }

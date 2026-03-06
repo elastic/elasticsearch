@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;

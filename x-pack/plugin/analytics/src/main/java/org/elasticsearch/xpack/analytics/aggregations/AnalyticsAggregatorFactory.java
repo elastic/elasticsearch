@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.ExponentialHistogramBackedHistogramAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.bucket.range.ExponentialHistogramBackedRangeAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.range.HistoBackedRangeAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramMaxAggregator;
@@ -223,6 +224,15 @@ public class AnalyticsAggregatorFactory {
             MaxAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
             ExponentialHistogramMaxAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramRangeAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            RangeAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramBackedRangeAggregator::build,
             true
         );
     }

@@ -15,25 +15,25 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link HistogramPercentile}.
+ * {@link ExpressionEvaluator} implementation for {@link HistogramPercentile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class HistogramPercentileTDigestEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class HistogramPercentileTDigestEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HistogramPercentileTDigestEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
-  private final EvalOperator.ExpressionEvaluator percentile;
+  private final ExpressionEvaluator percentile;
 
   private final MemoryTrackingTDigestArrays tdigestArrays;
 
@@ -41,8 +41,8 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   private Warnings warnings;
 
-  public HistogramPercentileTDigestEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator percentile, MemoryTrackingTDigestArrays tdigestArrays,
+  public HistogramPercentileTDigestEvaluator(Source source, ExpressionEvaluator value,
+      ExpressionEvaluator percentile, MemoryTrackingTDigestArrays tdigestArrays,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
@@ -124,17 +124,17 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
-    private final EvalOperator.ExpressionEvaluator.Factory percentile;
+    private final ExpressionEvaluator.Factory percentile;
 
     private final Function<DriverContext, MemoryTrackingTDigestArrays> tdigestArrays;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        EvalOperator.ExpressionEvaluator.Factory percentile,
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        ExpressionEvaluator.Factory percentile,
         Function<DriverContext, MemoryTrackingTDigestArrays> tdigestArrays) {
       this.source = source;
       this.value = value;

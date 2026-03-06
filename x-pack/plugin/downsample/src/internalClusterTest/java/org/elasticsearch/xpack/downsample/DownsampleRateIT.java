@@ -13,7 +13,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -28,7 +27,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,14 +66,14 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     public void testTimeSeriesAggregateRate() throws Exception {
         runTest(
             List.of(
-                Tuple.tuple("2021-04-29T17:01:00.000Z", 1),
-                Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
-                Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
-                Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
-                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-                Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
-                Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
-                Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
+                new DocumentSpec("2021-04-29T17:01:00.000Z", 1),
+                new DocumentSpec("2021-04-29T17:03:12.470Z", 2),
+                new DocumentSpec("2021-04-29T17:10:12.470Z", 5),
+                new DocumentSpec("2021-04-29T17:22:22.470Z", 6),
+                new DocumentSpec("2021-04-29T17:24:22.470Z", 10),
+                new DocumentSpec("2021-04-29T17:29:22.470Z", 11),
+                new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
+                new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
             "30m",
             0.003
@@ -84,16 +83,16 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     public void testTimeSeriesAggregateRate_SingleReset() throws Exception {
         runTest(
             List.of(
-                Tuple.tuple("2021-04-29T17:02:12.470Z", 1),
-                Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
-                Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
-                Tuple.tuple("2021-04-29T17:19:12.470Z", 8),
-                Tuple.tuple("2021-04-29T17:20:22.470Z", 3),
-                Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
-                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-                Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
-                Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
-                Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
+                new DocumentSpec("2021-04-29T17:02:12.470Z", 1),
+                new DocumentSpec("2021-04-29T17:03:12.470Z", 2),
+                new DocumentSpec("2021-04-29T17:10:12.470Z", 5),
+                new DocumentSpec("2021-04-29T17:19:12.470Z", 8),
+                new DocumentSpec("2021-04-29T17:20:22.470Z", 3),
+                new DocumentSpec("2021-04-29T17:22:22.470Z", 6),
+                new DocumentSpec("2021-04-29T17:24:22.470Z", 10),
+                new DocumentSpec("2021-04-29T17:29:22.470Z", 11),
+                new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
+                new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
             "30m",
             0.003
@@ -103,16 +102,16 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     public void testTimeSeriesQueryingSingleLargeReset() throws Exception {
         runTest(
             List.of(
-                Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
-                Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
-                Tuple.tuple("2021-04-29T17:10:12.470Z", 1010),
-                Tuple.tuple("2021-04-29T17:19:12.470Z", 1040),
-                Tuple.tuple("2021-04-29T17:20:22.470Z", 1060),
-                Tuple.tuple("2021-04-29T17:22:22.470Z", 20),
-                Tuple.tuple("2021-04-29T17:24:22.470Z", 30),
-                Tuple.tuple("2021-04-29T17:29:22.470Z", 40),
-                Tuple.tuple("2021-04-29T17:32:22.470Z", 70),
-                Tuple.tuple("2021-04-29T17:39:22.470Z", 80)
+                new DocumentSpec("2021-04-29T17:02:12.470Z", 1000),
+                new DocumentSpec("2021-04-29T17:03:12.470Z", 1003),
+                new DocumentSpec("2021-04-29T17:10:12.470Z", 1010),
+                new DocumentSpec("2021-04-29T17:19:12.470Z", 1040),
+                new DocumentSpec("2021-04-29T17:20:22.470Z", 1060),
+                new DocumentSpec("2021-04-29T17:22:22.470Z", 20),
+                new DocumentSpec("2021-04-29T17:24:22.470Z", 30),
+                new DocumentSpec("2021-04-29T17:29:22.470Z", 40),
+                new DocumentSpec("2021-04-29T17:32:22.470Z", 70),
+                new DocumentSpec("2021-04-29T17:39:22.470Z", 80)
             ),
             "30m",
             0.003
@@ -122,24 +121,24 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     public void testTimeSeriesQuerying_MultipleResets() throws Exception {
         runTest(
             List.of(
-                Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
-                Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
-                Tuple.tuple("2021-04-29T17:05:12.470Z", 1010),
-                Tuple.tuple("2021-04-29T17:06:12.470Z", 1040),
-                Tuple.tuple("2021-04-29T17:07:22.470Z", 1060),
-                Tuple.tuple("2021-04-29T17:08:22.470Z", 20),
-                Tuple.tuple("2021-04-29T17:10:22.470Z", 30),
-                Tuple.tuple("2021-04-29T17:11:22.470Z", 40),
-                Tuple.tuple("2021-04-29T17:12:22.470Z", 70),
-                Tuple.tuple("2021-04-29T17:22:22.470Z", 80),
-                Tuple.tuple("2021-04-29T17:23:22.470Z", 20),
-                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-                Tuple.tuple("2021-04-29T17:25:22.470Z", 20),
-                Tuple.tuple("2021-04-29T17:26:22.470Z", 40),
-                Tuple.tuple("2021-04-29T17:27:22.470Z", 60),
-                Tuple.tuple("2021-04-29T17:28:22.470Z", 5),
-                Tuple.tuple("2021-04-29T17:29:22.470Z", 10),
-                Tuple.tuple("2021-04-29T17:59:22.470Z", 20)
+                new DocumentSpec("2021-04-29T17:02:12.470Z", 1000),
+                new DocumentSpec("2021-04-29T17:03:12.470Z", 1003),
+                new DocumentSpec("2021-04-29T17:05:12.470Z", 1010),
+                new DocumentSpec("2021-04-29T17:06:12.470Z", 1040),
+                new DocumentSpec("2021-04-29T17:07:22.470Z", 1060),
+                new DocumentSpec("2021-04-29T17:08:22.470Z", 20),
+                new DocumentSpec("2021-04-29T17:10:22.470Z", 30),
+                new DocumentSpec("2021-04-29T17:11:22.470Z", 40),
+                new DocumentSpec("2021-04-29T17:12:22.470Z", 70),
+                new DocumentSpec("2021-04-29T17:22:22.470Z", 80),
+                new DocumentSpec("2021-04-29T17:23:22.470Z", 20),
+                new DocumentSpec("2021-04-29T17:24:22.470Z", 10),
+                new DocumentSpec("2021-04-29T17:25:22.470Z", 20),
+                new DocumentSpec("2021-04-29T17:26:22.470Z", 40),
+                new DocumentSpec("2021-04-29T17:27:22.470Z", 60),
+                new DocumentSpec("2021-04-29T17:28:22.470Z", 5),
+                new DocumentSpec("2021-04-29T17:29:22.470Z", 10),
+                new DocumentSpec("2021-04-29T17:59:22.470Z", 20)
             ),
             "30m",
             0.003
@@ -151,22 +150,23 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         long endTime = Instant.parse(END_TIME).toEpochMilli();
         int counter = 0;
         long currentTime = startTime;
-        List<Tuple<String, Integer>> documents = new ArrayList<>();
+        List<DocumentSpec> documentSpecs = new ArrayList<>();
         while (currentTime < endTime) {
             if (randomInt(9) > 0) {
                 counter = randomInt(100);
             } else {
                 counter += randomInt(100);
             }
-            documents.add(Tuple.tuple(DATE_FORMATTER.formatMillis(currentTime), counter));
-            currentTime += randomLongBetween(10, 60) * 1000;
+            documentSpecs.add(new DocumentSpec(randomFrom("pod-1", "pod-2", "pod-3"), DATE_FORMATTER.formatMillis(currentTime), counter));
+            currentTime += randomLongBetween(10, 30) * 1000;
         }
-        runTest(documents, "1h", 0.05);
+        // We use higher rate epsilon because there bigger fluctuation because of the random data
+        runTest(documentSpecs, "1h", 0.08);
     }
 
-    private void runTest(List<Tuple<String, Integer>> documents, String interval, double rateEpsilon) throws Exception {
+    private void runTest(List<DocumentSpec> documentSpecs, String interval, double rateEpsilon) {
         createIndex();
-        indexDocuments(documents);
+        indexDocuments(documentSpecs);
         DownsampleConfig downsampleConfig = new DownsampleConfig(
             new DateHistogramInterval(interval),
             DownsampleConfig.SamplingMethod.AGGREGATE
@@ -181,21 +181,34 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse contender, double rateEpsilon) {
         assertResultColumns(baseline);
         assertResultColumns(contender);
-        Iterator<Object> baselineRow = baseline.rows().iterator().next().iterator();
-        Iterator<Object> contenderRow = contender.rows().iterator().next().iterator();
-        // Check rate
-        var baselineRate = (double) baselineRow.next();
-        var contenderRate = (double) contenderRow.next();
-        assertEquals(baselineRate, contenderRate, rateEpsilon);
-        // Skip tsid
-        var baselineTs = (String) baselineRow.next();
-        var contenderTs = (String) contenderRow.next();
-        // TODO Uncomment when https://github.com/elastic/elasticsearch/issues/143464 is fixed
-        // assertThat(contenderTs, equalTo(baselineTs));
-        // Check timestamp
-        var baselineBucket = baselineRow.next();
-        var contenderBucket = contenderRow.next();
-        assertThat(contenderBucket, equalTo(baselineBucket));
+        List<RateResult> baselineRows = convertToSortedList(baseline);
+        List<RateResult> contenderRows = convertToSortedList(contender);
+        for (int i = 0; i < baselineRows.size(); i++) {
+            RateResult baselineRow = baselineRows.get(i);
+            RateResult contenderRow = contenderRows.get(i);
+            // We need these two assertions to correctly identify the rate
+            // TODO remove comment after https://github.com/elastic/elasticsearch/issues/143464
+            // assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(contenderRow.timestamp, equalTo(baselineRow.timestamp));
+            assertEquals(baselineRow.rate, contenderRow.rate, rateEpsilon);
+        }
+    }
+
+    // We need to convert the result to a list and sort it by timeseries first and then by timestamp
+    // to compare the results row by row
+    private static List<RateResult> convertToSortedList(EsqlQueryResponse result) {
+        var rows = new ArrayList<RateResult>((int) result.getRowCount());
+        for (Iterable<Object> objects : result.rows()) {
+            var row = objects.iterator();
+            while (row.hasNext()) {
+                var rate = (double) row.next();
+                var timeseries = (String) row.next();
+                var timestamp = (String) row.next();
+                rows.add(new RateResult(timeseries, timestamp, rate));
+            }
+        }
+        rows.sort(Comparator.comparing(RateResult::timeseries).thenComparing(RateResult::timestamp));
+        return rows;
     }
 
     private void assertResultColumns(EsqlQueryResponse response) {
@@ -231,26 +244,26 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         assertAcked(client().admin().indices().create(request));
     }
 
-    private void indexDocuments(List<Tuple<String, Integer>> documents) throws IOException {
+    private void indexDocuments(List<DocumentSpec> documentSpecs) {
         AtomicInteger i = new AtomicInteger();
         Supplier<XContentBuilder> nextDoc = () -> {
             try {
-                assertThat(i.get(), lessThan(documents.size()));
-                var docSpec = documents.get(i.getAndIncrement());
+                assertThat(i.get(), lessThan(documentSpecs.size()));
+                var docSpec = documentSpecs.get(i.getAndIncrement());
                 return XContentFactory.jsonBuilder()
                     .startObject()
-                    .field("@timestamp", docSpec.v1())
-                    .field("metricset", "pod")
-                    .field("counter", docSpec.v2())
+                    .field("@timestamp", docSpec.timestamp)
+                    .field("metricset", docSpec.dimension)
+                    .field("counter", docSpec.counter)
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
-        bulkIndex(INDEX_NAME, nextDoc, documents.size());
+        bulkIndex(INDEX_NAME, nextDoc, documentSpecs.size());
     }
 
-    private void downsample(DownsampleConfig downsampleConfig) throws Exception {
+    private void downsample(DownsampleConfig downsampleConfig) {
         // Set the source index to read-only state
         assertAcked(
             indicesAdmin().prepareUpdateSettings(INDEX_NAME)
@@ -275,4 +288,12 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         });
         safeAwait(listener);
     }
+
+    record DocumentSpec(String dimension, String timestamp, int counter) {
+        DocumentSpec(String timestamp, int counter) {
+            this("pod", timestamp, counter);
+        }
+    }
+
+    record RateResult(String timeseries, String timestamp, double rate) {}
 }

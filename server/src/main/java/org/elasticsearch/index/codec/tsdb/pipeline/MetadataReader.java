@@ -13,6 +13,13 @@ import java.io.IOException;
 
 /**
  * Reads stage metadata values from a buffer during decoding.
+ *
+ * <p>This is the decode-side counterpart of {@link MetadataWriter}. See that interface for the
+ * rationale behind using a dedicated interface rather than Lucene's {@code DataInput} or
+ * Elasticsearch's {@code StreamInput}.
+ *
+ * @see MetadataWriter
+ * @see DecodingContext
  */
 public interface MetadataReader {
 

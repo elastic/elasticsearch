@@ -11,6 +11,24 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 /**
  * Writes stage metadata values to a buffer during encoding. Supports method chaining.
+ *
+ * <p>This is a dedicated interface rather than Lucene's {@code DataOutput} or Elasticsearch's
+ * {@code StreamOutput} because the block layout places stage metadata <em>after</em> the payload
+ * on disk ({@code [bitmap][payload][stage metadata]}), while transform stages produce metadata
+ * <em>before</em> the payload during encoding. The encode pipeline buffers metadata in memory
+ * and flushes it after the payload is written (see {@link EncodingContext#writeStageMetadata}).
+ *
+ * <p>This design favors the decode path: the decoder reads bitmap, payload, then metadata in a
+ * single forward pass with no buffering or seeking. Since decoding is far more frequent than
+ * encoding, the buffering cost is pushed to the encode side (once per block).
+ *
+ * <p>By decoupling stages from the buffering strategy, each stage writes metadata through this
+ * minimal interface without knowledge of the block layout or metadata ordering. This also
+ * simplifies backwards compatibility: the block layout or metadata ordering can change without
+ * modifying any stage implementation.
+ *
+ * @see MetadataReader
+ * @see EncodingContext#writeStageMetadata(org.apache.lucene.store.DataOutput)
  */
 public interface MetadataWriter {
 

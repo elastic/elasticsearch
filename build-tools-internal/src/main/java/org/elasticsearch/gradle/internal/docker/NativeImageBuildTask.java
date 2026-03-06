@@ -19,6 +19,7 @@ import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -62,6 +63,14 @@ public abstract class NativeImageBuildTask extends DefaultTask {
     @Input
     public abstract Property<String> getMainClass();
 
+    /**
+     * When true, pass {@code --static} to native-image to produce a fully static binary.
+     * Defaults to true.
+     */
+    @Input
+    @Optional
+    public abstract Property<Boolean> getStatic();
+
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
@@ -79,6 +88,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             params.getImageTag().set(getImageTag());
             params.getPlatform().set(getPlatform());
             params.getMainClass().set(getMainClass());
+            params.getStatic().set(getStatic().getOrElse(true));
             params.getOutputFile().set(getOutputFile());
             params.getDockerExecutable().set(dockerExecutable);
         });
@@ -92,6 +102,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
         Property<String> getPlatform();
 
         Property<String> getMainClass();
+
+        Property<Boolean> getStatic();
 
         RegularFileProperty getOutputFile();
 
@@ -154,8 +166,10 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             args.add("--platform");
             args.add(platform);
             args.add(imageTag);
-            // Image ENTRYPOINT is already native-image; pass only native-image arguments
             args.add("--no-fallback");
+            if (params.getStatic().get()) {
+                args.add("--static");
+            }
             args.add("-cp");
             args.add(cpString);
             args.add("-o");

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Location;
@@ -106,7 +106,7 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
     }
 
     /**
-     * Sets the expected {@link Object#toString} of the {@link EvalOperator.ExpressionEvaluator}.
+     * Sets the expected {@link Object#toString} of the {@link ExpressionEvaluator}.
      * Use {@code %0} for the "reader" for the first parameter. Use {@code %1} for the second. Etc.
      * Like:
      * <pre>{@code

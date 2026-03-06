@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -152,20 +153,19 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * Update the Fork's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
      */
     private static Fork patchFork(Fork fork) {
-        List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-        boolean childrenChanged = false;
-        for (var child : fork.children()) {
-            var transformed = child.transformDownSkipBranch((n, skip) -> {
-                if (n instanceof Project project) {
-                    n = patchForkProject(project);
-                    skip.set(true); // process top Project only (Fork-injected)
+        Holder<Boolean> changed = new Holder<>(false);
+        Fork transformed = (Fork) fork.transformDownSkipBranch((plan, skip) -> {
+            if (plan instanceof Project project) {
+                skip.set(true); // process top Project only (Fork-injected)
+                plan = patchForkProject(project);
+                if (plan != project) {
+                    changed.set(Boolean.TRUE);
                 }
-                return n;
-            });
-            childrenChanged |= transformed != child;
-            newChildren.add(transformed);
-        }
-        return childrenChanged ? fork.withSubPlans(newChildren) : fork;
+            }
+            return plan;
+        });
+
+        return changed.get() ? transformed.refreshOutput() : fork;
     }
 
     /**

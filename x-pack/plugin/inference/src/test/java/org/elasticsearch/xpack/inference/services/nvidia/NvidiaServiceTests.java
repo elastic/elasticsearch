@@ -881,7 +881,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "nvidia",
-                       "name": "Nvidia",
+                       "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
@@ -894,7 +894,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "model_id": {
-                               "description": "The name of the model to use for the inference task. Refer to the Nvidia models \
+                               "description": "The name of the model to use for the inference task. Refer to the NVIDIA models \
                 documentation for the list of available models.",
                                "label": "Model ID",
                                "required": true,

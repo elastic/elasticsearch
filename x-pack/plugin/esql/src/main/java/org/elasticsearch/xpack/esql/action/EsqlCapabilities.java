@@ -2259,6 +2259,12 @@ public class EsqlCapabilities {
         DENSE_VECTOR_SUM_FUNCTION,
 
         /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
+
+        
+        /**
          * Fix for not including metadata _doc_count in the _timeseries column
          * https://github.com/elastic/elasticsearch/issues/143464
          */

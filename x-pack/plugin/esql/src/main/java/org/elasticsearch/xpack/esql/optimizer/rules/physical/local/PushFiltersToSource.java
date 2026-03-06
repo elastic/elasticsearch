@@ -77,9 +77,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
-        List<Expression> pushable = new ArrayList<>(classified.pushable);
-        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, classified.nonPushable, evalExec.fields());
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -282,9 +281,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
-        List<Expression> pushable = new ArrayList<>(classified.pushable);
-        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, pqExec, pushable, classified.nonPushable, evalExec.fields());
+        classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        return rewrite(pushdownPredicates, filterExec, pqExec, classified.pushable, classified.nonPushable, evalExec.fields());
     }
 
     private static PhysicalPlan rewrite(

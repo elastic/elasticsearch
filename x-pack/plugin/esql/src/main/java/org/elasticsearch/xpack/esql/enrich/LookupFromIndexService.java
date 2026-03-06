@@ -356,7 +356,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 inputPage = new Page(bsi);
             }
-            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
+            // configuration is needed for the PlanStreamInput, read it here first
+            Configuration configuration = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
+                configuration = in.readOptionalWriteable(Configuration::readWithoutTables);
+            }
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             List<MatchConfig> matchFields = null;
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
@@ -368,8 +373,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 matchFields.add(new MatchConfig(matchField, 0, inputDataType));
             }
             var source = Source.readFrom(planIn);
-            // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
-            // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
@@ -389,10 +392,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 clientToServerId = in.readOptionalString();
                 serverToClientId = in.readOptionalString();
                 profile = in.readBoolean();
-            }
-            Configuration configuration = null;
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
-                configuration = in.readOptionalWriteable(Configuration::readWithoutTables);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -459,7 +458,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(matchFields.get(0).type().typeName());
             }
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, null);
+            // configuration is needed for the PlanStreamOutput, write it here early
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
+                out.writeOptionalWriteable(configuration != null ? configuration.withoutTables() : null);
+            }
+            PlanStreamOutput planOut = new PlanStreamOutput(out, configuration);
             planOut.writeNamedWriteableCollection(extractFields);
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 // serialize all match fields for new versions
@@ -487,9 +490,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeOptionalString(clientToServerId);
                 out.writeOptionalString(serverToClientId);
                 out.writeBoolean(profile);
-            }
-            if (out.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
-                out.writeOptionalWriteable(configuration != null ? configuration.withoutTables() : null);
             }
         }
 

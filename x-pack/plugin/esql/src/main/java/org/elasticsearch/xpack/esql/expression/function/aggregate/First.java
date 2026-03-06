@@ -10,12 +10,18 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstBooleanByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBytesRefByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -159,15 +165,30 @@ public class First extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        final DataType type = field().dataType();
-        return switch (type) {
-            case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
-            case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllFirstBooleanByTimestampAggregatorFunctionSupplier();
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+        final DataType searchFieldType = field().dataType();
+        final DataType sortFieldType = sort().dataType();
+
+        if (sortFieldType == DataType.NULL || sort().foldable()) {
+            return switch (searchFieldType) {
+                // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
+                case LONG, DATETIME, DATE_NANOS -> new AnyLongAggregatorFunctionSupplier();
+                case INTEGER -> new AnyIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
+                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AnyBytesRefAggregatorFunctionSupplier();
+                case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        return switch (searchFieldType) {
+            case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByLongAggregatorFunctionSupplier();
+            case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
+            case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
+            case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByLongAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
+            default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
         };
     }
 

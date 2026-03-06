@@ -202,6 +202,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final ModelRegistry modelRegistry;
         private final boolean useLegacyFormat;
         private final IndexVersion indexVersionCreated;
+        private final boolean experimentalFeaturesEnabled;
 
         private final Parameter<String> inferenceId;
 
@@ -260,6 +261,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+            this.experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings());
             this.vectorsFormatProviders = vectorsFormatProviders;
 
             this.inferenceId = Parameter.stringParam(
@@ -289,7 +291,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 INDEX_OPTIONS_FIELD,
                 true,
                 () -> null,
-                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
+                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     if (v == null) {
@@ -793,8 +795,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     context.path().add(fieldName);
                 }
             } else {
-                context.addDynamicMapper(builder, fullPath());
-                return builder.build(context.createDynamicMapperBuilderContext());
+                return (SemanticTextFieldMapper) context.getDynamicMapper(builder);
             }
         } finally {
             context.path().add(leafName());
@@ -1314,6 +1315,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     modelSettings,
                     indexOptions,
                     useLegacyFormat,
+                    indexSettings.getValue(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
                     vectorsFormatProviders
                 )
             );
@@ -1332,6 +1334,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
+        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
@@ -1351,6 +1354,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
                     false,
+                    experimentalFeaturesEnabled,
                     vectorsFormatProviders
                 );
 
@@ -1497,7 +1501,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return false;
     }
 
-    private static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
+    private static SemanticTextIndexOptions parseIndexOptionsFromMap(
+        String fieldName,
+        Object node,
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
+    ) {
 
         if (node == null) {
             return null;
@@ -1513,6 +1522,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
+        return new SemanticTextIndexOptions(
+            indexOptions,
+            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled)
+        );
     }
 }

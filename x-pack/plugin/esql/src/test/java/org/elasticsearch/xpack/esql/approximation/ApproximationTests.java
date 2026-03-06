@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -73,9 +72,9 @@ public class ApproximationTests extends ESTestCase {
     private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
         new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current())
     );
-    private static final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
-    private static final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-    private static final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+    private static final MockBlockFactory blockFactory = new MockBlockFactory(
+        BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)))
+    );
 
     /**
      * Runner that simulates the execution of an ESQL query.

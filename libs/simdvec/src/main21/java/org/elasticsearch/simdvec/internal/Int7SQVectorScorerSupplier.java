@@ -54,7 +54,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord >= maxOrd) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -175,7 +175,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int squareDistance = Similarities.squareDistance7u(a, b, dims);
+            int squareDistance = Similarities.squareDistanceI7u(a, b, dims);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }
@@ -192,7 +192,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         ) {
             long firstByteOffset = (long) firstOrd * vectorPitch;
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
-            Similarities.squareDistance7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+            Similarities.squareDistanceI7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
             for (int i = 0; i < numNodes; ++i) {
                 var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
@@ -215,7 +215,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = Similarities.dotProduct7u(a, b, dims);
+            int dotProduct = Similarities.dotProductI7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
             return Math.max((1 + adjustedDistance) / 2, 0f);
@@ -233,7 +233,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         ) {
             long firstByteOffset = (long) firstOrd * vectorPitch;
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
-            Similarities.dotProduct7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+            Similarities.dotProductI7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
             // Java-side adjustment
             var aOffset = Float.intBitsToFloat(
@@ -265,7 +265,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = Similarities.dotProduct7u(a, b, dims);
+            int dotProduct = Similarities.dotProductI7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
             if (adjustedDistance < 0) {
@@ -286,7 +286,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         ) {
             long firstByteOffset = (long) firstOrd * vectorPitch;
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
-            Similarities.dotProduct7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+            Similarities.dotProductI7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
             // Java-side adjustment
             var aOffset = Float.intBitsToFloat(

@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
@@ -28,14 +29,16 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
+    static final GPUSupport gpuSupport = CuVSGPUSupport.instance();
+
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", gpuSupport.isSupported());
     }
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin(Settings.EMPTY) {
+        var plugin = new GPUPlugin(Settings.EMPTY, gpuSupport) {
             @Override
             protected boolean isGpuIndexingFeatureAllowed() {
                 return true;

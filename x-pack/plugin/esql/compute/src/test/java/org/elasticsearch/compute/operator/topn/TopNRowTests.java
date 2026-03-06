@@ -12,21 +12,18 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-import java.util.stream.IntStream;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class TopNRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        TopNOperator.Row row = new TopNOperator.Row(breaker, sortOrders(between(1, 10)), 0, 0);
+        TopNOperator.Row row = new TopNOperator.Row(breaker, 0, 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(between(1, 10)), 0, 0);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0, 0);
         row.keys.append(randomByte());
         row.values.append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
@@ -38,9 +35,10 @@ public class TopNRowTests extends ESTestCase {
      * size estimates from previous rows.
      */
     public void testFromHeapDump1() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(5), 56, 24);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 56, 24);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        assertThat(row.ramBytesUsed(), equalTo(304L)); // 304 is measured debugging a heap dump
+        // 304 was measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(240L));
     }
 
     /**
@@ -49,13 +47,14 @@ public class TopNRowTests extends ESTestCase {
      * size estimates from previous rows.
      */
     public void testFromHeapDump2() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(1), 1160, 1_153_096);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1160, 1_153_096);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-        assertThat(row.ramBytesUsed(), equalTo(1_154_464L)); // 1,154,464 is measured debugging a heap dump
+        // 1,154,464 is measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(1_154_416L));
     }
 
     public void testRamBytesUsedBig() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(between(1, 10)), 0, 0);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0, 0);
         for (int i = 0; i < 10000; i++) {
             row.keys.append(randomByte());
             row.values.append(randomByte());
@@ -64,14 +63,8 @@ public class TopNRowTests extends ESTestCase {
     }
 
     public void testRamBytesUsedPreAllocated() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(between(1, 10)), 64, 128);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 64, 128);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
-    }
-
-    private static List<TopNOperator.SortOrder> sortOrders(int count) {
-        return IntStream.range(0, count)
-            .mapToObj(i -> new TopNOperator.SortOrder(randomNonNegativeInt(), randomBoolean(), randomBoolean()))
-            .toList();
     }
 
     private long expectedRamBytesUsed(TopNOperator.Row row) {
@@ -83,8 +76,6 @@ public class TopNRowTests extends ESTestCase {
         // The breaker is shared infrastructure so we don't count it but RamUsageTester does
         expected -= RamUsageTester.ramUsed(breaker);
         expected -= RamUsageTester.ramUsed("topn");
-        // the sort orders are shared
-        expected -= RamUsageTester.ramUsed(row.bytesOrder.sortOrders);
         return expected;
     }
 }

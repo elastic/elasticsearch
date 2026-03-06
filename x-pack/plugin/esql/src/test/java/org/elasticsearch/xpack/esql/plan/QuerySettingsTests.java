@@ -114,7 +114,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
         validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
     }
 
@@ -270,6 +270,14 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        // TODO remote this when project routing is public
+        // we only want the Kibana JSON for now
+        new DocsV3Support.SettingsDocsSupport(
+            QuerySettings.PROJECT_ROUTING,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        ).renderKibanaCommandDefinition();
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,

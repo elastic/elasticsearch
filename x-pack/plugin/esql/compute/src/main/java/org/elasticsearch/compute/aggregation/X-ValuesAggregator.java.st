@@ -524,8 +524,8 @@ $if(BytesRef)$
             BytesRefVector dict = null;
             IntBlock ordinals = null;
             BytesRefBlock result = null;
-            var dictArray = bytes.takeBytesRefsOwnership();
-            bytes = null; // transfer ownership to dictArray
+            var dictArray = bytes.getBytesRefs();
+            dictArray.incRef();
             int estimateSize = Math.toIntExact(firstValues.size() + nextValues.hashes.size());
             final int[] nextValueCounts = nextValues.selectedCounts;
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {

@@ -23,9 +23,9 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -120,7 +120,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
             List.of(hashAggregationOperator),
             new PageConsumerOperator(outputPages::add)
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         Map<Integer, List<BytesRef>> actualValues = new HashMap<>();
         for (Page out : outputPages) {

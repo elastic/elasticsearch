@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams.lifecycle.transitions;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -21,6 +20,7 @@ import org.elasticsearch.datastreams.lifecycle.ErrorRecordingActionListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.time.Clock;
 import java.util.function.BiConsumer;
 
 /**
@@ -32,8 +32,27 @@ public record DlmStepContext(
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
     DataStreamLifecycleErrorStore errorStore,
     int signallingErrorRetryThreshold,
-    Client client
+    Client client,
+    Clock clock
 ) {
+
+    /**
+     * Creates a step context from a {@link DlmActionContext} and an index.
+     *
+     * @param index The index this step context is for.
+     * @param actionContext The action context to derive common resources from.
+     */
+    public DlmStepContext(Index index, DlmActionContext actionContext) {
+        this(
+            index,
+            actionContext.projectState(),
+            actionContext.transportActionsDeduplicator(),
+            actionContext.errorStore(),
+            actionContext.signallingErrorRetryThreshold(),
+            actionContext.client(),
+            actionContext.clock()
+        );
+    }
 
     /**
      * @return The name of the index associated with this context.
@@ -50,6 +69,7 @@ public record DlmStepContext(
     }
 
     public void executeDeduplicatedRequest(
+        String actionName,
         TransportRequest request,
         String failureMessage,
         BiConsumer<Tuple<ProjectId, TransportRequest>, ActionListener<Void>> callback
@@ -57,7 +77,7 @@ public record DlmStepContext(
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId(), request),
             new ErrorRecordingActionListener(
-                TransportAddIndexBlockAction.TYPE.name(),
+                actionName,
                 projectId(),
                 indexName(),
                 errorStore,
@@ -66,5 +86,14 @@ public record DlmStepContext(
             ),
             callback
         );
+    }
+
+    /*
+     * @return true if the request is in-progress (deduplicator is currently
+     * tracking the provided projectId, request tuple),
+     * false otherwise.
+     */
+    public boolean isRequestInProgress(TransportRequest request) {
+        return transportActionsDeduplicator.hasRequest(Tuple.tuple(projectId(), request));
     }
 }

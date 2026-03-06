@@ -22,8 +22,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   api project(':libs:grok')
   api project(':libs:dissect')
-  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api project(':libs:web-utils')
 }
 
 restResources {

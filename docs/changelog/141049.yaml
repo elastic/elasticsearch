@@ -1,5 +1,0 @@
-pr: 141049
-summary: Use Double.compare to compare doubles in tdigest.Sort
-area: Aggregations
-type: bug
-issues: []

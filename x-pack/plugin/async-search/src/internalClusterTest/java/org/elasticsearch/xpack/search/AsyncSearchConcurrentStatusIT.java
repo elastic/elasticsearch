@@ -76,7 +76,7 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
      * is closing and some status calls may return {@code 410 GONE}.
      */
     public void testConcurrentStatusFetchWhileTaskCloses() throws Exception {
-        final TimeValue timeout = TimeValue.timeValueSeconds(3);
+        final TimeValue timeout = TimeValue.timeValueSeconds(30);
         final String aggName = "terms";
         final SearchSourceBuilder source = new SearchSourceBuilder().aggregation(
             AggregationBuilders.terms(aggName).field("terms.keyword").size(Math.max(1, numKeywords))

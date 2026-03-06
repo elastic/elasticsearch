@@ -45,7 +45,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
     public void testUpdatePolicyOnly() {
         IngestService ingestService = getInstanceFromNode(IngestService.class);
-        createIndex("index", Settings.EMPTY, "_doc", "key1", "type=keyword", "field1", "type=keyword");
+        createIndex("index", Settings.EMPTY, "key1", "type=keyword", "field1", "type=keyword");
 
         EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
         createSourceIndices(client(), instance1);

@@ -23,7 +23,9 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,5 +139,20 @@ public class SearchContextIdTests extends ESTestCase {
         assertThat(indices[0], equalTo("cluster_x:idx"));
         assertThat(indices[1], equalTo("cluster_y:idy"));
         assertThat(indices[2], equalTo("idy"));
+    }
+
+    public void testDecodingWithUnknownTransportIdThrows() {
+        TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
+        BytesReference id = SearchContextId.encode(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            unknownTransportVersion,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(registry, id));
+        assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
     }
 }

@@ -42,10 +42,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered vector
      */
-    Vector filter(int... positions);
+    Vector filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Build a {@link Block} the same values as this {@link Vector}, but replacing

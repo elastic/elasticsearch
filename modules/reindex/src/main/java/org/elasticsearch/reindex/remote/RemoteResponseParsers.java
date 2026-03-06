@@ -15,10 +15,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
+import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}.
+ * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollablePaginatedHitSource}.
  */
 final class RemoteResponseParsers {
     private RemoteResponseParsers() {}

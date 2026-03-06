@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -456,7 +457,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 
@@ -568,8 +571,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     private static final class TestSuggestionEntry extends Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> {
         @Override
         protected Option newOption(StreamInput in) {
-            return new Option(new Text("text"), 1f) {
-            };
+            return new Option(new Text("text"), 1f) {};
         }
     }
 

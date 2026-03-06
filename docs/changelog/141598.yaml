@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 141598
+summary: DiskBBQ - Always block encode doc vectors
+type: enhancement

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
@@ -439,6 +442,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
+        } else if (argClass == FileSet.class) {
+            // FileSet is final, cannot be mocked
+            return FileSet.UNRESOLVED;
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();
@@ -573,6 +579,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+        if (CompoundOutputEval.class.isAssignableFrom(toBuildClass) || CompoundOutputEvalExec.class.isAssignableFrom(toBuildClass)) {
+            // subclasses of CompoundOutputEval/Exec must have map and list that match in size
+            return 4;
+        }
+
         int minCollectionLength = 0;
         int maxCollectionLength = 8;
 

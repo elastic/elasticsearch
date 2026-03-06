@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.MATCH_ALL;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.getAllProjectAliases;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.rewriteIndexExpression;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -484,6 +485,63 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
                 assertThat(e.getMessage(), equalTo("No such project: [X*]"));
             }
         }
+    }
+
+    public void testValidateIndexExpressionWithoutRewrite() {
+        var origin = createRandomProjectWithAlias("P0");
+        var linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        var allProjectAliases = getAllProjectAliases(origin, linked);
+
+        // unqualified expression should pass validation without checking projects
+        validateIndexExpressionWithoutRewrite("logs*", origin.projectAlias(), randomBoolean() ? allProjectAliases : Set.of(), null);
+
+        // qualified non-exclusion referencing existing origin or linked projects should pass
+        validateIndexExpressionWithoutRewrite(randomFrom("P1:logs*", "P0:logs*"), origin.projectAlias(), allProjectAliases, null);
+
+        // qualified expression referencing _origin when origin exists should pass
+        validateIndexExpressionWithoutRewrite("_origin:logs*", origin.projectAlias(), allProjectAliases, null);
+
+        // wildcard project alias matching existing projects should pass
+        validateIndexExpressionWithoutRewrite("P*:logs*", origin.projectAlias(), allProjectAliases, null);
+
+        // exclusion referencing existing projects should not throw validation exception
+        validateIndexExpressionWithoutRewrite(randomFrom("-P1:logs*", "-P0:logs*"), origin.projectAlias(), allProjectAliases, null);
+
+        // qualified non-exclusion referencing missing project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [missing]"),
+            () -> validateIndexExpressionWithoutRewrite("missing:logs*", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // exclusion referencing a non-existing project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [missing]"),
+            () -> validateIndexExpressionWithoutRewrite("-missing:_all", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // wildcard project alias not matching any project should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [Q*]"),
+            () -> validateIndexExpressionWithoutRewrite("Q*:logs*", origin.projectAlias(), allProjectAliases, null)
+        );
+
+        // _origin qualified expression when origin is null should fail validation
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("No such project: [_origin]"),
+            () -> validateIndexExpressionWithoutRewrite("_origin:logs*", null, allProjectAliases, null)
+        );
+
+        // no projects available should fail validation
+        var projectRouting = "_alias:" + randomAlphaOfLengthBetween(1, 10);
+        expectThrows(
+            NoMatchingProjectException.class,
+            containsString("no matching project after applying project routing [" + projectRouting + "]"),
+            () -> validateIndexExpressionWithoutRewrite("P1:logs*", null, Set.of(), projectRouting)
+        );
     }
 
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

@@ -1285,8 +1285,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                           },
                           "agg_metric": {
                               "type": "aggregate_metric_double",
-                              "metrics": ["max"],
-                              "default_metric": "max"
+                              "metrics": ["max"]
                           },
                           "k8s": {
                               "properties": {

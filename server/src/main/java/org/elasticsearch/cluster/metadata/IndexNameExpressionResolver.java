@@ -1486,6 +1486,10 @@ public class IndexNameExpressionResolver {
         return systemIndices::isNetNewSystemIndex;
     }
 
+    public Predicate<String> getSystemNamePredicate() {
+        return systemIndices::isSystemName;
+    }
+
     /**
      * This returns `true` if the given {@param name} is of a resource that exists.
      * Otherwise, it returns `false` if the `ignore_unvailable` option is `true`, or, if `false`, it throws a "not found" type of
@@ -1788,7 +1792,7 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
-            if (indexAbstraction.getType() == Type.VIEW) {
+            if (context.getOptions().wildcardOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
                 return false;
             }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
@@ -1843,8 +1847,9 @@ public class IndexNameExpressionResolver {
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (indexAbstraction.getType() == Type.VIEW) {
-                // a view cannot expand to any indices, return an empty set
-                return Set.of();
+                if (context.getOptions().wildcardOptions().resolveViews()) {
+                    resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
+                }
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
@@ -2264,7 +2269,6 @@ public class IndexNameExpressionResolver {
                 IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2310,22 +2314,6 @@ public class IndexNameExpressionResolver {
                     originalExpression,
                     "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
-            }
-        }
-
-        /**
-         * Checks the expression for remote cluster pattern and throws an exception if it is combined with :: selectors.
-         * @throws InvalidIndexNameException if remote cluster pattern is detected after parsing the selector expression
-         */
-        private static void ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(
-            String expressionWithoutSelector,
-            IndexComponentSelector selector,
-            String originalExpression
-        ) {
-            if (selector != null) {
-                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
-                    throw new InvalidIndexNameException(originalExpression, "Selectors are not yet supported on remote cluster patterns");
-                }
             }
         }
     }

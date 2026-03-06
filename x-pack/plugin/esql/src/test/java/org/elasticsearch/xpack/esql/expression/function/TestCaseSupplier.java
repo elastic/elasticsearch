@@ -81,7 +81,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Supplier<TestCaseSupplier.TestCase> {
 
     public static final Source TEST_SOURCE = new Source(new Location(1, 0), "source");
-    public static final Configuration TEST_CONFIGURATION = EsqlTestUtils.configuration(TEST_SOURCE.text());
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
@@ -674,16 +673,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         float upperBound
     ) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+        cases.add(
+            new TypedDataSupplier(
+                "<dense vector>",
+                () -> randomDenseVector(randomIntBetween(64, 128), () -> randomFloatBetween(lowerBound, upperBound, true)),
+                DataType.DENSE_VECTOR
+            )
+        );
 
         unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
     }
 
-    private static List<Float> randomDenseVector(float lower, float upper) {
-        int dimensions = randomIntBetween(64, 128);
+    public static List<Float> randomDenseVector(int dimensions, Supplier<Float> vectorElementSupplier) {
         List<Float> vector = new ArrayList<>();
         for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloatBetween(lower, upper, true));
+            vector.add(vectorElementSupplier.get());
         }
         return vector;
     }
@@ -950,6 +954,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
+    public static void forUnaryTDigest(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<TDigestHolder, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, tdigestCases(), expectedType, v -> expectedValue.apply((TDigestHolder) v), warnings);
     }
 
     private static void unaryNumeric(
@@ -1736,7 +1750,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this function invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate.
          */
         private final Matcher<String> evaluatorToString;
         /**
@@ -1759,11 +1773,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
-        /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
@@ -1780,17 +1789,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
-        }
-
-        /**
-         * Build a test case for type errors.
-         *
-         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
-         */
-        @Deprecated
-        public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null);
         }
 
         TestCase(
@@ -1800,7 +1799,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra
@@ -1814,7 +1812,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1831,7 +1828,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra,
@@ -1847,7 +1843,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
-            this.expectedTypeError = expectedTypeError;
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
             this.extra = extra;
@@ -1919,14 +1914,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        public String getExpectedTypeError() {
-            return expectedTypeError;
-        }
-
-        /**
          * Extra data embedded in the test case. Test subclasses can cast
          * as needed and extra <strong>whatever</strong> helps them.
          */
@@ -1950,7 +1937,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1971,7 +1957,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1992,7 +1977,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2010,7 +1994,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 addWarning(expectedWarnings, warning),
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        public TestCase withWarnings(Collection<String> warnings) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                warnings == null ? null : warnings.toArray(new String[0]),
+                expectedBuildEvaluatorWarnings,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2032,7 +2032,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 addWarning(expectedBuildEvaluatorWarnings, warning),
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2059,7 +2058,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 clazz,
                 message,
                 extra,
@@ -2083,7 +2081,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2140,6 +2137,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         public static final TypedData NULL = new TypedData(null, DataType.NULL, "<null>");
         public static final TypedData MULTI_ROW_NULL = TypedData.multiRow(Collections.singletonList(null), DataType.NULL, "<null>");
 
+        /**
+         * The original test data, without unsigned long conversion.
+         */
+        private final Object originalData;
         private final Object data;
         private final DataType type;
         private final String name;
@@ -2166,8 +2167,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
-            if (type == DataType.UNSIGNED_LONG && data instanceof BigInteger b) {
-                this.data = NumericUtils.asLongUnsigned(b);
+            this.originalData = data;
+            if (type == DataType.UNSIGNED_LONG) {
+                this.data = bigIntegersToLong(data);
             } else {
                 this.data = data;
             }
@@ -2314,11 +2316,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * The original data, without unsigned long conversion.
+         */
+        public Object originalData() {
+            return originalData;
+        }
+
+        /**
          * Values to test against.
          */
         @SuppressWarnings("unchecked")
         public List<Object> multiRowData() {
             return (List<Object>) data;
+        }
+
+        /**
+         * The original data, without unsigned long conversion.
+         */
+        @SuppressWarnings("unchecked")
+        public List<Object> originalMultiRowData() {
+            return (List<Object>) originalData;
         }
 
         /**
@@ -2358,6 +2375,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public String name() {
             return name;
+        }
+
+        /**
+         * Converts a BigInteger ulong to a long value.
+         * <p>
+         *     If multivalue or multirow, converts them all.
+         * </p>
+         */
+        private static Object bigIntegersToLong(Object ulongs) {
+            if (ulongs instanceof BigInteger bi) {
+                return NumericUtils.asLongUnsigned(bi);
+            } else if (ulongs instanceof List<?> list) {
+                return list.stream().map(TypedData::bigIntegersToLong).toList();
+            }
+            return ulongs;
         }
     }
 

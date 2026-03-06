@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 141877
+summary: Deprecate aggregate metric double default metric configuration
+type: enhancement

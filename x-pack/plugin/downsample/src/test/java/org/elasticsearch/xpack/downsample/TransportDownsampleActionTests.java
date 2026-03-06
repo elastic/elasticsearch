@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -107,6 +108,8 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private MasterServiceTaskQueue<TransportDownsampleAction.DownsampleClusterStateUpdateTask> taskQueue;
     @Mock
     private MapperService mapperService;
+    @Mock
+    private FeatureService featureService;
 
     private static final String MAPPING = """
         {
@@ -144,6 +147,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             indicesService,
             clusterService,
             mock(TransportService.class),
+            featureService,
             threadPool,
             mock(MetadataCreateIndexService.class),
             new ActionFilters(Set.of()),
@@ -203,6 +207,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(MAPPING));
         when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     @After
@@ -434,9 +439,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 Map.of("type", "exponential_histogram", "time_series_metric", "histogram")
             )
         );
+        boolean defaultMetricDeprecated = randomBoolean();
         String downsampledMappingStr = TransportDownsampleAction.createDownsampleIndexMapping(
             new DownsampleConfig(new DateHistogramInterval("1h"), null),
-            sourceMapping
+            sourceMapping,
+            defaultMetricDeprecated
         );
         Map<String, Object> downsampledMapping = XContentHelper.convertToMap(
             new CompressedXContent(downsampledMappingStr).compressedReference(),
@@ -467,7 +474,11 @@ public class TransportDownsampleActionTests extends ESTestCase {
         assertThat(downsampledProperties.containsKey("gauge"), equalTo(true));
         Map<String, Object> gauge = (Map<String, Object>) downsampledProperties.get("gauge");
         assertThat(gauge.get("type"), equalTo("aggregate_metric_double"));
-        assertThat(gauge.get("default_metric"), equalTo("max"));
+        if (defaultMetricDeprecated) {
+            assertThat(gauge.containsKey("default_metric"), equalTo(false));
+        } else {
+            assertThat(gauge.get("default_metric"), equalTo("max"));
+        }
         assertThat((List<String>) gauge.get("metrics"), containsInAnyOrder("max", "min", "sum", "value_count"));
         assertThat(gauge.get("time_series_metric"), equalTo("gauge"));
         assertThat(downsampledProperties.containsKey("exp_histogram"), equalTo(true));

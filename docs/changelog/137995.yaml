@@ -1,5 +1,0 @@
-pr: 137995
-summary: Improve bulk loading of binary doc values
-area: Mapping
-type: enhancement
-issues: []

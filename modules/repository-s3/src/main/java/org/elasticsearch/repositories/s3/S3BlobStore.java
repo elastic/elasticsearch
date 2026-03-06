@@ -276,7 +276,7 @@ class S3BlobStore implements BlobStore {
         return service.client(projectId, repositoryMetadata);
     }
 
-    final int getMaxRetries() {
+    int getMaxRetries() {
         return service.settings(projectId, repositoryMetadata).maxRetries;
     }
 

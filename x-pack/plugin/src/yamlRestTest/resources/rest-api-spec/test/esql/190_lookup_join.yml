@@ -178,10 +178,19 @@ setup:
           - { "key": 20, "color": "yellow" }
 ---
 basic:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lookup_join_sort_warning ]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-1 ON key | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - match: { columns.0.name: "key" }
   - match: { columns.0.type: "long" }
@@ -232,12 +241,20 @@ pattern-single:
 
 ---
 mv-on-lookup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lookup_join_sort_warning ]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-mv ON key'
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
         - "Line 1:24: evaluation of [LOOKUP JOIN test-lookup-mv ON key] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:24: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
 
@@ -250,11 +267,19 @@ mv-on-lookup:
 
 ---
 mv-on-query:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lookup_join_sort_warning ]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test-mv | SORT key | LOOKUP JOIN test-lookup-1 ON key | LIMIT 4'
       allowed_warnings:
+        - "Line 1:16: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
         - "Line 1:27: evaluation of [LOOKUP JOIN test-lookup-1 ON key] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:27: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
 

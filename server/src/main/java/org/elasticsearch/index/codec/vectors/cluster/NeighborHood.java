@@ -73,7 +73,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                 }
             }
             for (; j < k; j++) {
-                float dsq = VectorUtil.squareDistance(center, centers[j]);
+                float dsq = ESVectorUtil.squareDistance(center, centers[j]);
                 neighborQueues[j].insertWithOverflow(i, dsq);
                 neighborQueues[i].insertWithOverflow(j, dsq);
             }
@@ -198,7 +198,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
                 @Override
                 public float score(int node) {
-                    return VectorUtil.normalizeDistanceToUnitInterval(VectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
+                    return VectorUtil.normalizeDistanceToUnitInterval(ESVectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
                 }
 
                 @Override

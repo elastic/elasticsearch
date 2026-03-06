@@ -109,7 +109,9 @@ class FieldCapabilitiesFetcher {
             searcher,
             () -> nowInMillis,
             null,
-            runtimeFields
+            runtimeFields,
+            null,
+            null
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {

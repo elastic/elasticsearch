@@ -69,6 +69,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -82,7 +83,9 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -172,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -210,7 +214,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics
+        MergeMetrics mergeMetrics,
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -236,7 +241,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 similarityService,
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
@@ -304,6 +309,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
 
@@ -566,7 +572,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                this.indexSettings.getIndexSortConfig().hasIndexSort()
+                this.indexSettings.getIndexSortConfig().hasIndexSort(),
+                metricHolder
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -754,19 +761,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
-        Map<String, Object> runtimeMappings
-    ) {
-        return newSearchExecutionContext(shardId, shardRequestIndex, searcher, nowInMillis, clusterAlias, runtimeMappings, null);
-    }
-
-    public SearchExecutionContext newSearchExecutionContext(
-        int shardId,
-        int shardRequestIndex,
-        IndexSearcher searcher,
-        LongSupplier nowInMillis,
-        String clusterAlias,
         Map<String, Object> runtimeMappings,
-        Integer requestSize
+        Integer requestSize,
+        ShardSearchStats shardSearchStats
     ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
@@ -796,7 +793,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             runtimeMappings,
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            shardSearchStats
         );
     }
 

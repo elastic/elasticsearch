@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Attribute for an ES field.
@@ -51,6 +52,10 @@ public class FieldAttribute extends TypedAttribute {
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
+    static EsField timeSeriesField() {
+        return TIMESERIES_FIELD;
+    }
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
@@ -59,6 +64,7 @@ public class FieldAttribute extends TypedAttribute {
 
     // Only public for testing
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+    public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName("time_series_aggregate_without");
 
     private final String parentName;
     private final EsField field;
@@ -109,8 +115,20 @@ public class FieldAttribute extends TypedAttribute {
      * @param source The source of the attribute.
      * @return The time series field attribute.
      */
-    public static FieldAttribute timeSeriesAttribute(Source source) {
-        return new FieldAttribute(source, null, null, MetadataAttribute.TIMESERIES, TIMESERIES_FIELD);
+    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
+        return timeSeriesAttribute(source, Set.of());
+    }
+
+    /**
+     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field with
+     * query-dependent metadata used by time-series block loading.
+     *
+     * @param source The source of the attribute.
+     * @param withoutFields The dimensions excluded by the query semantics.
+     * @return The time series field attribute.
+     */
+    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source, Set<String> withoutFields) {
+        return new TimeSeriesMetadataAttribute(source, withoutFields);
     }
 
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
@@ -128,6 +146,23 @@ public class FieldAttribute extends TypedAttribute {
         Nullability nullability = in.readEnum(Nullability.class);
         NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
+        if (in.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE) && MetadataAttribute.TIMESERIES.equals(name)) {
+            boolean hasTimeSeriesMetadata = in.readBoolean();
+            if (hasTimeSeriesMetadata) {
+                var withoutFields = in.readCollectionAsSet(StreamInput::readString);
+                return new TimeSeriesMetadataAttribute(
+                    source,
+                    parentName,
+                    qualifier,
+                    name,
+                    field,
+                    nullability,
+                    nameId,
+                    synthetic,
+                    withoutFields
+                );
+            }
+        }
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
 
@@ -149,6 +184,14 @@ public class FieldAttribute extends TypedAttribute {
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
+            if (out.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE) && MetadataAttribute.TIMESERIES.equals(name())) {
+                if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+                    out.writeBoolean(true);
+                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
     }
 
@@ -162,7 +205,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected NodeInfo<FieldAttribute> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 

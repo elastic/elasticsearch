@@ -97,7 +97,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
             if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
                 Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
-                result.removeAll(config.excludeDimensions());
+                result.removeAll(config.withoutFields());
                 return result;
             }
         }
@@ -107,7 +107,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension() && config.excludeDimensions().contains(fieldType.name()) == false) {
+                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
                     result.add(fieldType.name());
                 }
                 if (loadMetrics && fieldType.getMetricType() != null) {

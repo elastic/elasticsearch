@@ -48,7 +48,7 @@ public interface BlockLoaderFunctionConfig {
      * Configuration for loading time-series metadata fields from {@code _source}.
      * Controls which field types to include (dimensions, metrics, or both) and which dimensions to exclude.
      */
-    record TimeSeriesMetadata(boolean loadMetrics, Set<String> excludeDimensions) implements BlockLoaderFunctionConfig {
+    record TimeSeriesMetadata(boolean loadMetrics, Set<String> withoutFields) implements BlockLoaderFunctionConfig {
         @Override
         public Function function() {
             return Function.TIME_SERIES_METADATA;

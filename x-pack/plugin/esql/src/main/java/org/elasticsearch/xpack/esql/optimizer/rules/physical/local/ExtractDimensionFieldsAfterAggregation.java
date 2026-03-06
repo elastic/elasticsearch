@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValue
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.logical.TsidGroupingParams;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -78,8 +78,6 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (sourceAttr == null) {
             return oldAgg;
         }
-        TsidGroupingParams tsidGroupingParams = oldAgg.tsidGroupingParams();
-        Set<String> excludedDimensions = tsidGroupingParams != null ? tsidGroupingParams.excludedDimensions() : Set.of();
         List<NamedExpression> newAggregates = new ArrayList<>();
         List<Attribute> dimensionFields = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();
@@ -99,6 +97,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
                         if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
+                            var withoutFields = withoutFields(dimensionField);
                             var sourceField = new FieldAttribute(
                                 dimensionField.source(),
                                 null,
@@ -113,7 +112,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, excludedDimensions)
+                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
                                 ),
                                 true
                             );
@@ -175,5 +174,12 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     private static int intermediateStateSize(AggregateFunction af) {
         return AggregateMapper.intermediateStateDesc(af, true).size();
+    }
+
+    private static Set<String> withoutFields(Attribute attribute) {
+        if (attribute instanceof TimeSeriesMetadataAttribute timeSeriesAttribute) {
+            return timeSeriesAttribute.withoutFields();
+        }
+        return Set.of();
     }
 }

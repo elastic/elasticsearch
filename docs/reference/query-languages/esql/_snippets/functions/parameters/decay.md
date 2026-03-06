@@ -12,5 +12,5 @@
 :   Distance from the origin where the function returns the decay value.
 
 `options`
-:   
+:   (Optional) Additional options such as `decay`, `offset` and `type`.
 

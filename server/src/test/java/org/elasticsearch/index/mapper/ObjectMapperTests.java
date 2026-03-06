@@ -36,8 +36,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
                 {
                      "object": {
@@ -53,7 +53,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                      "value":"value"
                    }""".indent(1)), XContentType.JSON))
         );
-        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
+        assertThat(
+            e.getMessage(),
+            containsString("object mapping for [object.array.object] tried to parse field [object] as object, but found a concrete value")
+        );
     }
 
     public void testEmptyArrayProperties() throws Exception {

@@ -132,8 +132,7 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             return true;
         }
         if (maxErrorRatio > 0.0 && rowsSoFar > 0) {
-            double currentRatio = (double) errorsSoFar / rowsSoFar;
-            return currentRatio > maxErrorRatio;
+            return (double) errorsSoFar > maxErrorRatio * rowsSoFar;
         }
         return false;
     }

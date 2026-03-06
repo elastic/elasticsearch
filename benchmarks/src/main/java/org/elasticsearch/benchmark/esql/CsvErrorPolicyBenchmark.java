@@ -7,6 +7,7 @@
 
 package org.elasticsearch.benchmark.esql;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -60,6 +61,7 @@ public class CsvErrorPolicyBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
+        Utils.configureBenchmarkLogging();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
         csvData = generateCsv(rowCount, errorFraction);
     }

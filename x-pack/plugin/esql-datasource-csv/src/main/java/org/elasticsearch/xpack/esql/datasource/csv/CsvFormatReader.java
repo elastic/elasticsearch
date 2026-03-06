@@ -448,7 +448,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Iterator that reads CSV data in batches and converts to ESQL Pages.
-     * Uses Jackson CSV parser for robust CSV parsing with proper quote and escape handling.
+     * <p>
+     * Performance-critical design choices:
+     * <ul>
+     *   <li>Pre-computed {@code int[]} for projected column indices — avoids autoboxing
+     *   <li>Pre-computed {@code DataType[]} and {@code Attribute[]} arrays — avoids list lookups per field
+     *   <li>Hoisted invariant flags ({@code hasCommentFilter}, {@code hasCustomNullValue}) — avoids per-row checks
+     *   <li>Exception-free error path: {@code tryConvertValue} returns {@code null} on failure and sets
+     *       {@code lastFieldError} — avoids exception allocation/stack-fill on the hot path
+     *   <li>Reusable {@code Object[]} buffer across rows — avoids per-row allocation
+     *   <li>Mode ordinal resolved once at construction — single int comparison per row instead of method calls
+     * </ul>
      */
     private class CsvBatchIterator implements CloseableIterator<Page> {
         private final BufferedReader reader;
@@ -458,13 +468,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final List<Attribute> preResolvedSchema;
         private final ErrorPolicy errorPolicy;
 
+        private final int modeOrdinal;
+        private final boolean logErrors;
+        private final boolean hasCommentFilter;
+        private final boolean hasCustomNullValue;
+        private final String nullValueStr;
+        private final DateTimeFormatter datetimeFormatter;
+
         private List<Attribute> schema;
-        private List<Integer> projectedIndices;
+        private int[] projectedIdx;
+        private DataType[] projectedTypes;
+        private Attribute[] projectedAttrs;
+        private int columnCount;
+        private Object[] rowBuffer;
         private Iterator<List<?>> csvIterator;
         private Page nextPage;
         private boolean closed = false;
         private long errorCount = 0;
         private long totalRowCount = 0;
+
+        private String lastFieldError;
 
         CsvBatchIterator(
             BufferedReader reader,
@@ -480,6 +503,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.batchSize = batchSize;
             this.preResolvedSchema = preResolvedSchema;
             this.errorPolicy = errorPolicy;
+            this.modeOrdinal = errorPolicy.mode().ordinal();
+            this.logErrors = errorPolicy.logErrors();
+            this.hasCommentFilter = options.commentPrefix().isEmpty() == false;
+            this.hasCustomNullValue = options.nullValue().isEmpty() == false;
+            this.nullValueStr = options.nullValue();
+            this.datetimeFormatter = options.datetimeFormatter();
         }
 
         @Override
@@ -521,22 +550,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (schema == null) {
                 if (preResolvedSchema != null) {
                     schema = preResolvedSchema;
-                    projectedIndices = computeProjectedIndices();
                 } else {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         line = line.trim();
-                        if (line.isEmpty() || (options.commentPrefix().isEmpty() == false && line.startsWith(options.commentPrefix()))) {
+                        if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
                             continue;
                         }
                         schema = parseSchema(line);
-                        projectedIndices = computeProjectedIndices();
                         break;
                     }
                     if (schema == null) {
                         return null;
                     }
                 }
+                initProjection();
                 CsvSchema csvSchema = CsvSchema.emptySchema()
                     .withColumnSeparator(options.delimiter())
                     .withQuoteChar(options.quoteChar())
@@ -555,13 +583,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         Object val = rowList.get(i);
                         row[i] = val != null ? val.toString() : null;
                     }
-                    if (row.length > 0) {
-                        String firstCell = row[0];
-                        if (firstCell != null && options.commentPrefix().isEmpty() == false) {
-                            String trimmedFirstCell = firstCell.trim();
-                            if (trimmedFirstCell.startsWith(options.commentPrefix())) {
-                                continue;
-                            }
+                    if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                        String trimmedFirstCell = row[0].trim();
+                        if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                            continue;
                         }
                     }
                     rows.add(row);
@@ -572,76 +597,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
 
                 Page page = convertRowsToPage(rows);
-                if (page != null || errorPolicy.isStrict()) {
+                if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                     return page;
                 }
             }
         }
 
-        private List<Integer> computeProjectedIndices() {
+        private void initProjection() {
+            int schemaSize = schema.size();
             if (projectedColumns == null || projectedColumns.isEmpty()) {
-                // Return all columns
-                List<Integer> indices = new ArrayList<>(schema.size());
-                for (int i = 0; i < schema.size(); i++) {
-                    indices.add(i);
+                columnCount = schemaSize;
+                projectedIdx = new int[schemaSize];
+                for (int i = 0; i < schemaSize; i++) {
+                    projectedIdx[i] = i;
                 }
-                return indices;
-            }
-
-            // Map projected column names to indices
-            List<Integer> indices = new ArrayList<>(projectedColumns.size());
-            for (String colName : projectedColumns) {
-                int index = -1;
-                for (int i = 0; i < schema.size(); i++) {
-                    Attribute attr = schema.get(i);
-                    if (attr.name().equals(colName)) {
-                        index = i;
-                        break;
+            } else {
+                columnCount = projectedColumns.size();
+                projectedIdx = new int[columnCount];
+                for (int c = 0; c < columnCount; c++) {
+                    String colName = projectedColumns.get(c);
+                    int index = -1;
+                    for (int i = 0; i < schemaSize; i++) {
+                        if (schema.get(i).name().equals(colName)) {
+                            index = i;
+                            break;
+                        }
                     }
+                    if (index == -1) {
+                        throw new EsqlIllegalArgumentException("Column not found in CSV schema: [{}]", colName);
+                    }
+                    projectedIdx[c] = index;
                 }
-                if (index == -1) {
-                    throw new EsqlIllegalArgumentException("Column not found in CSV schema: [{}]", colName);
-                }
-                indices.add(index);
             }
-            return indices;
+            projectedTypes = new DataType[columnCount];
+            projectedAttrs = new Attribute[columnCount];
+            for (int i = 0; i < columnCount; i++) {
+                Attribute attr = schema.get(projectedIdx[i]);
+                projectedAttrs[i] = attr;
+                projectedTypes[i] = attr.dataType();
+            }
+            rowBuffer = new Object[columnCount];
         }
 
         private Page convertRowsToPage(List<String[]> rows) {
-            int columnCount = projectedIndices.size();
-
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
                 for (int i = 0; i < columnCount; i++) {
-                    int schemaIndex = projectedIndices.get(i);
-                    Attribute attr = schema.get(schemaIndex);
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        org.elasticsearch.compute.data.ElementType.fromJava(javaClassForDataType(attr.dataType())),
+                        org.elasticsearch.compute.data.ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
                         rows.size()
                     );
                 }
 
+                int schemaSize = schema.size();
                 int acceptedRows = 0;
                 for (String[] row : rows) {
                     totalRowCount++;
-                    try {
-                        if (row.length > schema.size()) {
-                            throw new ParsingException(
-                                "CSV row has [{}] columns but schema defines [{}] columns",
-                                row.length,
-                                schema.size()
-                            );
-                        }
-                        Object[] converted = convertRow(row, columnCount);
+                    if (row.length > schemaSize) {
+                        onRowError("CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns", null, row);
+                        continue;
+                    }
+                    if (convertRowInPlace(row)) {
                         for (int i = 0; i < columnCount; i++) {
-                            builders[i].append().accept(converted[i]);
+                            builders[i].append().accept(rowBuffer[i]);
                         }
                         acceptedRows++;
-                    } catch (BudgetExceededException budgetExceeded) {
-                        throw budgetExceeded.wrapped;
-                    } catch (Exception e) {
-                        handleRowError(e, row);
                     }
                 }
 
@@ -661,78 +682,160 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Converts a raw CSV row to typed values. In {@link ErrorPolicy.Mode#NULL_FIELD NULL_FIELD} mode,
-         * individual field parse errors produce null instead of failing the entire row.
+         * Converts a raw CSV row into {@link #rowBuffer} in place.
+         * Returns {@code true} if the row was accepted, {@code false} if it was skipped.
+         * Throws on budget exceeded or strict-mode failure.
          */
-        private Object[] convertRow(String[] row, int columnCount) {
-            Object[] converted = new Object[columnCount];
-            boolean permissive = errorPolicy.isPermissive();
+        private boolean convertRowInPlace(String[] row) {
+            int mode = this.modeOrdinal;
             for (int i = 0; i < columnCount; i++) {
-                int schemaIndex = projectedIndices.get(i);
-                Attribute attr = schema.get(schemaIndex);
-                String value = schemaIndex < row.length ? row[schemaIndex] : "";
+                int si = projectedIdx[i];
+                String value = si < row.length ? row[si] : null;
                 if (value != null) {
                     value = value.trim();
                 }
-                if (permissive) {
-                    try {
-                        converted[i] = convertValue(value, attr.dataType());
-                    } catch (Exception fieldError) {
-                        converted[i] = null;
-                        handleFieldError(fieldError, value, attr);
+                Object result = tryConvertValue(value, projectedTypes[i]);
+                if (lastFieldError != null) {
+                    if (mode == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
+                        rowBuffer[i] = null;
+                        onFieldError(lastFieldError, value, projectedAttrs[i]);
+                        lastFieldError = null;
+                    } else {
+                        String err = lastFieldError;
+                        lastFieldError = null;
+                        onRowError(err, null, row);
+                        return false;
                     }
                 } else {
-                    converted[i] = convertValue(value, attr.dataType());
+                    rowBuffer[i] = result;
                 }
             }
-            return converted;
+            return true;
         }
 
-        private void handleRowError(Exception e, String[] row) {
-            if (errorPolicy.isStrict()) {
-                if (e instanceof RuntimeException rte) {
-                    throw rte;
+        /**
+         * Attempts to convert a string value to the target type.
+         * On success, returns the converted value and {@code lastFieldError} is null.
+         * On failure, returns null and sets {@code lastFieldError} to a description.
+         * This avoids exception allocation on the hot path.
+         */
+        private Object tryConvertValue(String value, DataType dataType) {
+            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                return null;
+            }
+            if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
+            return switch (dataType) {
+                case INTEGER -> tryParseInt(value);
+                case LONG -> tryParseLong(value);
+                case DOUBLE -> tryParseDouble(value);
+                case KEYWORD, TEXT -> new BytesRef(value);
+                case BOOLEAN -> tryParseBoolean(value);
+                case DATETIME -> tryParseDatetime(value);
+                case NULL -> null;
+                default -> {
+                    lastFieldError = "Unsupported data type: " + dataType;
+                    yield null;
                 }
-                throw new EsqlIllegalArgumentException(e, "Failed to parse CSV row");
-            }
-            errorCount++;
-            if (errorPolicy.logErrors()) {
-                logger.warn("Skipping malformed CSV row (error {}/{}): {}", errorCount, errorPolicy.maxErrors(), e.getMessage());
-            }
-            if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
-                throw new EsqlIllegalArgumentException(
-                    e,
-                    "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
-                    errorCount,
-                    totalRowCount,
-                    errorPolicy.maxErrors(),
-                    errorPolicy.maxErrorRatio()
-                );
+            };
+        }
+
+        private Object tryParseInt(String value) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [INTEGER]";
+                return null;
             }
         }
 
-        private void handleFieldError(Exception e, String value, Attribute attr) {
+        private Object tryParseLong(String value) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [LONG]";
+                return null;
+            }
+        }
+
+        private Object tryParseDouble(String value) {
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [DOUBLE]";
+                return null;
+            }
+        }
+
+        private Object tryParseBoolean(String value) {
+            try {
+                return Booleans.parseBoolean(value);
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [BOOLEAN]";
+                return null;
+            }
+        }
+
+        private Object tryParseDatetime(String value) {
+            if (looksNumeric(value)) {
+                try {
+                    return Long.parseLong(value);
+                } catch (NumberFormatException e) {
+                    // overflow — fall through
+                }
+            }
+            if (datetimeFormatter != null) {
+                try {
+                    return LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
+                } catch (DateTimeParseException e) {
+                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                    return null;
+                }
+            }
+            try {
+                return Instant.parse(value).toEpochMilli();
+            } catch (DateTimeParseException e) {
+                lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                return null;
+            }
+        }
+
+        private void onRowError(String message, Exception cause, String[] row) {
+            if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                throw new EsqlIllegalArgumentException(cause, message);
+            }
             errorCount++;
-            if (errorPolicy.logErrors()) {
+            if (logErrors) {
+                logger.warn("Skipping malformed CSV row (error {}/{}): {}", errorCount, errorPolicy.maxErrors(), message);
+            }
+            checkBudget(message, cause);
+        }
+
+        private void onFieldError(String message, String value, Attribute attr) {
+            errorCount++;
+            if (logErrors) {
                 logger.warn(
                     "Null-filling unparseable field [{}] value [{}] (error {}/{}): {}",
                     attr.name(),
                     value,
                     errorCount,
                     errorPolicy.maxErrors(),
-                    e.getMessage()
+                    message
                 );
             }
+            checkBudget(message, null);
+        }
+
+        private void checkBudget(String message, Exception cause) {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
-                throw new BudgetExceededException(
-                    new EsqlIllegalArgumentException(
-                        e,
-                        "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
-                        errorCount,
-                        totalRowCount,
-                        errorPolicy.maxErrors(),
-                        errorPolicy.maxErrorRatio()
-                    )
+                throw new EsqlIllegalArgumentException(
+                    cause,
+                    "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                    errorCount,
+                    totalRowCount,
+                    errorPolicy.maxErrors(),
+                    errorPolicy.maxErrorRatio()
                 );
             }
         }
@@ -749,56 +852,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             };
         }
 
-        private Object convertValue(String value, DataType dataType) {
-            // Jackson CSV uses null for empty values when configured with withNullValue
-            // Also handle explicit "null" string and configurable null_value
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
-                return null;
-            }
-            if (options.nullValue().isEmpty() == false && value.equals(options.nullValue())) {
-                return null;
-            }
-
-            try {
-                return switch (dataType) {
-                    case INTEGER -> Integer.parseInt(value);
-                    case LONG -> Long.parseLong(value);
-                    case DOUBLE -> Double.parseDouble(value);
-                    case KEYWORD, TEXT -> new BytesRef(value);
-                    case BOOLEAN -> Booleans.parseBoolean(value);
-                    case DATETIME -> parseDatetime(value);
-                    case NULL -> null;
-                    default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
-                };
-            } catch (NumberFormatException e) {
-                throw new EsqlIllegalArgumentException(e, "Failed to parse CSV value [{}] as [{}]", value, dataType);
-            }
-        }
-
-        private long parseDatetime(String value) {
-            // Numeric strings (epoch millis) contain only digits and optionally a leading minus
-            if (looksNumeric(value)) {
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {
-                    // overflow or not actually numeric, fall through to ISO-8601
-                }
-            }
-            DateTimeFormatter formatter = options.datetimeFormatter();
-            if (formatter != null) {
-                try {
-                    return LocalDateTime.parse(value, formatter).toInstant(ZoneOffset.UTC).toEpochMilli();
-                } catch (DateTimeParseException e) {
-                    throw new EsqlIllegalArgumentException(e, "Failed to parse CSV datetime value [{}]", value);
-                }
-            }
-            try {
-                return Instant.parse(value).toEpochMilli();
-            } catch (DateTimeParseException e) {
-                throw new EsqlIllegalArgumentException(e, "Failed to parse CSV datetime value [{}]", value);
-            }
-        }
-
         private static boolean looksNumeric(String value) {
             int start = (value.charAt(0) == '-') ? 1 : 0;
             if (start >= value.length()) {
@@ -810,20 +863,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             return true;
-        }
-    }
-
-    /**
-     * Sentinel exception used by {@code handleFieldError} so that budget-exceeded
-     * errors from NULL_FIELD mode can be distinguished from ordinary parse errors
-     * in the row-level catch block without double-counting.
-     */
-    private static final class BudgetExceededException extends RuntimeException {
-        final EsqlIllegalArgumentException wrapped;
-
-        BudgetExceededException(EsqlIllegalArgumentException wrapped) {
-            super(wrapped);
-            this.wrapped = wrapped;
         }
     }
 }

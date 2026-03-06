@@ -84,6 +84,11 @@ import static org.hamcrest.Matchers.nullValue;
 // can focus on several cross cluster search scenarios.
 public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
 
+    @Override
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of();
+    }
+
     protected int indexDocs(Client client, String index) {
         return indexDocs(client, "f", index);
     }

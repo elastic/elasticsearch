@@ -125,7 +125,7 @@ public class ReplicasScalerCacheBudget {
      * <p>Note: this cache budget may only restrict load balancing recommendations. Instant failover recommendations may exceed this budget.
      *
      * @param rankingContext                the current state of indices and shards
-     * @param instantFailoverReplicaChanges a map of all recommended replica changes made by the instant failover system
+     * @param instantFailoverDesiredReplicas a map of all indices to their recommended replica counts from the instant failover system
      * @param replicasLoadBalancingResult   a result object containing: a map of immediate scale downs and a map of all recommended replica
      *                                      changes made by the load balancing system
      * @param immediateScaleDown            whether we will immediately scale down all recommendations, rather than waiting for the required
@@ -137,7 +137,7 @@ public class ReplicasScalerCacheBudget {
      */
     ReplicasLoadBalancingResult applyCacheBudgetConstraint(
         ReplicaRankingContext rankingContext,
-        Map<String, Integer> instantFailoverReplicaChanges,
+        Map<String, Integer> instantFailoverDesiredReplicas,
         ReplicasLoadBalancingResult replicasLoadBalancingResult,
         boolean immediateScaleDown
     ) {
@@ -157,14 +157,14 @@ public class ReplicasScalerCacheBudget {
 
         long cacheFreedByScaleDowns = getCacheFreedByScaleDowns(
             rankingContext,
-            instantFailoverReplicaChanges,
+            instantFailoverDesiredReplicas,
             replicasLoadBalancingResult,
             immediateScaleDown
         );
 
         long cacheNeededForInstantFailoverScaleUps = getCacheNeededForInstantFailoverScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges
+            instantFailoverDesiredReplicas
         );
 
         // Calculate the cache budget available for scale-ups recommended by the load balancing system - specifically those that are larger
@@ -188,7 +188,7 @@ public class ReplicasScalerCacheBudget {
 
         return budgetLoadBalancingScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges,
+            instantFailoverDesiredReplicas,
             replicasLoadBalancingResult,
             cacheBudgetForLoadBalancingScaleUps
         );
@@ -199,7 +199,7 @@ public class ReplicasScalerCacheBudget {
      * <ol>
      *     <li>Entries in replicasLoadBalancingResult.immediateReplicaScaleDown</li>
      *     <li>
-     *         Combined recommendations (Math.max) of instantFailoverReplicaChanges and replicasLoadBalancingResult.desiredReplicasPerIndex
+     *         Combined recommendations (Math.max) of instantFailoverDesiredReplicas and replicasLoadBalancingResult.desiredReplicasPerIndex
      *         <ol>
      *             <li>If immediateScaleDown = true, all scale-downs will be immediate</li>
      *             <li>Else, only those that have a sufficient number of repeated signals will scale down</li>
@@ -209,7 +209,7 @@ public class ReplicasScalerCacheBudget {
      */
     long getCacheFreedByScaleDowns(
         ReplicaRankingContext rankingContext,
-        Map<String, Integer> instantFailoverReplicaChanges,
+        Map<String, Integer> instantFailoverDesiredReplicas,
         ReplicasLoadBalancingResult replicasLoadBalancingResult,
         boolean immediateScaleDown
     ) {
@@ -231,7 +231,7 @@ public class ReplicasScalerCacheBudget {
             String indexName = props.indexProperties().name();
             int currentReplicas = props.indexProperties().replicas();
             int recommendedReplicas = Math.max(
-                instantFailoverReplicaChanges.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS),
+                instantFailoverDesiredReplicas.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS),
                 replicasLoadBalancingResult.desiredReplicasPerIndex().getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS)
             );
 
@@ -255,10 +255,10 @@ public class ReplicasScalerCacheBudget {
      */
     static long getCacheNeededForInstantFailoverScaleUps(
         ReplicaRankingContext rankingContext,
-        Map<String, Integer> instantFailoverReplicaChanges
+        Map<String, Integer> instantFailoverDesiredReplicas
     ) {
         long cacheNeededForInstantFailoverScaleUps = 0;
-        for (Map.Entry<String, Integer> entry : instantFailoverReplicaChanges.entrySet()) {
+        for (Map.Entry<String, Integer> entry : instantFailoverDesiredReplicas.entrySet()) {
             IndexReplicationRanker.IndexRankingProperties props = rankingContext.rankingProperties(entry.getKey());
             if (props == null) {
                 LOGGER.error("Index [{}] with recommendation from instant failover system is missing from context", entry.getKey());
@@ -282,11 +282,11 @@ public class ReplicasScalerCacheBudget {
      */
     static ReplicasLoadBalancingResult budgetLoadBalancingScaleUps(
         ReplicaRankingContext rankingContext,
-        Map<String, Integer> instantFailoverReplicaChanges,
+        Map<String, Integer> instantFailoverDesiredReplicas,
         ReplicasLoadBalancingResult replicasLoadBalancingResult,
         long cacheBudgetForLoadBalancingScaleUps
     ) {
-        SortedMap<String, Integer> budgetedLoadBalancingReplicaChanges = new TreeMap<>(
+        SortedMap<String, Integer> budgetedLoadBalancingDesiredReplicas = new TreeMap<>(
             replicasLoadBalancingResult.desiredReplicasPerIndex().comparator()
         );
         int indicesBlockedFromScaleUp = replicasLoadBalancingResult.indicesBlockedFromScaleUp();
@@ -305,27 +305,26 @@ public class ReplicasScalerCacheBudget {
             if (targetReplicasForLoadBalancing > currentReplicas) {
                 // Scale up: check budget
                 int numberReplicasToBudget = targetReplicasForLoadBalancing - currentReplicas;
-                Integer targetReplicasForInstantFailover = instantFailoverReplicaChanges.get(indexName);
+                Integer targetReplicasForInstantFailover = instantFailoverDesiredReplicas.get(indexName);
                 if (targetReplicasForInstantFailover != null && targetReplicasForInstantFailover > currentReplicas) {
                     numberReplicasToBudget = targetReplicasForLoadBalancing - targetReplicasForInstantFailover;
                 }
                 long additionalCacheNeeded = props.interactiveSize() * numberReplicasToBudget;
                 if (cacheNeededForScaleUps + additionalCacheNeeded <= cacheBudgetForLoadBalancingScaleUps) {
                     cacheNeededForScaleUps += additionalCacheNeeded;
-                    budgetedLoadBalancingReplicaChanges.put(indexName, targetReplicasForLoadBalancing);
+                    budgetedLoadBalancingDesiredReplicas.put(indexName, targetReplicasForLoadBalancing);
                 } else {
                     indicesBlockedFromScaleUp++;
                     LOGGER.debug("Replicas scaling: cache budget exceeded, will not scale up index [{}]", indexName);
-                    budgetedLoadBalancingReplicaChanges.put(indexName, currentReplicas);
+                    budgetedLoadBalancingDesiredReplicas.put(indexName, currentReplicas);
                 }
             } else {
-                // Scale-down: always include
-                budgetedLoadBalancingReplicaChanges.put(entry.getKey(), entry.getValue());
+                budgetedLoadBalancingDesiredReplicas.put(entry.getKey(), entry.getValue());
             }
         }
         return new ReplicasLoadBalancingResult(
             replicasLoadBalancingResult.immediateReplicaScaleDown(),
-            budgetedLoadBalancingReplicaChanges,
+            budgetedLoadBalancingDesiredReplicas,
             indicesBlockedFromScaleUp
         );
     }

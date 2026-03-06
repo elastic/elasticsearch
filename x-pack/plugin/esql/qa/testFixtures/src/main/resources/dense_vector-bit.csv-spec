@@ -112,7 +112,7 @@ denseBitVectorCompareSpecifically
 required_capability: dense_vector_equality
 
 FROM dense_vector
-| EVAL same = bit_vector == [13, 112]
+| EVAL same = bit_vector == to_dense_vector([13, 112])
 | KEEP id, same
 | SORT id
 ;
@@ -122,13 +122,14 @@ id:l | same:boolean
 1    | false
 2    | false
 3    | false
+4    | null
 ;
 
 denseBitVectorCompareDifferentDimensions
 required_capability: dense_vector_equality
 
 FROM dense_vector
-| EVAL same = bit_vector == [13]
+| EVAL same = bit_vector == to_dense_vector([13])
 | KEEP id, same
 | SORT id
 ;
@@ -138,4 +139,5 @@ id:l | same:boolean
 1    | false
 2    | false
 3    | false
+4    | null
 ;

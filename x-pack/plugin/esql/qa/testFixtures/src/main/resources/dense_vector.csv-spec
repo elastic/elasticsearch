@@ -275,6 +275,7 @@ id:l | same:boolean
 1    | true
 2    | true
 3    | true
+4    | null
 ;
 
 denseVectorNotEqualsFromData
@@ -291,13 +292,14 @@ id:l | different:boolean
 1    | false
 2    | false
 3    | false
+4    | null
 ;
 
 denseVectorCompareSpecifically
 required_capability: dense_vector_equality
 
 FROM dense_vector
-| EVAL same = float_vector == [1.0, 2.0, 3.0]
+| EVAL same = float_vector == to_dense_vector([1.0, 2.0, 3.0])
 | KEEP id, same
 | SORT id
 ;
@@ -307,13 +309,14 @@ id:l | same:boolean
 1    | false
 2    | false
 3    | false
+4    | null
 ;
 
 denseVectorCompareDifferentDimensions
 required_capability: dense_vector_equality
 
 FROM dense_vector
-| EVAL same = float_vector == [1.0, 2.0]
+| EVAL same = float_vector == to_dense_vector([1.0, 2.0])
 | KEEP id, same
 | SORT id
 ;
@@ -323,4 +326,5 @@ id:l | same:boolean
 1    | false
 2    | false
 3    | false
+4    | null
 ;

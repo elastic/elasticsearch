@@ -121,8 +121,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeAdditionalFields(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX)) {
             out.writeBoolean(useOverflowingLongSupplier);
         }

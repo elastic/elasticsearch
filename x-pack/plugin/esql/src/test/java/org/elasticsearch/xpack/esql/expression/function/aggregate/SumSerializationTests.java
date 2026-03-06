@@ -80,10 +80,10 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
     }
 
     /**
-     * Ensures that:
+     * Ensures that, after deserializing the "Old" aggregate function;:
      * <ul>
      *     <li>{@link Sum#summationMode()} defaults to {@link SummationMode#COMPENSATED_LITERAL}</li>
-     *     <li>{@link Sum#useOverflowingLongSupplier()} defaults to true (The old aggregator)</li>
+     *     <li>{@link Sum#useOverflowingLongSupplier()} defaults to true</li>
      * </ul>
      */
     public void testSerializeOldSum() throws IOException {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;

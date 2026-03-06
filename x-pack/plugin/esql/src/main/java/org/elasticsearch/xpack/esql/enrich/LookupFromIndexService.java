@@ -177,33 +177,42 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
         Expression rightOnlyFilter = lookupNodePlan instanceof FilterExec filterExec ? filterExec.condition() : null;
-        if (request.joinOnConditions == null) {
-            // this is a field based join
+        return buildQueryGenerator(request.matchFields, request.joinOnConditions, rightOnlyFilter, null, context, aliasFilter, warnings);
+    }
+
+    private LookupEnrichQueryGenerator buildQueryGenerator(
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        @Nullable Expression rightOnlyFilter,
+        @Nullable QueryBuilder pushedQuery,
+        SearchExecutionContext context,
+        AliasFilter aliasFilter,
+        Warnings warnings
+    ) {
+        if (joinOnConditions == null) {
             List<QueryList> queryLists = new ArrayList<>();
-            for (int i = 0; i < request.matchFields.size(); i++) {
-                MatchConfig matchField = request.matchFields.get(i);
+            for (int i = 0; i < matchFields.size(); i++) {
+                MatchConfig matchField = matchFields.get(i);
                 int channelOffset = matchField.channel();
                 QueryList q = termQueryList(context.getFieldType(matchField.fieldName()), aliasFilter, channelOffset, matchField.type());
                 queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
             }
-            if (queryLists.size() == 1 && rightOnlyFilter == null) {
+            if (queryLists.size() == 1 && rightOnlyFilter == null && pushedQuery == null) {
                 return queryLists.getFirst();
             }
-            return ExpressionQueryList.fieldBasedJoin(queryLists, context, rightOnlyFilter, null, clusterService, aliasFilter);
+            return ExpressionQueryList.fieldBasedJoin(queryLists, context, rightOnlyFilter, pushedQuery, clusterService, aliasFilter);
         } else {
-            // this is an expression based join
             return ExpressionQueryList.expressionBasedJoin(
                 context,
                 rightOnlyFilter,
-                null,
+                pushedQuery,
                 clusterService,
-                request.getMatchFields(),
-                request.getJoinOnConditions(),
+                matchFields,
+                joinOnConditions,
                 aliasFilter,
                 warnings
             );
         }
-
     }
 
     /**
@@ -218,30 +227,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        if (joinOnConditions == null) {
-            List<QueryList> queryLists = new ArrayList<>();
-            for (int i = 0; i < matchFields.size(); i++) {
-                MatchConfig matchField = matchFields.get(i);
-                int channelOffset = matchField.channel();
-                QueryList q = termQueryList(context.getFieldType(matchField.fieldName()), aliasFilter, channelOffset, matchField.type());
-                queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
-            }
-            if (queryLists.size() == 1 && pushedQuery == null) {
-                return queryLists.getFirst();
-            }
-            return ExpressionQueryList.fieldBasedJoin(queryLists, context, null, pushedQuery, clusterService, aliasFilter);
-        } else {
-            return ExpressionQueryList.expressionBasedJoin(
-                context,
-                null,
-                pushedQuery,
-                clusterService,
-                matchFields,
-                joinOnConditions,
-                aliasFilter,
-                warnings
-            );
-        }
+        return buildQueryGenerator(matchFields, joinOnConditions, null, pushedQuery, context, aliasFilter, warnings);
     }
 
     /**
@@ -829,8 +815,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
 
         if (rightOnlyFromConditions.isEmpty() == false) {
-            Expression rightOnlyFilter = Predicates.combineAnd(rightOnlyFromConditions);
-            plan = new Filter(source, plan, rightOnlyFilter);
+            if (plan instanceof Filter existingFilter) {
+                rightOnlyFromConditions.add(existingFilter.condition());
+                plan = existingFilter.child();
+            }
+            plan = new Filter(source, plan, Predicates.combineAnd(rightOnlyFromConditions));
         }
 
         List<NamedExpression> projections = new ArrayList<>(extractFields.size() + 1);

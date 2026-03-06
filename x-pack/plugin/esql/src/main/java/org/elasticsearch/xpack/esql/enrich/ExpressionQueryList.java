@@ -253,6 +253,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             if (filter instanceof TranslationAware translationAware) {
                 if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                     QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
+                    // Rewrite the query builder to ensure doIndexMetadataRewrite is called
+                    // Some functions, such as KQL require rewriting to work properly
                     try {
                         queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
                     } catch (IOException e) {

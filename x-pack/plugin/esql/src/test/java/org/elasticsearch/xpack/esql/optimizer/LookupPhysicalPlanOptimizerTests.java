@@ -187,7 +187,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     /**
      * ON expression with a pushable right-only filter combined with a non-pushable WHERE clause.
-     * The ON equality filter stays as FilterExec, and the WHERE LENGTH filter also stays as FilterExec.
+     * The ON equality filter is pushed to ParameterizedQueryExec.query(), while LENGTH stays as FilterExec.
      */
     public void testOnExpressionFilterWithWhereClause() {
         assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
@@ -199,22 +199,18 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         ProjectExec project = as(plan, ProjectExec.class);
-
-        // language_code extract for the join key
         FieldExtractExec extractForJoinKey = as(project.child(), FieldExtractExec.class);
 
-        // The ON equality filter (right-only from the join condition) stays as FilterExec
-        FilterExec onFilter = as(extractForJoinKey.child(), FilterExec.class);
-        assertThat(onFilter.condition().toString(), containsString("language_name"));
-        assertThat(onFilter.condition().toString(), containsString("English"));
+        // LENGTH is not pushable, stays as FilterExec
+        FilterExec filter = as(extractForJoinKey.child(), FilterExec.class);
+        assertThat(filter.condition().toString(), containsString("LENGTH"));
 
-        // The WHERE LENGTH filter (non-pushable) also stays as FilterExec
-        FilterExec whereFilter = as(onFilter.child(), FilterExec.class);
-        assertThat(whereFilter.condition().toString(), containsString("LENGTH"));
-
-        // FieldExtract for language_name needed by the filters
-        FieldExtractExec extractForFilter = as(whereFilter.child(), FieldExtractExec.class);
+        FieldExtractExec extractForFilter = as(filter.child(), FieldExtractExec.class);
         ParameterizedQueryExec paramQuery = as(extractForFilter.child(), ParameterizedQueryExec.class);
+
+        // language_name == "English" (pushable ON right-only filter) is pushed to query
+        assertNotNull("Expected pushable ON filter on ParameterizedQueryExec", paramQuery.query());
+        assertThat(paramQuery.query().toString(), containsString("language_name"));
 
         // joinOnConditions is the left-right join key comparison
         assertNotNull("Expected join on conditions", paramQuery.joinOnConditions());

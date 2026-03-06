@@ -7,18 +7,19 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -30,10 +31,16 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
 
   private final EvalOperator.ExpressionEvaluator in;
 
+  private final EncodedTDigest decoder;
+
+  private final TDigestHolder scratch;
+
   public ToTDigestFromHistogramEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      DriverContext driverContext) {
+      EncodedTDigest decoder, TDigestHolder scratch, DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
+    this.decoder = decoder;
+    this.scratch = scratch;
   }
 
   @Override
@@ -54,7 +61,7 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (TDigestBlockBuilder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
+    try (TDigestBlock.Builder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendTDigest(evalValue(vector, p, scratchPad));
@@ -69,14 +76,14 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
 
   private TDigestHolder evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToTDigest.fromHistogram(value);
+    return ToTDigest.fromHistogram(value, this.decoder, this.scratch);
   }
 
   @Override
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (TDigestBlockBuilder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
+    try (TDigestBlock.Builder builder = driverContext.blockFactory().newTDigestBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -109,7 +116,7 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
 
   private TDigestHolder evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToTDigest.fromHistogram(value);
+    return ToTDigest.fromHistogram(value, this.decoder, this.scratch);
   }
 
   @Override
@@ -134,14 +141,22 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
+    private final Function<DriverContext, EncodedTDigest> decoder;
+
+    private final Function<DriverContext, TDigestHolder> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        Function<DriverContext, EncodedTDigest> decoder,
+        Function<DriverContext, TDigestHolder> scratch) {
       this.source = source;
       this.in = in;
+      this.decoder = decoder;
+      this.scratch = scratch;
     }
 
     @Override
     public ToTDigestFromHistogramEvaluator get(DriverContext context) {
-      return new ToTDigestFromHistogramEvaluator(source, in.get(context), context);
+      return new ToTDigestFromHistogramEvaluator(source, in.get(context), decoder.apply(context), scratch.apply(context), context);
     }
 
     @Override

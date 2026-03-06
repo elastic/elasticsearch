@@ -482,7 +482,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         // Create index template for data stream
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
-        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
+        createIndexTemplateRequest.setJsonEntity(Strings.format("""
             {
               "index_patterns": [ "%s*" ],
               "data_stream": {}

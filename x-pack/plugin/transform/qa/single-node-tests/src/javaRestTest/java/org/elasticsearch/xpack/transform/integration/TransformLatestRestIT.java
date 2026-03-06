@@ -15,7 +15,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -405,7 +404,7 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
-        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
+        createIndexTemplateRequest.setJsonEntity(Strings.format("""
             {
               "index_patterns": [ "%s*" ],
               "data_stream": {}

@@ -115,12 +115,6 @@ public class DestConfig implements Writeable, ToXContentObject {
         if (index.isEmpty()) {
             validationException = addValidationError("dest.index must not be empty", validationException);
         }
-        if (ACTION_INDEX.equals(action) == false && ACTION_CREATE.equals(action) == false) {
-            validationException = addValidationError(
-                "dest.action must be one of [" + ACTION_INDEX + ", " + ACTION_CREATE + "], got [" + action + "]",
-                validationException
-            );
-        }
         return validationException;
     }
 

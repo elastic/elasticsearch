@@ -124,6 +124,15 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         return 100_000;
     }
 
+    /**
+     * Whether to skip inserting null rows into the input before it is fed to the aggregator. Only override in aggregators that don't
+     * ignore null positions.
+     * @return boolean
+     */
+    protected boolean skipInsertingNullRows() {
+        return false;
+    }
+
     public final void testIgnoresNulls() {
         int end = between(1_000, maximumTestRowCount());
         List<Page> results = new ArrayList<>();
@@ -132,10 +141,14 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(blockFactory, end));
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
+        SourceOperator source = skipInsertingNullRows()
+            ? new CannedSourceOperator(input.iterator())
+            : new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory);
+
         try (
             Driver d = TestDriverFactory.create(
                 driverContext,
-                new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
+                source,
                 List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add)
             )

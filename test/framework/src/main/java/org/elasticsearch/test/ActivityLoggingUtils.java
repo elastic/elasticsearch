@@ -13,14 +13,14 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
 import static org.elasticsearch.test.ESTestCase.assertThat;
@@ -53,22 +53,33 @@ public class ActivityLoggingUtils {
         updateClusterSettings(builder);
     }
 
+    private static String stringify(Object t) {
+        if (t instanceof String[]) return String.join(",", (String[]) t);
+        return t.toString();
+    }
+
     public static Map<String, String> getMessageData(LogEvent event) {
         assertNotNull(event);
         assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
         ESLogMessage message = (ESLogMessage) event.getMessage();
-        HashMap<String, String> map = new HashMap<>();
-        message.getData().forEach((k, v) -> map.put(k, v.toString()));
-        return map;
+
+        return message.getData().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> stringify(e.getValue())));
+    }
+
+    public static Object getMessageField(LogEvent event, String key) {
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+        ESLogMessage message = (ESLogMessage) event.getMessage();
+        return message.getData().get(key);
     }
 
     public static void assertMessageSuccess(Map<String, String> message, String type, String query) {
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
-        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));
-        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
+        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took"))));
     }
 
     public static void assertMessageFailure(
@@ -79,11 +90,11 @@ public class ActivityLoggingUtils {
         String errorMessage
     ) {
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
-        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
-        assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took")), greaterThan(0L));
+        assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));
-        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
+        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took"))));
         if (errorMessage != null) {
             assertThat(message.get("error.message"), containsString(errorMessage));
         }

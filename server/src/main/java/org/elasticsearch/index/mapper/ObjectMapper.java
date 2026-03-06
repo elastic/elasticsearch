@@ -936,6 +936,7 @@ public class ObjectMapper extends Mapper {
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
+        // Fix this
         if (mapper instanceof MetadataFieldMapper metaMapper) {
             return metaMapper.syntheticFieldLoader();
         }

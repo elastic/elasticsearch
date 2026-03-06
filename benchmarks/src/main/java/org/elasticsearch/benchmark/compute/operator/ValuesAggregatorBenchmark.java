@@ -120,20 +120,13 @@ public class ValuesAggregatorBenchmark {
             );
         }
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
-        return new HashAggregationOperator(
-            mode,
-            List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
-            () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
-            Integer.MAX_VALUE,
-            1.0,
-            1024,
-            driverContext
-        ) {
-            @Override
-            public Page getOutput() {
-                return super.getOutput();
-            }
-        };
+        return new HashAggregationOperator.Builder().mode(mode)
+            .aggregators(List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))))
+            .groups(groupSpec)
+            .partialEmit(1024, 1.0)
+            .maxPageSize(Integer.MAX_VALUE)
+            .build()
+            .get(driverContext);
     }
 
     private static AggregatorFunctionSupplier supplier(String dataType) {

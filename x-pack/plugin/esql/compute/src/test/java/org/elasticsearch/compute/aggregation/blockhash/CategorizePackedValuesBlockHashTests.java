@@ -144,8 +144,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.Builder()
-                    .groups(groupSpecs)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
@@ -166,8 +165,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.Builder()
-                    .groups(groupSpecs)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
                     .mode(AggregatorMode.INITIAL)
                     .aggregators(
                         List.of(
@@ -190,13 +188,10 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.Builder()
-                    .groups(groupSpecs)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
                     .mode(AggregatorMode.FINAL)
                     .aggregators(
-                        List.of(
-                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))
-                        )
+                        List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2)))
                     )
                     .maxPageSize(16 * 1024)
                     .aggregationBatchSize(16 * 1024)

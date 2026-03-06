@@ -407,8 +407,9 @@ public class OperatorTests extends MapperServiceTestCase {
             // Reduce driver
             List<Page> reduceDriverPages = new ArrayList<>();
             try (CannedSourceOperator sourceOperator = new CannedSourceOperator(dataDriverPages.iterator())) {
-                HashAggregationOperator.Factory aggFactory = new HashAggregationOperator.Builder()
-                    .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                HashAggregationOperator.Factory aggFactory = new HashAggregationOperator.Builder().groups(
+                    List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+                )
                     .mode(AggregatorMode.INTERMEDIATE)
                     .aggregators(
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2)))

@@ -106,15 +106,13 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                 new BlockHash.GroupSpec(prefixBlocks + 1, ElementType.INT)
             );
         }
-        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
-            aggregateMode,
-            List.of(aggregatorFactory),
-            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
-            Integer.MAX_VALUE,
-            1.0,
-            randomIntBetween(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / 10),
-            driverContext
-        );
+        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(aggregateMode)
+            .aggregators(List.of(aggregatorFactory))
+            .groups(groupSpecs)
+            .maxPageSize(Integer.MAX_VALUE)
+            .partialEmit(randomIntBetween(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / 10), 1.0)
+            .build()
+            .get(driverContext);
         List<Page> outputPages = new ArrayList<>();
         Driver driver = TestDriverFactory.create(
             driverContext,

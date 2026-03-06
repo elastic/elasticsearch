@@ -123,7 +123,7 @@ public class HashAggregationOperator implements Operator {
         }
 
         @Override
-        public final Operator get(DriverContext driverContext) {
+        public final HashAggregationOperator get(DriverContext driverContext) {
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
                 return new HashAggregationOperator(
                     aggregatorMode,

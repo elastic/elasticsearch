@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -134,7 +134,8 @@ public class SpatialRelatesQuery extends Query {
         }
 
         @Override
-        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor)
+            throws IOException {
             org.apache.lucene.search.Query query = toQuery(context);
             if (query != null) {
                 query.visit(visitor);

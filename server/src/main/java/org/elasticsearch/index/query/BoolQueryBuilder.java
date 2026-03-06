@@ -12,15 +12,16 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,11 +29,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -301,7 +302,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         // This doesn't fully work because lucene deduplicate mustNot and filter clauses. It is not trivial
         // to deduplicate at this level because it seems that two "distinct" query builders can produce the same
         // lucene query.
@@ -310,16 +311,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         try {
             // disable tracking of the @timestamp range for must_not and should clauses
             context.setTrackTimeRangeFilterFrom(false);
-            // lucene deduplicates mustnot clauses. This might fail because equality on query builders is not equal to equality
-            // in generated queries in some cases.
-            addBooleanClauses(context, booleanQueryBuilder, new HashSet<>(mustNotClauses), BooleanClause.Occur.MUST_NOT, queryVisitor);
+            // lucene deduplicates must not clauses.
+            addDeduplicatedBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT, queryVisitor);
             addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD, queryVisitor);
         } finally {
             context.setTrackTimeRangeFilterFrom(true);
         }
-        // lucene deduplicates filter clauses. This might fail because equality on query builders is not equal to equality
-        // in generated queries in some cases.
-        addBooleanClauses(context, booleanQueryBuilder, new HashSet<>(filterClauses), BooleanClause.Occur.FILTER, queryVisitor);
+        // lucene deduplicates filter clauses.
+        addDeduplicatedBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, queryVisitor);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
             Queries.ALL_DOCS_INSTANCE.visit(queryVisitor);
@@ -333,15 +332,42 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
-        Collection<QueryBuilder> clauses,
+        List<QueryBuilder> clauses,
         Occur occurs,
-        QueryVisitor queryVisitor
+        MaxClauseCountQueryVisitor queryVisitor
     ) throws IOException {
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
                 autoPrefilteringScope.push(collectPrefilters(query));
                 Query luceneQuery = query.toQuery(context, queryVisitor);
                 booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
+        }
+    }
+
+    private void addDeduplicatedBooleanClauses(
+        SearchExecutionContext context,
+        BooleanQuery.Builder booleanQueryBuilder,
+        List<QueryBuilder> clauses,
+        Occur occurs,
+        MaxClauseCountQueryVisitor queryVisitor
+    ) throws IOException {
+        if (clauses.size() <= 1) {
+            addBooleanClauses(context, booleanQueryBuilder, clauses, occurs, queryVisitor);
+            return;
+        }
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        Set<Query> deduplicate = new HashSet<>();
+        for (QueryBuilder query : clauses) {
+            try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
+                autoPrefilteringScope.push(collectPrefilters(query));
+                Query luceneQuery = query.toQuery(context, visitor);
+                if (deduplicate.add(luceneQuery)) {
+                    queryVisitor.merge(visitor);
+                }
+                // TODO: It would be great if lucene could tell us here if the query has been deduplicated.
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+                visitor.reset();
             }
         }
     }

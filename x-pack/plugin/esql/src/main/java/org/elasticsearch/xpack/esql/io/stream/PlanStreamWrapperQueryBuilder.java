@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -71,7 +71,7 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     }
 
     @Override
-    public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+    public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
         Query query = next.toQuery(context, visitor);
         if (query != null) {
             query.visit(visitor);

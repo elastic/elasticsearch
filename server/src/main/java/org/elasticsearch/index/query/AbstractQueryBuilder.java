@@ -132,7 +132,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     @Override
-    public final Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+    public final Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
         Query query = doToQuery(context, visitor);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
@@ -154,14 +154,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Builds the Lucene {@link Query} for this builder.
      * <p>
      * Implementations should use the provided {@link QueryVisitor} to visit any generated query or sub-queries.
-     * Boost and named-query handling are applied by {@link #toQuery(SearchExecutionContext, QueryVisitor)}.
+     * Boost and named-query handling are applied by {@link QueryBuilder#toQuery(SearchExecutionContext, MaxClauseCountQueryVisitor)}.
      * {@link LeafQueryBuilder} implementations get this visitor handling automatically.
      *
      * @param context additional information needed to construct the query
-     * @param visitor query visitor used to account for clauses while building the query
+     * @param visitor query MaxClauseCountQueryVisitor used to account for clauses while building the query
      * @return the {@link Query} or {@code null} if this query should be ignored upstream
      */
-    protected abstract Query doToQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException;
+    protected abstract Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException;
 
     /**
      * Sets the query name for the query.

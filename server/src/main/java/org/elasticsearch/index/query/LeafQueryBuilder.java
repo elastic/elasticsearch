@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends 
     }
 
     @Override
-    protected final Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
+    protected final Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
             query.visit(queryVisitor);

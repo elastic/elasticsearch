@@ -52,11 +52,6 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), TestQueryBuilderPlugin.class);
     }
 
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
         public TestQueryBuilderPlugin() {}
 

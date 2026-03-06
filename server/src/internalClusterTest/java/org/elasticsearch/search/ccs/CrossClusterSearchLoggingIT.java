@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -29,7 +30,9 @@ import org.junit.BeforeClass;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_CCS;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_REMOTE;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTE_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -87,6 +90,13 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
                 .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null))
                 .get()
         );
+        assertAcked(
+            client(REMOTE_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null))
+                .get()
+        );
     }
 
     /**
@@ -112,6 +122,8 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo(localIndex + "," + REMOTE_CLUSTER + ":" + remoteIndex));
+            assertNull(message.get(QUERY_FIELD_IS_REMOTE));
         }
         // Remote only
         {
@@ -128,6 +140,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
+            assertNull(message.get(QUERY_FIELD_IS_REMOTE));
         }
         // Wildcard
         {
@@ -144,6 +157,8 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("*:" + remoteIndex));
+            assertNull(message.get(QUERY_FIELD_IS_REMOTE));
         }
     }
 
@@ -167,4 +182,47 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
         assertNull(message.get(QUERY_FIELD_IS_CCS));
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
     }
+
+    public void testCCSLoggingOnRemote() throws Exception {
+        assertAcked(
+            client(REMOTE_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true))
+                .get()
+        );
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        // Remote + local
+        {
+            SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+            // remote only logs on MRT=true
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+
+            assertResponse(client(LOCAL_CLUSTER).search(searchRequest), Assert::assertNotNull);
+
+            assertThat(appender.events.size(), equalTo(2)); // logged on both sides!
+            for (var event : appender.events) {
+                Map<String, String> message = getMessageData(event);
+                assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+                if (message.get(ActivityLogProducer.PARENT_TASK_ID_FIELD) == null) {
+                    // Local side
+                    assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
+                    assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
+                    assertThat(message.get(QUERY_FIELD_INDICES), equalTo(localIndex + "," + REMOTE_CLUSTER + ":" + remoteIndex));
+                    assertNull(message.get(QUERY_FIELD_IS_REMOTE));
+                } else {
+                    // Remote side
+                    assertNull(message.get(QUERY_FIELD_IS_CCS));
+                    assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
+                    assertThat(message.get(QUERY_FIELD_IS_REMOTE), equalTo("true"));
+                    assertThat(message.get(QUERY_FIELD_INDICES), equalTo(remoteIndex));
+                }
+            }
+        }
+    }
+
 }

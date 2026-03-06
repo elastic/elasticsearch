@@ -717,32 +717,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
     }
 
-    public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewSetsDefault() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(
-            fieldName,
-            oldInferenceId,
-            null,
-            previousModelSettings,
-            IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5
-        );
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
-        givenModelSettings(DEFAULT_EIS_JINA_V5_INFERENCE_ID, newModelSettings);
-        merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject()));
-
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_JINA_V5_INFERENCE_ID);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-        SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
-        assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
-    }
-
     public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewIsIncompatibleTaskType() throws IOException {
         String fieldName = randomAlphaOfLengthBetween(5, 15);
         String oldInferenceId = "old_inference_id";

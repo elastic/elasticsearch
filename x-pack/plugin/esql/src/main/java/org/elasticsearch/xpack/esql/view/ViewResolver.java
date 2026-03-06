@@ -308,7 +308,7 @@ public class ViewResolver {
         if (unresolvedPatterns.isEmpty() == false) {
             var viewNames = getMetadata().views();
             for (String pattern : originalPatterns) {
-                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+                if (patternIsExclusion(pattern) && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
                     unresolvedPatterns.add(pattern);
                 }
             }
@@ -320,11 +320,15 @@ public class ViewResolver {
      * Checks whether a pattern is an exclusion targeting a concrete (non-wildcard) view name.
      */
     private static boolean isConcreteViewExclusion(String pattern, Predicate<String> viewExistsPredicate) {
-        if (pattern.startsWith("-") == false) {
+        if (patternIsExclusion(pattern) == false) {
             return false;
         }
         String target = pattern.substring(1);
         return Regex.isSimpleMatchPattern(target) == false && viewExistsPredicate.test(target);
+    }
+
+    private static boolean patternIsExclusion(String pattern) {
+        return pattern.startsWith("-");
     }
 
     /**

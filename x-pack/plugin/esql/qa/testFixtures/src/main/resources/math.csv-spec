@@ -1873,22 +1873,24 @@ emp_no:integer | salary:integer | salary_change:double | cs1:integer
 ;
 
 divDoubleOverflowPositive
+required_capability: fn_div_overflow
 
 row x = 1e308 / 0.1 | keep x;
 
 warning:Line 1:13: evaluation of [1e308 / 0.1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:13: java.lang.ArithmeticException: double overflow
+warning:Line 1:13: java.lang.ArithmeticException: not a finite double number: Infinity
 
 x:double
 null
 ;
 
 divDoubleOverflowNegative
+required_capability: fn_div_overflow
 
 row x = -1e308 / 0.1 | keep x;
 
 warning:Line 1:14: evaluation of [-1e308 / 0.1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:14: java.lang.ArithmeticException: double overflow
+warning:Line 1:14: java.lang.ArithmeticException: not a finite double number: -Infinity
 
 x:double
 null

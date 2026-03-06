@@ -232,6 +232,11 @@ public class EsqlCapabilities {
         FN_HYPOT,
 
         /**
+         * Handle double division overflow by returning null and emitting warning.
+         */
+        FN_DIV_OVERFLOW,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,

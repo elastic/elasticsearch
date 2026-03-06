@@ -127,12 +127,6 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             throw new ArithmeticException("/ by zero");
         }
 
-        double value = lhs / rhs;
-
-        if (Double.isFinite(value) == false) {
-            throw new ArithmeticException("double overflow");
-        }
-
-        return value;
+        return NumericUtils.asFiniteNumber(lhs / rhs);
     }
 }

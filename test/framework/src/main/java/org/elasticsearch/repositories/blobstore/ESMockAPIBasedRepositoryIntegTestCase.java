@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -270,7 +271,10 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         InetSocketAddress address = httpServer.getAddress();
         // Use "localhost" for loopback addresses to avoid issues with IPv6 addresses
         // in URLs that some SDKs (like Azure) cannot properly parse
-        String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
+        InetAddress inetAddress = address.getAddress();
+        String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
+            ? "localhost"
+            : InetAddresses.toUriString(inetAddress);
         return host + ":" + address.getPort();
     }
 

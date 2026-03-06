@@ -21,11 +21,12 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import org.apache.lucene.util.Unwrappable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.Set;
@@ -71,15 +72,19 @@ class MemorySegmentUtils {
      * Java {@link FileChannel} API.
      */
     static MemorySegmentHolder createFileBackedMemorySegment(Path dataFile, long dataSize) throws IOException {
-        try (FileChannel fc = FileChannel.open(dataFile, Set.of(READ))) {
-            // TODO: switch to FileChannel.map(MapMode, long, long, Arena) once the ES entitlement system supports it.
-            // The Arena-based overload currently throws UnsupportedOperationException because the entitlement proxy
-            // wraps FileChannel without overriding the Java 21 method. The MappedByteBuffer is kept in the holder
-            // to prevent GC from unmapping the region before the segment is done being used.
-            MappedByteBuffer mappedBuffer = fc.map(FileChannel.MapMode.READ_ONLY, 0L, dataSize);
-            MemorySegment mapped = MemorySegment.ofBuffer(mappedBuffer);
-            return new FileBackedMemorySegmentHolder(mapped, mappedBuffer, dataFile);
+        // Unwrap test-only filesystem layers so we get a real FileChannelImpl that supports Arena-based map.
+        Path unwrappedPath = Unwrappable.unwrapAll(dataFile);
+        Arena arena = null;
+        try {
+            arena = Arena.ofConfined();
+            try (FileChannel fc = FileChannel.open(unwrappedPath, Set.of(READ))) {
+                MemorySegment mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0L, dataSize, arena);
+                return new FileBackedMemorySegmentHolder(mapped, arena, dataFile);
+            }
         } catch (Throwable t) {
+            if (arena != null) {
+                arena.close();
+            }
             IOUtils.deleteFilesIgnoringExceptions(dataFile);
             throw t;
         }
@@ -207,12 +212,12 @@ class MemorySegmentUtils {
         }
     }
 
-    record FileBackedMemorySegmentHolder(MemorySegment memorySegment, MappedByteBuffer mappedBuffer, Path dataFile)
+    record FileBackedMemorySegmentHolder(MemorySegment memorySegment, Arena arena, Path dataFile)
         implements
             MemorySegmentHolder {
         @Override
         public void close() {
-            // mappedBuffer will be unmapped by GC; just delete the temp file
+            arena.close();
             IOUtils.deleteFilesIgnoringExceptions(dataFile);
         }
     }

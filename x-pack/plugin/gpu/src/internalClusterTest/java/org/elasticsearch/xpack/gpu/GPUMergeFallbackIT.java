@@ -180,7 +180,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
             .getCount();
         assertThat("expected multiple segments before merge", segmentsBefore, greaterThan(1L));
 
-        int k = 10;
+        int k = 50;
         int numCandidates = k * 5;
         float[] queryVector = randomFloatVector(dims, similarity);
 
@@ -204,7 +204,6 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         long segmentsAfter = indicesAdmin().prepareStats(indexName).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
         assertThat("expected a single segment after merge", segmentsAfter, equalTo(1L));
 
-        numCandidates = k * 10;
         var responseAfter = prepareSearch(indexName).setSize(k)
             .setFetchSource(false)
             .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
@@ -212,7 +211,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         try {
             SearchHit[] hitsAfter = responseAfter.getHits().getHits();
             assertEquals(k, hitsAfter.length);
-            assertAtLeastNOutOfKMatches(idsBeforeMerge, hitsAfter, 4, k);
+            assertAtLeastNOutOfKMatches(idsBeforeMerge, hitsAfter, k / 2, k);
         } finally {
             responseAfter.decRef();
         }

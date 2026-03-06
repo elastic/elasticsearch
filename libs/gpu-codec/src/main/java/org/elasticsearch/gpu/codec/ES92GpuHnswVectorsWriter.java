@@ -630,10 +630,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     clonedSlice.seek(0);
                     int dims = fieldInfo.getVectorDimension();
                     byte[] vector = new byte[dims];
-                    byte[] correction = new byte[4]; // 4 extra bytes per vector for the scalar quantization correction constant
                     for (int i = 0; i < numVectors; ++i) {
                         clonedSlice.readBytes(vector, 0, dims);
-                        clonedSlice.readBytes(correction, 0, 4);
+                        clonedSlice.skipBytes(4); // skip scalar quantization correction constant
                         builder.addVector(vector);
                     }
                 }

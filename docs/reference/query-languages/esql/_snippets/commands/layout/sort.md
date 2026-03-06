@@ -22,7 +22,7 @@ SORT expression1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., expressionN [ASC/DESC
 ## Description
 
 The `SORT` processing command sorts a table on one or more expressions. You can sort by any
-expression, not only column names—for example, `length(first_name)` or `year(hire_date)`.
+expression, not only column names (for example, `length(first_name)` or `year(hire_date)`).
 
 The default sort order is ascending. Use `ASC` or `DESC` to specify an explicit
 sort order.

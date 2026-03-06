@@ -308,6 +308,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             return matchFields;
         }
 
+        public List<NamedExpression> getExtractFields() {
+            return extractFields;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

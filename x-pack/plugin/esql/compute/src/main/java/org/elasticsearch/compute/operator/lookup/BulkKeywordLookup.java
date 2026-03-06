@@ -30,7 +30,8 @@ import java.util.function.BiFunction;
 
 public class BulkKeywordLookup {
     private final MappedFieldType rightFieldType;
-    private final int channelOffset;
+    private final int matchChannelOffset;
+    private final int extractChannelOffset;
     private final SearchExecutionContext context;
     private final ClusterService clusterService;
     private final AliasFilter aliasFilter;
@@ -46,14 +47,16 @@ public class BulkKeywordLookup {
         MappedFieldType rightFieldType,
         ElementType leftElementType,
         SearchExecutionContext context,
-        int channelOffset,
+        int matchChannelOffset,
+        int extractChannelOffset,
         ClusterService clusterService,
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
         this.rightFieldType = rightFieldType;
         this.context = context;
-        this.channelOffset = channelOffset;
+        this.matchChannelOffset = matchChannelOffset; //     offset of field in left  (input)  page
+        this.extractChannelOffset = extractChannelOffset; // offset of field in right (output) page
         this.clusterService = clusterService;
         this.aliasFilter = aliasFilter;
         this.warnings = warnings;
@@ -75,10 +78,16 @@ public class BulkKeywordLookup {
         IntVector.Builder positionsBuilder
     ) {
         try {
-            final BytesRefBlock block = inputPage.getBlock(channelOffset);
+            final BytesRefBlock block = inputPage.getBlock(matchChannelOffset);
             final int valueCount = block.getValueCount(position);
-            if (valueCount != 1) {
-                return 0; // Skip multi-value positions and null positions
+            if (valueCount > 1) {
+                warnings.registerException(
+                    new IllegalArgumentException("LOOKUP JOIN encountered multi-value")
+                );
+                return 0; // Skip multi-value positions
+            }
+            if (valueCount < 1) {
+                return 0; // Skip null positions
             }
             final int firstValueIndex = block.getFirstValueIndex(position);
             final BytesRef termBytes = block.getBytesRef(firstValueIndex, scratch);
@@ -121,8 +130,12 @@ public class BulkKeywordLookup {
     }
 
     public int getPositionCount(Page inputPage) {
-        final Block block = inputPage.getBlock(channelOffset);
+        final Block block = inputPage.getBlock(matchChannelOffset);
         return block.getPositionCount();
+    }
+
+    public int getExtractChannelOffset() {
+        return extractChannelOffset;
     }
 
     /**

@@ -16,6 +16,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -66,7 +68,13 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
-        return channel -> client.searchScroll(searchScrollRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        return channel -> client.searchScroll(
+            searchScrollRequest,
+            RequestStatsListener.wrapIfEnabled(
+                RequestStatsService.RequestKind.READ,
+                new RestRefCountedChunkedToXContentListener<>(channel)
+            )
+        );
     }
 
     @Override

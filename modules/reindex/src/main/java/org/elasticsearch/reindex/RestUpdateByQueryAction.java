@@ -9,14 +9,18 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,5 +74,10 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
         internal.setPipeline(request.param("pipeline"));
         return internal;
+    }
+
+    @Override
+    protected ActionListener<BulkByScrollResponse> wrapBulkByScrollResponseListener(ActionListener<BulkByScrollResponse> listener) {
+        return RequestStatsListener.wrapIfEnabled(RequestStatsService.RequestKind.WRITE, listener);
     }
 }

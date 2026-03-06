@@ -28,6 +28,8 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -136,7 +138,14 @@ public class RestSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            cancelClient.execute(
+                TransportSearchAction.TYPE,
+                searchRequest,
+                RequestStatsListener.wrapIfEnabled(
+                    RequestStatsService.RequestKind.READ,
+                    new RestRefCountedChunkedToXContentListener<>(channel)
+                )
+            );
         };
     }
 

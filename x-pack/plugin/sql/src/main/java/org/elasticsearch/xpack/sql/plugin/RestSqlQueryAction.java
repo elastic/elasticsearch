@@ -17,6 +17,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -65,10 +67,13 @@ public class RestSqlQueryAction extends BaseRestHandler {
             cancellableClient.execute(
                 SqlQueryAction.INSTANCE,
                 sqlRequest,
-                new SqlResponseListener(channel, request, sqlRequest).delegateResponse((l, ex) -> {
-                    logOnFailure(LOGGER, ex);
-                    l.onFailure(ex);
-                })
+                RequestStatsListener.wrapIfEnabled(
+                    RequestStatsService.RequestKind.READ,
+                    new SqlResponseListener(channel, request, sqlRequest).delegateResponse((l, ex) -> {
+                        logOnFailure(LOGGER, ex);
+                        l.onFailure(ex);
+                    })
+                )
             );
         };
     }

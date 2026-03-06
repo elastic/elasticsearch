@@ -32,6 +32,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final RepositoryUsageStats repositoryUsageStats;
     private final CCSTelemetrySnapshot searchCcsMetrics;
     private final CCSTelemetrySnapshot esqlCcsMetrics;
+    private final RequestStats requestStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -43,6 +44,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         repositoryUsageStats = RepositoryUsageStats.readFrom(in);
         searchCcsMetrics = new CCSTelemetrySnapshot(in);
         esqlCcsMetrics = new CCSTelemetrySnapshot(in);
+        requestStats = new RequestStats(in);
     }
 
     public ClusterStatsNodeResponse(
@@ -54,7 +56,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         SearchUsageStats searchUsageStats,
         RepositoryUsageStats repositoryUsageStats,
         CCSTelemetrySnapshot ccsTelemetrySnapshot,
-        CCSTelemetrySnapshot esqlTelemetrySnapshot
+        CCSTelemetrySnapshot esqlTelemetrySnapshot,
+        RequestStats requestStats
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -65,6 +68,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
         this.searchCcsMetrics = ccsTelemetrySnapshot;
         this.esqlCcsMetrics = esqlTelemetrySnapshot;
+        this.requestStats = Objects.requireNonNull(requestStats);
     }
 
     public NodeInfo nodeInfo() {
@@ -103,6 +107,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return esqlCcsMetrics;
     }
 
+    public RequestStats getRequestStats() {
+        return requestStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -114,6 +122,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         repositoryUsageStats.writeTo(out);
         searchCcsMetrics.writeTo(out);
         esqlCcsMetrics.writeTo(out);
+        requestStats.writeTo(out);
     }
 
 }

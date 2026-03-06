@@ -20,6 +20,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,6 +57,7 @@ public class RestDeleteAction extends BaseRestHandler {
             deleteRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
 
-        return channel -> client.delete(deleteRequest, new RestToXContentListener<>(channel, DeleteResponse::status));
+        return channel -> client.delete(deleteRequest, RequestStatsListener.wrapIfEnabled(RequestStatsService.RequestKind.WRITE,
+            new RestToXContentListener<>(channel, DeleteResponse::status)));
     }
 }

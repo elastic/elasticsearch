@@ -35,6 +35,8 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -135,7 +137,8 @@ public class RestBulkAction extends BaseRestHandler {
             }
             return channel -> {
                 content.mustIncRef();
-                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+                client.bulk(bulkRequest, ActionListener.releaseAfter(RequestStatsListener.wrapIfEnabled(
+                    RequestStatsService.RequestKind.WRITE, new RestRefCountedChunkedToXContentListener<>(channel)), content));
             };
         } else {
             request.ensureContent();

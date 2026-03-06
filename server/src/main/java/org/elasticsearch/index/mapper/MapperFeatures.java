@@ -77,6 +77,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(

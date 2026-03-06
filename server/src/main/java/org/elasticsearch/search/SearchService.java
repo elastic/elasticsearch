@@ -1636,7 +1636,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
         }
     }
-    
+
     private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor

@@ -725,7 +725,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
                 var inputAttributes = new ArrayList<>(childrenOutput);
-                // remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups
+                // Remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups.
+                // E.g. for
+                // SET unmapped_fields="nullify"; ROW x = 1, language_code = 2
+                // | STATS c = max(language_code) BY language_code = does_not_exist
+                // max(language_code) should not be resolved to the input attribute language_code.
                 inputAttributes.removeIf(a -> unresolvedGroupingNames.contains(a.name()));
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, inputAttributes);
 

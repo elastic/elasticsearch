@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -261,6 +262,9 @@ class BulkPrimaryExecutionContext {
         switch (result.getResultType()) {
             case SUCCESS -> {
                 final DocWriteResponse response;
+                final boolean suppressSeqNo = primary.indexSettings().sequenceNumbersDisabled();
+                final long responseSeqNo = suppressSeqNo ? SequenceNumbers.UNASSIGNED_SEQ_NO : result.getSeqNo();
+                final long responsePrimaryTerm = suppressSeqNo ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : result.getTerm();
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     List<String> executedPipelines;
@@ -272,8 +276,8 @@ class BulkPrimaryExecutionContext {
                     response = new IndexResponse(
                         primary.shardId(),
                         indexResult.getId(),
-                        result.getSeqNo(),
-                        result.getTerm(),
+                        responseSeqNo,
+                        responsePrimaryTerm,
                         indexResult.getVersion(),
                         indexResult.isCreated(),
                         executedPipelines
@@ -283,8 +287,8 @@ class BulkPrimaryExecutionContext {
                     response = new DeleteResponse(
                         primary.shardId(),
                         requestToExecute.id(),
-                        deleteResult.getSeqNo(),
-                        result.getTerm(),
+                        responseSeqNo,
+                        responsePrimaryTerm,
                         deleteResult.getVersion(),
                         deleteResult.isFound()
                     );

@@ -63,40 +63,48 @@ public class IndexBalanceMetricsTests extends ESTestCase {
     public void testUnassignedShardsSkipped() {
         final var indexName = randomIndexName();
         final var index = new Index(indexName, "_na_");
-        final boolean primary = randomBoolean();
-        final var role = primary ? DiscoveryNodeRole.INDEX_ROLE : DiscoveryNodeRole.SEARCH_ROLE;
-        final int numNodes = between(2, 5);
+        final int numIndexNodes = between(2, 5);
+        final int numSearchNodes = between(2, 5);
         final int shardsPerNode = between(1, 4);
-        final int numAssigned = numNodes * shardsPerNode;
+        final int numAssigned = numIndexNodes * numSearchNodes * shardsPerNode;
         final int numUnassigned = between(1, 5);
         final int totalShards = numAssigned + numUnassigned;
 
         final var nodesBuilder = DiscoveryNodes.builder();
-        for (int i = 0; i < numNodes; i++) {
-            nodesBuilder.add(DiscoveryNodeUtils.builder("node_" + i).roles(Set.of(role)).build());
+        for (int i = 0; i < numIndexNodes; i++) {
+            nodesBuilder.add(DiscoveryNodeUtils.builder("idx_" + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build());
+        }
+        for (int i = 0; i < numSearchNodes; i++) {
+            nodesBuilder.add(DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build());
         }
 
         final var routingBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numAssigned; i++) {
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), "node_" + (i % numNodes), primary, ShardRoutingState.STARTED));
+            routingBuilder.addShard(
+                newShardRouting(new ShardId(index, i), "idx_" + (i % numIndexNodes), true, ShardRoutingState.STARTED)
+            );
+            routingBuilder.addShard(
+                newShardRouting(new ShardId(index, i), "search_" + (i % numSearchNodes), false, ShardRoutingState.STARTED)
+            );
         }
         for (int i = numAssigned; i < totalShards; i++) {
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, primary, ShardRoutingState.UNASSIGNED));
+            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, true, ShardRoutingState.UNASSIGNED));
+            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, false, ShardRoutingState.UNASSIGNED));
         }
 
         final var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
             .metadata(
-                Metadata.builder().put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), totalShards, 0)))
+                Metadata.builder().put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), totalShards, 1)))
             )
             .routingTable(RoutingTable.builder().add(routingBuilder))
             .build();
 
         final var result = new IndexBalanceMetrics().compute(state);
-        final var histogram = primary ? result.primaryBalanceHistogram() : result.replicaBalanceHistogram();
 
         // Assigned shards are perfectly balanced; if unassigned shards affected the ratio this would fail
-        assertThat("evenly assigned shards should yield perfect balance", histogram[0], equalTo(1));
+        assertThat("primary shards should yield perfect balance", result.primaryBalanceHistogram()[0], equalTo(1));
+        assertThat("replica shards should yield perfect balance", result.replicaBalanceHistogram()[0], equalTo(1));
     }
 
     public void testNonEligibleNodesSkipped() {

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -71,7 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -465,8 +466,9 @@ public class SearchTransportService {
                 (SearchShardTask) task,
                 asBytesResponse(transportService, channel, response -> {
                     if (response instanceof QueryFetchSearchResult qfr) {
-                        qfr.fetchResult().releaseCircuitBreakerBytes(searchService.getCircuitBreaker());
+                        return qfr.fetchResult().detachCircuitBreakerReservation(searchService.getCircuitBreaker());
                     }
+                    return () -> {};
                 })
             )
         );
@@ -526,7 +528,7 @@ public class SearchTransportService {
                 asBytesResponse(
                     transportService,
                     channel,
-                    response -> response.result().fetchResult().releaseCircuitBreakerBytes(searchService.getCircuitBreaker())
+                    response -> response.result().fetchResult().detachCircuitBreakerReservation(searchService.getCircuitBreaker())
                 )
             )
         );
@@ -561,7 +563,7 @@ public class SearchTransportService {
                 asBytesResponse(
                     transportService,
                     channel,
-                    response -> response.releaseCircuitBreakerBytes(searchService.getCircuitBreaker())
+                    response -> response.detachCircuitBreakerReservation(searchService.getCircuitBreaker())
                 )
             );
         transportService.registerRequestHandler(
@@ -695,23 +697,26 @@ public class SearchTransportService {
     }
 
     /**
-     * Returns a listener that invokes {@code afterSerialize} as soon as the response has been serialized
-     * (network path) or handed off (direct/same-node path), so circuit-breaker bytes can be released before
-     * the network send completes.
+     * Returns a listener that ensures circuit-breaker bytes are not released until the response
+     * has actually been written to the network.
      *
-     * <p>On the network path the response is pre-serialized into a {@link BytesTransportResponse}; on the
-     * direct path the original object is forwarded as-is. In both cases {@code afterSerialize} runs before
-     * the bytes hit the wire.
+     * <p>On the <b>network path</b>, the response is serialized into bytes up front.
+     * Then {@code detachRelease} is called to extract the breaker reservation from the response
+     * as a {@link Releasable}, and then is attached to the serialized bytes' ref-count, so it
+     * is only closed when Netty finishes writing those bytes to the wire.
+     *
+     * <p>On the <b>direct (same-node) path</b> the response is forwarded as-is and the {@code Releasable}
+     * is closed immediately after hand-off.
      */
     static <T extends TransportResponse> ActionListener<T> asBytesResponse(
         TransportService transportService,
         TransportChannel channel,
-        Consumer<T> afterSerialize
+        Function<T, Releasable> detachRelease
     ) {
         if (isDirectResponseChannel(channel)) {
-            return new DirectPathListener<>(channel, afterSerialize);
+            return new DirectPathListener<>(channel, detachRelease);
         }
-        return new NetworkPathListener<>(transportService, channel, afterSerialize);
+        return new NetworkPathListener<>(transportService, channel, detachRelease);
     }
 
     private static boolean isDirectResponseChannel(TransportChannel channel) {
@@ -722,23 +727,26 @@ public class SearchTransportService {
     }
 
     /**
-     * Forwards the original Java response as-is and invokes {@code afterSerialize} immediately afterwards.
-     * */
+     * Forwards the original Java response as-is and releases the circuit-breaker reservation immediately
+     * after the response has been handed off.
+     */
     private static class DirectPathListener<T extends TransportResponse> implements ActionListener<T> {
         private final ChannelActionListener<T> channelListener;
-        private final Consumer<T> afterSerialize;
+        private final Function<T, Releasable> detachRelease;
 
-        DirectPathListener(TransportChannel channel, Consumer<T> afterSerialize) {
+        DirectPathListener(TransportChannel channel, Function<T, Releasable> detachRelease) {
             this.channelListener = new ChannelActionListener<>(channel);
-            this.afterSerialize = afterSerialize;
+            this.detachRelease = detachRelease;
         }
 
         @Override
         public void onResponse(T response) {
+            Releasable breakerRelease = null;
             try {
                 channelListener.onResponse(response);
+                breakerRelease = detachRelease.apply(response);
             } finally {
-                afterSerialize.accept(response);
+                Releasables.close(breakerRelease);
             }
         }
 
@@ -749,19 +757,20 @@ public class SearchTransportService {
     }
 
     /**
-     * Serializes the response into a {@link BytesTransportResponse}, invokes {@code afterSerialize} to release circuit-breaker bytes,
-     * and then sends the pre-serialized bytes over the wire.
+     * Serializes the response into a {@link BytesTransportResponse} and bundles the circuit-breaker
+     * release with the serialized bytes' ref-count. The breaker reservation stays alive as long as
+     * the bytes are on the heap, and is released when the ref-count drops to zero.
      */
     private static class NetworkPathListener<T extends TransportResponse> implements ActionListener<T> {
         private final TransportService transportService;
         private final TransportChannel channel;
-        private final Consumer<T> afterSerialize;
+        private final Function<T, Releasable> detachRelease;
         private final ChannelActionListener<BytesTransportResponse> channelListener;
 
-        NetworkPathListener(TransportService transportService, TransportChannel channel, Consumer<T> afterSerialize) {
+        NetworkPathListener(TransportService transportService, TransportChannel channel, Function<T, Releasable> detachRelease) {
             this.transportService = transportService;
             this.channel = channel;
-            this.afterSerialize = afterSerialize;
+            this.detachRelease = detachRelease;
             this.channelListener = new ChannelActionListener<>(channel);
         }
 
@@ -773,19 +782,21 @@ public class SearchTransportService {
                 response.writeTo(out);
             } catch (Exception e) {
                 Releasables.close(out);
-                invokeAfterSerializeSafely(response, e);
+                detachAndReleaseSafely(response, e);
                 channelListener.onFailure(e);
                 return;
             }
             var bytesRef = out.moveToBytesReference();
+            Releasable breakerRelease;
             try {
-                afterSerialize.accept(response);
+                breakerRelease = detachRelease.apply(response);
             } catch (Exception e) {
                 Releasables.close(bytesRef);
                 channelListener.onFailure(e);
                 return;
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, out.getTransportVersion()));
+            var trackingBytes = new ReleasableBytesReference(bytesRef, Releasables.wrap(bytesRef, breakerRelease));
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(trackingBytes, out.getTransportVersion()));
         }
 
         @Override
@@ -793,9 +804,9 @@ public class SearchTransportService {
             channelListener.onFailure(e);
         }
 
-        private void invokeAfterSerializeSafely(T response, Exception primary) {
+        private void detachAndReleaseSafely(T response, Exception primary) {
             try {
-                afterSerialize.accept(response);
+                Releasables.close(detachRelease.apply(response));
             } catch (Exception suppressed) {
                 primary.addSuppressed(suppressed);
             }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -101,6 +102,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
         if (bytes > 0L) {
             circuitBreaker.addWithoutBreaking(-bytes);
         }
+    }
+
+    /**
+     * Extracts the circuit-breaker reservation from this result and returns a
+     * {@link Releasable} that releases those bytes from the breaker when closed.
+     */
+    public Releasable detachCircuitBreakerReservation(CircuitBreaker circuitBreaker) {
+        long bytes = searchHitsSizeBytes.getAndSet(0L);
+        if (bytes > 0L) {
+            return () -> circuitBreaker.addWithoutBreaking(-bytes);
+        }
+        return () -> {};
     }
 
     public FetchSearchResult initCounter() {

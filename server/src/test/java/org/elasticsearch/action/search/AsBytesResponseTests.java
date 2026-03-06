@@ -44,13 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Tests for {@link SearchTransportService#asBytesResponse}, covering both the network-channel path
- * (pre-serializes into {@link BytesTransportResponse}) and the direct-channel path (forwards the
- * original response as-is for local/same-node requests). Tests verify {@link BytesTransportResponse}
- * creation, round-trip deserialization, {@code afterSerialize} callback semantics, and cleanup
- * on serialization failure.
- */
 public class AsBytesResponseTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -88,8 +81,12 @@ public class AsBytesResponseTests extends ESTestCase {
             sentResponse.set(resp);
         }, e -> fail("unexpected failure: " + e)));
 
-        var original = new SimpleTestResponse("round-trip-test");
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {});
+        var original = new SimpleTestResponse("test");
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            channel,
+            response -> () -> {}
+        );
 
         listener.onResponse(original);
 
@@ -97,14 +94,15 @@ public class AsBytesResponseTests extends ESTestCase {
         var bytesResp = (BytesTransportResponse) sentResponse.get();
         try (StreamInput in = bytesResp.streamInput()) {
             var deserialized = new SimpleTestResponse(in);
-            assertThat(deserialized.value, equalTo("round-trip-test"));
+            assertThat(deserialized.value, equalTo("test"));
         } finally {
             bytesResp.decRef();
         }
     }
 
-    public void testNetworkPathCallsAfterSerializeOnSuccess() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+    public void testNetworkPathCallsDetachReleaseOnSuccess() {
+        var detachCalled = new AtomicBoolean(false);
+        var releasableClosed = new AtomicBoolean(false);
         var sentResponse = new AtomicReference<TransportResponse>();
 
         var channel = new TestTransportChannel(ActionListener.wrap(resp -> {
@@ -112,22 +110,24 @@ public class AsBytesResponseTests extends ESTestCase {
             sentResponse.set(resp);
         }, e -> fail("unexpected failure: " + e)));
 
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
-            transportService,
-            channel,
-            response -> afterSerializeCalled.set(true)
-        );
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
+            detachCalled.set(true);
+            return () -> releasableClosed.set(true);
+        });
 
         listener.onResponse(new SimpleTestResponse("hello"));
 
-        assertTrue("afterSerialize must be called after successful serialization", afterSerializeCalled.get());
+        assertTrue("detachRelease must be called after successful serialization", detachCalled.get());
+        assertFalse("releasable must NOT be closed yet (deferred to bytes release)", releasableClosed.get());
         assertThat(sentResponse.get(), notNullValue());
         assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
+
         sentResponse.get().decRef();
+        assertTrue("releasable must be closed after bytes are released", releasableClosed.get());
     }
 
-    public void testNetworkPathCallsAfterSerializeOnSerializationFailure() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+    public void testNetworkPathReleasesImmediatelyOnSerializationFailure() {
+        var releasableClosed = new AtomicBoolean(false);
         var sentException = new AtomicReference<Exception>();
 
         var channel = new TestTransportChannel(
@@ -137,16 +137,17 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<FailingTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             channel,
-            response -> afterSerializeCalled.set(true)
+            response -> () -> releasableClosed.set(true)
         );
 
         listener.onResponse(new FailingTestResponse());
 
-        assertTrue("afterSerialize must be called even on serialization failure", afterSerializeCalled.get());
+        assertTrue("releasable must be closed immediately on serialization failure", releasableClosed.get());
+        assertThat(sentException.get(), notNullValue());
         assertThat(sentException.get(), instanceOf(IOException.class));
     }
 
-    public void testNetworkPathReleasesCircuitBreakerBytesAfterSerialization() {
+    public void testNetworkPathDefersCircuitBreakerReleaseUntilBytesReleased() {
         var breakerUsed = new AtomicLong(5000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
 
@@ -167,26 +168,24 @@ public class AsBytesResponseTests extends ESTestCase {
             ActionListener<FetchSearchResult> listener = SearchTransportService.asBytesResponse(
                 transportService,
                 channel,
-                response -> response.releaseCircuitBreakerBytes(breaker)
+                response -> response.detachCircuitBreakerReservation(breaker)
             );
 
             listener.onResponse(fetchResult);
 
-            assertThat("breaker bytes should be released after serialization", breakerUsed.get(), equalTo(0L));
-            assertThat(fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
+            assertThat("detach must zero out the field on the result", fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
+            assertThat("breaker must still be reserved while bytes are in flight", breakerUsed.get(), equalTo(5000L));
             assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
+
+            sentResponse.get().decRef();
+            assertThat("breaker must be released after bytes are released", breakerUsed.get(), equalTo(0L));
         } finally {
             fetchResult.decRef();
-            if (sentResponse.get() != null) {
-                sentResponse.get().decRef();
-            }
         }
     }
 
     public void testNetworkPathReleasesCircuitBreakerBytesOnSerializationFailure() {
         var breakerUsed = new AtomicLong(3000);
-        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
-
         var sentException = new AtomicReference<Exception>();
 
         var channel = new TestTransportChannel(
@@ -195,37 +194,39 @@ public class AsBytesResponseTests extends ESTestCase {
 
         ActionListener<FailingTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
             long bytes = breakerUsed.get();
-            if (bytes > 0L) {
-                breakerUsed.addAndGet(-bytes);
-            }
+            return () -> {
+                if (bytes > 0L) {
+                    breakerUsed.addAndGet(-bytes);
+                }
+            };
         });
 
         listener.onResponse(new FailingTestResponse());
 
-        assertThat("breaker bytes should be released even on serialization failure", breakerUsed.get(), equalTo(0L));
+        assertThat("breaker bytes should be released immediately on serialization failure", breakerUsed.get(), equalTo(0L));
         assertThat(sentException.get(), notNullValue());
+        assertThat(sentException.get(), instanceOf(IOException.class));
     }
 
-    public void testNetworkPathOnFailureDoesNotCallAfterSerialize() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+    public void testNetworkPathOnFailureDoesNotCallDetachRelease() {
+        var detachCalled = new AtomicBoolean(false);
         var sentException = new AtomicReference<Exception>();
 
         var channel = new TestTransportChannel(ActionListener.wrap(resp -> fail("should not succeed"), sentException::set));
 
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
-            transportService,
-            channel,
-            response -> afterSerializeCalled.set(true)
-        );
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
+            detachCalled.set(true);
+            return () -> {};
+        });
 
         listener.onFailure(new RuntimeException("upstream failure"));
 
-        assertFalse("afterSerialize must not be called on upstream failure", afterSerializeCalled.get());
+        assertFalse("detachRelease must not be called on upstream failure", detachCalled.get());
         assertThat(sentException.get(), notNullValue());
     }
 
     public void testDirectPathForwardsOriginalResponse() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+        var releasableClosed = new AtomicBoolean(false);
         var sentResponse = new AtomicReference<TransportResponse>();
 
         var channel = new TestDirectResponseChannel(ActionListener.wrap(sentResponse::set, e -> fail("unexpected failure: " + e)));
@@ -233,53 +234,34 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             channel,
-            response -> afterSerializeCalled.set(true)
+            response -> () -> releasableClosed.set(true)
         );
 
         var original = new SimpleTestResponse("direct-test");
         listener.onResponse(original);
 
-        assertTrue("afterSerialize must be called on direct path", afterSerializeCalled.get());
+        assertTrue("releasable must be closed immediately on direct path", releasableClosed.get());
         assertSame("direct path must forward the original response, not BytesTransportResponse", original, sentResponse.get());
     }
 
-    public void testDirectPathCallsAfterSerializeAfterOnResponse() {
-        var callOrder = new java.util.ArrayList<String>();
-
-        var channel = new TestDirectResponseChannel(
-            ActionListener.wrap(resp -> callOrder.add("onResponse"), e -> fail("unexpected failure: " + e))
-        );
-
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
-            transportService,
-            channel,
-            response -> callOrder.add("afterSerialize")
-        );
-
-        listener.onResponse(new SimpleTestResponse("order-test"));
-
-        assertThat(callOrder, equalTo(java.util.List.of("onResponse", "afterSerialize")));
-    }
-
-    public void testDirectPathOnFailureDoesNotCallAfterSerialize() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+    public void testDirectPathOnFailureDoesNotCallDetachRelease() {
+        var detachCalled = new AtomicBoolean(false);
         var sentException = new AtomicReference<Exception>();
 
         var channel = new TestDirectResponseChannel(ActionListener.wrap(resp -> fail("should not succeed"), sentException::set));
 
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
-            transportService,
-            channel,
-            response -> afterSerializeCalled.set(true)
-        );
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
+            detachCalled.set(true);
+            return () -> {};
+        });
 
         listener.onFailure(new RuntimeException("upstream failure"));
 
-        assertFalse("afterSerialize must not be called on upstream failure", afterSerializeCalled.get());
+        assertFalse("detachRelease must not be called on upstream failure", detachCalled.get());
         assertThat(sentException.get(), notNullValue());
     }
 
-    public void testDirectPathReleasesCircuitBreakerBytesAfterResponse() {
+    public void testDirectPathReleasesCircuitBreakerBytesImmediately() {
         var breakerUsed = new AtomicLong(5000);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
 
@@ -297,12 +279,12 @@ public class AsBytesResponseTests extends ESTestCase {
             ActionListener<FetchSearchResult> listener = SearchTransportService.asBytesResponse(
                 transportService,
                 channel,
-                response -> response.releaseCircuitBreakerBytes(breaker)
+                response -> response.detachCircuitBreakerReservation(breaker)
             );
 
             listener.onResponse(fetchResult);
 
-            assertThat("breaker bytes should be released after response on direct path", breakerUsed.get(), equalTo(0L));
+            assertThat("breaker bytes should be released immediately on direct path", breakerUsed.get(), equalTo(0L));
             assertThat(fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
             assertSame("direct path must forward original response", fetchResult, sentResponse.get());
         } finally {
@@ -311,7 +293,7 @@ public class AsBytesResponseTests extends ESTestCase {
     }
 
     public void testTaskTransportChannelUnwrapsToDirectPath() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+        var releasableClosed = new AtomicBoolean(false);
         var sentResponse = new AtomicReference<TransportResponse>();
 
         var directChannel = new TestDirectResponseChannel(ActionListener.wrap(sentResponse::set, e -> fail("unexpected failure: " + e)));
@@ -320,18 +302,20 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             taskChannel,
-            response -> afterSerializeCalled.set(true)
+            response -> () -> releasableClosed.set(true)
         );
 
         var original = new SimpleTestResponse("task-wrapped-test");
         listener.onResponse(original);
 
-        assertTrue("afterSerialize must be called on task-wrapped direct path", afterSerializeCalled.get());
+        assertTrue("releasable must be closed immediately on task-wrapped direct path", releasableClosed.get());
         assertSame("task-wrapped direct channel must forward original response, not BytesTransportResponse", original, sentResponse.get());
+        sentResponse.get().decRef();
     }
 
     public void testTaskTransportChannelUnwrapsToNetworkPath() {
-        var afterSerializeCalled = new AtomicBoolean(false);
+        var detachCalled = new AtomicBoolean(false);
+        var releasableClosed = new AtomicBoolean(false);
         var sentResponse = new AtomicReference<TransportResponse>();
 
         var networkChannel = new TestTransportChannel(ActionListener.wrap(resp -> {
@@ -340,17 +324,18 @@ public class AsBytesResponseTests extends ESTestCase {
         }, e -> fail("unexpected failure: " + e)));
         var taskChannel = TestTransportChannels.newTaskTransportChannel(networkChannel, () -> {});
 
-        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
-            transportService,
-            taskChannel,
-            response -> afterSerializeCalled.set(true)
-        );
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, taskChannel, response -> {
+            detachCalled.set(true);
+            return () -> releasableClosed.set(true);
+        });
 
         listener.onResponse(new SimpleTestResponse("task-network-test"));
 
-        assertTrue("afterSerialize must be called on task-wrapped network path", afterSerializeCalled.get());
+        assertTrue("detachRelease must be called on task-wrapped network path", detachCalled.get());
+        assertFalse("releasable must NOT be closed yet on task-wrapped network path", releasableClosed.get());
         assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
         sentResponse.get().decRef();
+        assertTrue("releasable must be closed after bytes are released", releasableClosed.get());
     }
 
     static class SimpleTestResponse extends TransportResponse {

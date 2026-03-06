@@ -78,6 +78,7 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         } else {
             try {
                 Response result = executeCheck();
+                assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
                 if ("true".equals(result.getHeader("isExpectedNoOp"))) {
                     // void method with elseReturnEarly — silent success is expected
                 } else if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {

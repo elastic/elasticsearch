@@ -45,6 +45,7 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.persistentTasksRemaining = persistentTasksRemaining;
         this.autoReassignedTasksRemaining = autoReassignedTasksRemaining;
+        assertValidStatus(status, persistentTasksRemaining, autoReassignedTasksRemaining);
     }
 
     public ShutdownPersistentTasksStatus(StreamInput in) throws IOException {
@@ -57,6 +58,25 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
             this.persistentTasksRemaining = 0;
             this.autoReassignedTasksRemaining = 0;
         }
+        assertValidStatus(this.status, this.persistentTasksRemaining, this.autoReassignedTasksRemaining);
+    }
+
+    private static void assertValidStatus(
+        SingleNodeShutdownMetadata.Status status,
+        int persistentTasksRemaining,
+        int autoReassignedTasksRemaining
+    ) {
+        assert autoReassignedTasksRemaining >= 0 && autoReassignedTasksRemaining <= persistentTasksRemaining
+            : "autoReassignedTasksRemaining ["
+                + autoReassignedTasksRemaining
+                + "] must be >= 0 and <= persistentTasksRemaining ["
+                + persistentTasksRemaining
+                + "]";
+        assert status != SingleNodeShutdownMetadata.Status.COMPLETE || autoReassignedTasksRemaining == 0
+            : "status cannot be complete if autoReassignedTasksRemaining > 0";
+        assert status != SingleNodeShutdownMetadata.Status.NOT_STARTED
+            || (autoReassignedTasksRemaining == 0 && persistentTasksRemaining == 0)
+            : "status cannot be not_started if autoReassignedTasksRemaining != 0 or persistentTasksRemaining != 0";
     }
 
     @Override

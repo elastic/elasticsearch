@@ -70,7 +70,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final PluginShutdownService pluginShutdownService;
-    private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
 
     @Inject
     public TransportGetShutdownStatusAction(
@@ -82,8 +81,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationDeciders allocationDeciders,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        PluginShutdownService pluginShutdownService,
-        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry
+        PluginShutdownService pluginShutdownService
     ) {
         super(
             GetShutdownStatusAction.NAME,
@@ -101,7 +99,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.pluginShutdownService = pluginShutdownService;
-        this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
     }
 
     @Override

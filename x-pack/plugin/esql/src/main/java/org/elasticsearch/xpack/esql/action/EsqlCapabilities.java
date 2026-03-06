@@ -2254,6 +2254,11 @@ public class EsqlCapabilities {
         TS_INFO_COMMAND,
 
         /**
+         * FORK with no implicit LIMIT
+         */
+        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Dense_vector SUM aggregation function
          */
         DENSE_VECTOR_SUM_FUNCTION,

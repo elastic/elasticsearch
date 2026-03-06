@@ -23,12 +23,7 @@ public class CcsExchangeRequestTests extends ESTestCase {
         String exchangeId = randomAlphaOfLength(10);
         boolean sourcesFinished = randomBoolean();
         String[] indices = generateRandomStringArray(5, 8, false, false);
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean()
-        );
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         CcsExchangeRequest original = new CcsExchangeRequest(exchangeId, sourcesFinished, indices, indicesOptions);
         if (sourcesFinished == false) {
@@ -46,12 +41,7 @@ public class CcsExchangeRequestTests extends ESTestCase {
 
     public void testOriginalQueryIndicesPreservedAfterReplace() throws IOException {
         String[] originalIndices = new String[] { "index-a", "index-b" };
-        CcsExchangeRequest request = new CcsExchangeRequest(
-            "ex-1",
-            true,
-            originalIndices,
-            IndicesOptions.STRICT_EXPAND_OPEN
-        );
+        CcsExchangeRequest request = new CcsExchangeRequest("ex-1", true, originalIndices, IndicesOptions.STRICT_EXPAND_OPEN);
         request.indices("replacement-index");
 
         CcsExchangeRequest deserialized = copyInstance(request);

@@ -148,8 +148,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     );
                     final RemoteSink remoteSink;
                     final EsqlFlags flags = computeService.createFlags();
-                    if (flags.ccsExchangeEnabled()
-                        && cluster.connection.getTransportVersion().supports(ESQL_CCS_EXCHANGE_ACTION)) {
+                    if (flags.ccsExchangeEnabled() && cluster.connection.getTransportVersion().supports(ESQL_CCS_EXCHANGE_ACTION)) {
                         remoteSink = exchangeService.newCcsRemoteSink(
                             groupTask,
                             childSessionId,

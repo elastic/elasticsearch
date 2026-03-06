@@ -98,9 +98,9 @@ public record Reasoning(
      * @param enabled `enabled` field to validate.
      */
     private static void validateFields(ReasoningEffort effort, Long maxTokens, Boolean enabled) {
-        if ((effort == null && maxTokens == null) && Boolean.TRUE.equals(enabled) == false) {
+        if (Boolean.FALSE.equals(enabled) && effort == null && maxTokens == null) {
             throw new ElasticsearchStatusException(
-                "Either [effort] or [max_tokens] must not be null, or [enabled] must be true.",
+                "When [enabled] is false, either [effort] or [max_tokens] must be specified.",
                 RestStatus.BAD_REQUEST
             );
         }

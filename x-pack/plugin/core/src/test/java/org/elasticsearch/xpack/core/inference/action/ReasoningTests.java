@@ -121,7 +121,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(rootCause.getMessage(), is("Either [effort] or [max_tokens] must not be null, or [enabled] must be true."));
+            assertThat(rootCause.getMessage(), is("When [enabled] is false, either [effort] or [max_tokens] must be specified."));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }

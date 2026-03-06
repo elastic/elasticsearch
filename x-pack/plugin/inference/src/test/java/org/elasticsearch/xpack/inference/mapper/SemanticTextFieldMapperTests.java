@@ -1773,24 +1773,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         String searchInferenceId,
         MinimalServiceSettings modelSettings
     ) throws IOException {
-        return mapperServiceForFieldWithModelSettings(fieldName, inferenceId, searchInferenceId, modelSettings, null);
-    }
-
-    private MapperService mapperServiceForFieldWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        String searchInferenceId,
-        MinimalServiceSettings modelSettings,
-        IndexVersion minIndexVersion
-    ) throws IOException {
         String mappingParams = "type=semantic_text,inference_id=" + inferenceId;
         if (searchInferenceId != null) {
             mappingParams += ",search_inference_id=" + searchInferenceId;
         }
 
-        MapperService mapperService = minIndexVersion != null
-            ? createMapperService(mapping(b -> {}), useLegacyFormat, minIndexVersion)
-            : createMapperService(mapping(b -> {}), useLegacyFormat);
+        MapperService mapperService = createMapperService(mapping(b -> {}), useLegacyFormat);
         mapperService.merge(
             "_doc",
             new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(fieldName, mappingParams))),

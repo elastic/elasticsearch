@@ -15,6 +15,7 @@ import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
@@ -81,6 +82,27 @@ class NioChannelsActions {
     static void asynchronousFileChannelOpenForReadWithOptions() throws IOException {
         var file = EntitledActions.createTempFileForRead();
         AsynchronousFileChannel.open(file, Set.of(StandardOpenOption.READ), EsExecutors.DIRECT_EXECUTOR_SERVICE).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileChannelMapReadOnly() throws IOException {
+        try (var channel = EntitledActions.openFileChannelForRead()) {
+            channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        }
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileChannelMapReadWrite() throws IOException {
+        try (var channel = EntitledActions.openFileChannelForReadWrite()) {
+            channel.map(FileChannel.MapMode.READ_WRITE, 0, channel.size());
+        }
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileChannelMapWithArena() throws IOException {
+        try (var channel = EntitledActions.openFileChannelForRead(); var arena = Arena.ofConfined()) {
+            channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size(), arena);
+        }
     }
 
     @SuppressForbidden(reason = "specifically testing jdk.nio.Channels")

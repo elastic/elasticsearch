@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -85,6 +86,18 @@ public final class EntitledActions {
             baseDir.resolve(actualFileMount.getFileName()),
             dataDir.getFileName().resolve(actualFileMount.getFileName())
         );
+    }
+
+    public static FileChannel openFileChannelForRead() throws IOException {
+        var file = createTempFileForRead();
+        Files.writeString(file, "test content for memory mapping");
+        return FileChannel.open(file);
+    }
+
+    public static FileChannel openFileChannelForReadWrite() throws IOException {
+        var file = createTempFileForWrite();
+        Files.writeString(file, "test content for memory mapping");
+        return FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
     }
 
     public static URLConnection createHttpURLConnection() throws IOException {

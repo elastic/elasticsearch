@@ -152,7 +152,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             maxScore = Float.NaN;
         }
 
-        // Hits have refCount=1, SearchHits constructor will increment to 2
         ownershipTransferred = true;
 
         SearchHits searchHits = new SearchHits(

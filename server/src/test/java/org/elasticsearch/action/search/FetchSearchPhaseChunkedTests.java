@@ -11,11 +11,8 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -23,6 +20,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -43,9 +41,11 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -54,8 +54,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
@@ -78,8 +76,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
      * - not a CCS query (no cluster alias)
      * - not a scroll or reindex query
      */
-    /* public void testChunkedFetchUsedWhenConditionsMet() throws Exception {
-        // Install 2 shards to avoid single-shard query-and-fetch optimization
+    public void testChunkedFetchUsedWhenConditionsMet() throws Exception {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         ThreadPool threadPool = new TestThreadPool("test");
         try {
@@ -93,20 +90,20 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 SearchShardTarget shardTarget1 = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
                 addQuerySearchResult(ctx1, shardTarget1, profiled, 0, results);
 
-                // Add second shard result
+                // Add first shard result
                 final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 124);
                 SearchShardTarget shardTarget2 = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
                 addQuerySearchResult(ctx2, shardTarget2, profiled, 1, results);
 
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
-                AtomicBoolean traditionalFetchUsed = new AtomicBoolean(false);
 
                 // Create the coordination action that will be called for chunked fetch
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
                     new ActionFilters(Collections.emptySet()),
                     new ActiveFetchPhaseTasks(),
-                    null
+                    new NoneCircuitBreakerService(),
+                    new NamedWriteableRegistry(Collections.emptyList())
                 ) {
                     @Override
                     public void doExecute(Task task, Request request, ActionListener<Response> listener) {
@@ -149,12 +146,10 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 mockSearchPhaseContext.assertNoFailure();
 
                 assertTrue("Chunked fetch should be used", chunkedFetchUsed.get());
-                assertFalse("Traditional fetch should not be used", traditionalFetchUsed.get());
 
                 SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
                 assertNotNull(searchResponse);
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
-                // Results are sorted by score, so higher score (43) comes first
                 assertTrue(searchResponse.getHits().getAt(0).docId() == 42 || searchResponse.getHits().getAt(0).docId() == 43);
             } finally {
                 mockSearchPhaseContext.results.close();
@@ -166,7 +161,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeValue.timeValueSeconds(5).timeUnit());
         }
-    }*/
+    }
 
     /**
      * Test that traditional fetch is used when fetchPhaseChunked is disabled
@@ -412,71 +407,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             null
         );
 
-        Transport.Connection mockConnection = new Transport.Connection() {
-            @Override
-            public void incRef() {}
+        transportService.start();
+        transportService.acceptIncomingRequests();
 
-            @Override
-            public boolean tryIncRef() {
-                return false;
-            }
-
-            @Override
-            public boolean decRef() {
-                return false;
-            }
-
-            @Override
-            public boolean hasReferences() {
-                return false;
-            }
-
-            @Override
-            public DiscoveryNode getNode() {
-                return transportService.getLocalNode();
-            }
-
-            @Override
-            public TransportVersion getTransportVersion() {
-                return TransportVersion.current();
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
-                throw new UnsupportedOperationException("mock connection");
-            }
-
-            @Override
-            public void addCloseListener(ActionListener<Void> listener) {}
-
-            @Override
-            public boolean isClosed() {
-                return false;
-            }
-
-            @Override
-            public void close() {}
-
-            @Override
-            public void onRemoved() {}
-
-            @Override
-            public void addRemovedListener(ActionListener<Void> listener) {}
-        };
-
-        NodeClient nodeClient = new NodeClient(Settings.EMPTY, null, null);
-        Map<ActionType<?>, TransportAction<?, ?>> actions = new java.util.HashMap<>();
-        actions.put(TransportFetchPhaseCoordinationAction.TYPE, fetchCoordinationAction);
-        nodeClient.initialize(actions, transportService.getTaskManager(), () -> "local", mockConnection, null);
-
-        SearchTransportService searchTransport = new SearchTransportService(transportService, nodeClient, null);
+        SearchTransportService searchTransport = new SearchTransportService(transportService, null, null);
         searchTransport.setSearchService(new StubSearchService(true, clusterService, threadPool));
 
         mockSearchPhaseContext.searchTransport = searchTransport;
-        mockSearchPhaseContext.addReleasable(() -> {
-            clusterService.close();
-            ThreadPool.terminate(threadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
-        });
+        mockSearchPhaseContext.addReleasable(clusterService::close);
     }
 
     /**
@@ -601,8 +539,9 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         );
     }
 
-    // Simple mock transport implementation
     private static class MockTransport implements Transport {
+        private final RequestHandlers requestHandlers = new RequestHandlers();
+
         @Override
         public Lifecycle.State lifecycleState() {
             return Lifecycle.State.STARTED;
@@ -668,7 +607,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
         @Override
         public RequestHandlers getRequestHandlers() {
-            return new RequestHandlers();
+            return requestHandlers;
         }
     }
 }

@@ -76,8 +76,8 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     public static final TransportVersion JINA_AI_EMBEDDING_REFACTOR = TransportVersion.fromName("jina_ai_embedding_refactor");
 
     public static final String NAME = "jinaai";
-    static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
 
+    private static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
     private static final String SERVICE_NAME = "Jina AI";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.EMBEDDING);
     private static final JinaAIEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new JinaAIEmbeddingsModelCreator();

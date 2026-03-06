@@ -73,6 +73,15 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        int savedPosition = target.position();
+        return retryPolicy.execute(() -> {
+            target.position(savedPosition);
+            return delegate.readBytes(position, target);
+        }, "readBytes", delegate.path());
+    }
+
+    @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         readBytesAsyncWithRetry(position, length, executor, listener, 0);
     }

@@ -734,60 +734,56 @@ static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {
    return local;
 }
 
-static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int query_bits = 4;
+
+    __m256i acc[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        acc[I] = _mm256_setzero_si256();
+    });
+
+    const int8_t* query[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        query[I] = q + I * length;
+    });
+
     int r = 0;
-
-    __m256i acc0 = _mm256_setzero_si256();
-    __m256i acc1 = _mm256_setzero_si256();
-    __m256i acc2 = _mm256_setzero_si256();
-    __m256i acc3 = _mm256_setzero_si256();
-
-    int upperBound = length & ~(STRIDE_BYTES_LEN - 1);
-    for (; r < upperBound; r += STRIDE_BYTES_LEN) {
+    int upperBound = length & ~(sizeof(__m256i) - 1);
+    for (; r < upperBound; r += sizeof(__m256i)) {
         __m256i value = _mm256_loadu_si256((const __m256i_u*)(a + r));
-
-        __m256i local = dot_bit_256(value, query + r);
-        acc0 = _mm256_add_epi64(acc0, _mm256_sad_epu8(local, _mm256_setzero_si256()));
-
-        local = dot_bit_256(value, query + r + length);
-        acc1 = _mm256_add_epi64(acc1, _mm256_sad_epu8(local, _mm256_setzero_si256()));
-
-        local = dot_bit_256(value, query + r + 2 * length);
-        acc2 = _mm256_add_epi64(acc2, _mm256_sad_epu8(local, _mm256_setzero_si256()));
-
-        local = dot_bit_256(value, query + r + 3 * length);
-        acc3 = _mm256_add_epi64(acc3, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+        apply_indexed<query_bits>([&](auto I) {
+            __m256i res = dot_bit_256(value, query[I] + r);
+            acc[I] = _mm256_add_epi64(acc[I], _mm256_sad_epu8(res, _mm256_setzero_si256()));
+        });
     }
 
-    int64_t subRet0 = mm256_reduce_epi64<_mm_add_epi64>(acc0);
-    int64_t subRet1 = mm256_reduce_epi64<_mm_add_epi64>(acc1);
-    int64_t subRet2 = mm256_reduce_epi64<_mm_add_epi64>(acc2);
-    int64_t subRet3 = mm256_reduce_epi64<_mm_add_epi64>(acc3);
+    int64_t bit_result[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        bit_result[I] = mm256_reduce_epi64<_mm_add_epi64>(acc[I]);
+    });
 
+    // switch to 32-bit ops
     upperBound = length & ~(sizeof(int32_t) - 1);
     for (; r < upperBound; r += sizeof(int32_t)) {
         int32_t value = *((int32_t*)(a + r));
-        int32_t q0 = *((int32_t*)(query + r));
-        subRet0 += __builtin_popcount(q0 & value);
-        int32_t q1 = *((int32_t*)(query + r + length));
-        subRet1 += __builtin_popcount(q1 & value);
-        int32_t q2 = *((int32_t*)(query + r + 2 * length));
-        subRet2 += __builtin_popcount(q2 & value);
-        int32_t q3 = *((int32_t*)(query + r + 3 * length));
-        subRet3 += __builtin_popcount(q3 & value);
+        apply_indexed<query_bits>([&](auto I) {
+            int32_t bits = *((int32_t*)(query[I] + r));
+            bit_result[I] += __builtin_popcount(bits & value);
+        });
     }
+    // then single bytes
     for (; r < length; r++) {
         int8_t value = *(a + r);
-        int8_t q0 = *(query + r);
-        subRet0 += __builtin_popcount(q0 & value & 0xFF);
-        int8_t q1 = *(query + r + length);
-        subRet1 += __builtin_popcount(q1 & value & 0xFF);
-        int8_t q2 = *(query + r + 2 * length);
-        subRet2 += __builtin_popcount(q2 & value & 0xFF);
-        int8_t q3 = *(query + r + 3 * length);
-        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+        apply_indexed<query_bits>([&](auto I) {
+            int32_t bits = *(query[I] + r);
+            bit_result[I] += __builtin_popcount(bits & value & 0xFF);
+        });
     }
-    return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    int sum = 0;
+    apply_indexed<query_bits>([&](auto I) {
+        sum += (bit_result[I] << I);
+    });
+    return sum;
 }
 
 EXPORT int64_t vec_dotd1q4(
@@ -808,38 +804,30 @@ static inline void dotd1q4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 4;
+
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
+    const int8_t* current_vecs[batches];
+    init_offsets<batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
-        const int8_t* next_a2 = a + mapper(c + 6, offsets) * pitch;
-        const int8_t* next_a3 = a + mapper(c + 7, offsets) * pitch;
+    for (; c + batches < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        apply_indexed<batches>([&](auto I) {
+            next_vecs[I] = a + mapper(c + batches + I, offsets) * pitch;
+            prefetch(next_vecs[I], lines_to_fetch);
+        });
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a2, lines_to_fetch);
-        prefetch(next_a3, lines_to_fetch);
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)dotd1q4_inner(current_vecs[I], query, length);
+        });
 
-        results[c + 0] = (f32_t)dotd1q4_inner(a0, query, length);
-        results[c + 1] = (f32_t)dotd1q4_inner(a1, query, length);
-        results[c + 2] = (f32_t)dotd1q4_inner(a2, query, length);
-        results[c + 3] = (f32_t)dotd1q4_inner(a3, query, length);
-
-        a0 = next_a0;
-        a1 = next_a1;
-        a2 = next_a2;
-        a3 = next_a3;
+        std::copy_n(next_vecs, batches, current_vecs);
     }
 
     // Tail-handling: remaining vectors
@@ -889,34 +877,32 @@ static inline void dotd2q4_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 2;
+
     const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
     const int bit_length = length/2;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* current_vecs[batches];
+    init_offsets<batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
 
     // Process 2 vectors at a time, after instructing the CPU to
     // prefetch the next vectors (both stripes).
-    for (; c + 2 < count; c+=2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+    for (; c + batches < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        apply_indexed<batches>([&](auto I) {
+            next_vecs[I] = a + mapper(c + batches + I, offsets) * pitch;
+            prefetch(next_vecs[I], lines_to_fetch);
+            prefetch(next_vecs[I] + bit_length, lines_to_fetch);
+        });
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a0 + bit_length, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a1 + bit_length, lines_to_fetch);
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)(
+                dotd1q4_inner(current_vecs[I], query, bit_length)
+                + (dotd1q4_inner(current_vecs[I] + bit_length, query, bit_length) << 1));
+        });
 
-        int64_t lower0 = dotd1q4_inner(a0, query, bit_length);
-        int64_t upper0 = dotd1q4_inner(a0 + bit_length, query, bit_length);
-        int64_t lower1 = dotd1q4_inner(a1, query, bit_length);
-        int64_t upper1 = dotd1q4_inner(a1 + bit_length, query, bit_length);
-
-        results[c] = (f32_t)(lower0 + (upper0 << 1));
-        results[c + 1] = (f32_t)(lower1 + (upper1 << 1));
-
-        a0 = next_a0;
-        a1 = next_a1;
+        std::copy_n(next_vecs, batches, current_vecs);
     }
 
     // Tail-handling: remaining vectors

@@ -769,93 +769,81 @@ static inline int32_t reduce_u8x16_neon(uint8x16_t vec) {
     return final_sum;
 }
 
-static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
-    int64_t subRet0 = 0;
-    int64_t subRet1 = 0;
-    int64_t subRet2 = 0;
-    int64_t subRet3 = 0;
+static inline int64_t dotd1q4_inner(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int query_bits = 4;
+
+    int64_t bit_result[query_bits] = {};
+
+    const uint8_t* query[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        query[I] = (const uint8_t*)q + I * length;
+    });
+
     int r = 0;
-
     constexpr int chunk_size = sizeof(uint64x2_t);
-
-    const uint8_t* query_j0 = (const uint8_t*)query;
-    const uint8_t* query_j1 = (const uint8_t*)query + length;
-    const uint8_t* query_j2 = (const uint8_t*)query + 2 * length;
-    const uint8_t* query_j3 = (const uint8_t*)query + 3 * length;
-
     if (length >= chunk_size) {
-        uint64_t iters = length / chunk_size;
+        int iters = length / chunk_size;
         uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
 
         for (int j = 0; j < iters;) {
-            uint8x16_t qDot0 = zero;
-            uint8x16_t qDot1 = zero;
-            uint8x16_t qDot2 = zero;
-            uint8x16_t qDot3 = zero;
+            uint8x16_t bit_sum[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                bit_sum[I] = zero;
+            });
 
             /*
             * After every 31 iterations we need to add the
-            * temporary sums (qDot0, qDot1, qDot2, qDot3) to the total sum.
+            * bit sums to the total sum.
             * We must ensure that the temporary sums <= 255
             * and 31 * 8 bits = 248 which is OK.
             */
-            uint64_t limit = (j + 31 < iters) ? j + 31 : iters;
-            for (; j < limit; j++, r+= chunk_size)  {
-                const uint8x16_t qv0 = vld1q_u8(query_j0 + r);
-                const uint8x16_t qv1 = vld1q_u8(query_j1 + r);
-                const uint8x16_t qv2 = vld1q_u8(query_j2 + r);
-                const uint8x16_t qv3 = vld1q_u8(query_j3 + r);
+            uint64_t limit = std::min(iters, j + 31);
+            for (; j < limit; j++, r += chunk_size)  {
                 const uint8x16_t yv = vld1q_u8((const uint8_t*)a + r);
-
-                qDot0 = vaddq_u8(qDot0, vcntq_u8(vandq_u8(qv0,yv)));
-                qDot1 = vaddq_u8(qDot1, vcntq_u8(vandq_u8(qv1,yv)));
-                qDot2 = vaddq_u8(qDot2, vcntq_u8(vandq_u8(qv2,yv)));
-                qDot3 = vaddq_u8(qDot3, vcntq_u8(vandq_u8(qv3,yv)));
+                apply_indexed<query_bits>([&](auto I) {
+                    bit_sum[I] = vaddq_u8(bit_sum[I], vcntq_u8(vandq_u8(vld1q_u8(query[I] + r), yv)));
+                });
             }
 
-            subRet0 += reduce_u8x16_neon(qDot0);
-            subRet1 += reduce_u8x16_neon(qDot1);
-            subRet2 += reduce_u8x16_neon(qDot2);
-            subRet3 += reduce_u8x16_neon(qDot3);
+            apply_indexed<query_bits>([&](auto I) {
+                bit_result[I] += reduce_u8x16_neon(bit_sum[I]);
+            });
         }
     }
 
+    // switch to single 64-bit ops
     int upperBound = length & ~(sizeof(int64_t) - 1);
     for (; r < upperBound; r += sizeof(int64_t)) {
         int64_t value = *((int64_t*)(a + r));
-        int64_t q0 = *((int64_t*)(query + r));
-        subRet0 += __builtin_popcountll(q0 & value);
-        int64_t q1 = *((int64_t*)(query + r + length));
-        subRet1 += __builtin_popcountll(q1 & value);
-        int64_t q2 = *((int64_t*)(query + r + 2 * length));
-        subRet2 += __builtin_popcountll(q2 & value);
-        int64_t q3 = *((int64_t*)(query + r + 3 * length));
-        subRet3 += __builtin_popcountll(q3 & value);
+        apply_indexed<query_bits>([&](auto I) {
+            int64_t bits = *((int64_t*)(query[I] + r));
+            bit_result[I] += __builtin_popcountll(bits & value);
+        });
     }
+
+    // then 32-bit ops
     upperBound = length & ~(sizeof(int32_t) - 1);
     for (; r < upperBound; r += sizeof(int32_t)) {
         int32_t value = *((int32_t*)(a + r));
-        int32_t q0 = *((int32_t*)(query + r));
-        subRet0 += __builtin_popcount(q0 & value);
-        int32_t q1 = *((int32_t*)(query + r + length));
-        subRet1 += __builtin_popcount(q1 & value);
-        int32_t q2 = *((int32_t*)(query + r + 2 * length));
-        subRet2 += __builtin_popcount(q2 & value);
-        int32_t q3 = *((int32_t*)(query + r + 3 * length));
-        subRet3 += __builtin_popcount(q3 & value);
+        apply_indexed<query_bits>([&](auto I) {
+            int32_t bits = *((int32_t*)(query[I] + r));
+            bit_result[I] += __builtin_popcount(bits & value);
+        });
     }
+
+    // then single bytes
     for (; r < length; r++) {
         int8_t value = *(a + r);
-        int8_t q0 = *(query + r);
-        subRet0 += __builtin_popcount(q0 & value & 0xFF);
-        int8_t q1 = *(query + r + length);
-        subRet1 += __builtin_popcount(q1 & value & 0xFF);
-        int8_t q2 = *(query + r + 2 * length);
-        subRet2 += __builtin_popcount(q2 & value & 0xFF);
-        int8_t q3 = *(query + r + 3 * length);
-        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+        apply_indexed<query_bits>([&](auto I) {
+            int32_t bits = *(query[I] + r);
+            bit_result[I] += __builtin_popcount(bits & value & 0xFF);
+        });
     }
-    return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    int sum = 0;
+    apply_indexed<query_bits>([&](auto I) {
+        sum += (bit_result[I] << I);
+    });
+    return sum;
 }
 
 EXPORT int64_t vec_dotd1q4(const int8_t* a, const int8_t* query, const int32_t length) {
@@ -865,119 +853,105 @@ EXPORT int64_t vec_dotd1q4(const int8_t* a, const int8_t* query, const int32_t l
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dotd1q4_inner_bulk(
     const int8_t* a,
-    const int8_t* query,
+    const int8_t* q,
     const int32_t length,
     const int32_t pitch,
     const int32_t* offsets,
     const int32_t count,
     f32_t* results
 ) {
-
+    constexpr int batches = 2;
+    constexpr int query_bits = 4;
     constexpr int chunk_size = sizeof(uint64x2_t);
 
-    const uint8_t* query_j0 = (const uint8_t*)query;
-    const uint8_t* query_j1 = (const uint8_t*)query + length;
-    const uint8_t* query_j2 = (const uint8_t*)query + 2 * length;
-    const uint8_t* query_j3 = (const uint8_t*)query + 3 * length;
+    const uint8_t* query[query_bits];
+    apply_indexed<query_bits>([&](auto I) {
+        query[I] = (const uint8_t*)q + I * length;
+    });
 
     const int iters = length / chunk_size;
     const uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
 
     int c = 0;
 
-    for (; c + 1 < count; c += 2) {
-        const uint8_t* a0 = (const uint8_t*)a + mapper(c, offsets) * pitch;
-        const uint8_t* a1 = (const uint8_t*)a + mapper(c + 1, offsets) * pitch;
+    for (; c + batches < count; c += batches) {
+        const uint8_t* as[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = (const uint8_t*)a + mapper(c + I, offsets) * pitch;
+        });
 
-        int64_t subRet0_0 = 0;
-        int64_t subRet1_0 = 0;
-        int64_t subRet2_0 = 0;
-        int64_t subRet3_0 = 0;
-
-        int64_t subRet0_1 = 0;
-        int64_t subRet1_1 = 0;
-        int64_t subRet2_1 = 0;
-        int64_t subRet3_1 = 0;
+        int64_t bit_result[batches * query_bits] = {};
 
         int r = 0;
 
         if (length >= chunk_size) {
             for (int j = 0; j < iters;) {
-                uint8x16_t qDot0_0 = zero;
-                uint8x16_t qDot1_0 = zero;
-                uint8x16_t qDot2_0 = zero;
-                uint8x16_t qDot3_0 = zero;
-
-                uint8x16_t qDot0_1 = zero;
-                uint8x16_t qDot1_1 = zero;
-                uint8x16_t qDot2_1 = zero;
-                uint8x16_t qDot3_1 = zero;
+                uint8x16_t bit_sum[batches * query_bits];
+                apply_indexed<batches * query_bits>([&](auto B) {
+                    bit_sum[B] = zero;
+                });
 
                 /*
                 * After every 31 iterations we need to add the
-                * temporary sums (qDot0, qDot1, qDot2, qDot3) to the total sum.
+                * bit_sum to the total sum.
                 * We must ensure that the temporary sums <= 255
                 * and 31 * 8 bits = 248 which is OK.
                 */
-                uint64_t limit = (j + 31 < iters) ? j + 31 : iters;
+                uint64_t limit = std::min(j + 31, iters);
                 for (; j < limit; j++, r+= chunk_size)  {
-                    const uint8x16_t qv0 = vld1q_u8(query_j0 + r);
-                    const uint8x16_t qv1 = vld1q_u8(query_j1 + r);
-                    const uint8x16_t qv2 = vld1q_u8(query_j2 + r);
-                    const uint8x16_t qv3 = vld1q_u8(query_j3 + r);
+                    uint8x16_t qv[query_bits];
+                    apply_indexed<query_bits>([&](auto I) {
+                        qv[I] = vld1q_u8(query[I] + r);
+                    });
 
-                    const uint8x16_t yv0 = vld1q_u8((const uint8_t*)a0 + r);
-                    const uint8x16_t yv1 = vld1q_u8((const uint8_t*)a1 + r);
+                    uint8x16_t yv[batches];
+                    apply_indexed<batches>([&](auto I) {
+                        yv[I] = vld1q_u8(as[I] + r);
+                    });
 
-                    qDot0_0 = vaddq_u8(qDot0_0, vcntq_u8(vandq_u8(qv0,yv0)));
-                    qDot1_0 = vaddq_u8(qDot1_0, vcntq_u8(vandq_u8(qv1,yv0)));
-                    qDot2_0 = vaddq_u8(qDot2_0, vcntq_u8(vandq_u8(qv2,yv0)));
-                    qDot3_0 = vaddq_u8(qDot3_0, vcntq_u8(vandq_u8(qv3,yv0)));
-
-                    qDot0_1 = vaddq_u8(qDot0_1, vcntq_u8(vandq_u8(qv0,yv1)));
-                    qDot1_1 = vaddq_u8(qDot1_1, vcntq_u8(vandq_u8(qv1,yv1)));
-                    qDot2_1 = vaddq_u8(qDot2_1, vcntq_u8(vandq_u8(qv2,yv1)));
-                    qDot3_1 = vaddq_u8(qDot3_1, vcntq_u8(vandq_u8(qv3,yv1)));
+                    apply_indexed<batches>([&](auto B) {
+                        apply_indexed<query_bits>([&](auto Q) {
+                            bit_sum[B * Q] = vaddq_u8(bit_sum[B * Q], vcntq_u8(vandq_u8(qv[Q], yv[B])));
+                        });
+                    });
                 }
 
-                subRet0_0 += reduce_u8x16_neon(qDot0_0);
-                subRet1_0 += reduce_u8x16_neon(qDot1_0);
-                subRet2_0 += reduce_u8x16_neon(qDot2_0);
-                subRet3_0 += reduce_u8x16_neon(qDot3_0);
-
-                subRet0_1 += reduce_u8x16_neon(qDot0_1);
-                subRet1_1 += reduce_u8x16_neon(qDot1_1);
-                subRet2_1 += reduce_u8x16_neon(qDot2_1);
-                subRet3_1 += reduce_u8x16_neon(qDot3_1);
+                apply_indexed<batches * query_bits>([&](auto I) {
+                    bit_result[I] += reduce_u8x16_neon(bit_sum[I]);
+                });
             }
         }
 
+        // complete using byte ops
         for (; r < length; r++) {
-            int64_t v0 = *((int64_t*)(a0 + r));
-            int64_t v1 = *((int64_t*)(a1 + r));
+            int64_t vs[batches];
+            apply_indexed<batches>([&](auto I) {
+                vs[I] = *(as[I] + r);
+            });
 
-            int64_t q0 = *((int64_t*)(query_j0 + r));
-            int64_t q1 = *((int64_t*)(query_j1 + r));
-            int64_t q2 = *((int64_t*)(query_j2 + r));
-            int64_t q3 = *((int64_t*)(query_j3 + r));
+            int64_t qs[query_bits];
+            apply_indexed<query_bits>([&](auto I) {
+                qs[I] = *(query[I] + r);
+            });
 
-            subRet0_0 += __builtin_popcount(q0 & v0 & 0xFF);
-            subRet1_0 += __builtin_popcount(q1 & v0 & 0xFF);
-            subRet2_0 += __builtin_popcount(q2 & v0 & 0xFF);
-            subRet3_0 += __builtin_popcount(q3 & v0 & 0xFF);
-
-            subRet0_1 += __builtin_popcount(q0 & v1 & 0xFF);
-            subRet1_1 += __builtin_popcount(q1 & v1 & 0xFF);
-            subRet2_1 += __builtin_popcount(q2 & v1 & 0xFF);
-            subRet3_1 += __builtin_popcount(q3 & v1 & 0xFF);
+            apply_indexed<batches>([&](auto B) {
+                apply_indexed<query_bits>([&](auto Q) {
+                    bit_result[B * Q] = __builtin_popcount(qs[Q] & vs[B] & 0xFF);
+                });
+            });
         }
-        results[c] = subRet0_0 + (subRet1_0 << 1) + (subRet2_0 << 2) + (subRet3_0 << 3);
-        results[c + 1] = subRet0_1 + (subRet1_1 << 1) + (subRet2_1 << 2) + (subRet3_1 << 3);
+        apply_indexed<batches>([&](auto I) {
+            int32_t res = 0;
+            apply_indexed<query_bits>([&](auto Q) {
+                res += (bit_result[I * Q] << Q);
+            });
+            results[c + I] = (f32_t)res;
+        });
     }
 
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)dotd1q4_inner(a0, query, length);
+        results[c] = (f32_t)dotd1q4_inner(a0, q, length);
     }
 }
 

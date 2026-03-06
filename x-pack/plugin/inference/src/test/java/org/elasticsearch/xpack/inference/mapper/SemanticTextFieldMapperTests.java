@@ -311,6 +311,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fieldType.isSearchable());
     }
 
+    /**
+     * Randomized sweep over all combinations of endpoint availability and
+     * index version to confirm correct default inference ID.
+     */
     public void testDefaults() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
@@ -327,56 +331,56 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         // No indexable fields
         assertTrue(fields.isEmpty());
+
+        for (int i = 0; i < 20; i++) {
+            boolean jinaAvailable = randomBoolean();
+            boolean eisElserAvailable = randomBoolean();
+            boolean postJinaV5 = randomBoolean();
+
+            setDefaultEisEndpoints(jinaAvailable, eisElserAvailable);
+
+            IndexVersion indexVersion = postJinaV5
+                ? IndexVersionUtils.randomVersionBetween(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, IndexVersion.current())
+                : IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
+
+            String expectedId;
+            if (jinaAvailable && postJinaV5) {
+                expectedId = DEFAULT_EIS_JINA_V5_INFERENCE_ID;
+            } else if (eisElserAvailable) {
+                expectedId = DEFAULT_EIS_ELSER_INFERENCE_ID;
+            } else {
+                expectedId = DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+            }
+
+            MapperService iterMapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, indexVersion);
+            assertInferenceEndpoints(iterMapperService, fieldName, expectedId, expectedId);
+        }
     }
 
-    public void testDefaultInferenceIdFallsBackWhenEisUnavailable() throws Exception {
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        removeDefaultEisJinaEndpoint();
-
-        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-    }
-
-    public void testDefaultInferenceIdFallsBackToEisElserWhenJinaV5Unavailable() throws Exception {
-        // When jina v5 is unavailable but EIS ELSER is available, default to EIS ELSER.
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        removeDefaultEisJinaEndpoint();
-        registerDefaultEisElserEndpoint();
-
-        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
-    }
-
-    public void testDefaultInferenceIdUsesEisElserForPreJinaV5Indices() throws Exception {
-        // On pre jina v5 indices, default to EIS ELSER.
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        registerDefaultEisElserEndpoint();
-
-        IndexVersion preJinaV5Version = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, preJinaV5Version);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
-    }
-
-    private void removeDefaultEisJinaEndpoint() {
+    /**
+     * Resets the model registry to exactly the given endpoint availability for each iteration of the
+     * randomized sweep in {@link #testDefaults()}.
+     */
+    private void setDefaultEisEndpoints(boolean jinaEnabled, boolean eisElserEnabled) {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
-        globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID), removalFuture);
-        assertTrue("Failed to remove default EIS Jina v5 endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
-    }
-
-    private void registerDefaultEisElserEndpoint() {
-        globalModelRegistry.putDefaultIdIfAbsent(
-            new InferenceService.DefaultConfigId(
-                DEFAULT_EIS_ELSER_INFERENCE_ID,
-                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
-                mock(InferenceService.class)
-            )
+        globalModelRegistry.removeDefaultConfigs(
+            Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID),
+            removalFuture
         );
+        removalFuture.actionGet(TEST_REQUEST_TIMEOUT);
+
+        if (jinaEnabled) {
+            registerDefaultEisEndpoint();
+        }
+        if (eisElserEnabled) {
+            globalModelRegistry.putDefaultIdIfAbsent(
+                new InferenceService.DefaultConfigId(
+                    DEFAULT_EIS_ELSER_INFERENCE_ID,
+                    MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                    mock(InferenceService.class)
+                )
+            );
+        }
     }
 
     @Override

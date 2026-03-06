@@ -60,7 +60,6 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
     public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
-
         public BytesRefsFromBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
         }

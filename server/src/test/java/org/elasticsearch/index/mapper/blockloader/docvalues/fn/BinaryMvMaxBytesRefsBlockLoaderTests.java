@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -108,24 +109,17 @@ public class BinaryMvMaxBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
         return hasToString("BlockDocValuesReader.Bytes");
     }
 
-    private void checkBlocks(TestBlock strings, TestBlock maxMaxValues) {
+    private void checkBlocks(TestBlock strings, TestBlock mvMax) {
         for (int i = 0; i < strings.size(); i++) {
             Object str = strings.get(i);
             if (str == null) {
-                assertThat(maxMaxValues.get(i), nullValue());
-            } else if (str instanceof List<?> l) {
-                BytesRef max = null;
-                for (Object o : l) {
-                    BytesRef value = (BytesRef) o;
-                    if (max == null || max.length < value.length) {
-                        max = value;
-                    }
-                }
-                assertThat(maxMaxValues.get(i), equalTo(max));
-            } else {
-                BytesRef bytes = (BytesRef) str;
-                assertThat(maxMaxValues.get(i), equalTo(bytes));
+                assertThat(mvMax.get(i), nullValue());
+                continue;
             }
+            BytesRef bytes = (BytesRef) (str instanceof List<?> list
+                ? list.stream().map(b -> (BytesRef) b).max(Comparator.naturalOrder()).get()
+                : str);
+            assertThat(mvMax.get(i), equalTo(bytes));
         }
     }
 }

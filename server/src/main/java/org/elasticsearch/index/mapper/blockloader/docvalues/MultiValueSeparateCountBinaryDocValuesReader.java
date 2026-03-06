@@ -79,8 +79,8 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         in.reset(bytes.bytes, bytes.offset, bytes.length);
         for (int v = 0; v < count; v++) {
             initializeScratch();
-            if (extreme == null || predicate.test(extreme, scratch)) {
-                extreme = BytesRef.deepCopyOf(scratch);
+            if (extreme == null || predicate.test(scratch, extreme)) {
+                extreme = new BytesRef(scratch.bytes, scratch.offset, scratch.length);
             }
         }
         builder.appendBytesRef(extreme);

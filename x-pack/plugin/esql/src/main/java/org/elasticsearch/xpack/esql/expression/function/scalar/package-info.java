@@ -8,7 +8,7 @@
 /**
  * Functions that take a row of data and produce a row of data without holding
  * any state between rows. This includes both the {@link org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction}
- * subclass to link into the ESQL core infrastructure and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ * subclass to link into the ESQL core infrastructure and the {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  * implementation to run the actual function.
  *
  * <h2>Guide to adding new function</h2>
@@ -72,7 +72,7 @@
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. They are usually named
  *         "process" or "processInts" or "processBar". Modify those to look right and run the {@code CsvTests}
- *         again. This should generate an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         again. This should generate an {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  *         implementation calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
  *.        To make it work with IntelliJ, also click {@code Build->Recompile 'FunctionName.java'}.
  *         Please commit the generated evaluator before submitting your PR.
@@ -82,7 +82,7 @@
  *             {@link org.elasticsearch.compute.ann.MvEvaluator} instead of
  *             {@link org.elasticsearch.compute.ann.Evaluator}. Those do similar things and the
  *             instructions should still work for you regardless. If your function contains an implementation
- *             of {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} written by
+ *             of {@link org.elasticsearch.compute.expression.ExpressionEvaluator} written by
  *             hand then please stop and ask for help. This is not a good first function.
  *         </p>
  *         <p>
@@ -199,11 +199,11 @@
  *         Let’s finish up the code by making the tests backwards compatible. Since this is a new
  *         feature we just have to convince the tests not to run in a cluster that includes older
  *         versions of Elasticsearch. We do that with a {@link org.elasticsearch.rest.RestHandler#supportedCapabilities capability}
- *         on the REST handler. ESQL has a <strong>ton</strong> of capabilities so we list them
- *         all in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}. Add a new one
- *         for your function. Now add something like {@code required_capability: my_function}
- *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
- *         check that they run on the main branch.
+ *         on the REST handler. Your new function automatically created a capability when it was
+ *         registered in the {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ *         So you can add {@code required_capability: fn_my_function} to all of your csv-spec
+ *         tests. Run those csv-spec tests as integration tests to double-check that they run on
+ *         the main branch.
  *         <br><br>
  *         NOTE: You may notice tests gated based on Elasticsearch version. This was the old way
  *         of doing things. Now, we use specific capabilities for each function.

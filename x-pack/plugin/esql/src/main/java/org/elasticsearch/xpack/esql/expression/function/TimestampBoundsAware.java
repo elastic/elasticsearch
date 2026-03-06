@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,13 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 /**
  * Marker interface for nodes (expressions or plans) that require {@code @timestamp} bounds derived from the query DSL filter.
  * <p>
- * Implementations are resolved during analysis by {@link Analyzer}'s {@code ResolveTimestampBoundsAware} rule,
+ * Implementations are resolved during analysis by the {@code ResolveTimestampBoundsAware} analyzer rule,
  * following the same pattern as {@link ConfigurationAware}.
  * </p>
  * <p>
- * Expression implementations that still {@link #needsTimestampBounds() need bounds} after analysis are automatically
- * rejected by the {@link Verifier} with a client error.
- * LogicalPlan implementations are responsible for their own validation via {@link PostAnalysisVerificationAware#postAnalysisVerification}.
+ * Implementations are responsible for their own validation via {@link PostAnalysisVerificationAware#postAnalysisVerification}.
  * </p>
  * <p>
  * Use the sub-interfaces {@link OfExpression} and {@link OfLogicalPlan}
@@ -34,8 +31,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  *
  * @param <T> the type returned by {@link #withTimestampBounds}, typically {@code Expression} or {@code LogicalPlan}
  */
-public sealed interface TimestampBoundsAware<T extends Node<T>> permits TimestampBoundsAware.OfExpression,
-    TimestampBoundsAware.OfLogicalPlan {
+public sealed interface TimestampBoundsAware<T extends Node<T>> extends PostAnalysisVerificationAware permits
+    TimestampBoundsAware.OfExpression, TimestampBoundsAware.OfLogicalPlan {
 
     /**
      * Returns {@code true} if this node still needs timestamp bounds to be injected.

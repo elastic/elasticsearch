@@ -176,6 +176,84 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         assertThat(json, is(XContentHelper.stripWhitespace(NON_EMPTY_ENDPOINT_METADATA_JSON_WITHOUT_INTERNAL)));
     }
 
+    public void testFingerprintMatches() {
+        EndpointMetadata endpointWithNullFingerprint1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithNullFingerprint2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintAbc1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintAbc2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintXyz1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintXyz2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null),
+            randomDisplay()
+        );
+
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+
+        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
+        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+
+        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+    }
+
+    public void testHasNewerVersionThan() {
+        EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithNullVersion2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithVersionFour = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L),
+            randomDisplay()
+        );
+        EndpointMetadata anotherEndpointWithVersionFour = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithVersionFive = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 5L),
+            randomDisplay()
+        );
+
+        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
+        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
+        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
+        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+    }
+
     @Override
     protected EndpointMetadata createTestInstance() {
         return randomInstance();

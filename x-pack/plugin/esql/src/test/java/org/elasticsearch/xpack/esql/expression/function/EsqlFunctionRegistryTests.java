@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -268,12 +268,10 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DerivErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IdeltaErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IrateErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviationErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianErrorTests is missing")
@@ -396,7 +394,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
             return null;
         }
     }

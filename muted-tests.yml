@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143750
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143757
 
 # Examples:
 #

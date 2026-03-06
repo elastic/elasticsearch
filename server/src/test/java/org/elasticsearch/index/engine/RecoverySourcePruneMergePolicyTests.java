@@ -714,7 +714,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         if (pruneSequenceNumber) {
             minVersion = IndexVersions.DISABLE_SEQUENCE_NUMBERS;
         } else if (useSyntheticId) {
-            minVersion = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94;
+            minVersion = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT;
         } else {
             minVersion = IndexVersions.TIME_SERIES_ID_HASHING;
         }

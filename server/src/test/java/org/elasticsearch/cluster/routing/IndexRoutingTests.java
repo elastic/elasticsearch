@@ -787,10 +787,8 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRerouteToTargetTsid() {
         int shards = between(2, 500);
         Settings.Builder settingsBuilder = settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "top")
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        }
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(settingsBuilder)
             .numberOfShards(shards)
@@ -1067,7 +1065,7 @@ public class IndexRoutingTests extends ESTestCase {
         // old way of routing paths created during routing
         // current way of routing paths created during routing via tsid
         String setting = randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey();
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        boolean useSyntheticId = randomBoolean();
         return getIndexRoutingWithSetting(IndexVersion.current(), shards, path, setting, useSyntheticId);
     }
 
@@ -1100,12 +1098,12 @@ public class IndexRoutingTests extends ESTestCase {
         boolean useSyntheticId
     ) {
         if (useSyntheticId) {
-            assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
-            assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG : "Can't use synthetic id without feature flag";
+            assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)
+                : "Can't use synthetic id with this index version";
         }
         Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+        if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }
         return new TimeSeriesRoutingFixture(

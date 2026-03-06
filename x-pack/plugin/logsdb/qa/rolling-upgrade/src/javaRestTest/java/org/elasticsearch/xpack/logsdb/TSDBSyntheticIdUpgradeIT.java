@@ -263,7 +263,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             Locale.ROOT,
             "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion:",
             setting,
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT
         );
 
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));

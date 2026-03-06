@@ -1338,56 +1338,55 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
-        final Map<String, SearchPlanningPhaseResolutionResult> searchShardsResponses = new ConcurrentHashMap<>();
+        final Map<String, SearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
+        final Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
             boolean shouldSkipOnFailure = remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults);
-            CCSActionListener<SearchPlanningPhaseResolutionResult, Map<String, SearchShardsResponse>> singleListener =
-                new CCSActionListener<>(clusterAlias, shouldSkipOnFailure, responsesCountDown, exceptions, clusters, listener) {
-                    @Override
-                    void innerOnResponse(SearchPlanningPhaseResolutionResult searchShardsResponse) {
-                        if (searchShardsResponse.response() instanceof SearchShardsResponse response) {
-                            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-                            ccsClusterInfoUpdate(response, clusters, clusterAlias, timeProvider);
-                        }
-                        searchShardsResponses.put(clusterAlias, searchShardsResponse);
-                    }
+            CCSActionListener<SearchShardsResponse, Map<String, SearchShardsResponse>> singleListener = new CCSActionListener<>(
+                clusterAlias,
+                shouldSkipOnFailure,
+                responsesCountDown,
+                exceptions,
+                remoteExceptions,
+                clusters,
+                listener
+            ) {
+                @Override
+                void innerOnResponse(SearchShardsResponse searchShardsResponse) {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+                    ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                    searchShardsResponses.put(clusterAlias, searchShardsResponse);
+                }
 
-                    @Override
-                    Map<String, SearchShardsResponse> createFinalResponse() {
-                        Map<String, SearchShardsResponse> actualSearchShardsResponses = new HashMap<>();
-                        if (resolvesCrossProject && originResolvedIdxExpressions != null) {
-                            Map<String, ResolvedIndexExpressions> resolvedIndexExpressions = new HashMap<>();
-                            Map<String, Exception> remoteExceptions = new HashMap<>();
-                            for (var entry : searchShardsResponses.entrySet()) {
-                                if (entry.getValue().response() instanceof SearchShardsResponse response) {
-                                    if (response.getResolvedIndexExpressions() == null) {
-                                        throw new IllegalArgumentException(
-                                            "Failed to get resolved index expressions for cluster [" + entry.getKey() + "]"
-                                        );
-                                    }
-                                    resolvedIndexExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
-                                    actualSearchShardsResponses.put(entry.getKey(), response);
-                                } else if (entry.getValue().error() != null) {
-                                    remoteExceptions.put(entry.getKey(), entry.getValue().error());
-                                }
+                @Override
+                Map<String, SearchShardsResponse> createFinalResponse() {
+                    if (resolvesCrossProject && originResolvedIdxExpressions != null) {
+                        Map<String, ResolvedIndexExpressions> resolvedIndexExpressions = new HashMap<>();
+                        for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+                            if (entry.getValue().getResolvedIndexExpressions() == null) {
+                                throw new IllegalArgumentException(
+                                    "Failed to get resolved index expressions for cluster [" + entry.getKey() + "]"
+                                );
                             }
-                            // We do not use the relaxed index options here when validating indices' existence.
-                            ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
-                                originalIdxOpts,
-                                projectRouting,
-                                originResolvedIdxExpressions,
-                                resolvedIndexExpressions,
-                                remoteExceptions
-                            );
-                            if (validationEx != null) {
-                                throw validationEx;
-                            }
+                            resolvedIndexExpressions.put(entry.getKey(), entry.getValue().getResolvedIndexExpressions());
                         }
-                        return actualSearchShardsResponses;
+                        // We do not use the relaxed index options here when validating indices' existence.
+                        ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
+                            originalIdxOpts,
+                            projectRouting,
+                            originResolvedIdxExpressions,
+                            resolvedIndexExpressions,
+                            remoteExceptions
+                        );
+                        if (validationEx != null) {
+                            throw validationEx;
+                        }
                     }
-                };
+                    return searchShardsResponses;
+                }
+            };
 
             var threadPool = transportService.getThreadPool();
             var connectionListener = getListenerWithOptionalTimeout(
@@ -1396,10 +1395,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
             );
 
-            connectionListener.addListener(singleListener.delegateResponse((responseListener, ex) -> {
-                logger.debug("Failed to communicate with the linked project [{}], error: {}", clusterAlias, ex);
-                responseListener.onResponse(new SearchPlanningPhaseResolutionResult(null, ex));
-            }).delegateFailure((responseListener, connection) -> {
+            connectionListener.addListener(singleListener.delegateFailure((responseListener, connection) -> {
                 /*
                  * It may be possible that indices do not exist on the project that SearchShards API is targeting.
                  * In such cases, it throws an error because it calls the index resolution APIs underneath. We relax
@@ -1431,11 +1427,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         TransportSearchShardsAction.TYPE.name(),
                         searchShardsRequest,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            responseListener.map(response -> new SearchPlanningPhaseResolutionResult(response, null)),
-                            SearchShardsResponse::new,
-                            responseExecutor
-                        )
+                        new ActionListenerResponseHandler<>(responseListener, SearchShardsResponse::new, responseExecutor)
                     );
                 } else {
                     // does not do a can-match
@@ -1451,12 +1443,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsRequest,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
-                            singleListener.map(
-                                legacyResponse -> new SearchPlanningPhaseResolutionResult(
-                                    SearchShardsResponse.fromLegacyResponse(legacyResponse),
-                                    null
-                                )
-                            ),
+                            singleListener.map(SearchShardsResponse::fromLegacyResponse),
                             ClusterSearchShardsResponse::new,
                             responseExecutor
                         )
@@ -1490,6 +1477,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             shouldSkipOnFailure,
             countDown,
             exceptions,
+            new HashMap<>(),
             clusters,
             ActionListener.releaseAfter(originalListener, searchResponseMerger)
         ) {
@@ -2287,6 +2275,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected final boolean skipOnFailure;
         private final CountDown countDown;
         private final AtomicReference<Exception> exceptions;
+        private final Map<String, Exception> remoteExceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
 
@@ -2298,6 +2287,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipOnFailure,
             CountDown countDown,
             AtomicReference<Exception> exceptions,
+            Map<String, Exception> remoteExceptions,
             SearchResponse.Clusters clusters,
             ActionListener<FinalResponse> originalListener
         ) {
@@ -2305,6 +2295,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.skipOnFailure = skipOnFailure;
             this.countDown = countDown;
             this.exceptions = exceptions;
+            this.remoteExceptions = remoteExceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
         }
@@ -2324,6 +2315,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipOnFailure);
+            remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
                 if (cluster != null) {

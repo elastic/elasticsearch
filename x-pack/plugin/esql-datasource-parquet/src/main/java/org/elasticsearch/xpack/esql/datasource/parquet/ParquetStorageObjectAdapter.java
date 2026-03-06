@@ -50,14 +50,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * SeekableInputStream implementation that uses StorageObject's range-based reads.
-     *
-     * <p>This implementation provides efficient random access by:
-     * <ul>
-     *   <li>Tracking current position in the stream</li>
-     *   <li>Using range reads for seek operations</li>
-     *   <li>Buffering data from the current stream until a seek is needed</li>
-     * </ul>
+     * SeekableInputStream backed by StorageObject's range-based InputStream API.
+     * All reads (byte-array and ByteBuffer) go through a single cached InputStream
+     * that is reopened on seek.
      */
     private static class StorageObjectSeekableInputStream extends SeekableInputStream {
         private final StorageObject storageObject;
@@ -71,7 +66,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.length = storageObject.length();
             this.position = 0;
             this.streamStartPosition = 0;
-            // Open initial stream from beginning
             this.currentStream = storageObject.newStream();
         }
 
@@ -89,40 +83,35 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 throw new IOException("Cannot seek beyond end of file: " + newPos + " > " + length);
             }
 
-            // If we're seeking within the current stream, try to skip forward
             if (newPos >= streamStartPosition && newPos >= position) {
                 long skipAmount = newPos - position;
                 if (skipAmount > 0) {
                     long skipped = currentStream.skip(skipAmount);
                     if (skipped != skipAmount) {
-                        // Skip failed, need to reopen stream
                         reopenStreamAt(newPos);
                     } else {
                         position = newPos;
                     }
                 }
-                // If newPos == position, we're already there
                 return;
             }
 
-            // For backward seeks or large forward seeks, reopen the stream
             reopenStreamAt(newPos);
         }
 
-        /**
-         * Reopens the stream at the specified position using a range read.
-         */
         private void reopenStreamAt(long newPos) throws IOException {
-            // Close current stream
-            if (currentStream != null) {
-                currentStream.close();
+            InputStream old = currentStream;
+            currentStream = null;
+            try {
+                long remainingBytes = length - newPos;
+                currentStream = storageObject.newStream(newPos, remainingBytes);
+                streamStartPosition = newPos;
+                position = newPos;
+            } finally {
+                if (old != null) {
+                    old.close();
+                }
             }
-
-            // Open new stream from the target position to the end
-            long remainingBytes = length - newPos;
-            currentStream = storageObject.newStream(newPos, remainingBytes);
-            streamStartPosition = newPos;
-            position = newPos;
         }
 
         @Override
@@ -192,15 +181,12 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (buf.hasRemaining() == false) {
                 return 0;
             }
-
             int bytesToRead = buf.remaining();
             byte[] temp = new byte[bytesToRead];
             int bytesRead = read(temp, 0, bytesToRead);
-
             if (bytesRead > 0) {
                 buf.put(temp, 0, bytesRead);
             }
-
             return bytesRead;
         }
 

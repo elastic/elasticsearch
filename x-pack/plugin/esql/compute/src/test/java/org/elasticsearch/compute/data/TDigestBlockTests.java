@@ -29,7 +29,7 @@ public class TDigestBlockTests extends ComputeTestCase {
                 if (block.isNull(i)) {
                     assertThat(componentBlock.isNull(i), equalTo(true));
                 } else {
-                    TDigestHolder histo = block.getTDigestHolder(i);
+                    TDigestHolder histo = block.getTDigestHolder(i, new TDigestHolder());
                     switch (component) {
                         case MIN -> {
                             double expectedMin = histo.getMin();
@@ -63,7 +63,7 @@ public class TDigestBlockTests extends ComputeTestCase {
                         case COUNT -> {
                             assertThat(componentBlock.getValueCount(i), equalTo(1));
                             int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.getValueCount()));
+                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.size()));
                         }
                     }
                 }

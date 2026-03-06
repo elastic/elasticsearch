@@ -4086,6 +4086,103 @@ public class AnalyzerTests extends ESTestCase {
                    (WHERE true)
             """));
         assertThat(e.getMessage(), containsString("Only a single FORK command is supported, but found multiple"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK (EVAL conflict_field = "string_value")
+                   (EVAL conflict_field = 123)
+            | EVAL y = conflict_field
+            """));
+        assertThat(
+            e.getMessage(),
+            containsString("Column [conflict_field] has conflicting data types in FORK branches: [INTEGER] and [KEYWORD]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK (EVAL shared_field = "abc")
+                   (EVAL shared_field = 100.5)
+            | WHERE shared_field > 50
+            """));
+        assertThat(e.getMessage(), containsString("first argument of [shared_field > 50] is [keyword]"));
+    }
+
+    public void testForkWithAmbiguousFieldType() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "k8s-downsampled,k8s",
+            false,
+            fieldsInfoOnCurrentVersion(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse(
+                            "k8s-downsampled",
+                            Map.of(
+                                "network.eth0.tx",
+                                new IndexFieldCapabilitiesBuilder("network.eth0.tx", "aggregate_metric_double").build()
+                            )
+                        ),
+                        fieldCapabilitiesIndexResponse(
+                            "k8s",
+                            Map.of("network.eth0.tx", new IndexFieldCapabilitiesBuilder("network.eth0.tx", "integer").build())
+                        )
+                    ),
+                    List.of()
+                )
+            ),
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s-downsampled, k8s
+            | fork (where true) (where true)
+            | eval x = network.eth0.tx + 1
+            """, analyzer(resolution, TEST_VERIFIER)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+            )
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s-downsampled, k8s
+            | fork (where true) (where false)
+            | stats c = COUNT() BY network.eth0.tx
+            """, analyzer(resolution, TEST_VERIFIER)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+            )
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s-downsampled, k8s
+            | fork (KEEP network.eth0.tx) (DROP network.eth0.tx)
+            | eval x = network.eth0.tx + 1
+            """, analyzer(resolution, TEST_VERIFIER)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+            )
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from k8s-downsampled, k8s
+            | fork (EVAL x = network.eth0.tx + 1)
+                   (WHERE true)
+            """, analyzer(resolution, TEST_VERIFIER)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                    + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+            )
+        );
     }
 
     public void testValidFuse() {

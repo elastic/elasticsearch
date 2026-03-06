@@ -443,9 +443,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         try {
             Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
                 try (var res = r.consumeAggs()) {
+                    var serialized = res.isSerialized();
                     InternalAggregations aggs = res.expand();
-                    reduceContext.addTopHitsFromAggregationTree(aggs);
-                    r.clearTopHitsToRelease();
+                    if (serialized) {
+                        InternalAggregations.addTopHitsToReleaseList(aggs, r.topHitsToReleaseCollector());
+                    }
+                    reduceContext.addTopHitsFromAggregationTree(aggs, true);
                     return aggs;
                 }
             });
@@ -456,7 +459,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 try (r) {
                     InternalAggregations aggs = r.expand();
                     if ((skipAddFromTreeForFirstPartial && first) == false) {
-                        reduceContext.addTopHitsFromAggregationTree(aggs);
+                        reduceContext.addTopHitsFromAggregationTree(aggs, false);
                     }
                     return aggs;
                 }

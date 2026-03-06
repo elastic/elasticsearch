@@ -110,11 +110,12 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
     /**
      * Append SearchHits from all top_hits aggregations in the given tree to this context's release list.
+     * Takes a reference for each so the list owner can decRef on release.
      * Use when the tree was deserialized from stream (e.g. expanded from a MergeResult) so those hits are released.
      */
-    public final void addTopHitsFromAggregationTree(InternalAggregations aggs) {
+    public final void addTopHitsFromAggregationTree(InternalAggregations aggs, boolean takeRef) {
         if (topHitsToRelease != null && aggs != null) {
-            InternalAggregations.addTopHitsToReleaseList(aggs, topHitsToRelease);
+            InternalAggregations.addTopHitsToReleaseList(aggs, topHitsToRelease, takeRef);
         }
     }
 

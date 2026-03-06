@@ -109,7 +109,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
-        refCounted = null;
+        refCounted = isNull ? null : LeakTracker.wrap(new SimpleRefCounted());
         aggsContextReleased = null;
     }
 
@@ -450,6 +450,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
                 } else {
                     aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    InternalAggregations.addTopHitsToReleaseList(aggregations.expand(), topHitsToReleaseCollector());
                 }
             }
             if (in.readBoolean()) {
@@ -610,7 +611,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     }
                     topHitsToRelease = null;
                 }
-                aggsContextReleased.onResponse(null);
+                if (aggsContextReleased != null) {
+                    aggsContextReleased.onResponse(null);
+                }
                 return true;
             }
             return false;

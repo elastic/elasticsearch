@@ -150,19 +150,31 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     /**
      * Appends SearchHits from all top_hits aggregations in the tree to the given list.
-     * Does not incRef; use when the aggregations were just deserialized (refcount 1) and the list
-     * owner will decRef on release.
+     * Does not take a reference; use on the shard where top_hits were already registered with
+     * {@link org.elasticsearch.search.query.QuerySearchResult#registerTopHitsForRelease}.
      */
     public static void addTopHitsToReleaseList(InternalAggregations aggs, List<SearchHits> out) {
+        addTopHitsToReleaseList(aggs, out, false);
+    }
+
+    /**
+     * Appends SearchHits from all top_hits aggregations in the tree to the given list.
+     * When {@code takeRef} is true, takes a reference for each so the list owner can decRef on release
+     * (use when the tree was expanded from the wire / reduce context).
+     */
+    public static void addTopHitsToReleaseList(InternalAggregations aggs, List<SearchHits> out, boolean takeRef) {
         if (aggs == null) {
             return;
         }
         for (InternalAggregation agg : aggs.asList()) {
             if (agg instanceof InternalTopHits topHits) {
                 SearchHits h = topHits.getHits();
+                if (takeRef) {
+                    h.incRef();
+                }
                 out.add(h);
             }
-            agg.forEachBucket(sub -> addTopHitsToReleaseList(sub, out));
+            agg.forEachBucket(sub -> addTopHitsToReleaseList(sub, out, takeRef));
         }
     }
 

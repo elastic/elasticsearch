@@ -47,8 +47,14 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
     public void testRerouteIsCalledWhenHotSpotAppears() {
         // Set the threshold very high so we don't get any non-synthetic hot-spotting occurring
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
-        final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
+        final int utilizationThresholdPercent = randomIntBetween(70, 99);
+        final float utilizationThreshold = utilizationThresholdPercent / 100.0f;
+        final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis, utilizationThresholdPercent);
         internalCluster().startMasterOnlyNode(settings);
+        final String utilizationThresholdString = internalCluster().clusterService()
+            .getClusterSettings()
+            .get(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING)
+            .formatNoTrailingZerosPercent();
         final String dataNodeOne = internalCluster().startIndexOnlyNode(settings);
         final String dataNodeTwo = internalCluster().startIndexOnlyNode(settings);
         // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.
@@ -67,7 +73,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         );
 
         // Simulate hot-spotting on a node
-        simulateHotSpottingOnNode(dataNodeOne, queueLatencyThresholdMillis);
+        simulateHotSpottingOnNode(dataNodeOne, queueLatencyThresholdMillis, utilizationThreshold);
 
         // Single node hot-spotting should trigger reroute
         MockLog.awaitLogger(
@@ -77,11 +83,16 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "hot spot detected message",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
-                Strings.format("""
-                    Nodes [%s] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
-                    Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
-                    Triggering reroute.
-                    """, getNodeId(dataNodeOne) + "/" + dataNodeOne, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
+                Strings.format(
+                    """
+                        Nodes [%s] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
+                        Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s] and the \
+                        utilization threshold is [%s]. Triggering reroute.
+                        """,
+                    getNodeId(dataNodeOne) + "/" + dataNodeOne,
+                    TimeValue.timeValueMillis(queueLatencyThresholdMillis),
+                    utilizationThresholdString
+                )
             )
         );
 
@@ -102,7 +113,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         );
 
         // Simulate hot-spotting on an additional node
-        simulateHotSpottingOnNode(dataNodeTwo, queueLatencyThresholdMillis);
+        simulateHotSpottingOnNode(dataNodeTwo, queueLatencyThresholdMillis, utilizationThreshold);
 
         // Additional node hot-spotting should trigger reroute
         MockLog.awaitLogger(
@@ -112,11 +123,16 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "hot spot detected message",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
-                Strings.format("""
-                    Nodes [*] are hot-spotting, of 3 total ingest nodes. \
-                    Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [%s]. \
-                    The write thread pool queue latency threshold is [%s]. Triggering reroute.
-                    """, getNodeId(dataNodeOne) + "/" + dataNodeOne, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
+                Strings.format(
+                    """
+                        Nodes [*] are hot-spotting, of 3 total ingest nodes. \
+                        Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [%s]. \
+                        The write thread pool queue latency threshold is [%s] and the utilization threshold is [%s]. Triggering reroute.
+                        """,
+                    getNodeId(dataNodeOne) + "/" + dataNodeOne,
+                    TimeValue.timeValueMillis(queueLatencyThresholdMillis),
+                    utilizationThresholdString
+                )
             )
         );
 
@@ -137,7 +153,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         );
     }
 
-    private void simulateHotSpottingOnNode(String nodeName, long queueLatencyThresholdMillis) {
+    private void simulateHotSpottingOnNode(String nodeName, long queueLatencyThresholdMillis, float utilizationThreshold) {
         MockTransportService.getInstance(nodeName)
             .addRequestHandlingBehavior(TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]", (handler, request, channel, task) -> {
                 handler.messageReceived(
@@ -149,9 +165,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                                 r.getNode(),
                                 new NodeUsageStatsForThreadPools(
                                     r.getNodeUsageStatsForThreadPools().nodeId(),
-                                    addQueueLatencyToWriteThreadPool(
+                                    simulateWriteThreadPoolHotspotting(
                                         r.getNodeUsageStatsForThreadPools().threadPoolUsageStatsMap(),
-                                        queueLatencyThresholdMillis
+                                        queueLatencyThresholdMillis,
+                                        utilizationThreshold
                                     )
                                 )
                             )
@@ -162,16 +179,17 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             });
     }
 
-    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> addQueueLatencyToWriteThreadPool(
+    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> simulateWriteThreadPoolHotspotting(
         Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> stringThreadPoolUsageStatsMap,
-        long queueLatencyThresholdMillis
+        long queueLatencyThresholdMillis,
+        float utilizationThreshold
     ) {
         return stringThreadPoolUsageStatsMap.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             NodeUsageStatsForThreadPools.ThreadPoolUsageStats originalStats = e.getValue();
             if (e.getKey().equals(ThreadPool.Names.WRITE)) {
                 return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                     originalStats.totalThreadPoolThreads(),
-                    originalStats.averageThreadPoolUtilization(),
+                    randomFloatBetween(utilizationThreshold, 1.0f, true),
                     randomLongBetween(queueLatencyThresholdMillis * 2, queueLatencyThresholdMillis * 3)
                 );
             }
@@ -184,7 +202,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
      * Enables the write-load decider and overrides other write load decider settings.
      * @param queueLatencyThresholdMillis Exceeding this is what makes the monitor call re-route
      */
-    private Settings enabledWriteLoadDeciderSettings(long queueLatencyThresholdMillis) {
+    private Settings enabledWriteLoadDeciderSettings(long queueLatencyThresholdMillis, int utilizationThresholdPercent) {
         return Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -193,6 +211,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
             )
             // Make the re-route interval large so we can test it
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(5))

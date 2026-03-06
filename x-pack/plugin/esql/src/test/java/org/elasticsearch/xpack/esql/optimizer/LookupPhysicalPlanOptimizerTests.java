@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.junit.Before;
 
@@ -72,7 +75,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for {@link LookupPhysicalPlanOptimizer}, verifying that the lookup-node planning pipeline
- * (buildLocalLogicalPlan -> LocalMapper -> LookupPhysicalPlanOptimizer) produces correct physical plans.
+ * (buildLocalLogicalPlan -> LookupLogicalOptimizer -> LocalMapper -> LookupPhysicalPlanOptimizer) produces correct physical plans.
  */
 public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
@@ -265,6 +268,77 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /**
+     * Filter that becomes always-true due to missing field stats should be pruned during logical optimization.
+     * "language_name IS NULL" with language_name missing → "null IS NULL" → true → filter removed.
+     * The null Eval from ReplaceFieldWithConstantOrNull should be pruned by the physical optimizer since
+     * the field is not needed for extraction.
+     */
+    public void testFilterOnMissingFieldFoldedToTrue() {
+        EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
+            EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
+            "language_name"
+        );
+
+        PhysicalPlan plan = optimizeLookupPlan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name IS NULL
+            """, stats);
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        EvalExec eval = as(project.child(), EvalExec.class);
+        ParameterizedQueryExec paramQuery = as(eval.child(), ParameterizedQueryExec.class);
+        assertThat("Filter should have been pruned, no query on ParameterizedQueryExec", paramQuery.query(), nullValue());
+    }
+
+    /**
+     * Filter on a missing field with equality (e.g. {@code language_name == "English"}) folds to {@code null == "English"} → false,
+     * which collapses the entire plan to an empty {@link LocalSourceExec}.
+     */
+    public void testFilterOnMissingFieldFoldedToEmpty() {
+        EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
+            EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
+            "language_name"
+        );
+
+        PhysicalPlan plan = optimizeLookupPlan("""
+            FROM test
+            | RENAME languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "English"
+            """, stats);
+
+        as(plan, LocalSourceExec.class);
+    }
+
+    /**
+     * When a missing field is dropped from the output, it never appears in the lookup plan's addedFields,
+     * so no null Eval is needed. Using expression-based join so that language_code remains as an
+     * extractable added field after dropping language_name.
+     * Expects: ProjectExec -> FieldExtractExec -> ParameterizedQueryExec
+     */
+    public void testDropMissingFieldPrunesEval() {
+        assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+
+        EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
+            EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
+            "language_name"
+        );
+
+        PhysicalPlan plan = optimizeLookupPlan("""
+            FROM test
+            | LOOKUP JOIN languages_lookup ON languages == language_code
+            | DROP language_name
+            """, stats, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        FieldExtractExec fieldExtract = as(project.child(), FieldExtractExec.class);
+        ParameterizedQueryExec paramQuery = as(fieldExtract.child(), ParameterizedQueryExec.class);
+        assertThat(paramQuery.query(), nullValue());
+    }
+
+    /**
      * Two consecutive LOOKUP JOINs: first on test_lookup (by emp_no), then on languages_lookup (by language_code).
      * Each join's right side is independently planned on its respective lookup node.
      */
@@ -274,7 +348,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | LOOKUP JOIN test_lookup ON emp_no
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """, null);
+            """, null, TEST_SEARCH_STATS);
 
         assertThat(plans, hasSize(2));
 
@@ -294,13 +368,21 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private PhysicalPlan optimizeLookupPlan(String esql) {
-        List<PhysicalPlan> plans = optimizeAllLookupPlans(esql, null);
+        return optimizeLookupPlan(esql, TEST_SEARCH_STATS);
+    }
+
+    private PhysicalPlan optimizeLookupPlan(String esql, SearchStats searchStats) {
+        List<PhysicalPlan> plans = optimizeAllLookupPlans(esql, null, searchStats);
         assertThat("Expected exactly one LOOKUP JOIN", plans, hasSize(1));
         return plans.getFirst();
     }
 
     private PhysicalPlan optimizeLookupPlan(String esql, TransportVersion minVersion) {
-        List<PhysicalPlan> plans = optimizeAllLookupPlans(esql, minVersion);
+        return optimizeLookupPlan(esql, TEST_SEARCH_STATS, minVersion);
+    }
+
+    private PhysicalPlan optimizeLookupPlan(String esql, SearchStats searchStats, TransportVersion minVersion) {
+        List<PhysicalPlan> plans = optimizeAllLookupPlans(esql, minVersion, searchStats);
         assertThat("Expected exactly one LOOKUP JOIN", plans, hasSize(1));
         return plans.getFirst();
     }
@@ -309,7 +391,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      * Runs the full planning pipeline and returns a lookup-node physical plan for each LookupJoinExec
      * found in the data-node plan. The plans are returned in tree traversal order (outermost join first).
      */
-    private List<PhysicalPlan> optimizeAllLookupPlans(String esql, TransportVersion minVersion) {
+    private List<PhysicalPlan> optimizeAllLookupPlans(String esql, TransportVersion minVersion, SearchStats searchStats) {
         PhysicalPlan dataNodePlan;
         if (minVersion != null) {
             MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
@@ -327,12 +409,12 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         List<PhysicalPlan> lookupPlans = new ArrayList<>(joins.size());
         for (LookupJoinExec join : joins) {
-            lookupPlans.add(buildLookupPlan(join));
+            lookupPlans.add(buildLookupPlan(join, searchStats));
         }
         return lookupPlans;
     }
 
-    private static PhysicalPlan buildLookupPlan(LookupJoinExec join) {
+    private static PhysicalPlan buildLookupPlan(LookupJoinExec join, SearchStats searchStats) {
         List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
         for (int i = 0; i < join.leftFields().size(); i++) {
             FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
@@ -355,7 +437,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             TEST_CFG,
             PlannerSettings.DEFAULTS,
             FoldContext.small(),
-            TEST_SEARCH_STATS,
+            searchStats,
             new EsqlFlags(true)
         );
     }

@@ -448,6 +448,7 @@ public final class EsqlTestUtils {
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
         private final Map<Config, Set<String>> excludes = new HashMap<>();
+        private final Map<String, String> constantValues = new HashMap<>();
 
         public TestConfigurableSearchStats include(Config key, String... fields) {
             // If this method is called with no fields, it is interpreted to mean include none, so we include a dummy field
@@ -490,6 +491,16 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        public TestConfigurableSearchStats withConstantValue(String field, String value) {
+            constantValues.put(field, value);
+            return this;
+        }
+
+        @Override
+        public String constantValue(FieldName name) {
+            return constantValues.get(name.string());
         }
 
         @Override

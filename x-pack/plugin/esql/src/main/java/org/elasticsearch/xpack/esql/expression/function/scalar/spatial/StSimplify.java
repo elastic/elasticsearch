@@ -40,9 +40,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 public class StSimplify extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -76,7 +84,7 @@ public class StSimplify extends SpatialDocValuesFunction {
         ) Expression geometry,
         @Param(
             name = "tolerance",
-            type = { "double" },
+            type = { "double", "float", "long", "integer" },
             description = "Tolerance for the geometry simplification, in the units of the input SRS"
         ) Expression tolerance
     ) {
@@ -132,6 +140,24 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     Expression tolerance() {
         return tolerance;
+    }
+
+    @Override
+    protected Expression.TypeResolution resolveType() {
+        TypeResolution spatialResolved = isSpatial(geometry, sourceText(), FIRST);
+        if (spatialResolved.unresolved()) {
+            return spatialResolved;
+        }
+        return isType(
+            tolerance,
+            t -> t == DOUBLE || t == FLOAT || t == LONG || t == INTEGER,
+            sourceText(),
+            SECOND,
+            "double",
+            "float",
+            "long",
+            "integer"
+        );
     }
 
     @Override

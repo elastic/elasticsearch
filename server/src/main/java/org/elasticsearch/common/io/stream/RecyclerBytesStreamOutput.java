@@ -454,7 +454,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             if (circuitBreaker == null) {
                 releasable = Releasables.wrap(pages);
             } else {
-                final var releaseSize = this.pageSize * pages.size();
+                final long releaseSize = (long) this.pageSize * pages.size();
                 releasable = Releasables.wrap(Releasables.wrap(pages), () -> circuitBreaker.addWithoutBreaking(-releaseSize));
             }
         }

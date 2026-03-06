@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.updateEmbeddingDetails;
 
 public class JinaAIService extends SenderService<JinaAIModel> implements RerankingInferenceService {
@@ -78,6 +77,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
 
     public static final String NAME = "jinaai";
 
+    private static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
     private static final String SERVICE_NAME = "Jina AI";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.EMBEDDING);
     private static final JinaAIEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new JinaAIEmbeddingsModelCreator();

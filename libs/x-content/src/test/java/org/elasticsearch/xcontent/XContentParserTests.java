@@ -670,6 +670,80 @@ public class XContentParserTests extends ESTestCase {
         assertThat(parseException.getMessage(), not(containsString(source)));
     }
 
+    public void testYamlTokenLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(-1L, parser.getTokenLocation().byteOffset());
+        }
+    }
+
+    public void testYamlGetCurrentLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation current = parser.getCurrentLocation();
+            assertNotNull(current);
+            assertEquals(-1L, current.byteOffset());
+        }
+    }
+
+    public void testCborHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] cbor;
+        try (var builder = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            try (XContentParser jsonParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            cbor = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, cbor)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testSmileHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] smile;
+        try (var builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+            try (XContentParser jsonParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            smile = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, smile)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testFilterXContentParserDelegatesGetCurrentLocation() throws IOException {
+        byte[] json = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser inner = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            XContentParser wrapper = new FilterXContentParserWrapper(inner);
+            assertEquals(XContentParser.Token.START_OBJECT, wrapper.nextToken());
+
+            XContentLocation tokenLoc = wrapper.getTokenLocation();
+            assertEquals(inner.getTokenLocation(), tokenLoc);
+            assertEquals(0L, tokenLoc.byteOffset());
+
+            XContentLocation currentLoc = wrapper.getCurrentLocation();
+            assertEquals(inner.getCurrentLocation(), currentLoc);
+            assertTrue(currentLoc.byteOffset() > 0);
+        }
+    }
+
     private XContentParser createParser(XContent xContent, XContentParserConfiguration config, String content) throws IOException {
         return randomBoolean()
             ? xContent.createParser(config, content)

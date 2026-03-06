@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 @FunctionName("st_distance")
@@ -34,9 +33,7 @@ public class StDistanceTests extends BinarySpatialFunctionTestCase {
         StDistanceTests.addSpatialCombinations(suppliers, geoDataTypes);
         DataType[] cartesianDataTypes = { DataType.CARTESIAN_POINT };
         StDistanceTests.addSpatialCombinations(suppliers, cartesianDataTypes);
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), StDistanceTests::typeErrorMessage)
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override
@@ -48,7 +45,4 @@ public class StDistanceTests extends BinarySpatialFunctionTestCase {
         addSpatialCombinations(suppliers, dataTypes, DataType.DOUBLE, true);
     }
 
-    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return typeErrorMessage(includeOrdinal, validPerPosition, types, true, false);
-    }
 }

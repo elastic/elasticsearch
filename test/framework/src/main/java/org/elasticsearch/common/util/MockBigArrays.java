@@ -142,8 +142,15 @@ public class MockBigArrays extends BigArrays {
      * Create {@linkplain BigArrays} with a configured limit.
      */
     public MockBigArrays(PageCacheRecycler recycler, ByteSizeValue limit) {
+        this(recycler, new LimitedBreaker(CircuitBreaker.REQUEST, limit));
+    }
+
+    /**
+     * Create {@linkplain BigArrays} with a configured request circuit breaker.
+     */
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreaker breaker) {
         this(recycler, mock(CircuitBreakerService.class), true);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new LimitedBreaker(CircuitBreaker.REQUEST, limit));
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
     }
 
     /**

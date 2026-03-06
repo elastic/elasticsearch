@@ -195,11 +195,18 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
         rowFiller.writeKey(position, spare);
 
-        var nextSpare = inputQueue.addRow(groupId, spare);
-        if (nextSpare != spare) {
-            var insertedRow = spare;
+        // Write values BEFORE modifying the queue so that if writeValues throws (e.g. circuit breaker),
+        // spare is not left in both the queue and the spare field (which would double-close).
+        TopNQueue queue = inputQueue.getOrCreateQueue(groupId);
+        if (queue.size() < queue.topCount) {
+            rowFiller.writeValues(position, spare);
+            queue.add(spare);
+            spare = null;
+        } else if (queue.lessThan(queue.top(), spare)) {
+            rowFiller.writeValues(position, spare);
+            TopNRow nextSpare = queue.top();
+            queue.updateTop(spare);
             spare = nextSpare;
-            rowFiller.writeValues(position, insertedRow);
         }
     }
 

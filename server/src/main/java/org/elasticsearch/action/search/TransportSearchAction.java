@@ -240,7 +240,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.activityLogger = new ActivityLogger<>(
-            "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
             logWriterProvider,
@@ -534,6 +533,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
+                if (rewritten.allowPartialSearchResults() == null) {
+                    rewritten.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
+                }
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
                         parentTaskId,
@@ -1288,13 +1290,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             l.onResponse(Map.entry(projectName, new SearchPlanningPhaseResolutionResult(null, error)));
         })
             .delegateFailure(
-                (ignored, connection) -> transportService.sendRequest(
+                (delegate, connection) -> transportService.sendRequest(
                     connection,
                     ResolveIndexAction.REMOTE_TYPE.name(),
                     resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
+                        delegate.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
                         ResolveIndexAction.Response::new,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )

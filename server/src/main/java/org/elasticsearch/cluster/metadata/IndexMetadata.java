@@ -710,6 +710,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean useTimeSeriesSyntheticId;
 
+    private final boolean sequenceNumbersDisabled;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -761,7 +763,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
         @Nullable IndexReshardingMetadata reshardingMetadata,
-        final boolean useTimeSeriesSyntheticId
+        final boolean useTimeSeriesSyntheticId,
+        final boolean sequenceNumbersDisabled
     ) {
         this.index = index;
         this.version = version;
@@ -824,6 +827,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
         this.reshardingMetadata = reshardingMetadata;
         this.useTimeSeriesSyntheticId = useTimeSeriesSyntheticId;
+        this.sequenceNumbersDisabled = sequenceNumbersDisabled;
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -881,7 +885,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -946,7 +951,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1019,7 +1025,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1083,7 +1090,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1142,7 +1150,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
             this.reshardingMetadata,
-            this.useTimeSeriesSyntheticId
+            this.useTimeSeriesSyntheticId,
+            this.sequenceNumbersDisabled
         );
     }
 
@@ -1300,6 +1309,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isPartialSearchableSnapshot() {
         return isPartialSearchableSnapshot;
+    }
+
+    public boolean sequenceNumbersDisabled() {
+        return sequenceNumbersDisabled;
     }
 
     /**
@@ -2570,6 +2583,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     useTimeSeriesSyntheticId = true;
                 }
             }
+            final boolean sequenceNumbersDisabled = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
+                && indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
+                && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2621,7 +2637,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
                 reshardingMetadata,
-                useTimeSeriesSyntheticId
+                useTimeSeriesSyntheticId,
+                sequenceNumbersDisabled
             );
         }
 

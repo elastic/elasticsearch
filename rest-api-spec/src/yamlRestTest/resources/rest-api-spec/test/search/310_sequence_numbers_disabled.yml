@@ -15,7 +15,6 @@ setup:
             index.disable_sequence_numbers: true
             index.seq_no.index_options: doc_values_only
             index.number_of_shards: 1
-            index.number_of_replicas: 0
 
   - do:
       index:

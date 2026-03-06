@@ -435,6 +435,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/143758
+- class: org.elasticsearch.xpack.esql.action.EsqlQueryLoggingIT
+  method: testLogging
+  issue: https://github.com/elastic/elasticsearch/issues/143780
 
 # Examples:
 #

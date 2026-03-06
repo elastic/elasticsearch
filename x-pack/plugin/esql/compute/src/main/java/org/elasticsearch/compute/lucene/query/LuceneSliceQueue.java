@@ -494,17 +494,19 @@ public final class LuceneSliceQueue {
                 if (tsid == null) {
                     continue; // empty
                 }
-                int[] startDocs = ((PartitionedDocValues) tsid).partitionStartDocs();
+                PartitionedDocValues.PrefixedStartDocs prefixedDocs = ((PartitionedDocValues) tsid).partitionStartDocs();
                 int pendingPrefix = -1;
                 int pendingStartDoc = -1;
-                for (int i = 0; i < startDocs.length; i++) {
-                    int startDoc = startDocs[i];
+                int length = prefixedDocs.size();
+                for (int i = 0; i < length; i++) {
+                    int startDoc = prefixedDocs.startDocs()[i];
+                    int prefix = prefixedDocs.prefixes()[i];
                     if (startDoc != pendingStartDoc) {
                         if (pendingPrefix != -1) {
                             slices.computeIfAbsent(pendingPrefix, k -> new Slice(leaves.size())).add(leaf, pendingStartDoc, startDoc);
                         }
                         pendingStartDoc = startDoc;
-                        pendingPrefix = i;
+                        pendingPrefix = prefix;
                     }
                 }
                 if (pendingPrefix >= 0) {

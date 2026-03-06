@@ -1276,26 +1276,29 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public int[] partitionStartDocs() throws IOException {
+        public PrefixedStartDocs partitionStartDocs() throws IOException {
             if (entry instanceof SortedPartitionedEntry partitioned) {
-                int[] startDocs = partitioned.partitioningStartDocs;
-                if (startDocs != null) {
-                    return startDocs;
-                }
                 var slice = data.slice("partitioning", partitioned.partitioningStartPointer, partitioned.partitioningLength);
-                final int size = partitioned.numPartitions;
-                startDocs = new int[size];
-                int lastDoc = -1;
+                final int size = slice.readVInt();
+                int[] prefixes = new int[size];
+                int[] startDocs = new int[size];
+                int last = 0;
                 for (int i = 0; i < size; i++) {
                     final int diff = slice.readVInt();
-                    final int doc = lastDoc + diff;
-                    startDocs[i] = doc;
-                    lastDoc = doc;
+                    final int doc = last + diff;
+                    prefixes[i] = doc;
+                    last = doc;
                 }
-                partitioned.partitioningStartDocs = startDocs;
-                return startDocs;
+                last = 0;
+                for (int i = 0; i < size; i++) {
+                    final int diff = slice.readVInt();
+                    final int doc = last + diff;
+                    startDocs[i] = doc;
+                    last = doc;
+                }
+                return new PrefixedStartDocs(prefixes, startDocs);
             } else {
-                return new int[0];
+                throw new IllegalStateException("should have checked partitionStartDocsAvailable");
             }
         }
     }
@@ -2044,7 +2047,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 SortedPartitionedEntry partitioned = new SortedPartitionedEntry();
                 partitioned.ordsEntry = entry.ordsEntry;
                 partitioned.termsDictEntry = entry.termsDictEntry;
-                partitioned.numPartitions = meta.readVInt();
                 partitioned.partitioningStartPointer = meta.readLong();
                 partitioned.partitioningLength = meta.readVLong();
                 return partitioned;
@@ -2749,10 +2751,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class SortedPartitionedEntry extends SortedEntry {
-        int numPartitions;
         long partitioningStartPointer;
         long partitioningLength;
-        int[] partitioningStartDocs = null; // no synchronized, if not visible - reload
     }
 
     static class SortedSetEntry {

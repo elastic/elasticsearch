@@ -16,7 +16,13 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import java.io.IOException;
 
 public interface PartitionedDocValues {
-    int[] partitionStartDocs() throws IOException;
+    record PrefixedStartDocs(int[] prefixes, int[] startDocs) {
+        public int size() {
+            return prefixes.length;
+        }
+    }
+
+    PrefixedStartDocs partitionStartDocs() throws IOException;
 
     boolean partitionStartDocsAvailable();
 

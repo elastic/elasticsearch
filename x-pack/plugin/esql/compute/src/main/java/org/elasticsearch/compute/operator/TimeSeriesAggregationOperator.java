@@ -8,10 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -196,15 +194,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (blockHash instanceof TimeSeriesBlockHash == false) {
             return;
         }
-        int[] prefixes = new int[256];
-        BytesRefHashTable tsidHash = ((TimeSeriesBlockHash) blockHash).tsidHash;
-        BytesRef scratch = new BytesRef();
-        for (long i = 0; i < tsidHash.size(); i++) {
-            BytesRef term = tsidHash.get(i, scratch);
-            int prefix = term.bytes[term.offset + term.length - 1] & 0xFF;
-            prefixes[prefix]++;
-        }
-        System.err.println("--> prefixes " + Arrays.toString(prefixes));
         final long windowMillis = largestWindowMillis();
         if (windowMillis <= 0) {
             return;

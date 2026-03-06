@@ -50,7 +50,10 @@ import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -59,6 +62,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.com
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.PARTITION_PREFIX_BITS;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
@@ -724,54 +728,77 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     private static class PrefixedPartitions {
-        private int idx = -1;
-        private long nextOrd = -1;
-        final long[] ords = new long[256];
-        final int[] startDocs = new int[256];
+        private static final VarHandle BE_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+
+        private int nextOrd = -1;
+        private final int[] ords = new int[1 << PARTITION_PREFIX_BITS];
+
+        private int numPrefixes;
+        private int idx = 0;
+        private int[] prefixes;
+        private int[] startDocs;
 
         PrefixedPartitions() {
             Arrays.fill(ords, -1);
-            Arrays.fill(startDocs, -1);
+        }
+
+
+        private static int prefix(BytesRef term) {
+            if (term.length < 2) {
+                return term.length == 0 ? 0 : (term.bytes[term.offset] & 0xFF) << (PARTITION_PREFIX_BITS - Byte.SIZE);
+            }
+            return ((short) BE_SHORT.get(term.bytes, term.offset) & 0xFFFF) >>> (Short.SIZE - PARTITION_PREFIX_BITS);
         }
 
         void trackTerm(BytesRef term, long ord) {
-            final int index = term.length == 0 ? 0 : term.bytes[term.offset] & 0xFF;
-            if (ords[index] < 0) {
-                ords[index] = ord;
+            final int prefix = prefix(term);
+            if (ords[prefix] < 0) {
+                ords[prefix] = Math.toIntExact(ord);
+                numPrefixes++;
             }
         }
 
         void prepareForTrackingDocs() {
-            nextOrd();
-        }
-
-        private void nextOrd() {
-            nextOrd = -1;
-            while (++idx < ords.length) {
-                nextOrd = ords[idx];
-                if (nextOrd >= 0) {
-                    break;
+            // compact the ords
+            prefixes = new int[numPrefixes];
+            int dst = 0;
+            for (int i = 0; i < ords.length; i++) {
+                final int ord = ords[i];
+                if (ord >= 0) {
+                    prefixes[dst] = i;
+                    ords[dst++] = ords[i];
                 }
+            }
+            assert dst == numPrefixes : dst + " != " + numPrefixes;
+            startDocs = new int[numPrefixes];
+            if (idx < numPrefixes) {
+                nextOrd = ords[idx];
             }
         }
 
         void trackDoc(long ord, int startDoc) {
             if (nextOrd == ord) {
                 startDocs[idx] = startDoc;
-                nextOrd();
+                if (++idx < numPrefixes) {
+                    nextOrd = ords[idx];
+                }
             }
         }
 
         void flush(IndexOutput data, IndexOutput meta) throws IOException {
             final long startPointer = data.getFilePointer();
-            int doc = -1;
-            for (int prefixStartDoc : startDocs) {
-                int next = Math.max(doc, prefixStartDoc);
-                data.writeVInt(next - doc);
-                doc = next;
+            data.writeVInt(numPrefixes);
+            int last = 0;
+            for (int prefix : prefixes) {
+                data.writeVInt(prefix - last);
+                last = prefix;
+            }
+            last = 0;
+            for (int startDoc : startDocs) {
+                data.writeVInt(startDoc - last);
+                last = startDoc;
             }
             final long length = data.getFilePointer() - startPointer;
-            meta.writeVInt(startDocs.length);
             meta.writeLong(startPointer);
             meta.writeVLong(length);
         }

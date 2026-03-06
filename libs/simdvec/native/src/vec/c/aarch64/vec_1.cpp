@@ -20,10 +20,6 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-#ifndef SQRI8_STRIDE_BYTES_LEN
-#define SQRI8_STRIDE_BYTES_LEN 16 // Must be a power of 2
-#endif
-
 struct cosine_results_t {
     int32_t sum;
     int32_t norm1;
@@ -375,41 +371,41 @@ EXPORT void vec_doti8_bulk_offsets(
     doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
+static inline int32x4x2_t sqr_vector(const int32x4x2_t acc, const int16x8_t diff) {
+    int32x4x2_t ret;
+    ret.val[0] = vmlal_s16(acc.val[0], vget_low_s16(diff), vget_low_s16(diff));
+    ret.val[1] = vmlal_s16(acc.val[1], vget_high_s16(diff), vget_high_s16(diff));
+    return ret;
+}
+
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32x4_t acc1 = vdupq_n_s32(0);
-    int32x4_t acc2 = vdupq_n_s32(0);
-    int32x4_t acc3 = vdupq_n_s32(0);
-    int32x4_t acc4 = vdupq_n_s32(0);
+    int32x4x2_t acc0 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    int32x4x2_t acc1 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
 
-    for (int i = 0; i < dims; i += SQRI8_STRIDE_BYTES_LEN) {
-        int8x16_t va1 = vld1q_s8(a + i);
-        int8x16_t vb1 = vld1q_s8(b + i);
+    constexpr int stride = sizeof(int8x16_t);
+    for (int i = 0; i < dims; i += stride) {
+        int8x16_t va = vld1q_s8(a + i);
+        int8x16_t vb = vld1q_s8(b + i);
 
-        int16x8_t tmp1 = vsubl_s8(vget_low_s8(va1), vget_low_s8(vb1));
-        int16x8_t tmp2 = vsubl_s8(vget_high_s8(va1), vget_high_s8(vb1));
+        int16x8x2_t diff = create_pair<vsubl_s8>(va, vb);
 
-        acc1 = vmlal_s16(acc1, vget_low_s16(tmp1), vget_low_s16(tmp1));
-        acc2 = vmlal_s16(acc2, vget_high_s16(tmp1), vget_high_s16(tmp1));
-        acc3 = vmlal_s16(acc3, vget_low_s16(tmp2), vget_low_s16(tmp2));
-        acc4 = vmlal_s16(acc4, vget_high_s16(tmp2), vget_high_s16(tmp2));
+        acc0 = sqr_vector(acc0, diff.val[0]);
+        acc1 = sqr_vector(acc1, diff.val[1]);
     }
 
     // reduce
-    int32x4_t acc5 = vaddq_s32(acc1, acc2);
-    int32x4_t acc6 = vaddq_s32(acc3, acc4);
-    return vaddvq_s32(vaddq_s32(acc5, acc6));
+    return vaddvq_s32(vaddq_s32(combine<vaddq_s32>(acc0), combine<vaddq_s32>(acc1)));
 }
 
 static inline int32_t sqri8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > SQRI8_STRIDE_BYTES_LEN) {
-        i += dims & ~(SQRI8_STRIDE_BYTES_LEN - 1);
+    if (dims > sizeof(int8x16_t)) {
+        i += dims & ~(sizeof(int8x16_t) - 1);
         res = sqri8_inner(a, b, i);
     }
     for (; i < dims; i++) {
-        int32_t dist = a[i] - b[i];
-        res += dist * dist;
+        res += sqr_scalar(a[i], b[i]);
     }
     return res;
 }

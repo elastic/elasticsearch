@@ -3,7 +3,7 @@
 ## Parameters
 
 `buckets`
-:   Target number of buckets, or desired bucket size. When a number, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. When a duration or period, it is the explicit bucket size.
+:   Target number of buckets, or desired bucket size. When a number is provided, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. When a duration or period is provided, it is used as the explicit bucket size.
 
 `from`
 :   Start of the range. Required with a numeric `buckets` {applies_to}`stack: ga 9.4`.

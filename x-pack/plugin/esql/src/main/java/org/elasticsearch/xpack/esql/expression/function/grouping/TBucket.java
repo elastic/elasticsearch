@@ -65,26 +65,51 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
         description = """
-            Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets can either be provided \
-            directly as a duration or period, or chosen based on a target bucket count \
-            from explicit `from`/`to` parameters {applies_to}`stack: ga 9.4`.""",
+            Creates groups of values - buckets - out of a @timestamp attribute.
+            The size of the buckets can either be provided directly as a duration or period, or chosen based on a recommended count and a range.""",
         examples = {
+            @Example(
+                description = """
+                    `TBUCKET` can work in two modes: one in which the size of the bucket is computed
+                    based on a buckets count recommendation and a range, and
+                    another in which the bucket size is provided directly as a duration or period.
+
+                    Using a target number of buckets, a start of a range, and an end of a range,
+                    `TBUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer.
+                    For example, asking for at most 3 buckets over a 2 hour range results in hourly buckets
+                    {applies_to}`stack: ga 9.4`:""",
+                file = "tbucket",
+                tag = "tbucketWithNumericBucketsAndExplicitFromToCount",
+                explanation = """
+                    The goal isn't to provide **exactly** the target number of buckets,
+                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
+            ),
+            @Example(
+                description = """
+                    Asking for more buckets can result in a finer granularity.
+                    For example, asking for at most 20 buckets in the same range results in 10-minute buckets
+                    {applies_to}`stack: ga 9.4`:""",
+                file = "tbucket",
+                tag = "tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity",
+                explanation = """
+                    ::::{note}
+                    `TBUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket
+                    outside the range. Combine `TBUCKET` with [`WHERE`](/reference/query-languages/esql/commands/where.md)
+                    to filter rows.
+                    ::::"""
+            ),
             @Example(description = """
-                Provide a bucket size as an argument.""", file = "tbucket", tag = "docsTBucketByOneHourDuration", explanation = """
+                If the desired bucket size is known in advance, simply provide it as the first argument,
+                leaving the range out:""", file = "tbucket", tag = "docsTBucketByOneHourDuration", explanation = """
                 ::::{note}
                 When providing the bucket size, it must be a time duration or date period.
                 Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
                 ::::"""),
             @Example(
-                description = """
-                    Provide a string representation of bucket size as an argument.""",
+                description = "The bucket size can also be provided as a string:",
                 file = "tbucket",
-                tag = "docsTBucketByOneHourDurationAsString",
-                explanation = """
-                    ::::{note}
-                    When providing the bucket size, it can be a string representation of time duration or date period.
-                    For example, "1 hour". Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
-                    ::::"""
+                tag = "docsTBucketByOneHourDurationAsString"
             ) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         type = FunctionType.GROUPING
@@ -95,8 +120,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             name = "buckets",
             type = { "integer", "date_period", "time_duration" },
             description = "Target number of buckets, or desired bucket size. "
-                + "When a number, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. "
-                + "When a duration or period, it is the explicit bucket size."
+                + "When a number is provided, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. "
+                + "When a duration or period is provided, it is used as the explicit bucket size."
         ) Expression buckets,
         @Param(
             name = "from",

@@ -263,7 +263,7 @@ public class ReplicasLoadBalancingScaler {
     /**
      * The result of replicas load balancing calculations.
      *
-     * @param immediateReplicaScaleDown a map of indices to the number of replicas that must be immediately scaled down to obbey the current
+     * @param immediateReplicaScaleDown a map of indices to the number of replicas that must be immediately scaled down to obey the current
      *                                 cluster topology bounds
      * @param desiredReplicasPerIndex a map of indices to the desired number of replicas, ordered by relative search load (high to low)
      * @param indicesBlockedFromScaleUp (used for metrics) the number of indices blocked from scaling up

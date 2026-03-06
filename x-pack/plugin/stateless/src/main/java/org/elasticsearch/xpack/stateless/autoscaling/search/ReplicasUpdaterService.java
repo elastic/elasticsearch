@@ -655,17 +655,17 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicasLoadBalancingResult replicasLoadBalancingResult) {
-                    Map<String, Integer> instantFailoverReplicaChanges = enableReplicasForInstantFailover
+                    Map<String, Integer> instantFailoverDesiredReplicas = enableReplicasForInstantFailover
                         ? getRecommendedReplicasState(rankingContext)
                         : Map.of();
                     computeAndApplyReplicaChanges(
                         replicasScalerCacheBudget.applyCacheBudgetConstraint(
                             rankingContext,
-                            instantFailoverReplicaChanges,
+                            instantFailoverDesiredReplicas,
                             replicasLoadBalancingResult,
                             immediateScaleDown
                         ),
-                        instantFailoverReplicaChanges,
+                        instantFailoverDesiredReplicas,
                         rankingContext,
                         immediateScaleDown,
                         onlyScaleDownToTopologyBounds,
@@ -677,7 +677,10 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 public void onFailure(Exception e) {
                     // famous last words, this should never happen. well, falling back to executing replicas for instant failover if it
                     // does indeed happen
-                    LOGGER.error("Error getting replica changes from load balancing scaler. Executing replicas for instant failover.", e);
+                    LOGGER.error(
+                        "Error getting replica recommendations from load balancing scaler. Executing replicas for instant failover.",
+                        e
+                    );
                     computeAndApplyReplicaChanges(
                         EMPTY_RESULT,
                         enableReplicasForInstantFailover ? getRecommendedReplicasState(rankingContext) : Map.of(),
@@ -700,7 +703,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     private void computeAndApplyReplicaChanges(
         ReplicasLoadBalancingResult replicasLoadBalancingResult,
-        Map<String, Integer> instantFailoverReplicaChanges,
+        Map<String, Integer> instantFailoverDesiredReplicas,
         ReplicaRankingContext rankingContext,
         boolean requestedImmediateScaleDown,
         boolean onlyScaleDownToTopologyBounds,
@@ -714,7 +717,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             ? ReplicasUpdaterService.this.numSearchNodes
             : desiredTopologyContext.getDesiredClusterTopology().getSearch().getReplicas();
 
-        Map<String, Integer> loadBalancingReplicaChanges = replicasLoadBalancingResult.desiredReplicasPerIndex();
+        Map<String, Integer> loadBalancingDesiredReplicas = replicasLoadBalancingResult.desiredReplicasPerIndex();
         Map<Integer, Set<String>> immediateScaleDownChanges = new HashMap<>(
             replicasLoadBalancingResult.immediateReplicaScaleDown().isEmpty() ? 0 : 5, // picking a size likely to be close
                                                                                        // to how many keys we'll have (note
@@ -756,8 +759,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 }
             }
             int recommendedReplicas = Math.max(
-                instantFailoverReplicaChanges.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS),
-                loadBalancingReplicaChanges.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS)
+                instantFailoverDesiredReplicas.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS),
+                loadBalancingDesiredReplicas.getOrDefault(indexName, DEFAULT_NUMBER_OF_REPLICAS)
             );
             totalDesiredReplicas += recommendedReplicas;
             if (recommendedReplicas > currentReplicas) {
@@ -821,7 +824,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             }
             ReplicasUpdaterService.this.replicasScaleDownState.clearStateExceptForIndices(indicesTrackedForScaleDown);
         }
-        LOGGER.debug("RIF: {}, RLB: {}", instantFailoverReplicaChanges, replicasLoadBalancingResult);
+        LOGGER.debug("RIF: {}, RLB: {}", instantFailoverDesiredReplicas, replicasLoadBalancingResult);
         LOGGER.info(
             "Finished replicas update task in [{}]ms. Indices scaled up: {}, scaled down: {}. "
                 + "SPmin: {}, totalInteractiveSize: {}, replica threshold: {}, onlyScaleDownToTopologyBounds: {}",

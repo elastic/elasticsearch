@@ -665,14 +665,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             String planString = request.isProfile() ? physicalPlan.toString() : null;
 
-            // Build operators using the planning system with the actual source factory
+            // Build operators using the planning system with the actual source factory.
             LocalExecutionPlanner.PhysicalOperation physicalOperation = executionPlanner.buildOperatorFactories(
                 plannerSettings,
                 physicalPlan,
                 BlockOptimization.NONE,
                 sourceFactory,
                 foldCtx,
-                queryListFactory
+                queryListFactory,
+                request.source
             );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(

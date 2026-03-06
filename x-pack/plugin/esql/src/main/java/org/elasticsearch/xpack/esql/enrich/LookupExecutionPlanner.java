@@ -161,6 +161,8 @@ public class LookupExecutionPlanner {
 
     /**
      * Creates a PhysicalOperation with operator factories, matching LocalExecutionPlanner's pattern.
+     * @param lookupSource the Source to use for warning messages (from the original LOOKUP JOIN expression),
+     *                     passed separately because plan nodes conventionally discard Source during serialization.
      */
     public PhysicalOperation buildOperatorFactories(
         PlannerSettings plannerSettings,
@@ -168,9 +170,18 @@ public class LookupExecutionPlanner {
         BlockOptimization blockOptimization,
         SourceOperatorFactory sourceFactory,
         FoldContext foldCtx,
-        QueryListFromPlanFactory queryListFromPlanFactory
+        QueryListFromPlanFactory queryListFromPlanFactory,
+        Source lookupSource
     ) {
-        return planLookupNode(plannerSettings, physicalPlan, blockOptimization, sourceFactory, foldCtx, queryListFromPlanFactory);
+        return planLookupNode(
+            plannerSettings,
+            physicalPlan,
+            blockOptimization,
+            sourceFactory,
+            foldCtx,
+            queryListFromPlanFactory,
+            lookupSource
+        );
     }
 
     /**
@@ -230,7 +241,8 @@ public class LookupExecutionPlanner {
         BlockOptimization optimizationState,
         SourceOperatorFactory sourceFactory,
         FoldContext foldCtx,
-        QueryListFromPlanFactory queryListFromPlanFactory
+        QueryListFromPlanFactory queryListFromPlanFactory,
+        Source lookupSource
     ) {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
@@ -240,7 +252,8 @@ public class LookupExecutionPlanner {
                 optimizationState,
                 sourceFactory,
                 foldCtx,
-                queryListFromPlanFactory
+                queryListFromPlanFactory,
+                lookupSource
             );
         } else {
             // there could be a leaf node such as ParameterizedQueryExec
@@ -249,7 +262,13 @@ public class LookupExecutionPlanner {
 
         // Plan this node based on its type
         if (node instanceof ParameterizedQueryExec parameterizedQueryExec) {
-            return planParameterizedQueryExec(parameterizedQueryExec, optimizationState, sourceFactory, queryListFromPlanFactory);
+            return planParameterizedQueryExec(
+                parameterizedQueryExec,
+                optimizationState,
+                sourceFactory,
+                queryListFromPlanFactory,
+                lookupSource
+            );
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof FilterExec filterExec) {
@@ -267,7 +286,8 @@ public class LookupExecutionPlanner {
         ParameterizedQueryExec parameterizedQueryExec,
         BlockOptimization optimizationState,
         SourceOperatorFactory sourceFactory,
-        QueryListFromPlanFactory queryListFromPlanFactory
+        QueryListFromPlanFactory queryListFromPlanFactory,
+        Source lookupSource
     ) {
         Layout.Builder layoutBuilder = new Layout.Builder();
         List<Attribute> output = parameterizedQueryExec.output();
@@ -283,7 +303,7 @@ public class LookupExecutionPlanner {
             parameterizedQueryExec.matchFields(),
             parameterizedQueryExec.joinOnConditions(),
             parameterizedQueryExec.query(),
-            parameterizedQueryExec.source(),
+            lookupSource,
             queryListFromPlanFactory
         );
 

@@ -24,6 +24,8 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -37,6 +39,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
@@ -64,6 +67,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.verification.VerificationMode;
 
 import java.time.Clock;
@@ -74,7 +78,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -97,6 +100,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransformTaskTests extends ESTestCase {
+
+    @BeforeClass
+    public static void registerTaskExecutor() {
+        PersistentTasksExecutor<?> mockExecutor = mock(PersistentTasksExecutor.class);
+        when(mockExecutor.getTaskName()).thenReturn(TransformField.TASK_NAME);
+        new PersistentTasksExecutorRegistry(Collections.singletonList(mockExecutor));
+    }
 
     private TestThreadPool threadPool;
     private Client client;
@@ -327,7 +337,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformTask = new TransformTask(
             42,
             "some_type",
-            "some_action",
+            TransformField.TASK_NAME + "[c]",
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,

@@ -16,13 +16,13 @@ SORT expression1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., expressionN [ASC/DESC
 `expressionX`
 :   The expression to sort on. Can be a column name, a
     [function](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) (for example,
-    `length(field)`, `year(date)`), or an arithmetic expression (for example, `salary * 2`).
+    `length(field)`, `DATE_EXTRACT("year", date)`), or an arithmetic expression (for example, `salary * 2`).
     The expression is evaluated per row and the result is used for ordering.
 
 ## Description
 
 The `SORT` processing command sorts a table on one or more expressions. You can sort by any
-expression, not only column names (for example, `length(first_name)` or `year(hire_date)`).
+expression, not only column names—for example, `length(first_name)` or `DATE_EXTRACT("year", hire_date)`.
 
 The default sort order is ascending. Use `ASC` or `DESC` to specify an explicit
 sort order.

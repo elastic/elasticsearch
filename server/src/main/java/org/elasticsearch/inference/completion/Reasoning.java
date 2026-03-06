@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLED_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCLUDE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @param maxTokens The maximum number of tokens to use for reasoning. This is an optional parameter.
  * @param summary The {@link ReasoningSummary} level to provide. This is an optional parameter.
  * @param exclude Whether to exclude reasoning from the response. This is an optional parameter.
- * @param enable Whether to enable reasoning. This is an optional parameter.
+ * @param enabled Whether to enable reasoning. This is an optional parameter.
  * @see ReasoningEffort
  * @see ReasoningSummary
  */
@@ -47,7 +47,7 @@ public record Reasoning(
     @Nullable Long maxTokens,
     @Nullable ReasoningSummary summary,
     @Nullable Boolean exclude,
-    @Nullable Boolean enable
+    @Nullable Boolean enabled
 ) implements ToXContentObject, NamedWriteable {
 
     public static final String NAME = "reasoning";
@@ -65,17 +65,17 @@ public record Reasoning(
 
     static {
         /*
-         * The reasoning configuration requires at least one of [effort, max_tokens, enable] to be provided.
+         * The reasoning configuration requires at least one of [effort, max_tokens, enabled] to be provided.
          * [effort] and [max_tokens] cannot be specified together as they represent different ways to configure reasoning.
          */
-        PARSER.declareRequiredFieldSet(EFFORT_FIELD, MAX_TOKENS_FIELD, ENABLE_FIELD);
+        PARSER.declareRequiredFieldSet(EFFORT_FIELD, MAX_TOKENS_FIELD, ENABLED_FIELD);
         PARSER.declareExclusiveFieldSet(EFFORT_FIELD, MAX_TOKENS_FIELD);
 
         PARSER.declareString(optionalConstructorArg(), new ParseField(EFFORT_FIELD));
         PARSER.declareLong(optionalConstructorArg(), new ParseField(MAX_TOKENS_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(EXCLUDE_FIELD));
-        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ENABLE_FIELD));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ENABLED_FIELD));
     }
 
     public Reasoning(
@@ -83,13 +83,13 @@ public record Reasoning(
         @Nullable Long maxTokens,
         @Nullable ReasoningSummary summary,
         @Nullable Boolean exclude,
-        @Nullable Boolean enable
+        @Nullable Boolean enabled
     ) {
         this.effort = effort;
         this.maxTokens = maxTokens;
         this.summary = summary;
         this.exclude = exclude;
-        this.enable = enable;
+        this.enabled = enabled;
         validate();
     }
 
@@ -97,15 +97,15 @@ public record Reasoning(
      * Method to validate the reasoning configuration.
      * It ensures that:
      * <ul>
-     *     <li>Either [effort] is not null, [max_tokens] is not null, or [enable] is true.
+     *     <li>Either [effort] is not null, [max_tokens] is not null, or [enabled] is true.
      *     If none of these conditions are met, an exception is thrown.</li>
      *     <li>Both [effort] and [max_tokens] cannot be specified together. If both are non-null, an exception is thrown.</li>
      * </ul>
      */
     private void validate() {
-        if ((effort == null && maxTokens == null) && Boolean.TRUE.equals(enable) == false) {
+        if ((effort == null && maxTokens == null) && Boolean.TRUE.equals(enabled) == false) {
             throw new ElasticsearchStatusException(
-                "Either [effort] or [max_tokens] must not be null, or [enable] must be true.",
+                "Either [effort] or [max_tokens] must not be null, or [enabled] must be true.",
                 RestStatus.BAD_REQUEST
             );
         }
@@ -130,7 +130,7 @@ public record Reasoning(
         out.writeOptionalVLong(maxTokens);
         out.writeOptionalEnum(summary);
         out.writeOptionalBoolean(exclude);
-        out.writeOptionalBoolean(enable);
+        out.writeOptionalBoolean(enabled);
     }
 
     @Override
@@ -148,8 +148,8 @@ public record Reasoning(
         if (exclude != null) {
             builder.field(EXCLUDE_FIELD, exclude);
         }
-        if (enable != null) {
-            builder.field(ENABLE_FIELD, enable);
+        if (enabled != null) {
+            builder.field(ENABLED_FIELD, enabled);
         }
         builder.endObject();
         return builder;

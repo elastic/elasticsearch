@@ -83,6 +83,10 @@ public record Message(
         throw new XContentParseException("Expected an array start token or a value string token but found token [" + token + "]");
     }
 
+    public Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls) {
+        this(content, role, toolCallId, toolCalls, null, null);
+    }
+
     public Message(StreamInput in) throws IOException {
         this(
             in.readOptionalNamedWriteable(Content.class),

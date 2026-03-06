@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLED_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCLUDE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
@@ -37,7 +37,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
                 "effort": "medium",
                 "summary": "detailed",
                 "exclude": false,
-                "enable": false
+                "enabled": false
             }
             """;
 
@@ -79,10 +79,10 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         }
     }
 
-    public void testParsingReasoning_OnlyEnable() throws IOException {
+    public void testParsingReasoning_OnlyEnabled() throws IOException {
         String requestJson = """
             {
-                "enable": true
+                "enabled": true
             }
             """;
 
@@ -108,10 +108,10 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         }
     }
 
-    public void testParsingReasoning_OnlyEnableFalse_ThrowsException() throws IOException {
+    public void testParsingReasoning_OnlyEnabledFalse_ThrowsException() throws IOException {
         String requestJson = """
             {
-                "enable": false
+                "enabled": false
             }
             """;
 
@@ -121,7 +121,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(rootCause.getMessage(), is("Either [effort] or [max_tokens] must not be null, or [enable] must be true."));
+            assertThat(rootCause.getMessage(), is("Either [effort] or [max_tokens] must not be null, or [enabled] must be true."));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }
@@ -131,7 +131,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
-            assertThat(exception.getMessage(), is("Required one of fields [effort, max_tokens, enable], but none were specified."));
+            assertThat(exception.getMessage(), is("Required one of fields [effort, max_tokens, enabled], but none were specified."));
         }
     }
 
@@ -205,7 +205,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         Long maxTokens = instance.maxTokens();
         Reasoning.ReasoningSummary summary = instance.summary();
         Boolean exclude = instance.exclude();
-        Boolean enable = instance.enable();
+        Boolean enabled = instance.enabled();
 
         // Build eligible fields for mutation following the validation rules of Reasoning class.
         // This prevents mutation of fields that would lead to an invalid Reasoning instance.
@@ -220,11 +220,11 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
                 () -> randomBoolean() ? randomFrom(Reasoning.ReasoningSummary.values()) : null
             );
             case EXCLUDE_FIELD -> exclude = randomValueOtherThan(exclude, ESTestCase::randomOptionalBoolean);
-            case ENABLE_FIELD -> enable = randomValueOtherThan(enable, ESTestCase::randomOptionalBoolean);
+            case ENABLED_FIELD -> enabled = randomValueOtherThan(enabled, ESTestCase::randomOptionalBoolean);
             default -> throw new AssertionError("Illegal mutation branch");
         }
         // Return new Reasoning instance. Business rules are enforced by eligible field selection.
-        return new Reasoning(effort, maxTokens, summary, exclude, enable);
+        return new Reasoning(effort, maxTokens, summary, exclude, enabled);
     }
 
     private static Set<String> buildEligibleFields(Reasoning.ReasoningEffort effort, Long maxTokens) {
@@ -240,9 +240,9 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         if (maxTokens != null) {
             eligibleFields.add(MAX_TOKENS_FIELD);
         }
-        // Only mutate enable if effort or maxTokens is present
+        // Only mutate enabled if effort or maxTokens is present
         if (effort != null || maxTokens != null) {
-            eligibleFields.add(ENABLE_FIELD);
+            eligibleFields.add(ENABLED_FIELD);
         }
         return eligibleFields;
     }
@@ -250,18 +250,18 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     static Reasoning randomReasoning() {
         var effort = randomBoolean() ? randomFrom(Reasoning.ReasoningEffort.values()) : null;
         var maxTokens = (effort == null && randomBoolean()) ? randomNonNegativeLong() : null;
-        Boolean enable;
+        Boolean enabled;
         if (effort == null && maxTokens == null) {
-            enable = true;
+            enabled = true;
         } else {
-            enable = randomOptionalBoolean();
+            enabled = randomOptionalBoolean();
         }
         return new Reasoning(
             effort,
             maxTokens,
             randomBoolean() ? randomFrom(Reasoning.ReasoningSummary.values()) : null,
             randomOptionalBoolean(),
-            enable
+            enabled
         );
     }
 }

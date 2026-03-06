@@ -10,6 +10,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
@@ -129,7 +130,7 @@ public enum ChunkedToXContentHelper {
      * @param value value for this field, or null if the field should be omitted
      * @return iterator for the given field, or an empty iterator if the value is null
      */
-    public static Iterator<ToXContent> optionalField(String name, Object value) {
+    public static Iterator<ToXContent> chunkNullable(String name, @Nullable Object value) {
         if (value == null) {
             return Collections.emptyIterator();
         } else {

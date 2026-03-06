@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.optionalField;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -76,7 +76,6 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
          * 2. summary
          * 3. text and/or signature (at least one must be present)
          */
-        PARSER.declareRequiredFieldSet(DATA_FIELD, SUMMARY_FIELD, TEXT_FIELD, SIGNATURE_FIELD);
         PARSER.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, TEXT_FIELD);
         PARSER.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, SIGNATURE_FIELD);
 
@@ -170,18 +169,18 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(optionalField(FORMAT_FIELD, format()), optionalField(ID_FIELD, id()), optionalField(INDEX_FIELD, index()));
+        return Iterators.concat(chunkNullable(FORMAT_FIELD, format()), chunkNullable(ID_FIELD, id()), chunkNullable(INDEX_FIELD, index()));
     }
 
-    protected String format() {
+    public String format() {
         return format;
     }
 
-    protected String id() {
+    public String id() {
         return id;
     }
 
-    protected Long index() {
+    public Long index() {
         return index;
     }
 
@@ -214,7 +213,8 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         public EncryptedReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String data) {
             super(format, id, index);
-            this.data = Objects.requireNonNull(data);
+            ReasoningDetail.validateRequiredField(data, DATA_FIELD, ReasoningDetailType.ENCRYPTED.value);
+            this.data = data;
         }
 
         public EncryptedReasoningDetail(StreamInput in) throws IOException {
@@ -231,6 +231,10 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public String data() {
+            return data;
         }
 
         @Override
@@ -284,12 +288,17 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         public SummaryReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String summary) {
             super(format, id, index);
-            this.summary = Objects.requireNonNull(summary);
+            validateRequiredField(summary, SUMMARY_FIELD, ReasoningDetailType.SUMMARY.value);
+            this.summary = summary;
         }
 
         public SummaryReasoningDetail(StreamInput in) throws IOException {
             super(in);
             this.summary = in.readString();
+        }
+
+        public String summary() {
+            return summary;
         }
 
         @Override
@@ -386,6 +395,14 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
             this.signature = in.readOptionalString();
         }
 
+        public String text() {
+            return text;
+        }
+
+        public String signature() {
+            return signature;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -414,8 +431,8 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
                 ChunkedToXContentHelper.startObject(),
                 chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.TEXT.value)),
                 super.toXContentChunked(params),
-                optionalField(TEXT_FIELD, text),
-                optionalField(SIGNATURE_FIELD, signature),
+                chunkNullable(TEXT_FIELD, text),
+                chunkNullable(SIGNATURE_FIELD, signature),
                 ChunkedToXContentHelper.endObject()
             );
         }
@@ -447,6 +464,15 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
                 format(),
                 id(),
                 index()
+            );
+        }
+    }
+
+    private static void validateRequiredField(Object value, String fieldName, String reasoningDetailType) {
+        if (value == null) {
+            throw new ElasticsearchStatusException(
+                Strings.format("Required field [%s] is missing for reasoning details of type [%s]", fieldName, reasoningDetailType),
+                RestStatus.BAD_REQUEST
             );
         }
     }

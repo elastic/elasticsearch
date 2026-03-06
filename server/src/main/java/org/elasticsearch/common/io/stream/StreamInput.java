@@ -1361,7 +1361,10 @@ public abstract class StreamInput extends InputStream {
      * If the returned list contains any entries it will be a (mutable) {@link ArrayList}. If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readOptionalNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
-        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+        if (readBoolean()) {
+            return readNamedWriteableCollectionAsList(categoryClass);
+        }
+        return null;
     }
 
     /**

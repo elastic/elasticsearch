@@ -30,7 +30,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.optionalField;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHED_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHOICES_FIELD;
@@ -242,7 +242,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 return Iterators.concat(
                     ChunkedToXContentHelper.startObject(),
                     delta.toXContentChunked(params),
-                    optionalField(FINISH_REASON_FIELD, finishReason),
+                    chunkNullable(FINISH_REASON_FIELD, finishReason),
                     chunk((b, p) -> b.field(INDEX_FIELD, index)),
                     ChunkedToXContentHelper.endObject()
                 );
@@ -256,13 +256,22 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             }
 
             public record Delta(
-                String content,
-                String refusal,
-                String role,
-                List<ToolCall> toolCalls,
-                String reasoning,
-                List<ReasoningDetail> reasoningDetails
+                @Nullable String content,
+                @Nullable String refusal,
+                @Nullable String role,
+                @Nullable List<ToolCall> toolCalls,
+                @Nullable String reasoning,
+                @Nullable List<ReasoningDetail> reasoningDetails
             ) implements Writeable {
+
+                public Delta(
+                    @Nullable String content,
+                    @Nullable String refusal,
+                    @Nullable String role,
+                    @Nullable List<ToolCall> toolCalls
+                ) {
+                    this(content, refusal, role, toolCalls, null, null);
+                }
 
                 private Delta(StreamInput in) throws IOException {
                     this(
@@ -290,10 +299,10 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
                     var xContent = Iterators.concat(
                         ChunkedToXContentHelper.startObject(DELTA_FIELD),
-                        optionalField(CONTENT_FIELD, content),
-                        optionalField(REFUSAL_FIELD, refusal),
-                        optionalField(ROLE_FIELD, role),
-                        optionalField(REASONING_FIELD, reasoning)
+                        chunkNullable(CONTENT_FIELD, content),
+                        chunkNullable(REFUSAL_FIELD, refusal),
+                        chunkNullable(ROLE_FIELD, role),
+                        chunkNullable(REASONING_FIELD, reasoning)
                     );
 
                     if (toolCalls != null && toolCalls.isEmpty() == false) {
@@ -326,7 +335,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     out.writeOptionalCollection(toolCalls);
                     if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
                         out.writeOptionalString(reasoning);
-                        out.writeOptionalCollection(reasoningDetails);
+                        out.writeOptionalNamedWriteableCollection(reasoningDetails);
                     }
                 }
 
@@ -358,15 +367,15 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         var content = Iterators.concat(
                             ChunkedToXContentHelper.startObject(),
                             chunk((b, p) -> b.field(INDEX_FIELD, index)),
-                            optionalField(ID_FIELD, id)
+                            chunkNullable(ID_FIELD, id)
                         );
 
                         if (function != null) {
                             content = Iterators.concat(
                                 content,
                                 ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
-                                optionalField(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
-                                optionalField(FUNCTION_NAME_FIELD, function.name()),
+                                chunkNullable(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
+                                chunkNullable(FUNCTION_NAME_FIELD, function.name()),
                                 ChunkedToXContentHelper.endObject()
                             );
                         }

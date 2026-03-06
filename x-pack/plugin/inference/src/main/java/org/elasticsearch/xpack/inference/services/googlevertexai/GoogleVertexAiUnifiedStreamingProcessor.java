@@ -162,9 +162,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),
                 null,
                 role,
-                finalToolCalls,
-                null,
-                null
+                finalToolCalls
             );
 
             return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, candidate.finishReason(), candidate.index());

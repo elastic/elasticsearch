@@ -192,9 +192,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                         (String) args[0],
                         (String) args[1],
                         (String) args[2],
-                        (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall>) args[3],
-                        null,
-                        null
+                        (List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall>) args[3]
                     )
                 );
 

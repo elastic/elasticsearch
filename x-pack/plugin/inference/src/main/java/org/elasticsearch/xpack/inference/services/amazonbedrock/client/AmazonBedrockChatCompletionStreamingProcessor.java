@@ -220,14 +220,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @return a stream of ChatCompletionChunk
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
-        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-            null,
-            null,
-            getRole(event),
-            null,
-            null,
-            null
-        );
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, getRole(event), null);
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);

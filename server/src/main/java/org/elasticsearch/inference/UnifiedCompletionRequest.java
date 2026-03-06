@@ -204,6 +204,19 @@ public record UnifiedCompletionRequest(
         return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null);
     }
 
+    public UnifiedCompletionRequest(
+        List<Message> messages,
+        @Nullable String model,
+        @Nullable Long maxCompletionTokens,
+        @Nullable List<String> stop,
+        @Nullable Float temperature,
+        @Nullable ToolChoice toolChoice,
+        @Nullable List<Tool> tools,
+        @Nullable Float top
+    ) {
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null);
+    }
+
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
         this(
             in.readCollectionAsImmutableList(Message::new),

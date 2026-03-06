@@ -65,7 +65,7 @@ public final class UnifiedCompletionUtils {
     public static final String EFFORT_FIELD = "effort";
     public static final String SUMMARY_FIELD = "summary";
     public static final String EXCLUDE_FIELD = "exclude";
-    public static final String ENABLE_FIELD = "enable";
+    public static final String ENABLED_FIELD = "enabled";
     public static final String REASONING_DETAIL_TYPE_FIELD = "reasoning_detail_type";
     public static final String FORMAT_FIELD = "format";
     public static final String SIGNATURE_FIELD = "signature";

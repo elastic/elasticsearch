@@ -20,10 +20,7 @@ import java.util.List;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 /**
- * A queue that maintains a separate {@link TopNQueue} per group, indexed by integer group IDs
- * assigned by a {@link org.elasticsearch.compute.aggregation.blockhash.BlockHash}.
- * Uses a {@link BigArrays}-backed {@link ObjectArray} for better performance and circuit
- * breaker integration.
+ * A queue that maintains a separate {@link TopNQueue} per group, indexed by group IDs.
  */
 class GroupedQueue implements Accountable, Releasable {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class);

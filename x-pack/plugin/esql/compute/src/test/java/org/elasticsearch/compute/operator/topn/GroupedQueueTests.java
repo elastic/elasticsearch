@@ -55,7 +55,7 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    public void testAddWhenHeapNotFull() {
+    public void testAddWhenQueueNotFull() {
         int topCount = 5;
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, topCount)) {
             for (int i = 0; i < topCount; i++) {
@@ -67,7 +67,7 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    public void testAddWhenHeapFullAndRowQualifies() {
+    public void testAddWhenQueueFullAndRowQualifies() {
         int topCount = 3;
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, topCount)) {
             fillQueueToCapacity(queue, topCount);
@@ -78,7 +78,7 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    public void testAddWhenHeapFullAndRowDoesNotQualify() {
+    public void testAddWhenQueueFullAndRowDoesNotQualify() {
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 3)) {
             addRows(queue, 0, 30, 40, 50);
 

@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 143464
+pr: 143726
+summary: "[WIP] Filter metadata field mappers when source filter is set"
+type: bug

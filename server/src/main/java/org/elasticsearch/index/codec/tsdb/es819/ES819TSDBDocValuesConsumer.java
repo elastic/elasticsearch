@@ -781,6 +781,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 startDocs[idx] = startDoc;
                 if (++idx < numPrefixes) {
                     nextOrd = ords[idx];
+                } else {
+                    nextOrd = Integer.MAX_VALUE;
                 }
             }
         }

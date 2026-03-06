@@ -121,7 +121,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public final Query toQuery(SearchExecutionContext context) throws IOException {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         Query query = toQuery(context, visitor);
-        assert query == null || assertBooleanClauses(query, visitor.getNumClauses());
+        assert query == null || assertBooleanClauses(query, visitor.getNumClauses()) : "inconsistent count of boolean clauses";
         return query;
     }
 

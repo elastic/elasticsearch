@@ -316,6 +316,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, queryVisitor);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
+            Queries.ALL_DOCS_INSTANCE.visit(queryVisitor);
             return Queries.ALL_DOCS_INSTANCE;
         }
 

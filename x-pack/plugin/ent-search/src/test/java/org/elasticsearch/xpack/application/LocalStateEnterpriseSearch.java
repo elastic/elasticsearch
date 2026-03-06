@@ -63,7 +63,7 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public Collection<RestHandler> getRestHandlers(
+    public List<RestHandler> getRestHandlers(
         RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature

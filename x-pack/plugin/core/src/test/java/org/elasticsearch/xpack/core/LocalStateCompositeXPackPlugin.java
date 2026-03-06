@@ -243,7 +243,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Collection<RestHandler> getRestHandlers(
+    public List<RestHandler> getRestHandlers(
         RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature

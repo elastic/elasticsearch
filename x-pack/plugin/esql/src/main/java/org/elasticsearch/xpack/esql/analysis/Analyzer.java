@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -654,6 +655,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1394,10 +1396,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            var resolved = resolveFields(eval.fields(), childOutput);
+            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones using attribute references.
+         * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
+         */
+        private LogicalPlan resolveRow(Row row) {
+            var resolved = resolveFields(row.fields(), List.of());
+            return resolved != null ? new Row(row.source(), resolved) : row;
+        }
+
+        private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
+            for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
@@ -1415,7 +1431,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            return changed ? newFields : null;
         }
 
         /**

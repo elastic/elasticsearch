@@ -115,7 +115,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
@@ -360,9 +359,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+        return new Row(source(ctx), visitFields(ctx.fields()));
     }
 
     private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {

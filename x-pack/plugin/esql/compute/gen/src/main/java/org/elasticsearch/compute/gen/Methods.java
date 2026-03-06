@@ -38,6 +38,7 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_FIXED_BUILDER;
@@ -294,6 +295,9 @@ public class Methods {
         }
         if (t.equals(TDIGEST_BLOCK_BUILDER)) {
             return "newTDigestBlockBuilder";
+        }
+        if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
+            return "newExponentialHistogramBlockBuilder";
         }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }

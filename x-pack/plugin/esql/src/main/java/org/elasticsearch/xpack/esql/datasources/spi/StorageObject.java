@@ -31,6 +31,13 @@ import java.util.concurrent.Executor;
  */
 public interface StorageObject {
 
+    /**
+     * Transfer buffer size used by the default {@link #readBytes(long, ByteBuffer)} when
+     * reading into a direct ByteBuffer via an InputStream. Kept small to avoid large
+     * stack allocations while still being efficient for typical I/O page sizes.
+     */
+    int TRANSFER_BUFFER_SIZE = 8192;
+
     // === SYNC API (required) ===
 
     /** Opens an input stream for sequential reading from the beginning. */
@@ -122,6 +129,67 @@ public interface StorageObject {
                 listener.onFailure(e);
             }
         });
+    }
+
+    // === POSITIONAL BYTE-BUFFER API (optional - enables zero-copy for columnar formats) ===
+
+    /**
+     * Reads bytes from a specific position directly into a {@link ByteBuffer}.
+     * <p>
+     * This is a positional, stateless read: each call specifies the position explicitly,
+     * so no mutable cursor state is needed. Providers override this to enable zero-copy I/O:
+     * <ul>
+     *   <li>Local files: {@code FileChannel.read(target, position)} reads from OS page cache
+     *       directly into both heap and direct buffers with no intermediate copies.</li>
+     *   <li>GCS: {@code ReadChannel.read(target)} reads natively into the ByteBuffer.</li>
+     *   <li>S3/HTTP/Azure: The default stream-based implementation is used; for heap-backed
+     *       buffers it reads directly into the backing array, for direct buffers it uses
+     *       a small chunked transfer buffer (8 KB) instead of allocating a full-size temporary array.</li>
+     * </ul>
+     * <p>
+     * The buffer's position is advanced by the number of bytes read.
+     *
+     * @param position the starting byte position in the storage object
+     * @param target the ByteBuffer to read into; bytes are written starting at {@code target.position()}
+     * @return the number of bytes actually read, or -1 if the position is at or past end of content
+     * @throws IOException if an I/O error occurs
+     */
+    default int readBytes(long position, ByteBuffer target) throws IOException {
+        if (target.hasRemaining() == false) {
+            return 0;
+        }
+        try (InputStream stream = newStream(position, target.remaining())) {
+            if (target.hasArray()) {
+                int totalRead = 0;
+                int off = target.arrayOffset() + target.position();
+                int toRead = target.remaining();
+                while (totalRead < toRead) {
+                    int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
+                    if (n < 0) {
+                        break;
+                    }
+                    totalRead += n;
+                }
+                if (totalRead == 0) {
+                    return -1;
+                }
+                target.position(target.position() + totalRead);
+                return totalRead;
+            } else {
+                byte[] buf = new byte[Math.min(target.remaining(), TRANSFER_BUFFER_SIZE)];
+                int totalRead = 0;
+                while (target.hasRemaining()) {
+                    int toRead = Math.min(buf.length, target.remaining());
+                    int n = stream.read(buf, 0, toRead);
+                    if (n < 0) {
+                        break;
+                    }
+                    target.put(buf, 0, n);
+                    totalRead += n;
+                }
+                return totalRead == 0 ? -1 : totalRead;
+            }
+        }
     }
 
     /**

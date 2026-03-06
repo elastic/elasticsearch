@@ -531,7 +531,7 @@ public final class IndicesPermission {
                             }
                         }
                         size += failureIndices;
-                    } else {
+                    } else if (IndexAbstraction.Type.DATA_STREAM.equals(indexAbstraction.getType())) {
                         DataStream parentDataStream = (DataStream) indexAbstraction;
                         size += parentDataStream.getFailureIndices().size();
                     }

@@ -64,6 +64,23 @@ public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationT
         }
     }
 
+    public void testParsingEncryptedReasoningDetail_UnknownField() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.encrypted",
+                "data": "some encrypted data",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, "some encrypted data");
+
+            assertThat(reasoningDetail, is(expected));
+        }
+    }
+
     public void testParsingEncryptedReasoningDetail_NoData_ThrowsException() throws IOException {
         String reasoningDetailJson = """
             {

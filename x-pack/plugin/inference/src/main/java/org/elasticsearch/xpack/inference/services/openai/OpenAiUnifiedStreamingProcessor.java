@@ -215,7 +215,11 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                     new ParseField(TOOL_CALLS_FIELD)
                 );
                 PARSER.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
-                PARSER.declareObjectArray(optionalConstructorArg(), ReasoningDetail.PARSER::apply, new ParseField(REASONING_DETAILS_FIELD));
+                PARSER.declareObjectArrayOrNull(
+                    optionalConstructorArg(),
+                    ReasoningDetail.PARSER::apply,
+                    new ParseField(REASONING_DETAILS_FIELD)
+                );
             }
 
             public static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta parse(XContentParser parser)
@@ -303,9 +307,10 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                     PromptTokensDetailsParser.PARSER,
                     new ParseField(PROMPT_TOKENS_DETAILS_FIELD)
                 );
-                PARSER.declareObject(
+                PARSER.declareObjectOrNull(
                     ConstructingObjectParser.optionalConstructorArg(),
                     CompletionTokenDetailsParser.PARSER,
+                    null,
                     new ParseField(COMPLETION_TOKENS_DETAILS_FIELD)
                 );
             }

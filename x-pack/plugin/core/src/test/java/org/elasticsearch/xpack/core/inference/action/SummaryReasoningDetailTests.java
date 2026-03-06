@@ -64,6 +64,23 @@ public class SummaryReasoningDetailTests extends AbstractBWCWireSerializationTes
         }
     }
 
+    public void testParsingSummaryReasoningDetail_UnknownField() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.summary",
+                "summary": "some summary",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var expected = new ReasoningDetail.SummaryReasoningDetail(null, null, null, "some summary");
+
+            assertThat(reasoningDetail, is(expected));
+        }
+    }
+
     public void testParsingSummaryReasoningDetail_NoSummary_ThrowsException() throws IOException {
         String reasoningDetailJson = """
             {

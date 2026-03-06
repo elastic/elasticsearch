@@ -55,6 +55,7 @@ public record Reasoning(
 
     public static final ConstructingObjectParser<Reasoning, Void> PARSER = new ConstructingObjectParser<>(
         Reasoning.class.getSimpleName(),
+        true,
         args -> new Reasoning(
             args[0] == null ? null : ReasoningEffort.fromString((String) args[0]),
             (Long) args[1],

@@ -66,7 +66,24 @@ public class TextReasoningDetailTests extends AbstractBWCWireSerializationTestCa
         }
     }
 
-    public void testParsingTextReasoningDetail_OnlySignatureAndText() throws IOException {
+    public void testParsingTextReasoningDetail_UnknownField() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.text",
+                "text": "some text",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, "some text", null);
+
+            assertThat(reasoningDetail, is(expected));
+        }
+    }
+
+    public void testParsingTextReasoningDetail_OnlyTypeAndSignature() throws IOException {
         String reasoningDetailJson = """
             {
                 "type": "reasoning.text",
@@ -82,7 +99,7 @@ public class TextReasoningDetailTests extends AbstractBWCWireSerializationTestCa
         }
     }
 
-    public void testParsingTextReasoningDetail_NoSummary_ThrowsException() throws IOException {
+    public void testParsingTextReasoningDetail_OnlyType_ThrowsException() throws IOException {
         String reasoningDetailJson = """
             {
                 "type": "reasoning.text"

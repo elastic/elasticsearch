@@ -63,6 +63,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
     public static final ConstructingObjectParser<ReasoningDetail, Void> PARSER = new ConstructingObjectParser<>(
         ReasoningDetail.class.getSimpleName(),
+        true,
         args -> switch (ReasoningDetailType.fromString((String) args[0])) {
             case ENCRYPTED -> new EncryptedReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[4]);
             case SUMMARY -> new SummaryReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[5]);

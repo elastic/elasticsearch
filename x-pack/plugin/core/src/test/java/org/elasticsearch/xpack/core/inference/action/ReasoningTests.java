@@ -196,6 +196,22 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
         }
     }
 
+    public void testParsingReasoning_UnknownField() throws IOException {
+        String reasoningJson = """
+            {
+                "effort": "medium",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
+            var reasoning = Reasoning.PARSER.apply(parser, null);
+            var expected = new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, null, null, null);
+
+            assertThat(reasoning, is(expected));
+        }
+    }
+
     @Override
     protected Reasoning mutateInstanceForVersion(Reasoning instance, TransportVersion version) {
         // checks for version compatibility are done outside of Reasoning class, so we can return the instance as is without mutation

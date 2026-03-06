@@ -38,6 +38,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
@@ -725,7 +726,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
 
     public static ElasticInferenceServiceAuthorizationResponseEntity createResponse() {
         return new ElasticInferenceServiceAuthorizationResponseEntity(
-            randomList(1, 5, () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)))
+            randomList(
+                1,
+                5,
+                () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES), () -> randomAlphaOfLength(10))
+            )
         );
     }
 
@@ -750,11 +755,20 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         );
     }
 
-    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(TaskType taskType) {
-        var id = randomAlphaOfLength(10);
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(
+        TaskType taskType,
+        Supplier<String> fingerprintSupplier
+    ) {
+        return createAuthorizedEndpoint(randomAlphaOfLength(10), taskType, fingerprintSupplier);
+    }
+
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(
+        String id,
+        TaskType taskType,
+        Supplier<String> fingerprintSupplier
+    ) {
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
-        var fingerprintPrefix = "fingerprint_";
 
         return switch (taskType) {
             case CHAT_COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -767,7 +781,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 null,
                 "Chat Completion Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -779,7 +793,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 null,
                 "Sparse Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -796,7 +810,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 "Text Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             case EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -813,7 +827,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 "Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -825,7 +839,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 null,
                 "Rerank Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             case COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -837,7 +851,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 END_OF_LIFE_DATE_STRING,
                 null,
                 "Completion Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                fingerprintSupplier.get()
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
@@ -918,7 +932,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
     protected ElasticInferenceServiceAuthorizationResponseEntity mutateInstance(ElasticInferenceServiceAuthorizationResponseEntity instance)
         throws IOException {
         var newEndpoints = new ArrayList<>(instance.getAuthorizedEndpoints());
-        newEndpoints.add(createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)));
+        newEndpoints.add(
+            createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES), () -> randomAlphaOfLength(10))
+        );
         return new ElasticInferenceServiceAuthorizationResponseEntity(newEndpoints);
     }
 }

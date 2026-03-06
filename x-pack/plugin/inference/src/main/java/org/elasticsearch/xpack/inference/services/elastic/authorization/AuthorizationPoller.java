@@ -356,7 +356,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         if (existingEndpoint == null) {
             logger.debug(
                 () -> Strings.format(
-                    "[{}] selected for persistence, because it currently does not exist",
+                    "[%s] selected for persistence, because it currently does not exist",
                     newEndpoint.getInferenceEntityId()
                 )
             );
@@ -367,7 +367,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadata()) == false) {
             logger.debug(
                 () -> Strings.format(
-                    "[{}] selected for persistence, because its fingerprint has changed",
+                    "[%s] selected for persistence, because its fingerprint has changed",
                     newEndpoint.getInferenceEntityId()
                 )
             );
@@ -375,7 +375,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
         if (newEndpoint.getConfigurations().getEndpointMetadata().hasNewerVersionThan(existingMetadata)) {
             logger.debug(
-                () -> Strings.format("[{}] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
+                () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );
             return true;
         }

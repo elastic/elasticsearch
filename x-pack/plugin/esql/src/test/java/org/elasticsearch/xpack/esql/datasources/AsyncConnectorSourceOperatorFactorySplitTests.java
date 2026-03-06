@@ -41,10 +41,9 @@ import static org.mockito.Mockito.when;
  */
 public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
 
-    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
 
     public void testExternalSplitsPassedFromSliceQueue() throws Exception {
         List<ExternalSplit> receivedSplits = new CopyOnWriteArrayList<>();

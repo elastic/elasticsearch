@@ -2,6 +2,8 @@
 reviews:
   # Do not post "Review skipped" on PRs without the labels below
   review_status: false
+  inheritance: true
+  poem: false
   auto_review:
     labels:
       - "Team:Delivery"

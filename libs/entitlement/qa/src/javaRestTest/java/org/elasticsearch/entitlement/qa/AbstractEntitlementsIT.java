@@ -122,6 +122,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                 if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
                     return false;
                 }
+                String actualException = resp.getHeader("actualException");
+                if (expectedException.equals(actualException) == false) {
+                    mismatchDetail = "expected exception [" + expectedException + "] but got [" + actualException + "]";
+                    return false;
+                }
                 String notEntitledCause = resp.getHeader("notEntitledCause");
                 if ("false".equals(notEntitledCause)) {
                     mismatchDetail = "expected NotEntitledException in cause chain but it was absent";

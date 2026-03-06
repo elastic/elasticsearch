@@ -271,6 +271,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     ? RestStatus.FORBIDDEN
                     : RestStatus.INTERNAL_SERVER_ERROR;
                 response = new RestResponse(channel, statusCode, e);
+                response.addHeader("actualException", e.getClass().getName());
                 response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
                 if (statusCode == RestStatus.FORBIDDEN && e.getCause() != null) {
                     response.addHeader("notEntitledCause", String.valueOf(hasCause(e, NOT_ENTITLED_EXCEPTION_NAME)));

@@ -65,7 +65,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
 
     /**
      * When true, pass {@code --static} to native-image to produce a fully static binary.
-     * Defaults to true.
+     * Defaults to false.
      */
     @Input
     @Optional
@@ -88,7 +88,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             params.getImageTag().set(getImageTag());
             params.getPlatform().set(getPlatform());
             params.getMainClass().set(getMainClass());
-            params.getStatic().set(getStatic().getOrElse(true));
+            params.getStatic().set(getStatic().getOrElse(false));
             params.getOutputFile().set(getOutputFile());
             params.getDockerExecutable().set(dockerExecutable);
         });

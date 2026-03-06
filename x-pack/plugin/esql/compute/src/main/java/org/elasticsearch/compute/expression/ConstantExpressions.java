@@ -12,6 +12,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
+/**
+ * {@link ExpressionEvaluator}s returning constants and their {@link ExpressionEvaluator.Factory factories}.
+ */
 public class ConstantExpressions {
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ConstantNullEvaluator.Factory();
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();

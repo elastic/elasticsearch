@@ -2263,7 +2263,6 @@ public class EsqlCapabilities {
          */
         FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
 
-        
         /**
          * Fix for not including metadata _doc_count in the _timeseries column
          * https://github.com/elastic/elasticsearch/issues/143464

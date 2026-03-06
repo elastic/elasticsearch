@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.snapshots;
+package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -19,20 +19,69 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
 
-public class SnapshotTestUtils {
+public class NodeShutdownTestUtils {
+    /**
+     * Synchronously marks the given node for shutdown, randomly choosing among {@code REMOVE} and
+     * {@code SIGTERM}. Blocks until the cluster state update and master-queue flush complete.
+     *
+     * @see #putShutdownMetadata(String, ClusterService, EnumSet) to specify a custom set of shutdown types
+     */
     public static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
-        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
+        putShutdownMetadata(
+            nodeName,
+            clusterService,
+            EnumSet.of(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM)
+        );
     }
 
+    /**
+     * Asynchronously marks the given node for shutdown, randomly choosing among {@code REMOVE} and
+     * {@code SIGTERM}, then flushes the master queue. Notifies {@code listener} on completion.
+     *
+     * @see #putShutdownMetadata(ClusterService, String, ActionListener, EnumSet) to specify a custom set of shutdown types
+     */
     public static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
-        // not testing REPLACE just because it requires us to specify the replacement node
-        final var shutdownType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
+        putShutdownMetadata(
+            clusterService,
+            nodeName,
+            listener,
+            EnumSet.of(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM)
+        );
+    }
+
+    /**
+     * Synchronously marks the given node for shutdown, randomly choosing from {@code candidateShutdownTypes}.
+     * Blocks until the cluster state update and master-queue flush complete.
+     */
+    public static void putShutdownMetadata(
+        String nodeName,
+        ClusterService clusterService,
+        EnumSet<SingleNodeShutdownMetadata.Type> candidateShutdownTypes
+    ) {
+        safeAwait((ActionListener<Void> listener) -> putShutdownMetadata(clusterService, nodeName, listener, candidateShutdownTypes));
+    }
+
+    /**
+     * Asynchronously marks the given node for shutdown, randomly choosing from {@code candidateShutdownTypes},
+     * then flushes the master queue. Notifies {@code listener} on completion.
+     * <p>
+     * {@code REPLACE} is intentionally excluded from all default sets because it requires specifying a replacement node.
+     */
+    public static void putShutdownMetadata(
+        ClusterService clusterService,
+        String nodeName,
+        ActionListener<Void> listener,
+        EnumSet<SingleNodeShutdownMetadata.Type> candidateShutdownTypes
+    ) {
+        assert candidateShutdownTypes.isEmpty() == false;
+        final var shutdownType = randomFrom(candidateShutdownTypes);
         final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
             .setType(shutdownType)
             .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
@@ -40,9 +89,7 @@ public class SnapshotTestUtils {
         switch (shutdownType) {
             case SIGTERM -> shutdownMetadata.setGracePeriod(TimeValue.timeValueSeconds(60));
         }
-        SubscribableListener
-
-            .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
+        SubscribableListener.<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
             .<Void>andThen(l -> flushMasterQueue(clusterService, l))
             .addListener(listener);
     }
@@ -106,6 +153,10 @@ public class SnapshotTestUtils {
         });
     }
 
+    /**
+     * Submits a no-op cluster state update at {@link Priority#LANGUID} to drain all pending master tasks,
+     * then notifies {@code listener} once it is processed.
+     */
     public static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
         clusterService.submitUnbatchedStateUpdateTask("flush queue", new ClusterStateUpdateTask(Priority.LANGUID) {
             @Override
@@ -125,6 +176,12 @@ public class SnapshotTestUtils {
         });
     }
 
+    /**
+     * Synchronously removes all node shutdown metadata from the cluster state, replacing it with
+     * {@link NodesShutdownMetadata#EMPTY}. Must be called at the end of any test that used
+     * {@link #putShutdownMetadata} or {@link #putShutdownForRemovalMetadata(String, ClusterService)} when running under
+     * {@code ESIntegTestCase.Scope.SUITE}.
+     */
     public static void clearShutdownMetadata(ClusterService clusterService) {
         safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
             @Override

@@ -25,11 +25,17 @@ configurations {
 
 dependencies {
   implementation project(':libs:server-launcher-common')
+
+  testImplementation project(':test:framework')
 }
 
 tasks.named('forbiddenApisMain') {
   // ServerLauncher uses various forbidden APIs such as System.exit() and printing directly to stdout and stderr.
   enabled = false
+}
+
+tasks.named('test').configure {
+  systemProperty 'tests.security.manager', 'false'
 }
 
 // --- GraalVM native-image build (Linux only, Docker-based) ---

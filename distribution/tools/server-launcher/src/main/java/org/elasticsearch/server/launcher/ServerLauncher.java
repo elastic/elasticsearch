@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * Minimal launcher for the Elasticsearch server process.
@@ -73,7 +74,13 @@ public class ServerLauncher {
             }
         }, "server-launcher-shutdown"));
 
-        server = startServer(descriptor);
+        server = startServer(descriptor, pb -> {
+            try {
+                return pb.start();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
 
         if (descriptor.daemonize()) {
             server.detach();
@@ -173,7 +180,7 @@ public class ServerLauncher {
         return value;
     }
 
-    private static ServerProcess startServer(LaunchDescriptor descriptor) throws Exception {
+    static ServerProcess startServer(LaunchDescriptor descriptor, Function<ProcessBuilder, Process> processStarter) throws Exception {
         ensureWorkingDirExists(descriptor.workingDir());
 
         List<String> command = new ArrayList<>();
@@ -192,7 +199,7 @@ public class ServerLauncher {
         boolean success = false;
 
         try {
-            jvmProcess = pb.start();
+            jvmProcess = processStarter.apply(pb);
             errorPump = new ErrorPumpThread(jvmProcess.getErrorStream(), System.err);
             errorPump.start();
             sendServerArgs(descriptor.serverArgsBytes(), jvmProcess.getOutputStream());

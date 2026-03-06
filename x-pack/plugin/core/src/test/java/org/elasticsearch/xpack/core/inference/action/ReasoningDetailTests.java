@@ -52,7 +52,9 @@ public class ReasoningDetailTests extends ESTestCase {
             assertThat(
                 rootCause.getMessage(),
                 is(
-                    "Unrecognized type [unknown] in object [reasoning_detail_type], must be one of [reasoning.encrypted, reasoning.summary, reasoning.text]"
+                    """
+                        Unrecognized type [unknown] in object [reasoning_detail_type], \
+                        must be one of [reasoning.encrypted, reasoning.summary, reasoning.text]"""
                 )
             );
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));

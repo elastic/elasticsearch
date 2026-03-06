@@ -27,6 +27,7 @@ import java.util.Objects;
 
 /**
  * This is a {@link TDigestReadView} annotated with some extra information: The sum, min and max of all observations.
+ * In addition, it stores the size as a dedicated field for faster access.
  * The TDigest is represented a list of centroids and their counts, encoded in a byte array.
  * This class does not own the underlying memory used to store the digest, it is merely a pointer/accessor for e.g.
  * a single value in a {@link TDigestBlock}.

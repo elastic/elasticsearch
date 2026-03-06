@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -151,7 +152,7 @@ public class EvalBenchmark {
         return new EvalOperator(driverContext, evaluator(operation));
     }
 
-    private static EvalOperator.ExpressionEvaluator evaluator(String operation) {
+    private static ExpressionEvaluator evaluator(String operation) {
         return switch (operation) {
             case "abs" -> {
                 FieldAttribute longField = longField();
@@ -183,7 +184,7 @@ public class EvalBenchmark {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                     rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Case(Source.EMPTY, condition, List.of(lhs, rhs)),
                     layout(f1, f2)
@@ -201,7 +202,7 @@ public class EvalBenchmark {
                 if (operation.endsWith("lazy")) {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Coalesce(Source.EMPTY, lhs, List.of(f2)),
                     layout(f1, f2)
@@ -278,7 +279,7 @@ public class EvalBenchmark {
                 Expression ltkb = new LessThan(Source.EMPTY, f, kb());
                 Expression ltmb = new LessThan(Source.EMPTY, f, mb());
                 Expression ltgb = new LessThan(Source.EMPTY, f, gb());
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Case(Source.EMPTY, ltkb, List.of(b(), ltmb, kb(), ltgb, mb(), gb())),
                     layout(f)
@@ -292,7 +293,7 @@ public class EvalBenchmark {
             case "round_to_2" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb())),
                     layout(f)
@@ -306,7 +307,7 @@ public class EvalBenchmark {
             case "round_to_3" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb())),
                     layout(f)
@@ -320,7 +321,7 @@ public class EvalBenchmark {
             case "round_to_4" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb(), gb())),
                     layout(f)

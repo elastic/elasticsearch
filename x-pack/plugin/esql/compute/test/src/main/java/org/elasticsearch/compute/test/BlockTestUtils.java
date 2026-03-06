@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -38,8 +40,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -54,7 +57,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
-import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
@@ -383,7 +385,7 @@ public class BlockTestUtils {
                     i++,
                     new ExponentialHistogramScratch()
                 );
-                case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
+                case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++, new TDigestHolder());
                 default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
             });
         }
@@ -480,34 +482,30 @@ public class BlockTestUtils {
     public static TDigestHolder randomTDigest() {
         // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
         int size = between(1, 100);
-        // Note - we use TDigestState to build an actual t-digest for realistic values here
-        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("test-breaker");
+        TDigest digest = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), 100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();
             int count = randomIntBetween(1, Integer.MAX_VALUE);
             digest.add(sample, count);
         }
-        List<Double> centroids = new ArrayList<>();
-        List<Long> counts = new ArrayList<>();
         double sum = 0.0;
-        long valueCount = 0L;
         for (Centroid c : digest.centroids()) {
-            centroids.add(c.mean());
-            counts.add(c.count());
             sum += c.mean() * c.count();
-            valueCount += c.count();
         }
-        double min = digest.getMin();
-        double max = digest.getMax();
 
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
+        TDigestHolder digestHolder = new TDigestHolder();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            // TODO: replace with BreakingTDigestHolder when added
+            for (Centroid centroid : digest.centroids()) {
+                out.writeVLong(centroid.count());
+                out.writeDouble(centroid.mean());
+            }
+            digestHolder.reset(out.bytes().toBytesRef(), digest.getMin(), digest.getMax(), sum, digest.size());
         } catch (IOException e) {
-            // This is a test util, so we're just going to fail the test here
-            fail(e);
+            throw new IllegalStateException("failed to encode test TDigest", e);
         }
-        return returnValue;
+        return digestHolder;
     }
 
     public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {

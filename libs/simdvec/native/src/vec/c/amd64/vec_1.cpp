@@ -14,16 +14,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
+#include <algorithm>
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
 
 #ifndef STRIDE_BYTES_LEN
 #define STRIDE_BYTES_LEN sizeof(__m256i) // Must be a power of 2
-#endif
-
-#ifndef STRIDE
-#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
 #endif
 
 static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -65,9 +62,9 @@ EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) 
 
 template <
     int64_t(*mapper)(int32_t, const int32_t*),
-    auto inner_op,
-    auto scalar_op,
-    auto bulk_tail,
+    int32_t(*inner_op)(const int8_t*, const int8_t*, const int32_t),
+    int32_t(*scalar_op)(const int8_t, const int8_t),
+    auto(*bulk_tail)(const int8_t*, const int8_t*, const int32_t),
     int batches = 2,
     int stride = STRIDE_BYTES_LEN
 >
@@ -80,10 +77,6 @@ static inline void call_i8_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    // Deduce the accumulator type from what inner_op returns (e.g. int32_t
-    // for dot/sqr). This lets the template work with any operation without
-    // the caller having to specify the type as a separate template parameter.
-    using ResultT = decltype(inner_op(nullptr, nullptr, 0));
     const int blk = dims & ~(stride - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
@@ -92,7 +85,7 @@ static inline void call_i8_bulk(
     // current_vecs[0] points to the vector for index 0, [1] for index 1, etc.
     // init_offsets fills the array at compile time using template recursion.
     const int8_t* current_vecs[batches];
-    init_offsets<0, batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
+    init_offsets<batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
 
     // Process a batch of `batches` vectors at a time, after instructing the
     // CPU to prefetch the next batch.
@@ -111,7 +104,7 @@ static inline void call_i8_bulk(
             prefetch(next_vecs[I], lines_to_fetch);
         });
 
-        ResultT res[batches] = {};
+        int32_t res[batches] = {};  // needs to be initialized to 0
         int i = 0;
         if (dims > stride) {
             i = blk;
@@ -128,8 +121,8 @@ static inline void call_i8_bulk(
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
-            current_vecs[I] = next_vecs[I];
         });
+        std::copy_n(next_vecs, batches, current_vecs);
     }
 
     // Tail-handling: remaining vectors
@@ -300,7 +293,7 @@ static inline void cosi8_inner_bulk(
     }
 
     const int8_t* current_vecs[batches];
-    init_offsets<0, batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
+    init_offsets<batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
 
     // Process a batch of `batches` vectors at a time, after instructing the
     // CPU to prefetch the next batch.
@@ -373,9 +366,7 @@ static inline void cosi8_inner_bulk(
             _mm_maskstore_ps(results + c + j, _mm_setr_epi32(-1, -1, 0, 0), res);
         }
 
-        apply_indexed<batches>([&](auto I) {
-            current_vecs[I] = next_vecs[I];
-        });
+        std::copy_n(next_vecs, batches, current_vecs);
     }
 
     // Tail-handling: remaining vectors
@@ -540,37 +531,25 @@ EXPORT void vec_sqri8_bulk_offsets(
 
 // --- single precision floats
 
-// const f32_t* a  pointer to the first float vector
-// const f32_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    __m256 acc0 = _mm256_setzero_ps();
-    __m256 acc1 = _mm256_setzero_ps();
-    __m256 acc2 = _mm256_setzero_ps();
-    __m256 acc3 = _mm256_setzero_ps();
-
-    int i = 0;
-    int unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
-    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
-        acc0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i),      acc0);
-        acc1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8),  acc1);
-        acc2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), acc2);
-        acc3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), acc3);
-    }
-
-    // Combine all partial sums
-    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(acc0, acc1), _mm256_add_ps(acc2, acc3));
-    f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
-
-    for (; i < elementCount; ++i) {
-        result += a[i] * b[i];
-    }
-
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void dotf32_inner_bulk(
+/*
+ * Float bulk operation. Iterates over 4 sequential vectors at a time.
+ *
+ * Template parameters:
+ * mapper: gets the nth vector from the input array.
+ * inner_op: SIMD per-dimension vector operation, takes a, b, sum, returns new sum
+ * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
+ * bulk_tail: complete vector comparison on a single vector
+ *
+ * This should compile to a single inline method, with no function callouts.
+ */
+template <
+    int64_t(*mapper)(int32_t, const int32_t*),
+    __m256(*inner_op)(const __m256, const __m256, const __m256),
+    f32_t(*scalar_op)(const f32_t, const f32_t),
+    f32_t(*bulk_tail)(const f32_t*, const f32_t*, const int32_t),
+    int batches = 4
+>
+static inline void call_f32_bulk(
     const f32_t* a,
     const f32_t* b,
     const int32_t dims,
@@ -581,57 +560,85 @@ static inline void dotf32_inner_bulk(
 ) {
     const int vec_size = pitch / sizeof(f32_t);
     int c = 0;
-    for (; c + 3 < count; c += 4) {
-        const f32_t* a0 = a + mapper(c + 0, offsets) * vec_size;
-        const f32_t* a1 = a + mapper(c + 1, offsets) * vec_size;
-        const f32_t* a2 = a + mapper(c + 2, offsets) * vec_size;
-        const f32_t* a3 = a + mapper(c + 3, offsets) * vec_size;
 
-        __m256 sum0 = _mm256_setzero_ps();
-        __m256 sum1 = _mm256_setzero_ps();
-        __m256 sum2 = _mm256_setzero_ps();
-        __m256 sum3 = _mm256_setzero_ps();
+    for (; c + batches - 1 < count; c += batches) {
+        // Pointers to the current batch of input vectors, resolved via mapper.
+        // as[0] points to the vector for index 0, [1] for index 1, etc
+        const f32_t* as[batches];
+        __m256 sums[batches] = {};
+        apply_indexed<batches>([&](auto I) {
+            as[I] = a + mapper(c + I, offsets) * vec_size;
+            sums[I] = _mm256_setzero_ps();
+        });
 
         int32_t i = 0;
-        int32_t unrolled_limit = dims & ~7UL;
-        // do 4 vectors at a time, iterating through the dimensions in parallel
+        // do <batches> vectors at a time, iterating through the dimensions in parallel
         // Each __m256 holds 8 floats
-        for (; i < unrolled_limit; i += 8) {
+        constexpr int stride = sizeof(__m256) / sizeof(f32_t);
+        for (; i < (dims & ~(stride - 1)); i += stride) {
             __m256 bi = _mm256_loadu_ps(b + i);
-            sum0 = _mm256_fmadd_ps(_mm256_loadu_ps(a0 + i), bi, sum0);
-            sum1 = _mm256_fmadd_ps(_mm256_loadu_ps(a1 + i), bi, sum1);
-            sum2 = _mm256_fmadd_ps(_mm256_loadu_ps(a2 + i), bi, sum2);
-            sum3 = _mm256_fmadd_ps(_mm256_loadu_ps(a3 + i), bi, sum3);
+            apply_indexed<batches>([&](auto I) {
+                sums[I] = inner_op(_mm256_loadu_ps(as[I] + i), bi, sums[I]);
+            });
         }
 
-        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
-        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
-        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
-        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
+        f32_t res[batches];
+        apply_indexed<batches>([&](auto I) {
+            res[I] = mm256_reduce_ps<_mm_add_ps>(sums[I]);
+        });
 
         // dimensions tail
         for (; i < dims; i++) {
-            result0 += a0[i] * b[i];
-            result1 += a1[i] * b[i];
-            result2 += a2[i] * b[i];
-            result3 += a3[i] * b[i];
+            apply_indexed<batches>([&](auto I) {
+                res[I] += scalar_op(as[I][i], b[i]);
+            });
         }
 
-        results[c + 0] = result0;
-        results[c + 1] = result1;
-        results[c + 2] = result2;
-        results[c + 3] = result3;
+        // this should be turned into direct value copies by the compiler
+        std::copy_n(res, batches, results + c);
     }
 
-    // vectors tail
+    // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const f32_t* a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_dotf32(a0, b, dims);
+        results[c] = bulk_tail(a0, b, dims);
     }
 }
 
+// const f32_t* a  pointer to the first float vector
+// const f32_t* b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
+    constexpr int batches = 4;
+
+    __m256 sums[batches];
+    apply_indexed<batches>([&](auto I) {
+        sums[I] = _mm256_setzero_ps();
+    });
+
+    int i = 0;
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(__m256) / sizeof(f32_t);
+    constexpr int stride = sizeof(__m256) / sizeof(f32_t) * batches;
+    for (; i < (elementCount & ~(stride - 1)); i += stride) {
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + I * elements), _mm256_loadu_ps(b + i + I * elements), sums[I]);
+        });
+    }
+
+    // Combine all partial sums
+    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sums[0], sums[1]), _mm256_add_ps(sums[2], sums[3]));
+    f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
+
+    for (; i < elementCount; ++i) {
+        result += dot_scalar(a[i], b[i]);
+    }
+
+    return result;
+}
+
 EXPORT void vec_dotf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+    call_f32_bulk<identity_mapper, _mm256_fmadd_ps, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_dotf32_bulk_offsets(
@@ -642,117 +649,48 @@ EXPORT void vec_dotf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_f32_bulk<array_mapper, _mm256_fmadd_ps, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, pitch, offsets, count, results);
+}
+
+static inline __m256 sqrf32_vector(__m256 a, __m256 b, __m256 sum) {
+    __m256 diff = _mm256_sub_ps(a, b);
+    return _mm256_fmadd_ps(diff, diff, sum);
 }
 
 // const f32_t* a  pointer to the first float vector
 // const f32_t* b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    __m256 sum0 = _mm256_setzero_ps();
-    __m256 sum1 = _mm256_setzero_ps();
-    __m256 sum2 = _mm256_setzero_ps();
-    __m256 sum3 = _mm256_setzero_ps();
+    constexpr int batches = 4;
+
+    __m256 sums[batches];
+    apply_indexed<batches>([&](auto I) {
+        sums[I] = _mm256_setzero_ps();
+    });
 
     int i = 0;
-    int unrolled_limit = elementCount & ~(STRIDE(sizeof(f32_t), 4) - 1);
-    for (; i < unrolled_limit; i += STRIDE(sizeof(f32_t), 4)) {
-        __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i));
-        __m256 d1 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8));
-        __m256 d2 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16));
-        __m256 d3 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24));
-
-        sum0 = _mm256_fmadd_ps(d0, d0, sum0);
-        sum1 = _mm256_fmadd_ps(d1, d1, sum1);
-        sum2 = _mm256_fmadd_ps(d2, d2, sum2);
-        sum3 = _mm256_fmadd_ps(d3, d3, sum3);
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(__m256) / sizeof(f32_t);
+    constexpr int stride = sizeof(__m256) / sizeof(f32_t) * batches;
+    for (; i < (elementCount & ~(stride - 1)); i += stride) {
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = sqrf32_vector(_mm256_loadu_ps(a + i + I * elements), _mm256_loadu_ps(b + i + I * elements), sums[I]);
+        });
     }
 
     // reduce all partial sums
-    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sum0, sum1), _mm256_add_ps(sum2, sum3));
+    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sums[0], sums[1]), _mm256_add_ps(sums[2], sums[3]));
     f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
 
     for (; i < elementCount; ++i) {
-        f32_t diff = a[i] - b[i];
-        result += diff * diff;
+        result += sqr_scalar(a[i], b[i]);
     }
 
     return result;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqrf32_inner_bulk(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int vec_size = pitch / sizeof(f32_t);
-    int c = 0;
-    for (; c + 3 < count; c += 4) {
-        const f32_t* a0 = a + mapper(c + 0, offsets) * vec_size;
-        const f32_t* a1 = a + mapper(c + 1, offsets) * vec_size;
-        const f32_t* a2 = a + mapper(c + 2, offsets) * vec_size;
-        const f32_t* a3 = a + mapper(c + 3, offsets) * vec_size;
-
-        __m256 sum0 = _mm256_setzero_ps();
-        __m256 sum1 = _mm256_setzero_ps();
-        __m256 sum2 = _mm256_setzero_ps();
-        __m256 sum3 = _mm256_setzero_ps();
-
-        int32_t i = 0;
-        int32_t unrolled_limit = dims & ~7UL;
-        // do 4 vectors at a time, iterating through the dimensions in parallel
-        // Each __m256 holds 8 floats
-        for (; i < unrolled_limit; i += 8) {
-            __m256 bi = _mm256_loadu_ps(b + i);
-            __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a0 + i), bi);
-            __m256 d1 = _mm256_sub_ps(_mm256_loadu_ps(a1 + i), bi);
-            __m256 d2 = _mm256_sub_ps(_mm256_loadu_ps(a2 + i), bi);
-            __m256 d3 = _mm256_sub_ps(_mm256_loadu_ps(a3 + i), bi);
-
-            sum0 = _mm256_fmadd_ps(d0, d0, sum0);
-            sum1 = _mm256_fmadd_ps(d1, d1, sum1);
-            sum2 = _mm256_fmadd_ps(d2, d2, sum2);
-            sum3 = _mm256_fmadd_ps(d3, d3, sum3);
-        }
-
-        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
-        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
-        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
-        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
-
-        // dimensions tail
-        for (; i < dims; i++) {
-            f32_t diff0 = a0[i] - b[i];
-            f32_t diff1 = a1[i] - b[i];
-            f32_t diff2 = a2[i] - b[i];
-            f32_t diff3 = a3[i] - b[i];
-
-            result0 += diff0 * diff0;
-            result1 += diff1 * diff1;
-            result2 += diff2 * diff2;
-            result3 += diff3 * diff3;
-        }
-
-        results[c + 0] = result0;
-        results[c + 1] = result1;
-        results[c + 2] = result2;
-        results[c + 3] = result3;
-    }
-
-    // vectors tail
-    for (; c < count; c++) {
-        const f32_t* a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_sqrf32(a0, b, dims);
-    }
-}
-
 EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+    call_f32_bulk<identity_mapper, sqrf32_vector, sqr_scalar<f32_t>, vec_sqrf32>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets(
@@ -763,7 +701,7 @@ EXPORT void vec_sqrf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_f32_bulk<array_mapper, sqrf32_vector, sqr_scalar<f32_t>, vec_sqrf32>(a, b, dims, pitch, offsets, count, results);
 }
 
 // Fast AVX2 popcount, based on "Faster Population Counts Using AVX2 Instructions"

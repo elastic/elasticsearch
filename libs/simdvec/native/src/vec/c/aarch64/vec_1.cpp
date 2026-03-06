@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <arm_neon.h>
 #include <math.h>
+#include <algorithm>
 #include "vec.h"
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
@@ -578,50 +579,25 @@ EXPORT void vec_sqri8_bulk_offsets(
 
 // --- single precision floats
 
-// const f32_t* a  pointer to the first float vector
-// const f32_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
-EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    float32x4_t sum0 = vdupq_n_f32(0.0f);
-    float32x4_t sum1 = vdupq_n_f32(0.0f);
-    float32x4_t sum2 = vdupq_n_f32(0.0f);
-    float32x4_t sum3 = vdupq_n_f32(0.0f);
-    float32x4_t sum4 = vdupq_n_f32(0.0f);
-    float32x4_t sum5 = vdupq_n_f32(0.0f);
-    float32x4_t sum6 = vdupq_n_f32(0.0f);
-    float32x4_t sum7 = vdupq_n_f32(0.0f);
-
-    int i = 0;
-    constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * 8;
-    // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
-    int unrolled_limit = elementCount & ~(stride - 1);
-    for (; i < unrolled_limit; i += stride) {
-        sum0 = vfmaq_f32(sum0, vld1q_f32(a + i),      vld1q_f32(b + i));
-        sum1 = vfmaq_f32(sum1, vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
-        sum2 = vfmaq_f32(sum2, vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
-        sum3 = vfmaq_f32(sum3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
-        sum4 = vfmaq_f32(sum4, vld1q_f32(a + i + 16), vld1q_f32(b + i + 16));
-        sum5 = vfmaq_f32(sum5, vld1q_f32(a + i + 20), vld1q_f32(b + i + 20));
-        sum6 = vfmaq_f32(sum6, vld1q_f32(a + i + 24), vld1q_f32(b + i + 24));
-        sum7 = vfmaq_f32(sum7, vld1q_f32(a + i + 28), vld1q_f32(b + i + 28));
-    }
-
-    float32x4_t total = vaddq_f32(
-        vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
-        vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
-    );
-    f32_t result = vaddvq_f32(total);
-
-    // Handle remaining elements
-    for (; i < elementCount; ++i) {
-        result += a[i] * b[i];
-    }
-
-    return result;
-}
-
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void dotf32_inner_bulk(
+/*
+ * Float bulk operation. Iterates over 4 sequential vectors at a time.
+ *
+ * Template parameters:
+ * mapper: gets the nth vector from the input array.
+ * inner_op: SIMD per-dimension vector operation, takes sum, a, b, returns new sum
+ * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
+ * bulk_tail: complete vector comparison on a single vector
+ *
+ * This should compile to a single inline method, with no function callouts.
+ */
+template <
+    int64_t(*mapper)(int32_t, const int32_t*),
+    float32x4_t(*inner_op)(const float32x4_t, const float32x4_t, const float32x4_t),
+    f32_t(*scalar_op)(const f32_t, const f32_t),
+    f32_t(*bulk_tail)(const f32_t*, const f32_t*, const int32_t),
+    int batches = 8
+>
+static inline void call_f32_bulk(
     const f32_t* a,
     const f32_t* b,
     const int32_t dims,
@@ -632,81 +608,87 @@ static inline void dotf32_inner_bulk(
 ) {
     const int vec_size = pitch / sizeof(f32_t);
     int c = 0;
-    for (; c + 7 < count; c += 8) {
-        const f32_t* a0 = a + mapper(c + 0, offsets) * vec_size;
-        const f32_t* a1 = a + mapper(c + 1, offsets) * vec_size;
-        const f32_t* a2 = a + mapper(c + 2, offsets) * vec_size;
-        const f32_t* a3 = a + mapper(c + 3, offsets) * vec_size;
-        const f32_t* a4 = a + mapper(c + 4, offsets) * vec_size;
-        const f32_t* a5 = a + mapper(c + 5, offsets) * vec_size;
-        const f32_t* a6 = a + mapper(c + 6, offsets) * vec_size;
-        const f32_t* a7 = a + mapper(c + 7, offsets) * vec_size;
 
-        float32x4_t sum0 = vdupq_n_f32(0.0f);
-        float32x4_t sum1 = vdupq_n_f32(0.0f);
-        float32x4_t sum2 = vdupq_n_f32(0.0f);
-        float32x4_t sum3 = vdupq_n_f32(0.0f);
-        float32x4_t sum4 = vdupq_n_f32(0.0f);
-        float32x4_t sum5 = vdupq_n_f32(0.0f);
-        float32x4_t sum6 = vdupq_n_f32(0.0f);
-        float32x4_t sum7 = vdupq_n_f32(0.0f);
+    for (; c + batches - 1 < count; c += batches) {
+        // Pointers to the current batch of input vectors, resolved via mapper.
+        // as[0] points to the vector for index 0, [1] for index 1, etc
+        const f32_t* as[batches];
+        float32x4_t sums[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = a + mapper(c + I, offsets) * vec_size;
+            sums[I] = vdupq_n_f32(0.0f);
+        });
 
         int32_t i = 0;
-        int32_t unrolled_limit = dims & ~3UL;
-        // do 8 vectors at a time, iterating through the dimensions in parallel
-        // Each float32x4_t holds 4 floats
-        for (; i < unrolled_limit; i += 4) {
+        // do <batches> vectors at a time, iterating through the dimensions in parallel
+        constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t);
+        for (; i < (dims & ~(stride - 1)); i += stride) {
             float32x4_t bi = vld1q_f32(b + i);
-            sum0 = vfmaq_f32(sum0, vld1q_f32(a0 + i), bi);
-            sum1 = vfmaq_f32(sum1, vld1q_f32(a1 + i), bi);
-            sum2 = vfmaq_f32(sum2, vld1q_f32(a2 + i), bi);
-            sum3 = vfmaq_f32(sum3, vld1q_f32(a3 + i), bi);
-            sum4 = vfmaq_f32(sum4, vld1q_f32(a4 + i), bi);
-            sum5 = vfmaq_f32(sum5, vld1q_f32(a5 + i), bi);
-            sum6 = vfmaq_f32(sum6, vld1q_f32(a6 + i), bi);
-            sum7 = vfmaq_f32(sum7, vld1q_f32(a7 + i), bi);
+            apply_indexed<batches>([&](auto I) {
+                sums[I] = inner_op(sums[I], vld1q_f32(as[I] + i), bi);
+            });
         }
 
-        f32_t result0 = vaddvq_f32(sum0);
-        f32_t result1 = vaddvq_f32(sum1);
-        f32_t result2 = vaddvq_f32(sum2);
-        f32_t result3 = vaddvq_f32(sum3);
-        f32_t result4 = vaddvq_f32(sum4);
-        f32_t result5 = vaddvq_f32(sum5);
-        f32_t result6 = vaddvq_f32(sum6);
-        f32_t result7 = vaddvq_f32(sum7);
+        f32_t res[batches];
+        apply_indexed<batches>([&](auto I) {
+            res[I] = vaddvq_f32(sums[I]);
+        });
 
         // dimensions tail
         for (; i < dims; i++) {
-            result0 += a0[i] * b[i];
-            result1 += a1[i] * b[i];
-            result2 += a2[i] * b[i];
-            result3 += a3[i] * b[i];
-            result4 += a4[i] * b[i];
-            result5 += a5[i] * b[i];
-            result6 += a6[i] * b[i];
-            result7 += a7[i] * b[i];
+            apply_indexed<batches>([&](auto I) {
+                res[I] += scalar_op(as[I][i], b[i]);
+            });
         }
 
-        results[c + 0] = result0;
-        results[c + 1] = result1;
-        results[c + 2] = result2;
-        results[c + 3] = result3;
-        results[c + 4] = result4;
-        results[c + 5] = result5;
-        results[c + 6] = result6;
-        results[c + 7] = result7;
+        // this should be turned into direct value copies by the compiler
+        std::copy_n(res, batches, results + c);
     }
 
-    // vectors tail
+    // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const f32_t* a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_dotf32(a0, b, dims);
+        results[c] = bulk_tail(a0, b, dims);
     }
 }
 
+// const f32_t* a  pointer to the first float vector
+// const f32_t* b  pointer to the second float vector
+// const int32_t elementCount  the number of floating point elements
+EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
+    constexpr int batches = 8;
+
+    float32x4_t sums[batches];
+    apply_indexed<batches>([&](auto I) {
+        sums[I] = vdupq_n_f32(0.0f);
+    });
+
+    int i = 0;
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(float32x4_t) / sizeof(f32_t);
+    constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * batches;
+    for (; i < (elementCount & ~(stride - 1)); i += stride) {
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = vfmaq_f32(sums[I], vld1q_f32(a + i + I * elements), vld1q_f32(b + i + I * elements));
+        });
+    }
+
+    float32x4_t total = vaddq_f32(
+        vaddq_f32(vaddq_f32(sums[0], sums[1]), vaddq_f32(sums[2], sums[3])),
+        vaddq_f32(vaddq_f32(sums[4], sums[5]), vaddq_f32(sums[6], sums[7]))
+    );
+    f32_t result = vaddvq_f32(total);
+
+    // Handle remaining elements
+    for (; i < elementCount; ++i) {
+        result += dot_scalar(a[i], b[i]);
+    }
+
+    return result;
+}
+
 EXPORT void vec_dotf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+    call_f32_bulk<identity_mapper, vfmaq_f32, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_dotf32_bulk_offsets(
@@ -717,162 +699,48 @@ EXPORT void vec_dotf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_f32_bulk<array_mapper, vfmaq_f32, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, pitch, offsets, count, results);
+}
+
+static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x4_t b) {
+    float32x4_t diff = vsubq_f32(a, b);
+    return vmlaq_f32(sum, diff, diff);
 }
 
 EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCount) {
-    float32x4_t sum0 = vdupq_n_f32(0.0f);
-    float32x4_t sum1 = vdupq_n_f32(0.0f);
-    float32x4_t sum2 = vdupq_n_f32(0.0f);
-    float32x4_t sum3 = vdupq_n_f32(0.0f);
-    float32x4_t sum4 = vdupq_n_f32(0.0f);
-    float32x4_t sum5 = vdupq_n_f32(0.0f);
-    float32x4_t sum6 = vdupq_n_f32(0.0f);
-    float32x4_t sum7 = vdupq_n_f32(0.0f);
+    constexpr int batches = 8;
+
+    float32x4_t sums[batches];
+    apply_indexed<batches>([&](auto I) {
+        sums[I] = vdupq_n_f32(0.0f);
+    });
 
     int i = 0;
-    // Each float32x4_t holds 4 floats, so unroll 8x = 32 floats per loop
-    int unrolled_limit = elementCount & ~31UL;
-    for (; i < unrolled_limit; i += 32) {
-        float32x4_t d0 = vsubq_f32(vld1q_f32(a + i),      vld1q_f32(b + i));
-        float32x4_t d1 = vsubq_f32(vld1q_f32(a + i + 4),  vld1q_f32(b + i + 4));
-        float32x4_t d2 = vsubq_f32(vld1q_f32(a + i + 8),  vld1q_f32(b + i + 8));
-        float32x4_t d3 = vsubq_f32(vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
-        float32x4_t d4 = vsubq_f32(vld1q_f32(a + i + 16), vld1q_f32(b + i + 16));
-        float32x4_t d5 = vsubq_f32(vld1q_f32(a + i + 20), vld1q_f32(b + i + 20));
-        float32x4_t d6 = vsubq_f32(vld1q_f32(a + i + 24), vld1q_f32(b + i + 24));
-        float32x4_t d7 = vsubq_f32(vld1q_f32(a + i + 28), vld1q_f32(b + i + 28));
-
-        sum0 = vmlaq_f32(sum0, d0, d0);
-        sum1 = vmlaq_f32(sum1, d1, d1);
-        sum2 = vmlaq_f32(sum2, d2, d2);
-        sum3 = vmlaq_f32(sum3, d3, d3);
-        sum4 = vmlaq_f32(sum4, d4, d4);
-        sum5 = vmlaq_f32(sum5, d5, d5);
-        sum6 = vmlaq_f32(sum6, d6, d6);
-        sum7 = vmlaq_f32(sum7, d7, d7);
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(float32x4_t) / sizeof(f32_t);
+    constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * batches;
+    for (; i < (elementCount & ~(stride - 1)); i += stride) {
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = sqrf32_vector(sums[I], vld1q_f32(a + i + I * elements), vld1q_f32(b + i + I * elements));
+        });
     }
 
     float32x4_t total = vaddq_f32(
-        vaddq_f32(vaddq_f32(sum0, sum1), vaddq_f32(sum2, sum3)),
-        vaddq_f32(vaddq_f32(sum4, sum5), vaddq_f32(sum6, sum7))
+        vaddq_f32(vaddq_f32(sums[0], sums[1]), vaddq_f32(sums[2], sums[3])),
+        vaddq_f32(vaddq_f32(sums[4], sums[5]), vaddq_f32(sums[6], sums[7]))
     );
     f32_t result = vaddvq_f32(total);
 
-    // Handle remaining tail elements
+    // Handle remaining elements
     for (; i < elementCount; ++i) {
-        f32_t diff = a[i] - b[i];
-        result += diff * diff;
+        result += sqr_scalar(a[i], b[i]);
     }
 
     return result;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqrf32_inner_bulk(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int vec_size = pitch / sizeof(f32_t);
-    int c = 0;
-    for (; c + 7 < count; c += 8) {
-        const f32_t* a0 = a + mapper(c + 0, offsets) * vec_size;
-        const f32_t* a1 = a + mapper(c + 1, offsets) * vec_size;
-        const f32_t* a2 = a + mapper(c + 2, offsets) * vec_size;
-        const f32_t* a3 = a + mapper(c + 3, offsets) * vec_size;
-        const f32_t* a4 = a + mapper(c + 4, offsets) * vec_size;
-        const f32_t* a5 = a + mapper(c + 5, offsets) * vec_size;
-        const f32_t* a6 = a + mapper(c + 6, offsets) * vec_size;
-        const f32_t* a7 = a + mapper(c + 7, offsets) * vec_size;
-
-        float32x4_t sum0 = vdupq_n_f32(0.0f);
-        float32x4_t sum1 = vdupq_n_f32(0.0f);
-        float32x4_t sum2 = vdupq_n_f32(0.0f);
-        float32x4_t sum3 = vdupq_n_f32(0.0f);
-        float32x4_t sum4 = vdupq_n_f32(0.0f);
-        float32x4_t sum5 = vdupq_n_f32(0.0f);
-        float32x4_t sum6 = vdupq_n_f32(0.0f);
-        float32x4_t sum7 = vdupq_n_f32(0.0f);
-
-        int32_t i = 0;
-        int32_t unrolled_limit = dims & ~3UL;
-        // do 8 vectors at a time, iterating through the dimensions in parallel
-        // Each float32x4_t holds 4 floats
-        for (; i < unrolled_limit; i += 4) {
-            float32x4_t bi = vld1q_f32(b + i);
-            float32x4_t d0 = vsubq_f32(vld1q_f32(a0 + i), bi);
-            float32x4_t d1 = vsubq_f32(vld1q_f32(a1 + i), bi);
-            float32x4_t d2 = vsubq_f32(vld1q_f32(a2 + i), bi);
-            float32x4_t d3 = vsubq_f32(vld1q_f32(a3 + i), bi);
-            float32x4_t d4 = vsubq_f32(vld1q_f32(a4 + i), bi);
-            float32x4_t d5 = vsubq_f32(vld1q_f32(a5 + i), bi);
-            float32x4_t d6 = vsubq_f32(vld1q_f32(a6 + i), bi);
-            float32x4_t d7 = vsubq_f32(vld1q_f32(a7 + i), bi);
-
-            sum0 = vmlaq_f32(sum0, d0, d0);
-            sum1 = vmlaq_f32(sum1, d1, d1);
-            sum2 = vmlaq_f32(sum2, d2, d2);
-            sum3 = vmlaq_f32(sum3, d3, d3);
-            sum4 = vmlaq_f32(sum4, d4, d4);
-            sum5 = vmlaq_f32(sum5, d5, d5);
-            sum6 = vmlaq_f32(sum6, d6, d6);
-            sum7 = vmlaq_f32(sum7, d7, d7);
-        }
-
-        f32_t result0 = vaddvq_f32(sum0);
-        f32_t result1 = vaddvq_f32(sum1);
-        f32_t result2 = vaddvq_f32(sum2);
-        f32_t result3 = vaddvq_f32(sum3);
-        f32_t result4 = vaddvq_f32(sum4);
-        f32_t result5 = vaddvq_f32(sum5);
-        f32_t result6 = vaddvq_f32(sum6);
-        f32_t result7 = vaddvq_f32(sum7);
-
-        // dimensions tail
-        for (; i < dims; i++) {
-            f32_t diff0 = a0[i] - b[i];
-            f32_t diff1 = a1[i] - b[i];
-            f32_t diff2 = a2[i] - b[i];
-            f32_t diff3 = a3[i] - b[i];
-            f32_t diff4 = a4[i] - b[i];
-            f32_t diff5 = a5[i] - b[i];
-            f32_t diff6 = a6[i] - b[i];
-            f32_t diff7 = a7[i] - b[i];
-
-            result0 += diff0 * diff0;
-            result1 += diff1 * diff1;
-            result2 += diff2 * diff2;
-            result3 += diff3 * diff3;
-            result4 += diff4 * diff4;
-            result5 += diff5 * diff5;
-            result6 += diff6 * diff6;
-            result7 += diff7 * diff7;
-        }
-
-        results[c + 0] = result0;
-        results[c + 1] = result1;
-        results[c + 2] = result2;
-        results[c + 3] = result3;
-        results[c + 4] = result4;
-        results[c + 5] = result5;
-        results[c + 6] = result6;
-        results[c + 7] = result7;
-    }
-
-    // vectors tail
-    for (; c < count; c++) {
-        const f32_t* a0 = a + mapper(c, offsets) * vec_size;
-        results[c] = vec_sqrf32(a0, b, dims);
-    }
-}
-
 EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+    call_f32_bulk<identity_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets(
@@ -883,7 +751,7 @@ EXPORT void vec_sqrf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_f32_bulk<array_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t reduce_u8x16_neon(uint8x16_t vec) {

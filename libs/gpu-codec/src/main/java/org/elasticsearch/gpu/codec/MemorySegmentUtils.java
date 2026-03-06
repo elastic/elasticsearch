@@ -17,11 +17,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-
-import org.apache.lucene.util.Unwrappable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -212,9 +211,7 @@ class MemorySegmentUtils {
         }
     }
 
-    record FileBackedMemorySegmentHolder(MemorySegment memorySegment, Arena arena, Path dataFile)
-        implements
-            MemorySegmentHolder {
+    record FileBackedMemorySegmentHolder(MemorySegment memorySegment, Arena arena, Path dataFile) implements MemorySegmentHolder {
         @Override
         public void close() {
             arena.close();

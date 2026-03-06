@@ -38,7 +38,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -388,13 +387,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
+    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("metadata\\s+[^|=]*_index", Pattern.CASE_INSENSITIVE);
+
     static boolean hasIndexMetadata(String query) {
-        String[] commands = query.split("\\|");
-        if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("(?i)metadata");
-            return parts.length > 1 && parts[1].contains("_index");
-        }
-        return false;
+        return HAS_INDEX_METADATA.matcher(query).find();
     }
 
     @Override

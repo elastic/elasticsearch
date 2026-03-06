@@ -134,7 +134,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+/**
+ * Unit tests for local physical plan optimization rules. For pushdown-related tests (filter, sort),
+ * prefer adding new cases to {@link PushdownGoldenTests} instead.
+ */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(

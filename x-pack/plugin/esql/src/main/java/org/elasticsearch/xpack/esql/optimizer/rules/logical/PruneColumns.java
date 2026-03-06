@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -86,6 +87,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         forkPresent.set(true);
                         yield pruneColumnsInFork(fork, used);
                     }
+                    case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -269,6 +271,39 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
+    }
+
+    /**
+     * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
+     * <p>
+     * Partial field pruning is <b>not</b> supported due to a layout–operator mismatch in
+     * {@code LocalExecutionPlanner}:
+     * <ul>
+     *   <li>The <b>layout</b> is built from {@code extractedFields} (size N, after pruning), which
+     *       determines channel indices for all downstream operators.</li>
+     *   <li>The <b>operator</b> ({@code StringExtractOperator} / {@code ColumnExtractOperator}) is
+     *       initialized from the full parser pattern (size M, unpruned), so it always appends M blocks
+     *       to the page at runtime.</li>
+     * </ul>
+     * When N &lt; M, downstream operators (e.g. {@code Aggregator}) read from wrong channel indices
+     * (off by M − N), corrupting the page structure.
+     * <p>
+     * We also cannot simply reconcile the two sides by matching on {@code extractedFields} names,
+     * because {@code PushDownRegexExtract} may rename attributes to avoid variable shadowing
+     * (see PR #108360), while the parser still returns results keyed by the original pattern names.
+     * </p>
+     */
+    private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = re;
+
+        var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
+        // If none of the extracted fields are used, remove the entire RegexExtract node
+        if (remaining != null && remaining.isEmpty()) {
+            p = re.child();
+            recheck.set(true);
+        }
+
+        return p;
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

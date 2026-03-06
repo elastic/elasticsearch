@@ -84,6 +84,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
             q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
         );

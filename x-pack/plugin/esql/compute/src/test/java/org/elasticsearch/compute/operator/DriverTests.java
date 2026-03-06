@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -455,7 +456,7 @@ public class DriverTests extends ESTestCase {
             final AtomicInteger processedRows = new AtomicInteger(0);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
-            final var delayOperator = new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
+            final var delayOperator = new EvalOperator(driverContext, new ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     for (int i = 0; i < page.getPositionCount(); i++) {
@@ -614,9 +615,7 @@ public class DriverTests extends ESTestCase {
 
     private DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        return new DriverContext(bigArrays, blockFactory, null);
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
 }

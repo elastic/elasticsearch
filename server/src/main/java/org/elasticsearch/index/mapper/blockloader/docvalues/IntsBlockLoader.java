@@ -21,12 +21,12 @@ public class IntsBlockLoader extends AbstractIntsFromDocValuesBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
         return new Sorted(docValues);
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -297,7 +298,7 @@ public class LookupExecutionPlanner {
 
         // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
         // to avoid caching stale IndexReader references when PhysicalOperation is cached
-        ByteSizeValue jumboSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
+        ByteSizeValue jumboSize = plannerSettings.valuesLoadingJumboSize();
         return source.with(new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
@@ -340,7 +341,15 @@ public class LookupExecutionPlanner {
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
                 );
-                return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, true, docChannel);
+                return new ValuesSourceReaderOperator(
+                    driverContext,
+                    jumboSize.getBytes(),
+                    fields,
+                    shardContexts,
+                    true,
+                    docChannel,
+                    PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+                );
             }
 
             @Override

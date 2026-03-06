@@ -529,13 +529,11 @@ SET unmapped_fields="nullify"\;
 FROM languages
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP language_code, language_name, foobar
+| WHERE language_code == 1
 ;
 
 language_code:integer | language_name:keyword | foobar:null
 1                     | English               | null
-2                     | French                | null
-3                     | Spanish               | null
-4                     | German                | null
 ;
 
 enrich

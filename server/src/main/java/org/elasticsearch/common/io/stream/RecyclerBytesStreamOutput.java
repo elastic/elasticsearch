@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -62,8 +63,12 @@ import java.util.Objects;
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
-    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
+
+    @Nullable // if no circuit breaker in use
+    private final CircuitBreaker circuitBreaker;
+
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
@@ -89,7 +94,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private long positionOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
+        this(recycler, null);
+    }
+
+    public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler, @Nullable CircuitBreaker circuitBreaker) {
         this.recycler = recycler;
+        this.circuitBreaker = circuitBreaker;
         this.pageSize = recycler.pageSize();
         this.currentOffset = this.maxOffset = pageSize;
         // Always start with a page. This is because if we don't have a page, one of the hot write paths would be forced to go through
@@ -280,7 +290,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
-        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             tmp.setTransportVersion(getTransportVersion());
             writeable.writeTo(tmp);
             int size = tmp.size();
@@ -415,6 +425,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (pages != null) {
             closeFields();
             Releasables.close(pages);
+            if (circuitBreaker != null) {
+                circuitBreaker.addWithoutBreaking(-(long) pageSize * pages.size());
+            }
         }
     }
 
@@ -429,7 +442,24 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var pages = this.pages;
         closeFields();
 
-        return new ReleasableBytesReference(bytes, pages.size() == 1 ? pages.getFirst() : Releasables.wrap(pages));
+        final Releasable releasable;
+        if (pages.size() == 1) {
+            if (circuitBreaker == null) {
+                releasable = pages.getFirst();
+            } else {
+                final var pageSize = this.pageSize;
+                releasable = Releasables.wrap(pages.getFirst(), () -> circuitBreaker.addWithoutBreaking(-pageSize));
+            }
+        } else {
+            if (circuitBreaker == null) {
+                releasable = Releasables.wrap(pages);
+            } else {
+                final long releaseSize = (long) this.pageSize * pages.size();
+                releasable = Releasables.wrap(Releasables.wrap(pages), () -> circuitBreaker.addWithoutBreaking(-releaseSize));
+            }
+        }
+
+        return new ReleasableBytesReference(bytes, releasable);
     }
 
     /**
@@ -594,10 +624,22 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             // Calculate number of additional pages needed
             int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize);
             pages.ensureCapacity(pages.size() + additionalPagesNeeded);
-            for (int i = 0; i < additionalPagesNeeded; i++) {
-                Recycler.V<BytesRef> newPage = recycler.obtain();
-                assert pageSize == newPage.v().length;
-                pages.add(newPage);
+
+            if (circuitBreaker != null) {
+                circuitBreaker.addEstimateBytesAndMaybeBreak((long) pageSize * additionalPagesNeeded, "RecyclerBytesStreamOutput");
+            }
+            int pagesAdded = 0;
+            try {
+                while (pagesAdded < additionalPagesNeeded) {
+                    Recycler.V<BytesRef> newPage = recycler.obtain();
+                    assert pageSize == newPage.v().length;
+                    pages.add(newPage);
+                    pagesAdded += 1;
+                }
+            } finally {
+                if (circuitBreaker != null && pagesAdded < additionalPagesNeeded) {
+                    circuitBreaker.addWithoutBreaking((long) pageSize * (pagesAdded - additionalPagesNeeded));
+                }
             }
             currentCapacity += additionalPagesNeeded * pageSize;
         }

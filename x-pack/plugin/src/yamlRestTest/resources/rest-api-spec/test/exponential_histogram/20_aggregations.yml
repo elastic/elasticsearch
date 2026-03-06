@@ -243,3 +243,37 @@ setup:
 
   - match: { hits.total.value: 5 }
 
+---
+"Range aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_range" ]
+      reason: exponential_histogram range aggregation was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            range_agg:
+              range:
+                field: histo
+                ranges:
+                  - {to: -500}
+                  - {from: -500, to: 0}
+                  - {from: 0, to: 100}
+                  - {from: 100, to: 10000}
+                  - {from: 10000}
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.range_agg.buckets: 5 }
+  - match: { aggregations.range_agg.buckets.0.key: "*--500.0" }
+  - match: { aggregations.range_agg.buckets.0.doc_count: 5 }
+  - match: { aggregations.range_agg.buckets.1.key: "-500.0-0.0" }
+  - match: { aggregations.range_agg.buckets.1.doc_count: 2 }
+  - match: { aggregations.range_agg.buckets.2.key: "0.0-100.0" }
+  - match: { aggregations.range_agg.buckets.2.doc_count: 20 }
+  - match: { aggregations.range_agg.buckets.3.key: "100.0-10000.0" }
+  - match: { aggregations.range_agg.buckets.3.doc_count: 9 }
+  - match: { aggregations.range_agg.buckets.4.key: "10000.0-*" }
+  - match: { aggregations.range_agg.buckets.4.doc_count: 5 }
+

@@ -31,6 +31,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -52,6 +54,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
+
+    private static final Logger logger = LogManager.getLogger(IVFVectorsReader.class);
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
@@ -294,25 +298,46 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == DYNAMIC_VISIT_RATIO) {
             if (numCands > 0) {
-                // Sublinear mapping: numCands * ln(1 + N/numCands)^1.5 / N
-                // The ln(1 + N/numCands)^1.5 term provides a log-like boost at low numCands
-                // (similar to main's log10(N)^2) while approaching linear at high numCands.
-                // The 1.5 exponent gives more aggressive visiting at low numCands for better recall,
-                // while still staying well below main's visit count.
-                // This ensures numCands remains a meaningful tuning knob at every value and scales
-                // well even on very large segments where numCands (max 10K) would otherwise be too small.
-                int effectiveNumCands = Math.min(10_000, Math.max(numCands, 5 * k));
-                double logTerm = Math.log(1.0 + (double) numVectors / effectiveNumCands);
-                visitRatio = Math.min(1.0f, (float) (effectiveNumCands * Math.pow(logTerm, 1.5) / numVectors));
+                // Two-signal model: smooth log-based visit ratio from num_candidates/k ratio and k.
+                // Produces visitRatio in [V_MIN, V_MAX] which, after the SOAR 2× multiplier,
+                // gives actual visit percentage in [~1%, ~10%].
+                // The nc/k ratio (capped at R_MAX=100) drives 85% of the signal via log scaling,
+                // while k itself (capped at K_MAX=10000) contributes the remaining 15%.
+                final float V_MIN = 0.005f;
+                final float V_MAX = 0.05f;
+                final double R_MAX = 100.0;
+                final double K_MAX = 10_000.0;
+                double r = (double) numCands / Math.max(k, 1);
+                double x = Math.log1p(r) / Math.log1p(R_MAX);
+                double y = Math.log1p(k) / Math.log1p(K_MAX);
+                x = Math.max(0.0, Math.min(1.0, x));
+                y = Math.max(0.0, Math.min(1.0, y));
+                double z = 0.85 * x + 0.15 * y;
+                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
             } else {
                 // Fallback when called without IVFKnnSearchStrategy (e.g. checkIndex).
-                // Use the original k-based heuristic for reasonable default behavior.
-                float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * k);
-                visitRatio = estimated / numVectors;
+                // Use log-based heuristic for reasonable default behavior.
+                final float V_MIN = 0.005f;
+                final float V_MAX = 0.05f;
+                double r = 1.0; // assume nc == k
+                double x = Math.log1p(r) / Math.log1p(100.0);
+                double y = Math.log1p(k) / Math.log1p(10_000.0);
+                x = Math.max(0.0, Math.min(1.0, x));
+                y = Math.max(0.0, Math.min(1.0, y));
+                double z = 0.85 * x + 0.15 * y;
+                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
             }
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        logger.debug(
+            "IVF search segment: numVectors=[{}], visitRatio=[{}], maxVectorVisited=[{}], numCands=[{}], k=[{}]",
+            numVectors,
+            visitRatio,
+            maxVectorVisited,
+            numCands,
+            k
+        );
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -356,6 +381,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 }
             }
         }
+        logger.debug(
+            "IVF search result: expectedDocs=[{}], actualDocs=[{}], visitedCount=[{}]",
+            expectedDocs,
+            actualDocs,
+            knnCollector.visitedCount()
+        );
     }
 
     @Override

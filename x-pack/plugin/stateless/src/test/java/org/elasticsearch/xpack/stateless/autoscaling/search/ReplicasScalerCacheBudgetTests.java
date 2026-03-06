@@ -108,7 +108,7 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1
         );
 
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index1", 3);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 3);
         SortedMap<String, Integer> desiredReplicas = new TreeMap<>();
         desiredReplicas.put("index1", 1);
         ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult result = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(
@@ -118,7 +118,7 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
         );
 
         // With immediateScaleDown=true, scale from 4 to max(3, 1) => frees 1 * 100MB = 100MB
-        long cacheFreed = replicasScalerCacheBudget.getCacheFreedByScaleDowns(rankingContext, instantFailoverReplicaChanges, result, true);
+        long cacheFreed = replicasScalerCacheBudget.getCacheFreedByScaleDowns(rankingContext, instantFailoverDesiredReplicas, result, true);
 
         assertThat(cacheFreed, equalTo(100_000_000L));
     }
@@ -180,7 +180,7 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1
         );
 
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index1", 3);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 3);
         SortedMap<String, Integer> desiredReplicas = new TreeMap<>();
         desiredReplicas.put("index1", 2);
         ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult result = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(
@@ -190,7 +190,12 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
         );
 
         // Not enough signals, so no cache freed
-        long cacheFreed = replicasScalerCacheBudget.getCacheFreedByScaleDowns(rankingContext, instantFailoverReplicaChanges, result, false);
+        long cacheFreed = replicasScalerCacheBudget.getCacheFreedByScaleDowns(
+            rankingContext,
+            instantFailoverDesiredReplicas,
+            result,
+            false
+        );
 
         assertThat(cacheFreed, equalTo(0L));
     }
@@ -203,12 +208,12 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1
         );
 
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index1", 4);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 4);
 
         // Scale up from 2 to 4 replicas => needs 2 * 100MB = 200MB
         long cacheNeeded = ReplicasScalerCacheBudget.getCacheNeededForInstantFailoverScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges
+            instantFailoverDesiredReplicas
         );
 
         assertThat(cacheNeeded, equalTo(200_000_000L));
@@ -228,13 +233,13 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1
         );
 
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index1", 3, "index2", 4);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 3, "index2", 4);
 
         // index1: 1->3 = 2 * 100MB = 200MB
         // index2: 2->4 = 2 * 200MB = 400MB => total 600MB
         long cacheNeeded = ReplicasScalerCacheBudget.getCacheNeededForInstantFailoverScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges
+            instantFailoverDesiredReplicas
         );
 
         assertThat(cacheNeeded, equalTo(600_000_000L));
@@ -255,12 +260,12 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
         );
 
         // index1 scales up, index2 scales down
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index1", 5, "index2", 2);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 5, "index2", 2);
 
         // Only index1 scale-up counts: 2->5 = 3 * 100MB = 300MB
         long cacheNeeded = ReplicasScalerCacheBudget.getCacheNeededForInstantFailoverScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges
+            instantFailoverDesiredReplicas
         );
 
         assertThat(cacheNeeded, equalTo(300_000_000L));
@@ -422,13 +427,13 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             desiredReplicas,
             0
         );
-        Map<String, Integer> instantFailoverReplicaChanges = Map.of("index2", 2);
+        Map<String, Integer> instantFailoverDesiredReplicas = Map.of("index1", 1, "index2", 2, "index3", 1, "index4", 1);
 
         // Budget: 500MB, needed for scale-ups: 2*200MB = 400MB (fits) + 1*300MB (doesn't fit)
         // However instant failover also recommends index2 so it will not be removed
         ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult budgetedResult = ReplicasScalerCacheBudget.budgetLoadBalancingScaleUps(
             rankingContext,
-            instantFailoverReplicaChanges,
+            instantFailoverDesiredReplicas,
             initialResult,
             500_000_000L
         );
@@ -494,14 +499,14 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1 // SPmin has no effect since we're calling applyCacheBudgetConstraint directly in this test
         );
 
-        SortedMap<String, Integer> recommendedChanges = new TreeMap<>();
-        recommendedChanges.put("index1", 2);
-        recommendedChanges.put("index2", 2);
-        recommendedChanges.put(".system", 2);
+        SortedMap<String, Integer> recommendedReplicas = new TreeMap<>();
+        recommendedReplicas.put("index1", 2);
+        recommendedReplicas.put("index2", 2);
+        recommendedReplicas.put(".system", 2);
         int indicesBlockedFromScaleUp = 0;
         var initialResult = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(
             Map.of(),
-            recommendedChanges,
+            recommendedReplicas,
             indicesBlockedFromScaleUp
         );
 
@@ -568,14 +573,14 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
             -1 // SPmin has no effect since we're calling applyCacheBudgetConstraint directly in this test
         );
 
-        SortedMap<String, Integer> recommendedChanges = new TreeMap<>(REVERSED_KEY_COMPARATOR);
-        recommendedChanges.put("index1", 4);
-        recommendedChanges.put("index2", 4);
-        recommendedChanges.put(".system", 3);
+        SortedMap<String, Integer> recommendedReplicas = new TreeMap<>(REVERSED_KEY_COMPARATOR);
+        recommendedReplicas.put("index1", 4);
+        recommendedReplicas.put("index2", 4);
+        recommendedReplicas.put(".system", 3);
         int indicesBlockedFromScaleUp = 0;
         var initialResult = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(
             Map.of(),
-            recommendedChanges,
+            recommendedReplicas,
             indicesBlockedFromScaleUp
         );
 
@@ -815,14 +820,14 @@ public class ReplicasScalerCacheBudgetTests extends ESTestCase {
         instantFailoverRecommendations.put("index1", 2);
         instantFailoverRecommendations.put("index2", 2);
         instantFailoverRecommendations.put(".system", 2);
-        SortedMap<String, Integer> recommendedChanges = new TreeMap<>(REVERSED_KEY_COMPARATOR);
-        recommendedChanges.put("index1", 3);
-        recommendedChanges.put("index2", 3);
-        recommendedChanges.put(".system", 3);
+        SortedMap<String, Integer> recommendedReplicas = new TreeMap<>(REVERSED_KEY_COMPARATOR);
+        recommendedReplicas.put("index1", 3);
+        recommendedReplicas.put("index2", 3);
+        recommendedReplicas.put(".system", 3);
         int indicesBlockedFromScaleUp = 0;
         ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult initialResult = new ReplicasLoadBalancingScaler.ReplicasLoadBalancingResult(
             Map.of(),
-            recommendedChanges,
+            recommendedReplicas,
             indicesBlockedFromScaleUp
         );
 

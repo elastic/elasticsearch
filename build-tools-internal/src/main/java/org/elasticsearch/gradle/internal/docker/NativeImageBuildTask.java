@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -44,6 +45,16 @@ import javax.inject.Inject;
 public abstract class NativeImageBuildTask extends DefaultTask {
 
     private FileCollection classpath;
+
+    @Inject
+    public NativeImageBuildTask() {
+        onlyIf(
+            "Docker supports target platform",
+            task -> Architecture.fromDockerPlatform(getPlatform().getOrNull())
+                .map(arch -> getDockerSupport().get().isArchitectureSupported(arch))
+                .orElse(false)
+        );
+    }
 
     @Classpath
     public FileCollection getClasspath() {

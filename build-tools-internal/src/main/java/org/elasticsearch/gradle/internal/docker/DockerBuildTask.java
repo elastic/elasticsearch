@@ -40,6 +40,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -69,6 +70,22 @@ public abstract class DockerBuildTask extends DefaultTask {
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
         this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        onlyIf(
+            "Docker supports all requested platforms",
+            task -> {
+                var platforms = getPlatforms().getOrElse(Collections.emptySet());
+                if (platforms.isEmpty()) {
+                    return false;
+                }
+                DockerSupportService support = getDockerSupport().get();
+                return platforms.stream()
+                    .allMatch(
+                        platform -> Architecture.fromDockerPlatform(platform)
+                            .map(support::isArchitectureSupported)
+                            .orElse(false)
+                    );
+            }
+        );
     }
 
     @TaskAction

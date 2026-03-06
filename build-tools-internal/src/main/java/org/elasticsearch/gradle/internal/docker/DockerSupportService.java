@@ -72,7 +72,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      *
      * @return the results of the search.
      */
-    public DockerAvailability getDockerAvailability() {
+    public synchronized DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
             String dockerPath;
             String dockerComposePath = null;

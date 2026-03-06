@@ -174,17 +174,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     /**
      * Determines the default inference ID for semantic_text fields when none is explicitly provided.
      * <p>
-     * If no model registry is available (e.g. self-managed, no EIS), falls back immediately to
-     * {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (.elser-2-elasticsearch, ML nodes).
+     * If model registry is null, falls back to {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID}
+     * (.elser-2-elasticsearch, ML nodes).
      * <p>
-     * For indices created on or after {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5}, prefers
-     * {@link #DEFAULT_EIS_JINA_V5_INFERENCE_ID} when available, then
-     * {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} when available, then ML-node ELSER.
+     * For indices created on or after {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5}, selects
+     * the first available model, checking availability in this order:
+     * {@link #DEFAULT_EIS_JINA_V5_INFERENCE_ID},
+     * {@link #DEFAULT_EIS_ELSER_INFERENCE_ID}, then ML-node ELSER.
      * <p>
-     * If jina-v5 is unavailable or the index predates the version gate,
-     * falls back to {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} when available, then
-     * {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID}. The version gate applies only to jina-v5,
-     * preserving the legacy EIS ELSER → ML-node ELSER fallback behavior for all other cases.
+     * If the index predates the version gate, falls back to {@link #DEFAULT_EIS_ELSER_INFERENCE_ID}
+     * when available, then {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID}.
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
         if (modelRegistry != null) {

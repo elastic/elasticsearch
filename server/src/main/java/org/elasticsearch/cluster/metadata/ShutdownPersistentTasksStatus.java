@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObject {
 
-    private static final TransportVersion SHUTDOWN_PERSISTENT_TASKS_STATUS = TransportVersion.fromName("shutdown_persistent_tasks_status");
+    public static final TransportVersion SHUTDOWN_PERSISTENT_TASKS_STATUS = TransportVersion.fromName("shutdown_persistent_tasks_status");
 
     private final SingleNodeShutdownMetadata.Status status;
     private final int persistentTasksRemaining;

@@ -765,7 +765,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
             LoggedExec.exec(execOperations, spec -> {
-                spec.setEnvironment(getESEnvironment());
+                spec.getEnvironment().set(getESEnvironment());
                 spec.workingDir(getDistroDir());
                 spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());
                 spec.args(OS.<List<CharSequence>>conditional().onWindows(() -> {
@@ -775,7 +775,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     Collections.addAll(result, args);
                     return result;
                 }).onUnix(() -> Arrays.asList(args)).supply());
-                spec.setStandardInput(byteArrayInputStream);
+                spec.getStandardInput().set(byteArrayInputStream);
 
             });
         } catch (IOException e) {

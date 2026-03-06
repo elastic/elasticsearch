@@ -97,8 +97,8 @@ public abstract class GradleUtils {
         TaskProvider<Test> testTask = project.getTasks().register(sourceSetName, Test.class);
         testTask.configure(task -> {
             task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
-            task.setClasspath(testSourceSet.getRuntimeClasspath());
+            task.getTestClassesDirs().setFrom(testSourceSet.getOutput().getClassesDirs());
+            task.getClasspath().setFrom(testSourceSet.getRuntimeClasspath());
             // make the new test run after unit tests
             task.mustRunAfter(project.getTasks().named("test"));
         });
@@ -175,7 +175,7 @@ public abstract class GradleUtils {
             test.configure(t -> {
                 SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
                 SourceSet child = sourceSets.getByName(childSourceSetName);
-                t.setClasspath(child.getRuntimeClasspath());
+                t.getClasspath().setFrom(child.getRuntimeClasspath());
             });
         }
     }

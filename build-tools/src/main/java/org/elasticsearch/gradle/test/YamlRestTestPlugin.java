@@ -120,8 +120,8 @@ public class YamlRestTestPlugin implements Plugin<Project> {
     ) {
         return project.getTasks().register(YAML_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(clusterProvider.get());
-            task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
-            task.setClasspath(testSourceSet.getRuntimeClasspath());
+            task.getTestClassesDirs().setFrom(testSourceSet.getOutput().getClassesDirs());
+            task.getClasspath().setFrom(testSourceSet.getRuntimeClasspath());
 
             var cluster = clusterProvider.get();
             var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();

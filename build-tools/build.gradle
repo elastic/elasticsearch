@@ -95,7 +95,7 @@ gradlePlugin {
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
     destinationFile = new File(buildDir, "version.properties");
     comment = 'Generated version properties'
-    properties(versions)
+    versions.each { k, v -> it.property(k, v) }
 }
 
 tasks.named("processResources").configure {

@@ -39,10 +39,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -152,21 +154,17 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             ? new IndentingOutputStream(System.out, getIndentingConsoleOutput().get())
             : out;
         ExecResult execResult = execOperations.exec(execSpec -> {
-            execSpec.setIgnoreExitValue(true);
-            execSpec.setStandardOutput(finalOutputStream);
-            execSpec.setErrorOutput(finalOutputStream);
-            execSpec.setExecutable(getExecutable().get());
-            execSpec.environment(getEnvironment().get());
-            execSpec.environment(getNonTrackedEnvironment().get());
+            execSpec.getIgnoreExitValue().set(true);
+            execSpec.getStandardOutput().set(finalOutputStream);
+            execSpec.getErrorOutput().set(finalOutputStream);
+            execSpec.getExecutable().set(getExecutable());
+            execSpec.getEnvironment().set(getEnvironment().zip(getNonTrackedEnvironment(), (a, b) -> { a.putAll(b); return a; }));
             if (getArgs().isPresent()) {
-                execSpec.setArgs(getArgs().get());
+                Provider<Iterable<String>> argsProvider = getArgs().map(it -> it.stream().map(Object::toString).collect(Collectors.toCollection(ArrayList::new)));
+                execSpec.getArgs().set(argsProvider);
             }
-            if (getWorkingDir().isPresent()) {
-                execSpec.setWorkingDir(getWorkingDir().get());
-            }
-            if (getStandardInput().isPresent()) {
-                execSpec.setStandardInput(new ByteArrayInputStream(getStandardInput().get().getBytes(StandardCharsets.UTF_8)));
-            }
+            execSpec.getWorkingDir().set(getWorkingDir().get());
+            execSpec.getStandardInput().set(getStandardInput().map(it -> new ByteArrayInputStream(it.getBytes(StandardCharsets.UTF_8))));
         });
         int exitValue = execResult.getExitValue();
 
@@ -212,8 +210,8 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try {
             return function.apply(spec -> {
-                spec.setStandardOutput(output);
-                spec.setErrorOutput(output);
+                spec.getStandardOutput().set(output);
+                spec.getErrorOutput().set(output);
                 action.execute(spec);
                 try {
                     output.write(("Output for " + spec.getExecutable() + ":").getBytes(StandardCharsets.UTF_8));

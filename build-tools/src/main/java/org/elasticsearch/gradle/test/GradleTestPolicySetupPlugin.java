@@ -13,7 +13,9 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.invocation.Gradle;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.process.CommandLineArgumentProvider;
 
 import java.util.List;
 
@@ -26,13 +28,14 @@ public class GradleTestPolicySetupPlugin implements Plugin<Project> {
             test.systemProperty("tests.gradle", true);
             test.systemProperty("tests.task", test.getPath());
 
-            test.getJvmArgumentProviders().add(() -> {
-                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
-                    return List.of("-Djava.security.manager=allow");
-                } else {
-                    return List.of();
-                }
-            });
+            Provider<List<String>> versionSpecificArgument = test.getJavaVersion().map(version ->
+                version.compareTo(JavaVersion.VERSION_23) <= 0 ?
+                    List.of("-Djava.security.manager=allow") :
+                    List.of()
+            );
+            Provider<CommandLineArgumentProvider> cmdLineArgs =
+                versionSpecificArgument.map(it -> (() -> it));
+            test.getJvmArgumentProviders().add(cmdLineArgs);
 
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             // don't track these as inputs since they contain absolute paths and break cache relocatability

@@ -345,12 +345,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testStandardIndexWithTSDBDocValuesFormatSetting
-  issue: https://github.com/elastic/elasticsearch/issues/143197
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testTSDBIndexUsesCorrectDocValuesFormat
-  issue: https://github.com/elastic/elasticsearch/issues/143198
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
@@ -426,6 +420,21 @@ tests:
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143697
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/143708
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTsIndexConflictingTypes {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/142477
+- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
+  method: testCliConnectionWithInvalidApiKey
+  issue: https://github.com/elastic/elasticsearch/issues/143646
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSplitOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/143720
 
 # Examples:
 #

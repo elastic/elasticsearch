@@ -195,9 +195,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     /**
-     * Determines the preferred ELSER inference ID based on EIS availability.
-     * Returns .elser-2-elastic (EIS) when available, otherwise falls back to .elser-2-elasticsearch (ML nodes).
-     * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
+     * Determines the default inference ID for {@code semantic_text} fields that do not declare an explicit {@code inference_id}.
+     * <p>
+     * Resolution order:
+     * <ol>
+     *   <li>If {@link #INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID} is set on the index, that value is returned directly.</li>
+     *   <li>If the model registry is non-null and {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} is a registered preconfigured endpoint,
+     *       that endpoint is returned.</li>
+     *   <li>Otherwise, falls back to {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (ML-node ELSER).</li>
+     * </ol>
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
         if (INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.exists(indexSettings.getSettings())) {

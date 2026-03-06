@@ -342,8 +342,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testIndexSettingWithCustomInferenceId() throws Exception {
-        // When index.semantic_text.default_inference_id is set to a custom value, semantic_text fields without
-        // an explicit inference_id use that custom endpoint.
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
         final String customEndpoint = "my-custom-elser-endpoint";
@@ -358,7 +356,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testExplicitFieldInferenceIdTakesPrecedenceOverIndexSetting() throws Exception {
-        // An explicit inference_id on the field itself always wins over the index setting default.
         final String fieldName = "field";
         final String explicitEndpoint = "explicit-endpoint";
         final XContentBuilder fieldMapping = fieldMapping(
@@ -375,20 +372,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testEmptyDefaultInferenceIdSettingThrows() throws Exception {
-        try (XContentBuilder fieldMapping = fieldMapping(this::minimalMapping)) {
-
-            for (String blank : new String[]{null, "", " ", "   "}) {
-                var settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-                    .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-                    .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), blank)
-                    .build();
-                Exception e = expectThrows(
-                    MapperParsingException.class,
-                    () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
-                );
-                assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be blank"));
-            }
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        for (String blank : new String[] { null, "", " ", "   " }) {
+            var settings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+                .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), blank)
+                .build();
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
+            );
+            assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be blank"));
         }
     }
 

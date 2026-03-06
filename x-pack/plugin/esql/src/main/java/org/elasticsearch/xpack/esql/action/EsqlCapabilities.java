@@ -2254,6 +2254,16 @@ public class EsqlCapabilities {
         TS_INFO_COMMAND,
 
         /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
+        /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
+
+        /**
          * Fix for KQL/QSTR functions failing when used with unmapped fields in NULLIFY mode.
          * Unmapped fields are now added directly to EsRelation output with NULL type instead of using Eval nodes.
          * https://github.com/elastic/elasticsearch/issues/142968

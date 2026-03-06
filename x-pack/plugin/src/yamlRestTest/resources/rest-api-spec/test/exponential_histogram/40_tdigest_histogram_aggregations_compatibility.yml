@@ -259,3 +259,34 @@ setup:
 
   - match: { hits.total.value: 2 }
 
+---
+"Range aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_range" ]
+      reason: exponential_histogram range aggregation was introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            range_agg:
+              range:
+                field: tdigest_or_exp_histo
+                ranges:
+                  - {to: 1}
+                  - {from: 1, to: 3}
+                  - {from: 3, to: 6}
+                  - {from: 6}
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.range_agg.buckets: 4 }
+  - match: { aggregations.range_agg.buckets.0.key: "*-1.0" }
+  - match: { aggregations.range_agg.buckets.0.doc_count: 3 }
+  - match: { aggregations.range_agg.buckets.1.key: "1.0-3.0" }
+  - match: { aggregations.range_agg.buckets.1.doc_count: 5 }
+  - match: { aggregations.range_agg.buckets.2.key: "3.0-6.0" }
+  - match: { aggregations.range_agg.buckets.2.doc_count: 2 }
+  - match: { aggregations.range_agg.buckets.3.key: "6.0-*" }
+  - match: { aggregations.range_agg.buckets.3.doc_count: 0 }
+

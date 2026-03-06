@@ -59,7 +59,7 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
 
             @Override
             public void loadExtensions(ExtensionLoader loader) {
-                // Nothing, else it would clash with super class which already loads inference services
+                // nothing, else it would clash with super class which already loads inference services
             }
         };
         plugins.add(inferencePlugin);

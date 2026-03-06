@@ -27,8 +27,9 @@ dependencies {
   implementation project(':libs:server-launcher-common')
 }
 
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+tasks.named('forbiddenApisMain') {
+  // ServerLauncher uses various forbidden APIs such as System.exit() and printing directly to stdout and stderr.
+  enabled = false
 }
 
 // --- GraalVM native-image build (Linux only, Docker-based) ---

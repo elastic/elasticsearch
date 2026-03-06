@@ -28,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -308,12 +310,16 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         try {
             // disable tracking of the @timestamp range for must_not and should clauses
             context.setTrackTimeRangeFilterFrom(false);
-            addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT, queryVisitor);
+            // lucene deduplicates mustnot clauses. This might fail because equality on query builders is not equal to equality
+            // in generated queries in some cases.
+            addBooleanClauses(context, booleanQueryBuilder, new HashSet<>(mustNotClauses), BooleanClause.Occur.MUST_NOT, queryVisitor);
             addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD, queryVisitor);
         } finally {
             context.setTrackTimeRangeFilterFrom(true);
         }
-        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, queryVisitor);
+        // lucene deduplicates filter clauses. This might fail because equality on query builders is not equal to equality
+        // in generated queries in some cases.
+        addBooleanClauses(context, booleanQueryBuilder, new HashSet<>(filterClauses), BooleanClause.Occur.FILTER, queryVisitor);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
             Queries.ALL_DOCS_INSTANCE.visit(queryVisitor);
@@ -327,7 +333,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
-        List<QueryBuilder> clauses,
+        Collection<QueryBuilder> clauses,
         Occur occurs,
         QueryVisitor queryVisitor
     ) throws IOException {

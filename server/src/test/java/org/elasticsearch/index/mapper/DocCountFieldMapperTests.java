@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
@@ -142,6 +143,29 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                     String docCountPart = counts.get(doc) == null ? "" : "\"_doc_count\":" + counts.get(doc) + ",";
                     assertThat("doc " + docId, source, equalTo("{" + docCountPart + "\"doc\":" + doc + "}"));
                 }
+            }
+        });
+    }
+
+    public void testSyntheticSourceIncludeMetadataBypassesFilter() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> b.startObject("count").field("type", "integer").endObject()));
+        int count = between(1, Integer.MAX_VALUE);
+        SourceFilter filter = new SourceFilter(new String[] { "count" }, null);
+        withLuceneIndex(mapper, iw -> {
+            iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("count", 42).field(CONTENT_TYPE, count))).rootDoc());
+        }, reader -> {
+            SourceLoader withMetadata = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, true);
+            SourceLoader withoutMetadata = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, false);
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+
+                LeafStoredFieldLoader sf1 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                String withMetaSource = withMetadata.leaf(leaf.reader(), docIds).source(sf1, 0).internalSourceRef().utf8ToString();
+                assertThat(withMetaSource, equalTo("{\"_doc_count\":" + count + ",\"count\":42}"));
+
+                LeafStoredFieldLoader sf2 = StoredFieldLoader.empty().getLoader(leaf, docIds);
+                String withoutMetaSource = withoutMetadata.leaf(leaf.reader(), docIds).source(sf2, 0).internalSourceRef().utf8ToString();
+                assertThat(withoutMetaSource, equalTo("{\"count\":42}"));
             }
         });
     }

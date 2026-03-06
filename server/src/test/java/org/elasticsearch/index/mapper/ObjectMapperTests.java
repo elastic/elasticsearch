@@ -19,6 +19,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -535,6 +536,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
         assertThat(o.syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
+    }
+
+    public void testSyntheticFieldLoaderAlwaysIncludesIgnoredSource() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
+        );
+        Mapping mapping = mapperService.documentMapper().mapping();
+        SourceFilter filterKwdOnly = new SourceFilter(new String[] { "kwd" }, null);
+
+        SourceLoader.SyntheticFieldLoader withMeta = mapping.syntheticFieldLoader(filterKwdOnly, true);
+        SourceLoader.SyntheticFieldLoader withoutMeta = mapping.syntheticFieldLoader(filterKwdOnly, false);
+
+        assertTrue(withMeta.storedFieldLoaders().anyMatch(e -> e.getKey().equals(IgnoredSourceFieldMapper.NAME)));
+        assertTrue(withoutMeta.storedFieldLoaders().anyMatch(e -> e.getKey().equals(IgnoredSourceFieldMapper.NAME)));
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {

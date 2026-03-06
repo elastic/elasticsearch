@@ -122,8 +122,6 @@ public class ActionModuleTests extends ESTestCase {
         ActionModule actionModule = new ActionModule(
             testEnv,
             TestIndexNameExpressionResolver.newInstance(),
-            null,
-            settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
             null,
@@ -183,8 +181,6 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
                 threadPool,
@@ -237,8 +233,6 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
                 threadPool,
@@ -290,8 +284,6 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    null,
-                    settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
@@ -334,8 +326,6 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                    null,
-                    settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,

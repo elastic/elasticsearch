@@ -409,7 +409,9 @@ public class CloneStep implements DlmStep {
             cloneIndex
         );
         resizeReq.setTargetIndex(createReq);
-        resizeReq.setTargetIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        resizeReq.setTargetIndexSettings(
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
         return resizeReq;
     }
 

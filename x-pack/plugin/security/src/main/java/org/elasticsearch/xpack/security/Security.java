@@ -1053,7 +1053,7 @@ public class Security extends Plugin
             projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
-            buildRoleBuildingExecutor(threadPool, settings),
+            buildThrottledExecutor("build_roles", threadPool, settings),
             new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -1174,7 +1174,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            buildThrottledExecutor("check_privileges", threadPool, settings)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1459,9 +1460,9 @@ public class Security extends Plugin
         return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
-    private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
+    private static Executor buildThrottledExecutor(String name, ThreadPool threadPool, Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("build_roles", allocatedProcessors, threadPool.generic());
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(name, allocatedProcessors, threadPool.generic());
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {
@@ -1476,7 +1477,7 @@ public class Security extends Plugin
                     abstractRunnable.onFailure(e);
                 }
                 // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running " + r, e);
+                logger.error("unexpected failure running [{}]", r, e);
                 assert false : new AssertionError("unexpected failure running " + r, e);
             }
         });

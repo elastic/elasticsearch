@@ -110,6 +110,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -180,7 +181,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        Executor privilegeCheckExecutor
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -202,7 +204,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            privilegeCheckExecutor
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;

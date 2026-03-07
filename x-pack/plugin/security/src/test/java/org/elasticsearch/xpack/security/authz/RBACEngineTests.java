@@ -33,12 +33,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -127,6 +129,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -175,7 +180,13 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
+        engine = new RBACEngine(
+            Settings.EMPTY,
+            rolesStore,
+            new FieldPermissionsCache(Settings.EMPTY),
+            timerFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {
@@ -1235,6 +1246,62 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(e1, is(stallCheckException));
     }
 
+    public void testCheckPrivilegesForksWhenCalledOnTransportThread() throws Exception {
+        final AtomicInteger executorInvocations = new AtomicInteger();
+        final AtomicReference<Runnable> capturedRunnable = new AtomicReference<>();
+        final RBACEngine engineWithCapturingExecutor = createEngineWithPrivilegeCheckExecutor(runnable -> {
+            assertThat("expected only one executor invocation", capturedRunnable.compareAndSet(null, runnable), is(true));
+            executorInvocations.incrementAndGet();
+        });
+
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").cluster(Set.of("monitor"), Set.of()).build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            new String[] { "monitor" },
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[0],
+            true
+        );
+        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
+
+        final Thread transportThread = new Thread(
+            () -> engineWithCapturingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future),
+            "test-" + Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX
+        );
+        transportThread.start();
+        transportThread.join();
+
+        assertThat(executorInvocations.get(), is(1));
+        assertThat(capturedRunnable.get(), notNullValue());
+        assertThat("task should not complete before executor runs it", future.isDone(), is(false));
+
+        capturedRunnable.get().run();
+        assertThat(future.actionGet().allChecksSuccess(), is(true));
+    }
+
+    public void testCheckPrivilegesRunsInlineOffTransportThread() {
+        final AtomicInteger executorInvocations = new AtomicInteger();
+        final RBACEngine engineWithCountingExecutor = createEngineWithPrivilegeCheckExecutor(runnable -> {
+            executorInvocations.incrementAndGet();
+            runnable.run();
+        });
+
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").cluster(Set.of("monitor"), Set.of()).build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            new String[] { "monitor" },
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[0],
+            true
+        );
+        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
+
+        engineWithCountingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future);
+
+        assertThat(executorInvocations.get(), is(0));
+        assertThat(future.actionGet().allChecksSuccess(), is(true));
+    }
+
     public void testIsCompleteMatch() throws Exception {
         final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
         final ApplicationPrivilege kibanaRead = defineApplicationPrivilege(privs, "kibana", "read", "data:read/*");
@@ -2283,5 +2350,17 @@ public class RBACEngineTests extends ESTestCase {
                 );
         });
         return roleBuilder.build();
+    }
+
+    private static RBACEngine createEngineWithPrivilegeCheckExecutor(Executor privilegeCheckExecutor) {
+        final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
+        when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
+        return new RBACEngine(
+            Settings.EMPTY,
+            mock(CompositeRolesStore.class),
+            new FieldPermissionsCache(Settings.EMPTY),
+            timerFactory,
+            privilegeCheckExecutor
+        );
     }
 }

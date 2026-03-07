@@ -20,7 +20,7 @@ Elastic does not endorse, promote or provide support for these applications; for
 
 ## Prerequisites [_prerequisites_superset]
 
-* [Apache Superset](https://superset.apache.org/) 5.0.0 or higher, or a [Preset](https://preset.io/) workspace
+* [Apache Superset](https://superset.apache.org/) 5.0.0 or later, or a [Preset](https://preset.io/) workspace
 * Python package [`elasticsearch-dbapi`](https://github.com/preset-io/elasticsearch-dbapi):
 
   ```bash

@@ -93,13 +93,17 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test | EVAL l = mv_max(keyword) | KEEP l | LIMIT 10'
+          query: 'FROM test METADATA _id | EVAL l = mv_max(keyword) | SORT l | KEEP _id, l | LIMIT 10'
 
-  - length: {columns: 1}
+  - length: {columns: 2}
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: {columns.1.name: "l"}
+  - match: {columns.1.type: "keyword"}
   - length: {values: 3}
-  - match: {columns.0.name: "l"}
-  - match: {columns.0.type: "keyword"}
-  - length: {values.0: 1}
-  - match: {values.0.0: "abc"}
-  - match: {values.1.0: "abcdef"}
-  - match: {values.2.0: "abcdefg"}
+  - match: {values.0.0: "1"}
+  - match: {values.0.1: "abc"}
+  - match: {values.1.0: "2"}
+  - match: {values.1.1: "abcdef"}
+  - match: {values.2.0: "3"}
+  - match: {values.2.1: "abcdefg"}

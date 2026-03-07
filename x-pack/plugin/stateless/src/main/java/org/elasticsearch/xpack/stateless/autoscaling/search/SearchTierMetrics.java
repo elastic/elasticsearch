@@ -34,13 +34,14 @@ import java.util.Objects;
 
 public class SearchTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
     static final TransportVersion SP_TRANSPORT_VERSION = TransportVersion.fromName("search_power_in_autoscaling_response");
-
+    static final TransportVersion LINKED_PROJECTS_METRICS = TransportVersion.fromName("linked_projects_in_search_tier_metrics");
     private final MemoryMetrics memoryMetrics;
     private final MaxShardCopies maxShardCopies;
     private final StorageMetrics storageMetrics;
     private final List<NodeSearchLoadSnapshot> nodesLoad;
     private final int searchPowerMin;
     private final int searchPowerMax;
+    private final LinkedProjectsMetrics linkedProjectsMetrics;
 
     public SearchTierMetrics(
         MemoryMetrics memoryMetrics,
@@ -57,6 +58,24 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         this.nodesLoad = nodesLoad;
         this.searchPowerMin = searchPowerMin;
         this.searchPowerMax = searchPowerMax;
+        this.linkedProjectsMetrics = null;
+    }
+
+    /**
+     * This constructor merges the result of querying the local search tier and the result of querying
+     * remote linked projects into a single response object.
+     * @param searchTierMetrics
+     * @param linkedProjectsMetrics
+     */
+    public SearchTierMetrics(SearchTierMetrics searchTierMetrics, LinkedProjectsMetrics linkedProjectsMetrics) {
+        super();
+        this.memoryMetrics = searchTierMetrics.memoryMetrics;
+        this.maxShardCopies = searchTierMetrics.maxShardCopies;
+        this.storageMetrics = searchTierMetrics.storageMetrics;
+        this.nodesLoad = searchTierMetrics.nodesLoad;
+        this.searchPowerMin = searchTierMetrics.searchPowerMin;
+        this.searchPowerMax = searchTierMetrics.searchPowerMax;
+        this.linkedProjectsMetrics = linkedProjectsMetrics;
     }
 
     public SearchTierMetrics(String reason, ElasticsearchException exception) {
@@ -67,6 +86,7 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         this.nodesLoad = null;
         this.searchPowerMin = -1;
         this.searchPowerMax = -1;
+        this.linkedProjectsMetrics = null;
     }
 
     public SearchTierMetrics(StreamInput in) throws IOException {
@@ -83,6 +103,13 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             this.searchPowerMin = -1;
             this.searchPowerMax = -1;
         }
+
+        if (in.getTransportVersion().supports(LINKED_PROJECTS_METRICS)) {
+            this.linkedProjectsMetrics = in.readOptionalWriteable(LinkedProjectsMetrics::new);
+        } else {
+            this.linkedProjectsMetrics = null;
+        }
+
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -109,6 +136,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         return searchPowerMax;
     }
 
+    public LinkedProjectsMetrics getLinkedProjectsMetrics() {
+        return linkedProjectsMetrics;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -121,6 +152,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             out.writeVInt(searchPowerMin);
             out.writeVInt(searchPowerMax);
         }
+
+        if (out.getTransportVersion().supports(LINKED_PROJECTS_METRICS)) {
+            out.writeOptionalWriteable(linkedProjectsMetrics);
+        }
     }
 
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
@@ -132,6 +167,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             if (searchPowerMin != -1) {
                 objectBuilder.field("search_power_min", searchPowerMin);
                 objectBuilder.field("search_power_max", searchPowerMax);
+            }
+            // flatten the linked project metrics into the search tier metrics
+            if (linkedProjectsMetrics != null) {
+                linkedProjectsMetrics.toInnerXContent(objectBuilder, params);
             }
         });
         return builder;

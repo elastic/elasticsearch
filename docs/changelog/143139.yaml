@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
-pr: 138798
+pr: 143139
 summary: Fix incorrect error message for double division overflow in ESQL
 type: bug

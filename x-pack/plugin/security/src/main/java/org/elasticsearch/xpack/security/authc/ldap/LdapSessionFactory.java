@@ -44,9 +44,14 @@ public class LdapSessionFactory extends SessionFactory {
     private final String[] userDnTemplates;
     private final GroupsResolver groupResolver;
 
+    private final String bindDn;
+    private final SecureString bindPassword;
+
     public LdapSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         super(config, sslService, threadPool);
         userDnTemplates = config.getSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING).toArray(Strings.EMPTY_ARRAY);
+        this.bindDn = config.getSetting(LdapSessionFactorySettings.BIND_DN, () -> null);
+    this.bindPassword = config.getSetting(LdapSessionFactorySettings.SECURE_BIND_PASSWORD, () -> null);
         if (userDnTemplates.length == 0) {
             throw new IllegalArgumentException(
                 "missing required LDAP setting ["
@@ -75,18 +80,41 @@ public class LdapSessionFactory extends SessionFactory {
 
                 @Override
                 protected void doRun() throws Exception {
-                    listener.onResponse(
-                        (new LdapSession(
-                            logger,
-                            config,
-                            connection,
-                            ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                            groupResolver,
-                            metadataResolver,
-                            timeout,
-                            null
-                        ))
-                    );
+                    // Extract the DN of the user who just successfully authenticated
+                    final String userDn = ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN();
+
+                    // If a service account (bind_dn) is configured, we use it for group resolution
+                    if (bindDn != null && bindPassword != null) {
+                        final LDAPConnection serviceConnection = LdapUtils.privilegedConnect(serverSet::getConnection);
+                        final byte[] servicePwdBytes = CharArrays.toUtf8Bytes(bindPassword.getChars());
+                        final SimpleBindRequest serviceBind = new SimpleBindRequest(bindDn, servicePwdBytes);
+
+                        // Perform the second bind (Service Account) asynchronously
+                        LdapUtils.maybeForkThenBind(serviceConnection, serviceBind, true, threadPool, new AbstractRunnable() {
+                            @Override
+                            protected void doRun() throws Exception {
+                                // Success! Close the initial user-bound connection
+                                IOUtils.close(connection); 
+                                
+                                // Create the session using the high-privilege service connection
+                                listener.onResponse(new LdapSession(
+                                    logger, config, serviceConnection, userDn, groupResolver, metadataResolver, timeout, null
+                                ));
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // If the service account bind fails, clean up all connections and fail
+                                IOUtils.closeWhileHandlingException(serviceConnection, connection);
+                                listener.onFailure(e);
+                            }
+                        });
+                    } else {
+                        // FALLBACK: Use the original user connection if no bind_dn is provided
+                        listener.onResponse(new LdapSession(
+                            logger, config, connection, userDn, groupResolver, metadataResolver, timeout, null
+                        ));
+                    }
                 }
 
                 @Override

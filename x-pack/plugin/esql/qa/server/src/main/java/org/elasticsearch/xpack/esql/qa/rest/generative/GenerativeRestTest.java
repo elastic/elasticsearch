@@ -70,6 +70,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Inference endpoint not found \\[foo_inference_id\\]",
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
+        "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
+        // multi_match query receiving a non-boolean value for a boolean type field
+        "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -513,6 +516,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *   <li>Fields expanded by MV_EXPAND (the expanded fields)</li>
      *   <li>Fields created by GROK or DISSECT (the "extracted" fields)</li>
      *   <li>Fields renamed via RENAME</li>
+     *   <li>Fields produced by REGISTERED_DOMAIN (the sub-fields like prefix.domain, prefix.top_level_domain, etc.)</li>
      * </ul>
      * The error is allowed only when the offending field can be traced back to one of these commands.
      */
@@ -564,6 +568,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     if (EsqlQueryGenerator.unquote(rm.group(1).trim()).equals(fieldName)) {
                         return true;
                     }
+                }
+            } else if ("registered_domain".equals(name)) {
+                String prefix = (String) previous.context().get("prefix");
+                if (prefix != null && fieldName.startsWith(prefix + ".")) {
+                    return true;
                 }
             }
         }

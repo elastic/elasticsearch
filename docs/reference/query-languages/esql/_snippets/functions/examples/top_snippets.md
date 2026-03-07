@@ -34,4 +34,23 @@ FROM books
 | 2714 | Return of the King Being the Third Part of The Lord of the Rings | [Concluding the story begun in The Hobbit\, this is the final part of Tolkien s epic masterpiece\, The Lord of the Rings\, featuring an exclusive, Tolkien s epic masterpiece\, The Lord of the Rings\, featuring an exclusive cover image from the film\, the definitive text\, and a detailed map of, Tolkien s classic tale of magic and adventure\, begun in The Fellowship of the Ring and The Two Towers\, features the definitive edition of the] |
 | 7350 | Return of the Shadow | [Tolkien for long believed would be a far shorter book\, 'a sequel to The Hobbit'., In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes\, with full citation of the earliest notes\, outline plans, ) Christopher Tolkien describes\, with full citation of the earliest notes\, outline plans\, and narrative drafts\, the intricate evolution of The Fellowship of the Ring and] |
 
+```{applies_to}
+stack: preview 9.3.0
+```
+
+```esql
+FROM books
+| WHERE MATCH(title, "return")
+| RERANK "Tolkien" ON TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 3, "num_words": 25 }) WITH { "inference_id" : "test_reranker" }
+```
+
+| book_no:keyword | title:text | _score:double |
+| --- | --- | --- |
+| 2714 | Return of the King Being the Third Part of The Lord of the Rings | 0.007092198356986046 |
+| 7350 | Return of the Shadow | 0.012500000186264515 |
+
+
+This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
+size, we have more control over the number of tokens that are used for semantic reranking.
+
 

@@ -8,6 +8,7 @@
  */
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.docker.NativeImageBuildTask
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 
@@ -29,7 +30,7 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-tasks.named('forbiddenApisMain') {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   // ServerLauncher uses various forbidden APIs such as System.exit() and printing directly to stdout and stderr.
   enabled = false
 }

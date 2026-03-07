@@ -16,11 +16,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RailRoadDiagramTests extends ESTestCase {
-    private static final EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+    private static final EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
 
     /**
      * Test a very simple single argument function

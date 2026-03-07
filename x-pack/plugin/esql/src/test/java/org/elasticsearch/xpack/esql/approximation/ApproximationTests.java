@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -59,6 +58,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -68,7 +68,6 @@ import static org.mockito.Mockito.mock;
 
 public class ApproximationTests extends ESTestCase {
 
-    private static final EsqlParser parser = EsqlParser.INSTANCE;
     private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
         new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current())
     );
@@ -525,7 +524,7 @@ public class ApproximationTests extends ESTestCase {
     private LogicalPlan getLogicalPlan(String query) throws Exception {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        LogicalPlan plan = parser.createStatement(query, new QueryParams()).plan();
+        LogicalPlan plan = TEST_PARSER.createStatement(query, new QueryParams()).plan();
         plan = AnalyzerTestUtils.defaultAnalyzer().analyze(plan);
         plan.setAnalyzed();
         preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));

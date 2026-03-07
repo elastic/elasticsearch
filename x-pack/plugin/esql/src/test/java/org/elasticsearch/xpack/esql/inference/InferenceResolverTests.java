@@ -24,12 +24,13 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -61,7 +62,7 @@ public class InferenceResolverTests extends ESTestCase {
 
     @Before
     public void setUpFunctionRegistry() {
-        functionRegistry = new EsqlFunctionRegistry();
+        functionRegistry = TEST_FUNCTION_REGISTRY;
     }
 
     @After
@@ -113,7 +114,7 @@ public class InferenceResolverTests extends ESTestCase {
 
     private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
         InferenceResolver inferenceResolver = inferenceResolver();
-        List<String> inferenceIds = inferenceResolver.collectInferenceIds(EsqlParser.INSTANCE.parseQuery(query));
+        List<String> inferenceIds = inferenceResolver.collectInferenceIds(TEST_PARSER.parseQuery(query));
         assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
     }
 

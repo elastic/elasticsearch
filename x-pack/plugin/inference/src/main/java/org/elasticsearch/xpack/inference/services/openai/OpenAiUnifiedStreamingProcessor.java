@@ -309,7 +309,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 );
                 PARSER.declareObjectOrNull(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    CompletionTokenDetailsParser.PARSER,
+                    CompletionTokensDetailsParser.PARSER,
                     null,
                     new ParseField(COMPLETION_TOKENS_DETAILS_FIELD)
                 );
@@ -319,7 +319,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 return PARSER.parse(parser, null);
             }
 
-            private static class CompletionTokenDetailsParser {
+            private static class CompletionTokensDetailsParser {
                 private static final ConstructingObjectParser<CompletionTokenDetails, Void> PARSER = new ConstructingObjectParser<>(
                     COMPLETION_TOKENS_DETAILS_FIELD,
                     true,

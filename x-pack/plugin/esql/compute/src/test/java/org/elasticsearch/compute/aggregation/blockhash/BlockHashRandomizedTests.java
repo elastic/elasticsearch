@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -142,6 +143,208 @@ public class BlockHashRandomizedTests extends ESTestCase {
         this.allowedTypes = allowedTypes;
     }
 
+    /**
+     * Extra deterministic edge-case coverage:
+     * - zero positions
+     * - all-null values
+     * - all-duplicate values
+     * - fixed regression case with explicit expected keys/ords
+     * - failure-path cleanup when lookup throws
+     */
+
+    public void testZeroPositionBlocks() {
+        MockBlockFactory blockFactory = newTestBlockFactory(ByteSizeValue.ofMb(1));
+        try (
+            Block emptyBlock = buildSimpleBlock(blockFactory, ElementType.LONG, List.of());
+            BlockHash blockHash = newBlockHash(blockFactory, 16, List.of(ElementType.LONG))
+        ) {
+            BlockHashTests.hash(false, blockHash, ordsAndKeys -> fail("did not expect any ords for empty input"), emptyBlock);
+
+            Set<List<Object>> actualKeys = collectKeys(blockHash);
+            assertThat(actualKeys.size(), equalTo(0));
+        } finally {
+            blockFactory.ensureAllBlocksAreReleased();
+        }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    public void testAllNullValuesProduceSingleNullKey() {
+        MockBlockFactory blockFactory = newTestBlockFactory(ByteSizeValue.ofMb(1));
+        List<Object> nullValues = new ArrayList<>(Collections.nCopies(5, null));
+
+        try (
+            Block nullBlock = buildSimpleBlock(blockFactory, ElementType.BYTES_REF, nullValues);
+            BlockHash blockHash = newBlockHash(blockFactory, 16, List.of(ElementType.BYTES_REF))
+        ) {
+            Map<List<Object>, Set<Integer>> actualOrds = hashAndCollectExpectedOrds(blockHash, new Block[] { nullBlock });
+            Set<List<Object>> actualKeys = collectKeys(blockHash);
+
+            Set<List<Object>> expectedKeys = new TreeSet<>(new KeyComparator());
+            expectedKeys.add(Collections.singletonList(null));
+
+            assertThat(actualKeys, equalTo(expectedKeys));
+            assertThat(actualOrds.size(), equalTo(1));
+            assertTrue(actualOrds.containsKey(Collections.singletonList(null)));
+        } finally {
+            blockFactory.ensureAllBlocksAreReleased();
+        }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    public void testAllDuplicateValuesCollapseToSingleKey() {
+        MockBlockFactory blockFactory = newTestBlockFactory(ByteSizeValue.ofMb(1));
+        List<Object> longValues = List.of(7L, 7L, 7L, 7L, 7L);
+        List<Object> bytesValues = List.of(
+            new BytesRef("dup"),
+            new BytesRef("dup"),
+            new BytesRef("dup"),
+            new BytesRef("dup"),
+            new BytesRef("dup")
+        );
+
+        try (
+            Block longBlock = buildSimpleBlock(blockFactory, ElementType.LONG, longValues);
+            Block bytesBlock = buildSimpleBlock(blockFactory, ElementType.BYTES_REF, bytesValues);
+            BlockHash blockHash = newBlockHash(blockFactory, 16, List.of(ElementType.LONG, ElementType.BYTES_REF))
+        ) {
+            Map<List<Object>, Set<Integer>> actualOrds = hashAndCollectExpectedOrds(blockHash, new Block[] { longBlock, bytesBlock });
+            Set<List<Object>> actualKeys = collectKeys(blockHash);
+
+            List<Object> expectedKey = List.of(7L, new BytesRef("dup"));
+            Set<List<Object>> expectedKeys = new TreeSet<>(new KeyComparator());
+            expectedKeys.add(expectedKey);
+
+            assertThat(actualKeys, equalTo(expectedKeys));
+            assertThat(actualOrds.size(), equalTo(1));
+            assertTrue(actualOrds.containsKey(expectedKey));
+            assertThat(actualOrds.get(expectedKey).size(), equalTo(1));
+        } finally {
+            blockFactory.ensureAllBlocksAreReleased();
+        }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    public void testDeterministicRegressionFixedInput() {
+        MockBlockFactory blockFactory = newTestBlockFactory(ByteSizeValue.ofMb(1));
+
+        try (
+            Block longBlock = buildSimpleBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 1L, 1L, 2L));
+            Block bytesBlock = buildSimpleBlock(
+                blockFactory,
+                ElementType.BYTES_REF,
+                List.of(new BytesRef("aa"), new BytesRef("bb"), new BytesRef("aa"), new BytesRef("cc"), new BytesRef("bb"))
+            );
+            BlockHash blockHash = newBlockHash(blockFactory, 16, List.of(ElementType.LONG, ElementType.BYTES_REF))
+        ) {
+            Block[] inputBlocks = new Block[] { longBlock, bytesBlock };
+            Map<List<Object>, Set<Integer>> actualOrds = hashAndCollectExpectedOrds(blockHash, inputBlocks);
+
+            Set<List<Object>> expectedKeys = new TreeSet<>(new KeyComparator());
+            expectedKeys.add(List.of(1L, new BytesRef("aa")));
+            expectedKeys.add(List.of(1L, new BytesRef("cc")));
+            expectedKeys.add(List.of(2L, new BytesRef("bb")));
+
+            assertThat(collectKeys(blockHash), equalTo(expectedKeys));
+            assertThat(actualOrds.keySet(), equalTo(expectedKeys));
+            assertThat(actualOrds.size(), equalTo(3));
+
+            Block[] lookupBlocks = new Block[] {
+                buildSimpleBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 1L, 9L)),
+                buildSimpleBlock(
+                    blockFactory,
+                    ElementType.BYTES_REF,
+                    List.of(new BytesRef("aa"), new BytesRef("bb"), new BytesRef("cc"), new BytesRef("zz"))
+                )
+            };
+
+            try {
+                try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(lookupBlocks), ByteSizeValue.ofKb(4))) {
+                    int positionOffset = 0;
+                    while (lookup.hasNext()) {
+                        try (IntBlock ords = lookup.next()) {
+                            for (int p = 0; p < ords.getPositionCount(); p++) {
+                                List<Object> key = readKey(lookupBlocks, positionOffset + p);
+                                if (positionOffset + p == 3) {
+                                    assertTrue(ords.isNull(p));
+                                } else {
+                                    assertFalse(ords.isNull(p));
+                                    assertThat(ords.getValueCount(p), equalTo(1));
+                                    int ord = ords.getInt(ords.getFirstValueIndex(p));
+                                    assertTrue(actualOrds.get(key).contains(ord));
+                                }
+                            }
+                            positionOffset += ords.getPositionCount();
+                        }
+                    }
+                    assertThat(positionOffset, equalTo(4));
+                }
+            } finally {
+                Releasables.closeExpectNoException(lookupBlocks);
+            }
+        } finally {
+            blockFactory.ensureAllBlocksAreReleased();
+        }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    public void testAssertLookupReleasesResourcesOnLookupFailure() {
+        MockBlockFactory blockFactory = newTestBlockFactory(ByteSizeValue.ofMb(1));
+        BlockHash blockHash = mock(BlockHash.class);
+        when(blockHash.lookup(any(Page.class), any(ByteSizeValue.class))).thenThrow(new RuntimeException("simulated lookup failure"));
+
+        Oracle oracle = new Oracle(true);
+        oracle.keys.add(List.of(1L));
+
+        Map<List<Object>, Set<Integer>> expectedOrds = new HashMap<>();
+        expectedOrds.put(List.of(1L), Set.of(0));
+
+        RuntimeException e = expectThrows(
+            RuntimeException.class,
+            () -> assertLookup(blockFactory, expectedOrds, List.of(new Basic(ElementType.LONG)), blockHash, oracle)
+        );
+        assertThat(e.getMessage(), equalTo("simulated lookup failure"));
+
+        blockFactory.ensureAllBlocksAreReleased();
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
+    }
+
+    private MockBlockFactory newTestBlockFactory(ByteSizeValue limit) {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("extra-blockhash-test-breaker", limit);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        return new MockBlockFactory(BlockFactory.builder(bigArrays));
+    }
+
+    private Block buildSimpleBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {
+        try (Block.Builder builder = elementType.newBlockBuilder(Math.max(1, values.size()), blockFactory)) {
+            for (Object value : values) {
+                BlockTestUtils.append(builder, value);
+            }
+            return builder.build();
+        }
+    }
+
+    private Map<List<Object>, Set<Integer>> hashAndCollectExpectedOrds(BlockHash blockHash, Block[] blocks) {
+        Map<List<Object>, Set<Integer>> actualOrds = new HashMap<>();
+        BlockHashTests.hash(false, blockHash, ordsAndKeys -> recordExpectedOrds(actualOrds, blocks, ordsAndKeys), blocks);
+        return actualOrds;
+    }
+
+    private Set<List<Object>> collectKeys(BlockHash blockHash) {
+        Block[] keyBlocks = blockHash.getKeys();
+        try {
+            Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
+            if (keyBlocks.length == 0) {
+                return keys;
+            }
+            for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
+                keys.add(readKey(keyBlocks, p));
+            }
+            return keys;
+        } finally {
+            Releasables.closeExpectNoException(keyBlocks);
+        }
+    }
+
     public void test() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
@@ -175,8 +378,8 @@ public class BlockHashRandomizedTests extends ESTestCase {
             Oracle oracle = new Oracle(
                 forcePackedHash
                     || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
-                        || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
+                    || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
+                    || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
             );
             /*
              * Expected ordinals for checking lookup. Skipped if we have more than 5 groups because

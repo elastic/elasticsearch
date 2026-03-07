@@ -26,6 +26,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               id:
                 type: integer
 
@@ -44,6 +46,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               id:
                 type: integer
 
@@ -79,6 +83,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               rankfield:
                 type: integer
               id:

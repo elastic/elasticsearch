@@ -14,27 +14,27 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateDiff}.
+ * {@link ExpressionEvaluator} implementation for {@link DateDiff}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateDiffConstantMillisNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantMillisNanosEvaluator.class);
 
   private final Source source;
 
   private final DateDiff.Part datePartFieldUnit;
 
-  private final EvalOperator.ExpressionEvaluator startTimestampMillis;
+  private final ExpressionEvaluator startTimestampMillis;
 
-  private final EvalOperator.ExpressionEvaluator endTimestampNanos;
+  private final ExpressionEvaluator endTimestampNanos;
 
   private final ZoneId zoneId;
 
@@ -43,9 +43,8 @@ public final class DateDiffConstantMillisNanosEvaluator implements EvalOperator.
   private Warnings warnings;
 
   public DateDiffConstantMillisNanosEvaluator(Source source, DateDiff.Part datePartFieldUnit,
-      EvalOperator.ExpressionEvaluator startTimestampMillis,
-      EvalOperator.ExpressionEvaluator endTimestampNanos, ZoneId zoneId,
-      DriverContext driverContext) {
+      ExpressionEvaluator startTimestampMillis, ExpressionEvaluator endTimestampNanos,
+      ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestampMillis = startTimestampMillis;
@@ -152,20 +151,20 @@ public final class DateDiffConstantMillisNanosEvaluator implements EvalOperator.
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final DateDiff.Part datePartFieldUnit;
 
-    private final EvalOperator.ExpressionEvaluator.Factory startTimestampMillis;
+    private final ExpressionEvaluator.Factory startTimestampMillis;
 
-    private final EvalOperator.ExpressionEvaluator.Factory endTimestampNanos;
+    private final ExpressionEvaluator.Factory endTimestampNanos;
 
     private final ZoneId zoneId;
 
     public Factory(Source source, DateDiff.Part datePartFieldUnit,
-        EvalOperator.ExpressionEvaluator.Factory startTimestampMillis,
-        EvalOperator.ExpressionEvaluator.Factory endTimestampNanos, ZoneId zoneId) {
+        ExpressionEvaluator.Factory startTimestampMillis,
+        ExpressionEvaluator.Factory endTimestampNanos, ZoneId zoneId) {
       this.source = source;
       this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestampMillis = startTimestampMillis;

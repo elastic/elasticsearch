@@ -1,28 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.core.inference.action;
+package org.elasticsearch.inference.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationTestCase<ReasoningDetail.EncryptedReasoningDetail> {
+public class EncryptedReasoningDetailTests extends AbstractBWCSerializationTestCase<ReasoningDetail.EncryptedReasoningDetail> {
 
     public void testParsingEncryptedReasoningDetails_AllFields() throws IOException {
         String reasoningDetailJson = """
@@ -143,5 +145,10 @@ public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationT
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ReasoningDetail.EncryptedReasoningDetail(format, id, index, data);
+    }
+
+    @Override
+    protected ReasoningDetail.EncryptedReasoningDetail doParseInstance(XContentParser parser) throws IOException {
+        return (ReasoningDetail.EncryptedReasoningDetail) ReasoningDetail.PARSER.apply(parser, null);
     }
 }

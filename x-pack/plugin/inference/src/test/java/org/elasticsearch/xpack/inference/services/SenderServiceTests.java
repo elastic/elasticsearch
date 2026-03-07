@@ -49,9 +49,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectFile;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectImage;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectText;
+import static org.elasticsearch.inference.UnifiedCompletionRequestTests.randomContentObjectFile;
+import static org.elasticsearch.inference.UnifiedCompletionRequestTests.randomContentObjectImage;
+import static org.elasticsearch.inference.UnifiedCompletionRequestTests.randomContentObjectText;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;

@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetailTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.action.ReasoningDetailTests;
 
 import java.io.IOException;
 import java.util.ArrayDeque;

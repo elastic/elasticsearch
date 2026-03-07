@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.core.inference.action;
+package org.elasticsearch.inference;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -14,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.Content;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
@@ -28,17 +29,20 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetailTests;
+import org.elasticsearch.inference.completion.ReasoningTests;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,7 +55,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULT
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
-public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
+public class UnifiedCompletionRequestTests extends AbstractBWCSerializationTestCase<UnifiedCompletionRequest> {
 
     public void testParseAllFields() throws IOException {
         String requestJson = """
@@ -727,5 +731,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+    }
+
+    @Override
+    protected UnifiedCompletionRequest doParseInstance(XContentParser parser) throws IOException {
+        return UnifiedCompletionRequest.PARSER.apply(parser, null);
     }
 }

@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/143782
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  method: testRoutingPathBwcAfterTsidBasedRouting
+  issue: https://github.com/elastic/elasticsearch/issues/143787
 
 # Examples:
 #

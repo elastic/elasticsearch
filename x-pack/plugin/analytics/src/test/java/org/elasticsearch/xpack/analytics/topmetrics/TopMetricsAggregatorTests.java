@@ -25,7 +25,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -84,8 +83,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
@@ -359,9 +356,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
         // Build a "simple" circuit breaker that trips at 20k
-        CircuitBreakerService breaker = mock(CircuitBreakerService.class);
         ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
-        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
+        CircuitBreakerService breakerService = newLimitedBreakerService(max);
 
         // Collect some buckets with it
         try (Directory directory = newDirectory()) {
@@ -376,7 +372,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                         indexReader,
                         createIndexSettings(),
                         Queries.ALL_DOCS_INSTANCE,
-                        breaker,
+                        breakerService,
                         builder.bytesToPreallocate(),
                         MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                         true,

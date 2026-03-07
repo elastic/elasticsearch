@@ -68,7 +68,7 @@ public record Message(
         PARSER.declareString(optionalConstructorArg(), new ParseField(TOOL_CALL_ID_FIELD));
         PARSER.declareObjectArray(optionalConstructorArg(), ToolCall.PARSER::apply, new ParseField(TOOL_CALLS_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
-        PARSER.declareObjectArray(optionalConstructorArg(), ReasoningDetail.PARSER::apply, new ParseField(REASONING_DETAILS_FIELD));
+        PARSER.declareObjectArray(optionalConstructorArg(), ReasoningDetail.REQUEST_PARSER::apply, new ParseField(REASONING_DETAILS_FIELD));
     }
 
     private static Content parseContent(XContentParser parser) throws IOException {

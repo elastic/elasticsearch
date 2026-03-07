@@ -39,7 +39,7 @@ public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<R
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(
                 "some text reasoning detail format",
                 "some id 2",
@@ -61,24 +61,7 @@ public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<R
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, "some text", null);
-
-            assertThat(reasoningDetail, is(expected));
-        }
-    }
-
-    public void testParsingTextReasoningDetail_UnknownField() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.text",
-                "text": "some text",
-                "unknown_field": "some value"
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, "some text", null);
 
             assertThat(reasoningDetail, is(expected));
@@ -94,7 +77,7 @@ public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<R
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, null, "some signature");
 
             assertThat(reasoningDetail, is(expected));
@@ -109,7 +92,7 @@ public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<R
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -189,6 +172,6 @@ public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<R
 
     @Override
     protected ReasoningDetail.TextReasoningDetail doParseInstance(XContentParser parser) throws IOException {
-        return (ReasoningDetail.TextReasoningDetail) ReasoningDetail.PARSER.apply(parser, null);
+        return (ReasoningDetail.TextReasoningDetail) ReasoningDetail.REQUEST_PARSER.apply(parser, null);
     }
 }

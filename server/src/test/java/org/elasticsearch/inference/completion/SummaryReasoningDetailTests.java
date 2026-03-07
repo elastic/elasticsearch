@@ -38,7 +38,7 @@ public class SummaryReasoningDetailTests extends AbstractBWCSerializationTestCas
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
             var expected = new ReasoningDetail.SummaryReasoningDetail(
                 "some summary reasoning detail format",
                 "some id 1",
@@ -59,24 +59,7 @@ public class SummaryReasoningDetailTests extends AbstractBWCSerializationTestCas
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.SummaryReasoningDetail(null, null, null, "some summary");
-
-            assertThat(reasoningDetail, is(expected));
-        }
-    }
-
-    public void testParsingSummaryReasoningDetail_UnknownField() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.summary",
-                "summary": "some summary",
-                "unknown_field": "some value"
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
+            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
             var expected = new ReasoningDetail.SummaryReasoningDetail(null, null, null, "some summary");
 
             assertThat(reasoningDetail, is(expected));
@@ -91,7 +74,7 @@ public class SummaryReasoningDetailTests extends AbstractBWCSerializationTestCas
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -148,6 +131,6 @@ public class SummaryReasoningDetailTests extends AbstractBWCSerializationTestCas
 
     @Override
     protected ReasoningDetail.SummaryReasoningDetail doParseInstance(XContentParser parser) throws IOException {
-        return (ReasoningDetail.SummaryReasoningDetail) ReasoningDetail.PARSER.apply(parser, null);
+        return (ReasoningDetail.SummaryReasoningDetail) ReasoningDetail.REQUEST_PARSER.apply(parser, null);
     }
 }

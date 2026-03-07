@@ -200,7 +200,7 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
         }
     }
 
-    public void testParsingReasoning_UnknownField() throws IOException {
+    public void testParsingReasoning_UnknownField_ThrowsException() throws IOException {
         String reasoningJson = """
             {
                 "effort": "medium",
@@ -209,10 +209,8 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
-            var reasoning = Reasoning.PARSER.apply(parser, null);
-            var expected = new Reasoning(ReasoningEffort.MEDIUM, null, null, null, null);
-
-            assertThat(reasoning, is(expected));
+            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
+            assertThat(exception.getMessage(), is("[3:5] [Reasoning] unknown field [unknown_field]"));
         }
     }
 

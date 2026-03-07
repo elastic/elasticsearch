@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -22,17 +23,10 @@ import static org.hamcrest.Matchers.is;
 public class ReasoningDetailTests extends ESTestCase {
 
     public void testParsingReasoningDetail_NoType_ThrowsException() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "format": "some encrypted reasoning detail format",
-                "id": "some id 0",
-                "index": 0,
-                "data": "some encrypted data"
-            }
-            """;
+        String reasoningDetailJson = "{}";
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("Required [type]"));
         }
     }
@@ -45,7 +39,7 @@ public class ReasoningDetailTests extends ESTestCase {
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -66,13 +60,45 @@ public class ReasoningDetailTests extends ESTestCase {
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
+            var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
             );
             assertThat(rootCause.getMessage(), is("Field [index] must be non-negative, but was [-1]"));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testParsingResponseReasoningDetail_UnknownField_Ignored() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.encrypted",
+                "data": "some encrypted data",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.RESPONSE_PARSER.apply(parser, null);
+            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, "some encrypted data");
+
+            assertThat(reasoningDetail, is(expected));
+        }
+    }
+
+    public void testParsingRequestReasoningDetail_UnknownField_ThrowsException() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.encrypted",
+                "data": "some encrypted data",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
+            assertThat(exception.getMessage(), is("[4:5] [ReasoningDetail] unknown field [unknown_field]"));
         }
     }
 

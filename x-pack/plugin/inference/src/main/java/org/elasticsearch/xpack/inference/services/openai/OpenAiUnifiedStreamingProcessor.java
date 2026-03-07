@@ -217,7 +217,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
                 PARSER.declareString(optionalConstructorArg(), new ParseField(REASONING_FIELD));
                 PARSER.declareObjectArrayOrNull(
                     optionalConstructorArg(),
-                    ReasoningDetail.PARSER::apply,
+                    ReasoningDetail.RESPONSE_PARSER::apply,
                     new ParseField(REASONING_DETAILS_FIELD)
                 );
             }

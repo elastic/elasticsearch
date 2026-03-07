@@ -61,41 +61,61 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public abstract sealed class ReasoningDetail implements ToXContentObject, ChunkedToXContentObject, NamedWriteable permits
     ReasoningDetail.EncryptedReasoningDetail, ReasoningDetail.SummaryReasoningDetail, ReasoningDetail.TextReasoningDetail {
 
-    public static final ConstructingObjectParser<ReasoningDetail, Void> PARSER = new ConstructingObjectParser<>(
-        ReasoningDetail.class.getSimpleName(),
-        true,
-        args -> switch (ReasoningDetailType.fromString((String) args[0])) {
-            case ENCRYPTED -> new EncryptedReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[4]);
-            case SUMMARY -> new SummaryReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[5]);
-            case TEXT -> new TextReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[6], (String) args[7]);
-        }
-    );
+    /**
+     * The request parser does not ignore unknown fields, as we want to enforce strict validation of the reasoning details in the request.
+     */
+    public static final ConstructingObjectParser<ReasoningDetail, Void> REQUEST_PARSER = createReasoningDetailParser(false);
+    /**
+     * The response parser ignores unknown fields to allow flexibility as the provider may add additional fields to the reasoning details,
+     * and we don't want to break parsing of the response if that happens.
+     */
+    public static final ConstructingObjectParser<ReasoningDetail, Void> RESPONSE_PARSER = createReasoningDetailParser(true);
 
-    static {
+    private static ConstructingObjectParser<ReasoningDetail, Void> createReasoningDetailParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<ReasoningDetail, Void> parser = new ConstructingObjectParser<>(
+            ReasoningDetail.class.getSimpleName(),
+            ignoreUnknownFields,
+            args -> switch (ReasoningDetailType.fromString((String) args[0])) {
+                case ENCRYPTED -> new EncryptedReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[4]);
+                case SUMMARY -> new SummaryReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[5]);
+                case TEXT -> new TextReasoningDetail(
+                    (String) args[1],
+                    (String) args[2],
+                    (Long) args[3],
+                    (String) args[6],
+                    (String) args[7]
+                );
+            }
+        );
+        declareParsedFields(parser);
+        return parser;
+    }
+
+    private static void declareParsedFields(ConstructingObjectParser<ReasoningDetail, Void> parser) {
         /*
          * Apart from type, the reasoning detail must contain exactly one of the following field sets:
          * 1. data
          * 2. summary
          * 3. text and/or signature (at least one must be present)
          */
-        PARSER.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, TEXT_FIELD);
-        PARSER.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, SIGNATURE_FIELD);
+        parser.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, TEXT_FIELD);
+        parser.declareExclusiveFieldSet(DATA_FIELD, SUMMARY_FIELD, SIGNATURE_FIELD);
 
         // common fields
-        PARSER.declareString(constructorArg(), new ParseField(TYPE_FIELD));
-        PARSER.declareString(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
-        PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField(INDEX_FIELD));
+        parser.declareString(constructorArg(), new ParseField(TYPE_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(FORMAT_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
+        parser.declareLong(optionalConstructorArg(), new ParseField(INDEX_FIELD));
 
         // reasoning.encrypted specific field
-        PARSER.declareString(optionalConstructorArg(), new ParseField(DATA_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(DATA_FIELD));
 
         // reasoning.summary specific field
-        PARSER.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
 
         // reasoning.text specific fields
-        PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        PARSER.declareString(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(SIGNATURE_FIELD));
     }
 
     /**

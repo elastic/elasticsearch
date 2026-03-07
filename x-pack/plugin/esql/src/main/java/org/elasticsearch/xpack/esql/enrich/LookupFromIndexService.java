@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -793,7 +794,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         List<NamedExpression> extractFields
     ) {
         FieldAttribute docAttribute = new FieldAttribute(source, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        List<Attribute> paramQueryOutput = List.of(docAttribute, AbstractLookupService.LOOKUP_POSITIONS_FIELD);
 
         List<Expression> leftRightParts = new ArrayList<>();
         List<Expression> rightOnlyFromConditions = new ArrayList<>();
@@ -812,13 +812,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         LogicalPlan plan;
         if (rightPreJoinPlan == null) {
+            List<Attribute> paramQueryOutput = buildParameterizedQueryOutput(docAttribute, extractFields, rightOnlyFromConditions, null);
             plan = new ParameterizedQuery(source, paramQueryOutput, matchFields, finalJoinOnConditions);
         } else if (rightPreJoinPlan instanceof FragmentExec fragmentExec) {
             plan = fragmentExec.fragment();
-            plan = plan.transformUp(
-                EsRelation.class,
-                esRelation -> new ParameterizedQuery(source, paramQueryOutput, matchFields, finalJoinOnConditions)
-            );
+            plan = plan.transformUp(EsRelation.class, esRelation -> {
+                List<Attribute> paramQueryOutput = buildParameterizedQueryOutput(
+                    docAttribute,
+                    extractFields,
+                    rightOnlyFromConditions,
+                    esRelation.output()
+                );
+                return new ParameterizedQuery(source, paramQueryOutput, matchFields, finalJoinOnConditions);
+            });
         } else {
             throw new EsqlIllegalArgumentException(
                 "Expected FragmentExec or null but got [{}]",
@@ -838,6 +844,37 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         projections.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
         projections.addAll(extractFields);
         return new Project(source, plan, projections);
+    }
+
+    /**
+     * Builds the output attributes for a {@link ParameterizedQuery}, mirroring how {@link EsRelation}
+     * exposes all index fields. This ensures the logical verifier can validate that all field references
+     * in the plan are satisfied. At the physical level, {@code ReplaceSourceAttributes}
+     * strips the output back down to just {@code [_doc, _positions]}, and {@code InsertFieldExtraction}
+     * adds the needed fields back — the same pattern used for {@code EsRelation / ReplaceSourceAttributes}.
+     */
+    private static List<Attribute> buildParameterizedQueryOutput(
+        FieldAttribute docAttribute,
+        List<NamedExpression> extractFields,
+        List<Expression> rightOnlyConditions,
+        @Nullable List<Attribute> esRelationOutput
+    ) {
+        LinkedHashSet<Attribute> output = new LinkedHashSet<>();
+        output.add(docAttribute);
+        output.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
+        if (esRelationOutput != null) {
+            output.addAll(esRelationOutput);
+        } else {
+            for (NamedExpression field : extractFields) {
+                if (field instanceof Attribute attr) {
+                    output.add(attr);
+                }
+            }
+            for (Expression condition : rightOnlyConditions) {
+                condition.forEachDown(FieldAttribute.class, output::add);
+            }
+        }
+        return new ArrayList<>(output);
     }
 
     /**

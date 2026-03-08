@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -29,7 +29,10 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -45,7 +48,6 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_O
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
-import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -235,26 +237,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         : execute(previousResult.query() + command, previousResult.depth());
 
                     final boolean hasException = result.exception() != null;
-                    if (hasException || checkResults(previousCommands, generator, current, previousResult, result).success() == false) {
+                    if (hasException
+                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema)
+                            .success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkException(result, commands);
+                            checkException(result, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
                     } else {
                         continueExecuting = true;
-                        currentSchema = result.outputSchema();
+                        currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
                     }
-                    if (previousCommands.isEmpty() && continueExecuting && isFromSource(current)) {
-                        current.context()
-                            .put(
-                                FromGenerator.INDEX_FIELD_NAMES,
-                                currentSchema.stream().map(Column::name).collect(java.util.stream.Collectors.toSet())
-                            );
-                    }
+                    
                     previousCommands.add(current);
                     previousResult = result;
                 }
@@ -311,9 +309,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
-    private record FailureContext(String errorMessage, String query, List<CommandGenerator.CommandDescription> previousCommands) {
+    private record FailureContext(
+        String errorMessage,
+        String query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         FailureContext {
             previousCommands = previousCommands == null ? List.of() : previousCommands;
+            currentSchema = currentSchema == null ? List.of() : currentSchema;
         }
     }
 
@@ -329,7 +333,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFirstLastSameFieldError(ctx.errorMessage, ctx.query),
         ctx -> isForkOptimizationBugWithUnmappedFields(ctx.errorMessage, ctx.query),
-        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands),
+        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
@@ -351,7 +355,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
         QueryExecuted previousResult,
-        QueryExecuted result
+        QueryExecuted result,
+        List<Column> currentSchema
     ) {
         CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
             previousCommands,
@@ -362,7 +367,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.result()
         );
         if (outputValidation.success() == false) {
-            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands))) {
+            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
                 return outputValidation;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
@@ -370,8 +375,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return outputValidation;
     }
 
-    protected void checkException(QueryExecuted query, List<CommandGenerator.CommandDescription> previousCommands) {
-        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands))) {
+    protected void checkException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -507,73 +516,178 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     private static final Pattern DISSECT_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{([^}]+)}");
 
-    private static final Pattern MV_EXPAND_FIELD_PATTERN = Pattern.compile("(?i)\\|\\s*mv_expand\\s+`?([^`|\\s]+)`?");
-
-    private static final Pattern RENAME_NEW_FIELD_PATTERN = Pattern.compile("(?i)\\bas\\s+(`[^`]+`|[^,|\\s]+)");
+    /**
+     * Captures both the source and target of a RENAME clause, e.g. {@code old_field AS new_field}.
+     * Group 1 is the source (possibly back-tick quoted), group 2 is the target.
+     */
+    private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile(
+        "\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*"
+    );
 
     /**
-     * Checks if the error is a full-text function/operator rejecting a field that is not a FieldAttribute from an index mapping. It covers:
+     * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
+     * <p>
+     * The REST API does not expose attribute-type information, so this method infers it from:
      * <ul>
-     *   <li>Fields added by an ENRICH command (enrich fields)</li>
-     *   <li>Fields expanded by MV_EXPAND (the expanded fields)</li>
-     *   <li>Fields created by GROK or DISSECT (the "extracted" fields)</li>
-     *   <li>Fields renamed via RENAME</li>
-     *   <li>Any query with a REGISTERED_DOMAIN command in the pipeline — its sub-fields (or fields derived from them
-     *       via RENAME, EVAL, etc.) are not index mapping fields and may legitimately trigger this error</li>
+     *   <li>The previous schema (columns carry their {@code indexMapped} status from earlier commands)</li>
+     *   <li>The command description (command name and context — e.g. EVAL stores {@code NEW_COLUMNS})</li>
      * </ul>
-     * The error is allowed only when the offending field can be traced back to one of these commands.
+     * Columns that are explicitly created by the command are marked {@code indexMapped=false};
+     * columns that survive unchanged from the previous schema inherit their previous status.
      */
-    static boolean isFieldFullTextError(String errorMessage, String query, List<CommandGenerator.CommandDescription> previousCommands) {
+    static List<Column> updateIndexMapped(
+        List<Column> newSchema,
+        List<Column> previousSchema,
+        CommandGenerator.CommandDescription command
+    ) {
+        if (newSchema == null || newSchema.isEmpty()) {
+            return newSchema;
+        }
+        if (previousSchema == null || previousSchema.isEmpty()) {
+            return newSchema;
+        }
+
+        String commandName = command.commandName();
+        if (commandName == null) {
+            return newSchema;
+        }
+        commandName = commandName.toLowerCase(Locale.ROOT);
+
+        Map<String, Boolean> prevMapped = new HashMap<>();
+        for (Column col : previousSchema) {
+            prevMapped.put(col.name(), col.indexMapped());
+        }
+
+        Set<String> createdColumns = new HashSet<>();
+
+        switch (commandName) {
+            case "eval" -> {
+                Object newCols = command.context().get(EvalGenerator.NEW_COLUMNS);
+                if (newCols instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case "grok" -> {
+                Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
+                while (gm.find()) {
+                    createdColumns.add(EsqlQueryGenerator.unquote(gm.group(1)));
+                }
+            }
+            case "dissect" -> {
+                Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(command.commandString());
+                while (dm.find()) {
+                    String generated = dm.group(1);
+                    if (generated.startsWith("?") == false) {
+                        createdColumns.add(EsqlQueryGenerator.unquote(generated));
+                    }
+                }
+            }
+            case "stats", "inline stats" -> {
+                return newSchema.stream()
+                    .map(col -> new Column(col.name(), col.type(), col.originalTypes(), false))
+                    .toList();
+            }
+            case "rename" -> {
+                return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
+            }
+            case "registered_domain" -> {
+                String prefix = (String) command.context().get("prefix");
+                if (prefix != null) {
+                    for (String subField : List.of("domain", "registered_domain", "top_level_domain", "subdomain")) {
+                        createdColumns.add(prefix + "." + subField);
+                    }
+                }
+            }
+            case "uri_parts" -> {
+                String prefix = (String) command.context().get("prefix");
+                if (prefix != null) {
+                    return newSchema.stream().map(col -> {
+                        if (col.name().startsWith(prefix + ".")) {
+                            return new Column(col.name(), col.type(), col.originalTypes(), false);
+                        }
+                        Boolean prev = prevMapped.get(col.name());
+                        return new Column(col.name(), col.type(), col.originalTypes(), prev != null && prev);
+                    }).toList();
+                }
+            }
+            default -> {
+                // For commands that don't create named columns (KEEP, DROP, SORT, LIMIT, WHERE, etc.),
+                // any column not in previous is from the command (e.g. ENRICH, LOOKUP_JOIN, CHANGE_POINT)
+            }
+        }
+
+        return newSchema.stream().map(col -> {
+            if (createdColumns.contains(col.name())) {
+                return new Column(col.name(), col.type(), col.originalTypes(), false);
+            }
+            Boolean prev = prevMapped.get(col.name());
+            if (prev != null) {
+                return new Column(col.name(), col.type(), col.originalTypes(), prev);
+            }
+            return new Column(col.name(), col.type(), col.originalTypes(), false);
+        }).toList();
+    }
+
+    private static List<Column> handleRenameIndexMapped(List<Column> newSchema, Map<String, Boolean> prevMapped, String commandString) {
+        Map<String, Boolean> mapped = new HashMap<>(prevMapped);
+        String body = commandString.replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
+        for (String pair : body.split(",")) {
+            Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
+            if (m.matches()) {
+                String oldName = EsqlQueryGenerator.unquote(m.group(1).trim());
+                String newName = EsqlQueryGenerator.unquote(m.group(2).trim());
+                boolean wasMapped = mapped.getOrDefault(oldName, false);
+                mapped.remove(oldName);
+                mapped.put(newName, wasMapped);
+            }
+        }
+        return newSchema.stream().map(col -> {
+            Boolean isMapped = mapped.get(col.name());
+            return new Column(col.name(), col.type(), col.originalTypes(), isMapped != null && isMapped);
+        }).toList();
+    }
+
+    /**
+     * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
+     * Uses the {@link Column#indexMapped()} flag from the current schema when available; falls back to
+     * command-history heuristics otherwise.
+     */
+    static boolean isFieldFullTextError(
+        String errorMessage,
+        String query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorWithoutLineBreaks);
         if (m.matches() == false) {
             return false;
         }
-        String lowerQuery = query.toLowerCase(java.util.Locale.ROOT);
+        String fieldName = EsqlQueryGenerator.unquote(m.group(1));
+
+        if (currentSchema != null && currentSchema.isEmpty() == false) {
+            for (Column col : currentSchema) {
+                if (col.name().equals(fieldName)) {
+                    return col.indexMapped() == false;
+                }
+            }
+            // Field not found in schema — likely a pipeline artifact; allow the error
+            return true;
+        }
+
+        // Fallback: blanket check for ENRICH
+        String lowerQuery = query.toLowerCase(Locale.ROOT);
         if (lowerQuery.contains("| enrich ") || lowerQuery.startsWith("enrich ")) {
             return true;
         }
-        // see https://github.com/elastic/elasticsearch/issues/142713
-        String fieldName = EsqlQueryGenerator.unquote(m.group(1));
-        Matcher mvMatcher = MV_EXPAND_FIELD_PATTERN.matcher(query);
-        while (mvMatcher.find()) {
-            if (EsqlQueryGenerator.unquote(mvMatcher.group(1)).equals(fieldName)) {
-                return true;
-            }
-        }
-
+        // Fallback: walk command history
         for (var previous : previousCommands) {
             String name = previous.commandName();
             if (name == null) {
                 continue;
             }
-            name = name.toLowerCase(java.util.Locale.ROOT);
-            if ("grok".equals(name)) {
-                Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(previous.commandString());
-                while (gm.find()) {
-                    if (EsqlQueryGenerator.unquote(gm.group(1)).equals(fieldName)) {
-                        return true;
-                    }
-                }
-            } else if ("dissect".equals(name)) {
-                Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(previous.commandString());
-                while (dm.find()) {
-                    String generated = dm.group(1);
-                    if (generated.startsWith("?")) {
-                        continue;
-                    }
-                    if (EsqlQueryGenerator.unquote(generated).equals(fieldName)) {
-                        return true;
-                    }
-                }
-            } else if ("rename".equals(name)) {
-                Matcher rm = RENAME_NEW_FIELD_PATTERN.matcher(previous.commandString());
-                while (rm.find()) {
-                    if (EsqlQueryGenerator.unquote(rm.group(1).trim()).equals(fieldName)) {
-                        return true;
-                    }
-                }
-            } else if ("registered_domain".equals(name)) {
+            name = name.toLowerCase(Locale.ROOT);
+            if ("registered_domain".equals(name) || "uri_parts".equals(name)) {
                 return true;
             }
         }

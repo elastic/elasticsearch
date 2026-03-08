@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -274,7 +275,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+        LogicalPlan analyzed = execute(plan);
+        if (context().unmappedResolution() == UnmappedResolution.LOAD) {
+            List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+            analyzed.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+            if (fullTextFunctions.isEmpty() == false) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(
+                            fullTextFunctions.get(0),
+                            "unmapped_fields=\"load\" is not allowed with full-text search (MATCH, match operator `:`, "
+                                + "MATCH_PHRASE, etc.); use FAIL or NULLIFY"
+                        )
+                    )
+                );
+            }
+        }
+        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {

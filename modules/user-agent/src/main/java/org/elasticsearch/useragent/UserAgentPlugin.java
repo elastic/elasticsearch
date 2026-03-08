@@ -20,11 +20,12 @@ import java.util.List;
 
 public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryProvider {
 
-    private final Setting<Long> chacheSizeSetting;
+    private final Setting<Long> deprecatedCacheSizeSetting;
+    private final Setting<Long> cacheSizeSetting;
 
     public UserAgentPlugin() {
-        Setting<Long> deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
-        chacheSizeSetting = Setting.longSetting("user_agent.cache_size", deprecatedCacheSizeSetting, 0, Setting.Property.NodeScope);
+        deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
+        cacheSizeSetting = Setting.longSetting("user_agent.cache_size", deprecatedCacheSizeSetting, 0, Setting.Property.NodeScope);
     }
 
     @Override
@@ -34,7 +35,7 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(chacheSizeSetting);
+        return List.of(cacheSizeSetting, deprecatedCacheSizeSetting);
     }
 
     /**

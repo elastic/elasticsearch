@@ -46,12 +46,12 @@ public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.
         userAgentParsers.put(DEFAULT_PARSER_NAME, defaultParser);
 
         for (Path regexFileDirectory : regexFileDirectories) {
-            readAndAppendUParsers(regexFileDirectory, cache, userAgentParsers);
+            readAndAppendUserAgentParsers(regexFileDirectory, cache, userAgentParsers);
         }
         return Map.copyOf(userAgentParsers);
     }
 
-    private static void readAndAppendUParsers(
+    private static void readAndAppendUserAgentParsers(
         Path userAgentConfigDirectory,
         UserAgentCache cache,
         Map<String, UserAgentParser> userAgentParsers

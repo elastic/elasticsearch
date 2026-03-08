@@ -9,7 +9,9 @@
 
 package org.elasticsearch.useragent.api;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.SequencedMap;
 
 /**
  * Field name constants and field metadata for user-agent parsed information.
@@ -27,18 +29,19 @@ public final class UserAgentParsedInfo {
     public static final String DEVICE_VERSION = "device.version";
     public static final String DEVICE_TYPE = "device.type";
 
-    private static final LinkedHashMap<String, Class<?>> USER_AGENT_INFO_FIELDS;
+    private static final SequencedMap<String, Class<?>> USER_AGENT_INFO_FIELDS;
 
     static {
-        USER_AGENT_INFO_FIELDS = new LinkedHashMap<>();
-        USER_AGENT_INFO_FIELDS.putLast(NAME, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(VERSION, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(OS_NAME, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(OS_VERSION, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(OS_FULL, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(DEVICE_NAME, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(DEVICE_VERSION, String.class);
-        USER_AGENT_INFO_FIELDS.putLast(DEVICE_TYPE, String.class);
+        LinkedHashMap<String, Class<?>> fields = new LinkedHashMap<>();
+        fields.putLast(NAME, String.class);
+        fields.putLast(VERSION, String.class);
+        fields.putLast(OS_NAME, String.class);
+        fields.putLast(OS_VERSION, String.class);
+        fields.putLast(OS_FULL, String.class);
+        fields.putLast(DEVICE_NAME, String.class);
+        fields.putLast(DEVICE_VERSION, String.class);
+        fields.putLast(DEVICE_TYPE, String.class);
+        USER_AGENT_INFO_FIELDS = Collections.unmodifiableSequencedMap(fields);
     }
 
     private UserAgentParsedInfo() {}
@@ -46,7 +49,7 @@ public final class UserAgentParsedInfo {
     /**
      * Returns an ordered map of field names to their types for user-agent parsed information.
      */
-    public static LinkedHashMap<String, Class<?>> getUserAgentInfoFields() {
+    public static SequencedMap<String, Class<?>> getUserAgentInfoFields() {
         return USER_AGENT_INFO_FIELDS;
     }
 }

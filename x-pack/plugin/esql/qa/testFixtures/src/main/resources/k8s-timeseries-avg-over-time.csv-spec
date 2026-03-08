@@ -2,7 +2,10 @@ avg_over_time_of_double_no_grouping
 required_capability: ts_command_v0
 TS k8s
 | STATS cost=sum(avg_over_time(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
-| SORT cost DESC, time_bucket DESC | LIMIT 10;
+| EVAL cost = round(cost, 4)
+| KEEP cost, time_bucket
+| SORT cost DESC, time_bucket DESC 
+| LIMIT 10;
 
 cost:double       | time_bucket:datetime
 69.6875           | 2024-05-10T00:09:00.000Z
@@ -11,7 +14,7 @@ cost:double       | time_bucket:datetime
 48.3125           | 2024-05-10T00:22:00.000Z
 45.8125           | 2024-05-10T00:15:00.000Z
 40.4375           | 2024-05-10T00:06:00.000Z
-39.54166666666667 | 2024-05-10T00:13:00.000Z
+39.5417           | 2024-05-10T00:13:00.000Z
 37.9375           | 2024-05-10T00:12:00.000Z
 36.6875           | 2024-05-10T00:19:00.000Z
 36.375            | 2024-05-10T00:11:00.000Z
@@ -20,7 +23,10 @@ cost:double       | time_bucket:datetime
 avg_over_time_of_double_no_grouping_promql
 required_capability: promql_command_v0
 PROMQL index=k8s step=1m cost=(sum(avg_over_time(network.cost[1m])))
-| SORT cost DESC, step DESC | LIMIT 10;
+| EVAL cost = round(cost, 4)
+| KEEP cost, step
+| SORT cost DESC, step DESC 
+| LIMIT 10;
 
 cost:double       | step:datetime
 69.6875           | 2024-05-10T00:09:00.000Z
@@ -29,7 +35,7 @@ cost:double       | step:datetime
 48.3125           | 2024-05-10T00:22:00.000Z
 45.8125           | 2024-05-10T00:15:00.000Z
 40.4375           | 2024-05-10T00:06:00.000Z
-39.54166666666667 | 2024-05-10T00:13:00.000Z
+39.5417           | 2024-05-10T00:13:00.000Z
 37.9375           | 2024-05-10T00:12:00.000Z
 36.6875           | 2024-05-10T00:19:00.000Z
 36.375            | 2024-05-10T00:11:00.000Z

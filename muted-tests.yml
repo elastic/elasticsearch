@@ -438,6 +438,24 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRoutingPathBwcAfterTsidBasedRouting
   issue: https://github.com/elastic/elasticsearch/issues/143787
+- class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/143795
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/143799
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testClusterState {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/143800
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testOperationBasedRecovery {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/143801
 
 # Examples:
 #

@@ -372,30 +372,6 @@ tests:
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/143616
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio}
-  issue: https://github.com/elastic/elasticsearch/issues/143617
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/143624
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/143625
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_aggregate_metric_double}
-  issue: https://github.com/elastic/elasticsearch/issues/143631
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-delta.Delta_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/143632
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_aggregate_metric_double_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/143633
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-delta.Delta_of_double_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/143634
 - class: org.elasticsearch.search.SearchLoggingIT
   method: testSearchLogShardInfoPartialFailure
   issue: https://github.com/elastic/elasticsearch/issues/143638
@@ -423,12 +399,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143750
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/143757
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_double_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/143758
 - class: org.elasticsearch.xpack.esql.action.EsqlQueryLoggingIT
   method: testLogging
   issue: https://github.com/elastic/elasticsearch/issues/143780
@@ -438,6 +408,21 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRoutingPathBwcAfterTsidBasedRouting
   issue: https://github.com/elastic/elasticsearch/issues/143787
+- class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/143795
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/143799
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testClusterState {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/143800
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testOperationBasedRecovery {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/143801
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testOperationBasedRecovery {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/143802
 
 # Examples:
 #

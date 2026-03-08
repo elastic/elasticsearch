@@ -98,8 +98,7 @@ public class Reconfigurator {
                 "%s reconfiguring %s based on liveNodes=%s, retiredNodeIds=%s, currentMaster=%s",
                 this,
                 currentConfig,
-                // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
-                liveNodes.stream().map(DiscoveryNode::toString).sorted().collect(Collectors.joining(", ", "[", "]")),
+                liveNodes,
                 retiredNodeIds.stream().sorted().collect(Collectors.joining(", ")),
                 currentMaster
             )

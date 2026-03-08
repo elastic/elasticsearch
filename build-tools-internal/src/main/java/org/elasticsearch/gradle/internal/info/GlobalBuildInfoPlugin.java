@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.util.HttpUtils;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -53,10 +54,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
@@ -214,29 +213,36 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private List<DevelopmentBranch> getDevelopmentBranches() {
-        Provider<String> branchesFileLocationProperty = project.getProviders().gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY);
-        boolean hasExplicitBranchesFileLocation = branchesFileLocationProperty.isPresent();
-        String branchesFileLocation = hasExplicitBranchesFileLocation ? branchesFileLocationProperty.get() : DEFAULT_BRANCHES_FILE_URL;
-        if (hasExplicitBranchesFileLocation == false
-            && project.getGradle().getStartParameter().isOffline()
-            && branchesFileLocation.startsWith("http")) {
+        String configuredBranchesFileLocation = project.getProviders()
+            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
+            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
+        String branchesFileLocation = configuredBranchesFileLocation;
+        if (project.getGradle().getStartParameter().isOffline() && isHttpLocation(configuredBranchesFileLocation)) {
             File localBranchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
-            if (localBranchesFile.isFile()) {
+            if (localBranchesFile.exists()) {
                 LOGGER.warn(
-                    "Gradle is running in offline mode; falling back to local branches.json at [{}] instead of downloading from [{}]. "
-                        + "To override, set Gradle property [{}].",
-                    localBranchesFile.getAbsolutePath(),
-                    branchesFileLocation,
-                    BRANCHES_FILE_LOCATION_PROPERTY
+                    "Gradle is running in offline mode; using local branches.json at [{}] instead of downloading from [{}].",
+                    localBranchesFile,
+                    configuredBranchesFileLocation
                 );
                 branchesFileLocation = localBranchesFile.getAbsolutePath();
+            } else {
+                throw new GradleException(
+                    "Gradle is running in offline mode, but branches.json location ["
+                        + configuredBranchesFileLocation
+                        + "] is an http(s) URL and no local branches.json was found at ["
+                        + localBranchesFile
+                        + "]. Either disable offline mode, set -P"
+                        + BRANCHES_FILE_LOCATION_PROPERTY
+                        + "=<local file path>, or create branches.json at the workspace root."
+                );
             }
         }
         LOGGER.info("Reading branches.json from {}", branchesFileLocation);
         byte[] branchesBytes;
-        if (branchesFileLocation.startsWith("http")) {
-            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
-                branchesBytes = in.readAllBytes();
+        if (isHttpLocation(branchesFileLocation)) {
+            try {
+                branchesBytes = HttpUtils.readHttpBytesWithRetry(branchesFileLocation);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
@@ -250,6 +256,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         var branchesFileParser = new BranchesFileParser(new ObjectMapper());
         return branchesFileParser.parse(branchesBytes);
+    }
+
+    private static boolean isHttpLocation(String branchesFileLocation) {
+        return branchesFileLocation.startsWith("http://") || branchesFileLocation.startsWith("https://");
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

@@ -5,7 +5,7 @@
 | number | result |
 | --- | --- |
 | double | double |
-| exponential_histogram | double |
+| exponential_histogram {applies_to}`stack: preview 9.3.0` | double |
 | integer | double |
 | long | double |
 | tdigest {applies_to}`stack: preview 9.4.0` | double |

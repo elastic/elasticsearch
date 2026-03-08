@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -244,7 +245,8 @@ public class EsqlSession {
         parsingProfile.start();
         EsqlStatement statement = parse(request);
         gatherSettingsMetrics(statement);
-        var viewResolution = viewResolver.replaceViews(
+        parsingProfile.stop();
+        viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> EsqlParser.INSTANCE.parseView(
                 query,
@@ -253,9 +255,22 @@ public class EsqlSession {
                 planTelemetry,
                 inferenceService.inferenceSettings(),
                 viewName
-            ).plan()
+            ).plan(),
+            listener.delegateFailureAndWrap(
+                (l, viewResolution) -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l)
+            )
         );
-        parsingProfile.stop();
+    }
+
+    private void analyseAndExecute(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        EsqlStatement statement,
+        ViewResolver.ViewResolutionResult viewResolution,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -845,6 +860,7 @@ public class EsqlSession {
     /**
      * Resolve external sources (Iceberg tables/Parquet files) if present in the query.
      * This runs in parallel with other resolution steps to avoid blocking.
+     * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
      */
     private void preAnalyzeExternalSources(
         LogicalPlan plan,
@@ -857,10 +873,16 @@ public class EsqlSession {
             return;
         }
 
-        // Extract parameters from UnresolvedExternalRelation nodes
         Map<String, Map<String, Expression>> pathParams = extractIcebergParams(plan);
 
-        externalSourceResolver.resolve(preAnalysis.icebergPaths(), pathParams, listener.map(result::withExternalSourceResolution));
+        var filterHints = PartitionFilterHintExtractor.extract(plan);
+
+        externalSourceResolver.resolve(
+            preAnalysis.icebergPaths(),
+            pathParams,
+            filterHints.isEmpty() ? null : filterHints,
+            listener.map(result::withExternalSourceResolution)
+        );
     }
 
     /**
@@ -1147,6 +1169,7 @@ public class EsqlSession {
                 result.minimumTransportVersion(),
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                preAnalysis.hasTimeSeriesAggregation(),
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -1180,6 +1203,7 @@ public class EsqlSession {
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
+            preAnalysis.hasTimeSeriesAggregation(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());

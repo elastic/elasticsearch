@@ -50,6 +50,9 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     public void merge(MaxClauseCountQueryVisitor other) {
         numClauses += other.numClauses;
+        if (numClauses > maxClauseCount) {
+            throw new IndexSearcher.TooManyNestedClauses();
+        }
     }
 
     @Override

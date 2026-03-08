@@ -303,9 +303,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
-        // This doesn't fully work because lucene deduplicate mustNot and filter clauses. It is not trivial
-        // to deduplicate at this level because it seems that two "distinct" query builders can produce the same
-        // lucene query.
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST, queryVisitor);
         try {

@@ -295,7 +295,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    protected static void writeQueries(StreamOutput out, Collection<? extends QueryBuilder> queries) throws IOException {
+    protected static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {
             out.writeNamedWriteable(query);

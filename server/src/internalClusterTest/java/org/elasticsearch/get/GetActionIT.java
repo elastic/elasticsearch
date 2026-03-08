@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
@@ -1108,7 +1109,8 @@ public class GetActionIT extends ESIntegTestCase {
             prepareCreate(index).setSettings(
                 Settings.builder()
                     .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                    .put("index.refresh_interval", -1)
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )

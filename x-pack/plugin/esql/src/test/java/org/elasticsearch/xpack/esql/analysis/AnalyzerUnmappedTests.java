@@ -532,6 +532,17 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
+    /**
+     * Reproducer for #141927: with unmapped_fields=load, full-text search (match operator) must fail at analysis
+     * instead of returning empty results.
+     */
+    public void testUnmappedFieldsLoadWithMatchOperatorFails() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
+            "unmapped_fields=\"load\" is not allowed with full-text search"
+        );
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));

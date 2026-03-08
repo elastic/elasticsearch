@@ -95,6 +95,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1741,6 +1742,199 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         try (Operator op = factory.get(driverContext())) {
             assertThat(op.toString(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         }
+    }
+
+    /**
+     * Tests that loadDocSequence returns correct results for a wide index with keyword and long fields.
+     * The loadDocSequence path is triggered when ValuesFromManyReader sees a single shard+segment page
+     * with at least {@code docSequenceBytesRefFieldThreshold} BytesRef fields. We use non-constant
+     * IntVectors in the DocVector so {@code singleSegment()} is false (routing to ValuesFromManyReader)
+     * while {@code singleShardSingleSegment()} is true (triggering loadDocSequence).
+     */
+    public void testLoadDocSequenceKeywordAndLong() throws IOException {
+        testLoadDocSequence("keyword", false);
+    }
+
+    /**
+     * Like {@link #testLoadDocSequenceKeywordAndLong} but with text fields loaded from stored fields
+     * (row-stride) instead of keyword fields loaded from doc values (column-at-a-time).
+     */
+    public void testLoadDocSequenceTextAndLong() throws IOException {
+        testLoadDocSequence("text", true);
+    }
+
+    /**
+     * Like {@link #testLoadDocSequenceKeywordAndLong} but with a mix of keyword (column-at-a-time)
+     * and text (row-stride) fields to verify both reader types work together in loadDocSequence.
+     */
+    public void testLoadDocSequenceMixed() throws IOException {
+        testLoadDocSequence("mixed", true);
+    }
+
+    private void testLoadDocSequence(String mode, boolean needsSource) throws IOException {
+        int keywordFieldCount = mode.equals("text") ? 0 : (mode.equals("mixed") ? 300 : 510);
+        int textFieldCount = mode.equals("keyword") ? 0 : (mode.equals("mixed") ? 210 : 510);
+        int longFieldCount = 10;
+        int totalBytesRefFields = keywordFieldCount + textFieldCount;
+        int totalFields = totalBytesRefFields + longFieldCount;
+
+        KeywordFieldMapper.KeywordFieldType[] kwTypes = new KeywordFieldMapper.KeywordFieldType[keywordFieldCount];
+        for (int f = 0; f < keywordFieldCount; f++) {
+            kwTypes[f] = new KeywordFieldMapper.KeywordFieldType("kw" + String.format(Locale.ROOT, "%03d", f));
+        }
+        TextFieldMapper.TextFieldType[] textTypes = new TextFieldMapper.TextFieldType[textFieldCount];
+        for (int f = 0; f < textFieldCount; f++) {
+            textTypes[f] = storedTextField("txt" + String.format(Locale.ROOT, "%03d", f));
+        }
+
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
+            for (int f = 0; f < keywordFieldCount; f++) {
+                b.startObject("kw" + String.format(Locale.ROOT, "%03d", f)).field("type", "keyword").endObject();
+            }
+            for (int f = 0; f < textFieldCount; f++) {
+                b.startObject("txt" + String.format(Locale.ROOT, "%03d", f)).field("type", "text").field("store", true).endObject();
+            }
+            for (int f = 0; f < longFieldCount; f++) {
+                b.startObject("n" + String.format(Locale.ROOT, "%03d", f)).field("type", "long").endObject();
+            }
+        }));
+
+        int numDocs = between(20, 50);
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            )
+        ) {
+            for (int d = 0; d < numDocs; d++) {
+                XContentBuilder source = JsonXContent.contentBuilder();
+                source.startObject();
+                for (int f = 0; f < keywordFieldCount; f++) {
+                    source.field("kw" + String.format(Locale.ROOT, "%03d", f), "kw" + f + "_doc" + d);
+                }
+                for (int f = 0; f < textFieldCount; f++) {
+                    source.field("txt" + String.format(Locale.ROOT, "%03d", f), "txt" + f + "_doc" + d);
+                }
+                for (int f = 0; f < longFieldCount; f++) {
+                    source.field("n" + String.format(Locale.ROOT, "%03d", f), (long) d * 1000 + f);
+                }
+                source.endObject();
+                ParsedDocument doc = mapperService.documentParser()
+                    .parseDocument(
+                        new SourceToParse("id" + d, BytesReference.bytes(source), XContentType.JSON),
+                        mapperService.mappingLookup()
+                    );
+                writer.addDocuments(doc.docs());
+            }
+        }
+        reader = DirectoryReader.open(directory);
+        assertThat(reader.leaves(), hasSize(1));
+
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(totalFields);
+        for (int f = 0; f < keywordFieldCount; f++) {
+            MappedFieldType ft = kwTypes[f];
+            fieldInfos.add(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    ft.name(),
+                    ElementType.BYTES_REF,
+                    false,
+                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                )
+            );
+        }
+        for (int f = 0; f < textFieldCount; f++) {
+            MappedFieldType ft = textTypes[f];
+            fieldInfos.add(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    ft.name(),
+                    ElementType.BYTES_REF,
+                    false,
+                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                )
+            );
+        }
+        for (int f = 0; f < longFieldCount; f++) {
+            MappedFieldType ft = mapperService.fieldType("n" + String.format(Locale.ROOT, "%03d", f));
+            fieldInfos.add(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    ft.name(),
+                    ElementType.LONG,
+                    false,
+                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                )
+            );
+        }
+
+        boolean shuffled = randomBoolean();
+        int[] docIds = IntStream.range(0, numDocs).toArray();
+        if (shuffled) {
+            List<Integer> docIdList = IntStream.of(docIds).boxed().collect(Collectors.toList());
+            Randomness.shuffle(docIdList);
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = docIdList.get(i);
+            }
+        }
+
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        DocVector docVector;
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(blockFactory, numDocs)) {
+            for (int d = 0; d < numDocs; d++) {
+                builder.append(0, 0, docIds[d]);
+            }
+            docVector = builder.build(DocVector.config());
+        }
+        assertFalse("FixedBuilder produces non-constant vectors", docVector.singleSegment());
+        assertTrue("all docs from same shard+segment", docVector.singleShardSingleSegment());
+
+        Page inputPage = new Page(docVector.asBlock());
+        var readerFactory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            fieldInfos,
+            new IndexedByShardIdFromSingleton<>(
+                new ValuesSourceReaderOperator.ShardContext(
+                    reader,
+                    needsSource ? (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE : (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                )
+            ),
+            randomBoolean(),
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            totalBytesRefFields
+        );
+
+        var runner = new TestDriverRunner().builder(driverContext);
+        List<Page> results = runner.input(List.of(inputPage)).run(readerFactory);
+        int totalPositions = 0;
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(1 + totalFields));
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                DocBlock docBlock = page.getBlock(0);
+                int docId = docBlock.asVector().docs().getInt(p);
+
+                int fieldIdx = 1;
+                BytesRef scratch = new BytesRef();
+                for (int f = 0; f < keywordFieldCount; f++) {
+                    BytesRefBlock block = page.getBlock(fieldIdx++);
+                    assertFalse("kw" + f + " doc " + docId + " should not be null", block.isNull(p));
+                    assertEquals(new BytesRef("kw" + f + "_doc" + docId), block.getBytesRef(block.getFirstValueIndex(p), scratch));
+                }
+                for (int f = 0; f < textFieldCount; f++) {
+                    BytesRefBlock block = page.getBlock(fieldIdx++);
+                    assertFalse("txt" + f + " doc " + docId + " should not be null", block.isNull(p));
+                    assertEquals(new BytesRef("txt" + f + "_doc" + docId), block.getBytesRef(block.getFirstValueIndex(p), scratch));
+                }
+                for (int f = 0; f < longFieldCount; f++) {
+                    LongBlock block = page.getBlock(fieldIdx++);
+                    assertFalse("n" + f + " doc " + docId + " should not be null", block.isNull(p));
+                    assertEquals((long) docId * 1000 + f, block.getLong(block.getFirstValueIndex(p)));
+                }
+            }
+            totalPositions += page.getPositionCount();
+        }
+        assertEquals(numDocs, totalPositions);
+        assertDriverContext(driverContext);
     }
 
     public void testManyShards() throws IOException {

@@ -52,12 +52,7 @@ class ValuesFromManyReader extends ValuesReader {
         super(operator, docs);
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
-        log.debug(
-            "initializing {} positions, singleSegment={}, singleShardSingleSegment={}",
-            docs.getPositionCount(),
-            docs.singleSegment(),
-            docs.singleShardSingleSegment()
-        );
+        log.debug("initializing {} positions", docs.getPositionCount());
     }
 
     @Override
@@ -158,24 +153,26 @@ class ValuesFromManyReader extends ValuesReader {
             LeafReaderContext ctx = operator.ctx(shard, segment);
             resetReaders(ctx);
             fieldsMoved(ctx, shard);
+            int runStart = offset;
             readRowStride(firstDoc);
-            readColumnAtATimeSingleDoc(offset);
             int prevDoc = firstDoc;
             int i = offset + 1;
             long estimated = estimatedRamBytesUsed();
             while (i < docs.getPositionCount() && estimated < operator.jumboBytes) {
                 int doc = docs.docs().getInt(i);
                 if (doc < prevDoc) {
+                    readColumnAtATimeBatch(runStart, i);
                     resetReaders(ctx);
                     fieldsMoved(ctx, shard);
+                    runStart = i;
                 }
                 readRowStride(doc);
-                readColumnAtATimeSingleDoc(i);
                 prevDoc = doc;
                 i++;
                 estimated = estimatedRamBytesUsed();
                 log.trace("{}: bytes loaded {}/{}", i, estimated, operator.jumboBytes);
             }
+            readColumnAtATimeBatch(runStart, i);
             int count = i - offset;
             buildBlocksDirect(count);
             long actualBytes = 0;
@@ -215,19 +212,21 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         /**
-         * Reads column-at-a-time fields for a single position in the doc vector.
+         * Batch-reads column-at-a-time fields for an ascending run of positions {@code [start, end)}.
+         * Within this range doc IDs are non-decreasing, so the underlying doc values iterators
+         * can advance forward without needing a reset.
          */
-        private void readColumnAtATimeSingleDoc(int position) throws IOException {
-            if (columnAtATime.isEmpty()) {
+        private void readColumnAtATimeBatch(int start, int end) throws IOException {
+            if (columnAtATime.isEmpty() || start >= end) {
                 return;
             }
             ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs);
-            readerDocs.setCount(position + 1);
+            readerDocs.setCount(end);
             for (CurrentWork c : columnAtATime) {
                 assert c.rowStride == null;
-                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, position, c.field.info.nullsFiltered())) {
-                    assert read.getPositionCount() == 1 : read.getPositionCount() + " != 1 " + read;
-                    c.builder.copyFrom(read, 0, 1);
+                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, start, c.field.info.nullsFiltered())) {
+                    assert read.getPositionCount() == end - start : read.getPositionCount() + " == " + end + " - " + start + " " + read;
+                    c.builder.copyFrom(read, 0, read.getPositionCount());
                 }
             }
         }
@@ -342,9 +341,7 @@ class ValuesFromManyReader extends ValuesReader {
             long sum = 0;
             for (int f = 0; f < current.length; f++) {
                 sum += finalBuilders[f].estimatedBytes();
-                if (current[f].builder != finalBuilders[f]) {
-                    sum += current[f].builder.estimatedBytes();
-                }
+                sum += current[f].builder.estimatedBytes();
             }
             return sum;
         }

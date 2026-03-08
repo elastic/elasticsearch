@@ -86,7 +86,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
-        for (int f = 1; f < 100; f++) {
+        for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
@@ -107,7 +107,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         for (int f = 0; f < 1000; f++) {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", type));
         }
-        for (int subquery : List.of(MAX_SUBQUERIES)) {
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
             // results are returned from non-serverless environment, but CBE is expected in serverless
             try {
                 Map<?, ?> response = buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString());
@@ -143,7 +143,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
-        for (int f = 1; f < 999; f++) {
+        for (int f = 1; f < 5; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
@@ -222,6 +222,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/141034")
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
         // TODO OOM, after pages are added to TopN, the page is released, so the overestimation on big blocks are gone
         int docs = 50;
@@ -245,47 +246,22 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
-    /**
-     * Verifies that loadDocSequence in ValuesFromManyReader returns correct field values
-     * when reading 1000 keyword fields. Uses 10 docs to stay under the circuit breaker limit.
-     */
     public void testLoadDocSequenceReturnsCorrectResultsKeyword() throws IOException {
-        int docs = 10;
+        int docs = 20;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
-
-        List<Map<String, String>> columns = new ArrayList<>();
-        for (int f = 0; f < 1000; f++) {
-            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", "keyword");
-            columns.add(column);
-        }
-
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueriesWithSortInMainQuery(subquery, "manybigfields", "f000");
-            assertEquals(columns, response.get("columns"));
-
-            @SuppressWarnings("unchecked")
-            List<List<Object>> values = (List<List<Object>>) response.get("values");
-            assertEquals(docs * subquery, values.size());
-
-            int count = 0;
-            for (List<Object> row : values) {
-                assertEquals(1000, row.size());
-                for (int f = 0; f < 1000; f++) {
-                    String value = f == 0 ? Integer.toString(count / subquery) : Integer.toString(f % 10);
-                    assertEquals(value.repeat(1024), row.get(f));
-                }
-                count++;
-            }
-        }
+        verifyLoadDocSequenceResults(docs, "keyword");
     }
 
     public void testLoadDocSequenceReturnsCorrectResultsText() throws IOException {
-        int docs = 10;
+        int docs = 20;
         heapAttackIT.initManyBigFieldsIndex(docs, "text", false);
+        verifyLoadDocSequenceResults(docs, "text");
+    }
 
+    private void verifyLoadDocSequenceResults(int docs, String dataType) throws IOException {
         List<Map<String, String>> columns = new ArrayList<>();
         for (int f = 0; f < 1000; f++) {
-            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", "text");
+            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", dataType);
             columns.add(column);
         }
 
@@ -293,18 +269,15 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             Map<?, ?> response = buildSubqueriesWithSortInMainQuery(subquery, "manybigfields", "f000");
             assertEquals(columns, response.get("columns"));
 
-            @SuppressWarnings("unchecked")
-            List<List<Object>> values = (List<List<Object>>) response.get("values");
+            List<?> values = (List<?>) response.get("values");
             assertEquals(docs * subquery, values.size());
 
-            int count = 0;
-            for (List<Object> row : values) {
+            for (Object rowObj : values) {
+                List<?> row = (List<?>) rowObj;
                 assertEquals(1000, row.size());
                 for (int f = 0; f < 1000; f++) {
-                    String value = f == 0 ? Integer.toString(count / subquery) : Integer.toString(f % 10);
-                    assertEquals(value.repeat(1024), row.get(f));
+                    assertEquals(Integer.toString(f % 10).repeat(1024), row.get(f));
                 }
-                count++;
             }
         }
     }

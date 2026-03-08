@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: 9.4 preview
+stack: preview
 ```
 
 The `MMR` command reduces the result set from another retriever by applying a diversification strategy to the return rows.

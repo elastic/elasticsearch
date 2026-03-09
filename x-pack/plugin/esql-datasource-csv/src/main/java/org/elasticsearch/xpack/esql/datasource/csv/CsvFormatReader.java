@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -57,12 +57,25 @@ import java.util.NoSuchElementException;
  *
  * <p>This reader works with any StorageProvider (HTTP, S3, local).
  */
-public class CsvFormatReader implements FormatReader {
+public class CsvFormatReader implements SegmentableFormatReader {
+
+    private static final int READER_BUFFER_SIZE = 64 * 1024;
 
     private final BlockFactory blockFactory;
 
+    /**
+     * Jackson CsvMapper is thread-safe after configuration (all enable/disable
+     * calls happen in the constructor). Shared across all CsvBatchIterator
+     * instances to avoid repeated configuration overhead.
+     */
+    private final CsvMapper sharedCsvMapper;
+
     public CsvFormatReader(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
+        this.sharedCsvMapper = new CsvMapper();
+        this.sharedCsvMapper.enable(CsvParser.Feature.TRIM_SPACES);
+        this.sharedCsvMapper.enable(CsvParser.Feature.SKIP_EMPTY_LINES);
+        this.sharedCsvMapper.enable(CsvParser.Feature.WRAP_AS_ARRAY);
     }
 
     @Override
@@ -75,7 +88,7 @@ public class CsvFormatReader implements FormatReader {
     private List<Attribute> readSchema(StorageObject object) throws IOException {
         try (
             InputStream stream = object.newStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8), READER_BUFFER_SIZE)
         ) {
 
             String line;
@@ -84,7 +97,6 @@ public class CsvFormatReader implements FormatReader {
                 if (line.isEmpty() || line.startsWith("//")) {
                     continue;
                 }
-                // First non-comment line is the schema
                 return parseSchema(line);
             }
             throw new IOException("CSV file has no schema line");
@@ -94,9 +106,83 @@ public class CsvFormatReader implements FormatReader {
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         InputStream stream = object.newStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8), READER_BUFFER_SIZE);
 
-        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize);
+        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, null);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        InputStream stream = object.newStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8), READER_BUFFER_SIZE);
+        if (skipFirstLine) {
+            reader.readLine();
+        }
+        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, resolvedAttributes);
+    }
+
+    /**
+     * Quote-aware record boundary detection for parallel parsing.
+     * Tracks CSV quoting state so that newlines inside quoted fields are not
+     * treated as record boundaries. Handles RFC 4180 escaped quotes ({@code ""})
+     * correctly — a pair of double-quotes inside a quoted field does not toggle
+     * the quoting state. Safe for TSV (which has no quoting, so the
+     * {@code inQuotes} flag never toggles).
+     */
+    @Override
+    public long findNextRecordBoundary(InputStream stream) throws IOException {
+        long consumed = 0;
+        boolean inQuotes = false;
+        byte[] buf = new byte[8192];
+        int bytesRead;
+        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+            for (int i = 0; i < bytesRead; i++) {
+                consumed++;
+                byte b = buf[i];
+                if (b == '"') {
+                    if (inQuotes) {
+                        if (i + 1 < bytesRead) {
+                            if (buf[i + 1] == '"') {
+                                i++;
+                                consumed++;
+                                continue;
+                            }
+                            inQuotes = false;
+                            if (buf[i + 1] == '\n') {
+                                consumed++;
+                                return consumed;
+                            }
+                            continue;
+                        }
+                        int next = stream.read();
+                        if (next == -1) {
+                            return -1;
+                        }
+                        consumed++;
+                        if (next == '"') {
+                            continue;
+                        }
+                        inQuotes = false;
+                        if (next == '\n') {
+                            return consumed;
+                        }
+                        continue;
+                    } else {
+                        inQuotes = true;
+                    }
+                } else if (b == '\n' && inQuotes == false) {
+                    return consumed;
+                }
+            }
+        }
+        return -1;
     }
 
     @Override
@@ -160,7 +246,7 @@ public class CsvFormatReader implements FormatReader {
         private final InputStream stream;
         private final List<String> projectedColumns;
         private final int batchSize;
-        private final CsvMapper csvMapper;
+        private final List<Attribute> preResolvedSchema;
 
         private List<Attribute> schema;
         private List<Integer> projectedIndices;
@@ -168,15 +254,18 @@ public class CsvFormatReader implements FormatReader {
         private Page nextPage;
         private boolean closed = false;
 
-        CsvBatchIterator(BufferedReader reader, InputStream stream, List<String> projectedColumns, int batchSize) {
+        CsvBatchIterator(
+            BufferedReader reader,
+            InputStream stream,
+            List<String> projectedColumns,
+            int batchSize,
+            List<Attribute> preResolvedSchema
+        ) {
             this.reader = reader;
             this.stream = stream;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
-            this.csvMapper = new CsvMapper();
-            this.csvMapper.enable(CsvParser.Feature.TRIM_SPACES);
-            this.csvMapper.enable(CsvParser.Feature.SKIP_EMPTY_LINES);
-            this.csvMapper.enable(CsvParser.Feature.WRAP_AS_ARRAY);
+            this.preResolvedSchema = preResolvedSchema;
         }
 
         @Override
@@ -216,30 +305,31 @@ public class CsvFormatReader implements FormatReader {
 
         private Page readNextBatch() throws IOException {
             if (schema == null) {
-                // Read schema from first non-comment line
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (line.isEmpty() || line.startsWith("//")) {
-                        continue;
-                    }
-                    schema = parseSchema(line);
+                if (preResolvedSchema != null) {
+                    schema = preResolvedSchema;
                     projectedIndices = computeProjectedIndices();
-
-                    // Initialize CSV iterator with Jackson CSV parser
-                    // Use WRAP_AS_ARRAY to read CSV rows as lists without predefined schema
-                    CsvSchema csvSchema = CsvSchema.emptySchema()
-                        .withColumnSeparator(',')
-                        .withQuoteChar('"')
-                        .withEscapeChar('\\')
-                        .withNullValue("");
-
-                    csvIterator = csvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
-                    break;
+                } else {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty() || line.startsWith("//")) {
+                            continue;
+                        }
+                        schema = parseSchema(line);
+                        projectedIndices = computeProjectedIndices();
+                        break;
+                    }
+                    if (schema == null) {
+                        return null;
+                    }
                 }
-                if (schema == null) {
-                    return null; // No schema found
-                }
+                CsvSchema csvSchema = CsvSchema.emptySchema()
+                    .withColumnSeparator(',')
+                    .withQuoteChar('"')
+                    .withEscapeChar('\\')
+                    .withNullValue("");
+
+                csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
             }
 
             // Read batch of rows using Jackson CSV parser

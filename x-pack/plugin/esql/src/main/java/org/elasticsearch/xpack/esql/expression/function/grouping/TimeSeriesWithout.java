@@ -96,17 +96,11 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
         for (Expression field : children()) {
             if (field instanceof FieldAttribute fa) {
                 if (fa.isDimension() == false) {
-                    return new TypeResolution(
-                        "TIME_SERIES_WITHOUT requires dimension fields, but [" + fa.sourceText() + "] is not a dimension"
-                    );
+                    return new TypeResolution("WITHOUT requires dimension fields, but [" + fa.sourceText() + "] is not a dimension");
                 }
             } else {
                 return new TypeResolution(
-                    "TIME_SERIES_WITHOUT requires field attributes, got ["
-                        + field.sourceText()
-                        + "] of type ["
-                        + field.dataType().typeName()
-                        + "]"
+                    "WITHOUT requires field attributes, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
                 );
             }
         }

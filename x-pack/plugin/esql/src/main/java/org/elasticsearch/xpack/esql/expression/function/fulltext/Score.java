@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -59,11 +59,7 @@ public class Score extends Function implements EvaluatorMapper {
             description = "Boolean expression that contains full text function(s) to be scored."
         ) Expression scorableQuery
     ) {
-        this(source, List.of(scorableQuery));
-    }
-
-    protected Score(Source source, List<Expression> children) {
-        super(source, children);
+        super(source, List.of(scorableQuery));
     }
 
     @Override
@@ -73,7 +69,7 @@ public class Score extends Function implements EvaluatorMapper {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Score(source(), newChildren);
+        return new Score(source(), newChildren.getFirst());
     }
 
     @Override
@@ -87,7 +83,7 @@ public class Score extends Function implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
         return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
     }
@@ -95,26 +91,38 @@ public class Score extends Function implements EvaluatorMapper {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteableCollection(this.children());
+        out.writeOptionalNamedWriteable(children().getFirst());
     }
 
     private static Expression readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
+        /*
+         * This is not truly optional. But when the SCORE scalar was originally
+         * created we serialized it with this pair:
+         *
+         * in.readOptionalNamedWriteable(Expression.class);
+         * out.writeNamedWriteableCollection(this.children());
+         *
+         * This pair *is* compatible if we send a single element list. Single
+         * element lists are serialized as `0x01 <name> <body>`. That's also
+         * how optional named writeables are serialized.
+         */
         Expression query = in.readOptionalNamedWriteable(Expression.class);
+        if (query == null) {
+            throw new IllegalStateException("query isn't really optional");
+        }
         return new Score(source, query);
     }
 
-    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
-        implements
-            EvalOperator.ExpressionEvaluator.Factory {
+    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory) implements ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ScorerEvaluator(scoreFactory.get(context));
         }
     }
 
-    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements EvalOperator.ExpressionEvaluator {
+    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScorerEvaluator.class);
 
         @Override

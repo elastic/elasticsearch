@@ -319,7 +319,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public TDigestHolder getTDigestHolder(int valueIndex) {
+    public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

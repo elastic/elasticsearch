@@ -93,7 +93,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying an expression that evaluates to one of these types as a sort key will result in an error:
 
     * `geo_point`
     * `geo_shape`

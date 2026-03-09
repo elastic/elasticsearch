@@ -86,7 +86,21 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+        RootFlattenedFieldType noDv = new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, false),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            false,
+            true,
+            null,
+            false
+        );
+        assertEquals(new FieldExistsQuery("field._keyed"), noDv.existsQuery(null));
+
+        RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
             IndexType.terms(true, true),
             Collections.emptyMap(),
@@ -98,7 +112,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             null,
             false
         );
-        assertEquals(new FieldExistsQuery("field._keyed"), ft.existsQuery(null));
+        assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

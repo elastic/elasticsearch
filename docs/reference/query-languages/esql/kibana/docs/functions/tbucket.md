@@ -2,7 +2,8 @@
 
 ### TBUCKET
 Creates groups of values - buckets - out of a @timestamp attribute.
-The size of the buckets can either be provided directly as a duration or period, or chosen based on a recommended count and a range.
+The size of the buckets can either be provided directly as a duration or period,
+or chosen based on a recommended count and a range.
 
 ```esql
 FROM sample_data

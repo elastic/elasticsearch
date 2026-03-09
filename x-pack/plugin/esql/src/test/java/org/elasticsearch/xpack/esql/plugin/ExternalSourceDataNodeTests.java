@@ -233,18 +233,18 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
         Map<String, List<ExternalSplit>> assignments = Map.of("node-0", splits.subList(0, 2), "node-1", splits.subList(2, 4));
         ExternalDistributionPlan distributionPlan = new ExternalDistributionPlan(assignments, true);
 
-        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), distributionPlan);
+        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), distributionPlan, List.of());
         assertTrue("Should be distributed when plan says distributed", result.isDistributed());
         assertThat(result.distributionPlan().nodeAssignments().size(), equalTo(2));
     }
 
     public void testDistributionResultNotDistributedWithNullPlan() {
-        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), null);
+        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), null, List.of());
         assertFalse("Should not be distributed with null plan", result.isDistributed());
     }
 
     public void testDistributionResultNotDistributedWithLocalPlan() {
-        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), ExternalDistributionPlan.LOCAL);
+        var result = new ComputeService.ExternalDistributionResult(createExternalSourceExec(), ExternalDistributionPlan.LOCAL, List.of());
         assertFalse("Should not be distributed with LOCAL plan", result.isDistributed());
     }
 

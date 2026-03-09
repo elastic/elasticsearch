@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -340,6 +341,148 @@ public class AnalyzerTests extends ESTestCase {
         Row row = (Row) eval.child();
         ReferenceAttribute rowEmpNo = (ReferenceAttribute) row.output().get(0);
         assertEquals(rowEmpNo.id(), empNo.id());
+    }
+
+    public void testRowWithForwardReferences() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
+                    new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
+                    new Alias(
+                        EMPTY,
+                        "z",
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"), EsqlTestUtils.TEST_CFG)
+                    )
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(3, row.fields().size());
+
+        Alias xField = row.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Literal.class));
+        assertEquals(4, ((Literal) xField.child()).value());
+
+        Alias yField = row.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(Literal.class));
+        assertEquals(2, ((Literal) yField.child()).value());
+
+        Alias zField = row.fields().get(2);
+        assertEquals("z", zField.name());
+        assertThat(zField.child(), instanceOf(Add.class));
+        Add addExpr = (Add) zField.child();
+        assertThat(addExpr.left(), instanceOf(ReferenceAttribute.class));
+        assertThat(addExpr.right(), instanceOf(ReferenceAttribute.class));
+        assertEquals("x", ((ReferenceAttribute) addExpr.left()).name());
+        assertEquals("y", ((ReferenceAttribute) addExpr.right()).name());
+        assertEquals(xField.id(), ((ReferenceAttribute) addExpr.left()).id());
+        assertEquals(yField.id(), ((ReferenceAttribute) addExpr.right()).id());
+    }
+
+    public void testRowWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(5), b = a
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 5, INTEGER))),
+                    new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(2, row.fields().size());
+
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals("a", ((ReferenceAttribute) bField.child()).name());
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+    }
+
+    public void testRowAndEvalWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(100), b = a | eval x = random(100), y = x
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Eval(
+                EMPTY,
+                new Row(
+                    EMPTY,
+                    List.of(
+                        new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                        new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "x", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                    new Alias(EMPTY, "y", new UnresolvedAttribute(EMPTY, "x"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var row = as(eval.child(), Row.class);
+
+        // ROW part: b must reference a (same id guarantees same value at runtime)
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+
+        // EVAL part: y must reference x (same id guarantees same value at runtime)
+        Alias xField = eval.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Random.class));
+
+        Alias yField = eval.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(xField.id(), ((ReferenceAttribute) yField.child()).id());
+    }
+
+    public void testRowWithUnresolvableForwardReferences() {
+        verifyUnsupported("""
+            ROW a = b + c, b = 1, c = 2
+            """, """
+            Found 2 problems
+            line 1:9: Unknown column [b]
+            line 1:13: Unknown column [c]""");
+    }
+
+    public void testRowWithSelfReference() {
+        verifyUnsupported("""
+            ROW a = a
+            """, """
+            line 1:9: Unknown column [a]""");
     }
 
     public void testUnresolvableAttribute() {

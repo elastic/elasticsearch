@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.ESSloppyMath;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -57,7 +57,7 @@ public class Acosh extends AbstractTrigonometricFunction {
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
         return new AcoshEvaluator.Factory(source(), field);
     }
 

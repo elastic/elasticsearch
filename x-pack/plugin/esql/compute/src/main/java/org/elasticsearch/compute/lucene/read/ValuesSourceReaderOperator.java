@@ -255,10 +255,27 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(
-            page,
-            docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
-        );
+        return appendBlockArrays(page, valuesReader(docVector));
+    }
+
+    private ValuesReader valuesReader(DocVector docVector) {
+        if (docVector.singleSegment()) {
+            return new ValuesFromSingleReader(this, docVector);
+        }
+        if (bytesRefFieldCount() >= docSequenceBytesRefFieldThreshold) {
+            return new ValuesFromDocSequence(this, docVector);
+        }
+        return new ValuesFromManyReader(this, docVector);
+    }
+
+    private int bytesRefFieldCount() {
+        int count = 0;
+        for (FieldWork field : fields) {
+            if (field.info.type() == ElementType.BYTES_REF) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

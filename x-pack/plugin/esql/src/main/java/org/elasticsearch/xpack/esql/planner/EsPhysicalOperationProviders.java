@@ -195,6 +195,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             )
         );
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
+        int docSequenceThreshold = context.queryPragmas()
+            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
         return source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
@@ -203,7 +205,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 reuseColumnLoaders,
                 docChannel,
                 plannerSettings.sourceReservationFactor(),
-                plannerSettings.docSequenceBytesRefFieldThreshold()
+                docSequenceThreshold
             ),
             layout.build()
         );

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -924,5 +925,25 @@ public class IndexMetadataTests extends ESTestCase {
 
     private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
         return IndexReshardingMetadata.newSplitByMultiple(oldShards, randomIntBetween(2, 5));
+    }
+
+    public void testSequenceNumbersDisabledDefaultsToFalse() {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()))
+            .build();
+        assertFalse(metadata.sequenceNumbersDisabled());
+    }
+
+    public void testSequenceNumbersDisabled() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        var disabled = randomBoolean();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                indexSettings(1, 0).put("index.version.created", indexVersion.id())
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            )
+            .build();
+        assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
     }
 }

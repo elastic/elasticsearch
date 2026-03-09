@@ -718,7 +718,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
             .put(
@@ -855,10 +859,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent, randomQueueLatencyThresholdMillis);
 
         internalCluster().startMasterOnlyNode(settings);
-        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
-        final String firstDataNodeName = dataNodes.get(0);
-        final String secondDataNodeName = dataNodes.get(1);
-        final String thirdDataNodeName = dataNodes.get(2);
+        final String firstDataNodeName = internalCluster().startIndexOnlyNode(settings);
+        final String secondDataNodeName = internalCluster().startIndexOnlyNode(settings);
+        final String thirdDataNodeName = internalCluster().startIndexOnlyNode(settings);
         final String firstDataNodeId = getNodeId(firstDataNodeName);
         final String secondDataNodeId = getNodeId(secondDataNodeName);
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);

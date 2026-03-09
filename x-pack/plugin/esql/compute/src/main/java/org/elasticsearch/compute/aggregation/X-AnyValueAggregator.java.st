@@ -202,7 +202,7 @@ public class Any$v_Type$Aggregator {
             ByteArray observed = null;
             try {
                 // Initialize observed
-                observed = bigArrays.newByteArray(1, false);
+                observed = bigArrays.newByteArray(1, true);
                 observed.set(0, (byte) -1);
                 this.observed = observed;
 

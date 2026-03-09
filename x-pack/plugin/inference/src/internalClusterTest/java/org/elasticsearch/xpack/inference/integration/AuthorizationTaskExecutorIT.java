@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
@@ -24,6 +25,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -31,6 +34,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -51,6 +55,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -351,6 +356,69 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(textEmbeddingEndpoint.service(), is(ElasticInferenceService.NAME));
     }
 
+    public void testEndpointGetsUpdated_GivenFingerprintChanges_FromNull() throws Exception {
+        testEndpointGetsUpdated_GivenFingerprintChanged(null, randomAlphaOfLength(10));
+    }
+
+    public void testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull() throws Exception {
+        String originalFingerprint = randomAlphaOfLength(10);
+        testEndpointGetsUpdated_GivenFingerprintChanged(
+            originalFingerprint,
+            randomValueOtherThan(originalFingerprint, () -> randomAlphaOfLength(10))
+        );
+    }
+
+    private void testEndpointGetsUpdated_GivenFingerprintChanged(String originalFingerprint, String updatedFingerprint) throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+        String endpointId = randomAlphaOfLength(10);
+        AuthorizedEndpoint originalAuthEndpoint = createAuthorizedEndpoint(
+            endpointId,
+            randomFrom(
+                TaskType.CHAT_COMPLETION,
+                TaskType.COMPLETION,
+                TaskType.EMBEDDING,
+                TaskType.RERANK,
+                TaskType.TEXT_EMBEDDING,
+                TaskType.SPARSE_EMBEDDING
+            ),
+            () -> originalFingerprint
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(originalAuthEndpoint)));
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> assertThat(getEisEndpoints(modelRegistry).size(), is(1)));
+
+        var eisEndpoints = getEisEndpoints(modelRegistry);
+        assertThat(eisEndpoints.size(), is(1));
+        var endpoint = eisEndpoints.get(0);
+        assertThat(endpoint.inferenceEntityId(), is(originalAuthEndpoint.id()));
+        assertThat(endpoint.endpointMetadata().internal().fingerprint(), is(originalFingerprint));
+
+        resetWebServerQueues();
+        // Simulate the fingerprint has now been set
+        AuthorizedEndpoint updatedAuthEndpoint = createAuthorizedEndpoint(
+            originalAuthEndpoint.id(),
+            endpoint.taskType(),
+            () -> updatedFingerprint
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(updatedAuthEndpoint)));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> {
+            var postUpdateEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(postUpdateEndpoints.size(), is(1));
+            var updated = postUpdateEndpoints.get(0);
+            assertThat(updated.inferenceEntityId(), is(updatedAuthEndpoint.id()));
+            assertThat(updated.endpointMetadata().internal().fingerprint(), is(updatedFingerprint));
+        });
+
+    }
+
     public void testRestartsTaskAfterAbort() throws Exception {
         // Ensure the task is created and we get an initial authorization response
         assertNoAuthorizedEisEndpoints();
@@ -360,5 +428,18 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
+    }
+
+    private static String toJsonWrappedInInferenceEndpointsList(AuthorizedEndpoint... endpoints) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            builder.startArray("inference_endpoints");
+            for (AuthorizedEndpoint endpoint : endpoints) {
+                builder.value(endpoint);
+            }
+            builder.endArray();
+            builder.endObject();
+            return Strings.toString(builder);
+        }
     }
 }

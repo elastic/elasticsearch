@@ -73,7 +73,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         description = """
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
-                Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,

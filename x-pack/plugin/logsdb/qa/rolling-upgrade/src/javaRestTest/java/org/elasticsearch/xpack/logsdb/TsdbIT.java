@@ -139,8 +139,8 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        boolean hasSupport = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID);
-        Boolean useSyntheticId = hasSupport ? randomBoolean() : null;
+        Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
+        Boolean disableSeqNo = oldClusterHasFeature(IndexFeatures.TIME_SERIES_NO_SEQNO) ? randomBoolean() : null;
 
         String dataStreamName = "k8s";
         final String INDEX_TEMPLATE = """
@@ -154,7 +154,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         String templateName = "1";
         var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
         putIndexTemplateRequest.setJsonEntity(
-            INDEX_TEMPLATE.replace("$TEMPLATE", getTemplate(useSyntheticId)).replace("$PATTERN", dataStreamName)
+            INDEX_TEMPLATE.replace("$TEMPLATE", getTemplate(useSyntheticId, disableSeqNo)).replace("$PATTERN", dataStreamName)
         );
         assertOK(client().performRequest(putIndexTemplateRequest));
 

@@ -14,8 +14,6 @@ import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
-import java.util.Collections;
-
 /**
  * Builder for configuring failure handling strategies for methods that return values.
  * <p>
@@ -51,19 +49,24 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         return new ClassMethodBuilder<>(registry, clazz);
     }
 
-    @SuppressWarnings("unchecked")
-    public ClassMethodBuilder<T> elseReturnEmptyMap() {
-        return elseReturn((R) Collections.emptyMap());
-    }
-
-    @SuppressWarnings("unchecked")
-    public ClassMethodBuilder<T> elseReturnEmptyList() {
-        return elseReturn((R) Collections.emptyList());
-    }
-
-    @SuppressWarnings("unchecked")
-    public ClassMethodBuilder<T> elseReturnEmptySet() {
-        return elseReturn((R) Collections.emptySet());
+    /**
+     * Specifies that when the entitlement check fails, the method should return
+     * the provided reference-type default value. Unlike {@link #elseReturn}, this
+     * handles objects that cannot be loaded as JVM constants and are instead returned
+     * from the check method at runtime.
+     *
+     * @param defaultValue the reference value to return when the entitlement check fails
+     * @return a class method builder for continuing rule definition
+     */
+    public ClassMethodBuilder<T> elseReturnReference(Object defaultValue) {
+        registry.registerRule(
+            new EntitlementRule(
+                methodKey,
+                checkMethod,
+                new DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy(defaultValue)
+            )
+        );
+        return new ClassMethodBuilder<>(registry, clazz);
     }
 
     /**

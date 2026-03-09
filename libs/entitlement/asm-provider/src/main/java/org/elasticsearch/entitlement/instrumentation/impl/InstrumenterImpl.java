@@ -31,9 +31,7 @@ import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -289,23 +287,21 @@ public final class InstrumenterImpl implements Instrumenter {
             pushArguments();
             switch (strategy) {
                 case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
-                    // For return early strategy we want to catch not entitled and return early
                     catchNotEntitledAndReturnEarly();
                 }
                 case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
-                    // For default value strategy we want to catch not entitled and return the default value
                     catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
                 }
+                case DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy refDefault -> {
+                    catchNotEntitledAndReturnReferenceDefault();
+                }
                 case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
-                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
                     catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
                 }
                 case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
-                    // For not entitled strategy we just want to let the not entitled exception propagate
                     invokeInstrumentationMethod();
                 }
                 case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
-                    // Custom exception strategy is handled by invoking the instrumentation method
                     invokeInstrumentationMethod();
                 }
             }
@@ -428,6 +424,24 @@ public final class InstrumenterImpl implements Instrumenter {
             );
         }
 
+        private void catchNotEntitledAndReturnReferenceDefault() {
+            wrapInstrumentationInTryCatch(() -> {
+                mv.visitInsn(Opcodes.POP);
+                pushEntitlementChecker();
+                mv.visitLdcInsn(instrumentationId);
+                mv.visitMethodInsn(
+                    INVOKEINTERFACE,
+                    Type.getReturnType(registryClassMethodDescriptor).getInternalName(),
+                    "defaultValue$",
+                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    true
+                );
+                Type returnType = Type.getReturnType(instrumentedMethodDescriptor);
+                mv.visitTypeInsn(Opcodes.CHECKCAST, returnType.getInternalName());
+                mv.visitInsn(Opcodes.ARETURN);
+            });
+        }
+
         private void catchNotEntitledAndReturnValue(Object defaultValue) {
             wrapInstrumentationInTryCatch(() -> { returnConstantValue(defaultValue); });
         }
@@ -487,15 +501,6 @@ public final class InstrumenterImpl implements Instrumenter {
         private void returnConstantValue(Object constant) {
             if (constant == null) {
                 mv.visitInsn(Opcodes.ACONST_NULL);
-                mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant instanceof Map<?, ?> m && m.isEmpty()) {
-                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyMap", "()Ljava/util/Map;", false);
-                mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant instanceof List<?> l && l.isEmpty()) {
-                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyList", "()Ljava/util/List;", false);
-                mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant instanceof Set<?> s && s.isEmpty()) {
-                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptySet", "()Ljava/util/Set;", false);
                 mv.visitInsn(Opcodes.ARETURN);
             } else {
                 mv.visitLdcInsn(constant);

@@ -55,7 +55,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
-        assertTrue(plugins.removeIf(p -> p.isAssignableFrom(EsqlPlugin.class)));
+        assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
         plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }

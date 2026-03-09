@@ -495,9 +495,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String queryName = this.name != null ? this.name : pft.name();
-        SearchExecutionContext percolateShardContext = wrap(context);
-        percolateShardContext = PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, pft.mapUnmappedFieldsAsText, context);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
@@ -536,7 +534,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, SearchExecutionContext context) {
+    static PercolateQuery.QueryStore createStore(
+        MappedFieldType queryBuilderFieldType,
+        boolean mapUnmappedFieldsAsText,
+        SearchExecutionContext context
+    ) {
         IndexVersion indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
@@ -547,21 +549,24 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
+                    // create a shallow copy and set overrides
+                    var percolateShardContext = newPercolateSearchContext(context, mapUnmappedFieldsAsText);
+
                     BytesRef qbSource = binaryDocValues.binaryValue();
                     QueryBuilder queryBuilder = readQueryBuilder(qbSource, registry, indexVersion, () -> {
                         // query builder is written in an incompatible format, fall-back to reading it from source
-                        if (context.isSourceEnabled() == false) {
+                        if (percolateShardContext.isSourceEnabled() == false) {
                             throw new ElasticsearchException(
                                 "Unable to read percolator query. Original transport version is incompatible and source is "
                                     + "unavailable on index [{}].",
-                                context.index().getName()
+                                percolateShardContext.index().getName()
                             );
                         }
                         LOGGER.warn(
                             "Reading percolator query from source. For best performance, reindexing of index [{}] is required.",
-                            context.index().getName()
+                            percolateShardContext.index().getName()
                         );
-                        SourceProvider sourceProvider = context.createSourceProvider(new SourceFilter(null, null));
+                        SourceProvider sourceProvider = percolateShardContext.createSourceProvider(new SourceFilter(null, null));
                         Source source = sourceProvider.getSource(ctx, docId);
                         SourceToParse sourceToParse = new SourceToParse(
                             String.valueOf(docId),
@@ -569,7 +574,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             source.sourceContentType()
                         );
 
-                        return context.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
+                        return percolateShardContext.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
                     });
 
                     // The QueryBuilder.toQuery() function modifies the search context's
@@ -579,10 +584,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     // The context's NestedScope is also vulnerable to concurrent modification.
                     // Use a cloned SearchExecutionContext for each thread with new instances of
                     // the mutable fields.
-                    var safeContext = context.copyForConcurrentUse();
-                    queryBuilder = Rewriteable.rewrite(queryBuilder, safeContext);
+                    queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
                     // toQuery will access localAutoPrefilteringScope
-                    return queryBuilder.toQuery(safeContext);
+                    return queryBuilder.toQuery(percolateShardContext);
                 } else {
                     return null;
                 }
@@ -632,8 +636,18 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    private static SearchExecutionContext wrap(SearchExecutionContext delegate) {
-        return new SearchExecutionContext(delegate) {
+    /**
+     * Create a shallow copy of the {@code source} context with specific
+     * overrides for Percolator usage. The shallow copy makes the shared
+     * elements thread safe
+     * @param source
+     * @param mapUnmappedFieldsAsText
+     * @return
+     */
+    static SearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
+        assert source.getClass().isAnonymousClass() == false
+            : "source must not be an anonymous class as overridden methods " + "will be lost when a new SearchExecutionContext is created";
+        var wrapped = new SearchExecutionContext(source) {
 
             @Override
             public IndexReader getIndexReader() {
@@ -667,9 +681,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             ) {
                 IndexFieldData.Builder builder = fieldType.fielddataBuilder(
                     new FieldDataContext(
-                        delegate.getFullyQualifiedIndex().getName(),
-                        delegate.getIndexSettings(),
-                        delegate::lookup,
+                        source.getFullyQualifiedIndex().getName(),
+                        source.getIndexSettings(),
+                        source::lookup,
                         this::sourcePath,
                         fielddataOperation
                     )
@@ -679,11 +693,39 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return (IFD) builder.build(cache, circuitBreaker);
             }
 
+            // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+            // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+            // Consequently, we may erroneously skip expanding those term fields.
+            // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+            @Override
+            public boolean fieldExistsInIndex(String fieldname) {
+                return true;
+            }
+
             @Override
             public void addNamedQuery(String name, Query query) {
-                delegate.addNamedQuery(name, query);
+                source.addNamedQuery(name, query);
             }
         };
+
+        // This means that fields in the query need to exist in the mapping prior to registering this query
+        // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+        //
+        // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+        // then the percolator queries don't work as expected any more.
+        //
+        // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+        // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+        // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+        //
+        // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+        // as an analyzed string.
+        wrapped.setAllowUnmappedFields(false);
+        wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsText);
+        // We need to rewrite queries with name to Lucene NamedQuery to find matched sub-queries of percolator query
+        wrapped.setRewriteToNamedQueries();
+
+        return wrapped;
     }
 
     @Override

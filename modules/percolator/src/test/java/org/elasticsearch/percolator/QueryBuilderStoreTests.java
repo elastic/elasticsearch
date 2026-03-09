@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -30,13 +31,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
-import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.field.BinaryDocValuesField;
@@ -47,8 +49,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 
@@ -104,6 +109,16 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 IndexMetadata.builder("test").settings(indexSettingsSettings).build(),
                 Settings.EMPTY
             );
+            List<String> fieldNames = Arrays.stream(queryBuilders).map(TermQueryBuilder::fieldName).distinct().toList();
+            List<FieldMapper> keywordMappers = fieldNames.stream()
+                .map(name -> new KeywordFieldMapper.Builder(name, indexSettings).build(MapperBuilderContext.root(false, false)))
+                .collect(Collectors.toList());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                Mapping.EMPTY,
+                keywordMappers,
+                Collections.emptyList(),
+                IndexMode.STANDARD
+            );
             SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
                 0,
                 0,
@@ -111,7 +126,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 null,
                 indexFieldDataLookup,
                 null,
-                MappingLookup.EMPTY,
+                mappingLookup,
                 null,
                 null,
                 parserConfig,
@@ -129,14 +144,11 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 SHARD_SEARCH_STATS
             );
 
-            var filteredSEC = new FilteredSearchExecutionContext(searchExecutionContext) {
-                @Override
-                public MappedFieldType getFieldType(String name) {
-                    return new KeywordFieldMapper.KeywordFieldType(name);
-                }
-            };
-
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), filteredSEC);
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
+                fieldMapper.fieldType(),
+                randomBoolean(),
+                searchExecutionContext
+            );
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

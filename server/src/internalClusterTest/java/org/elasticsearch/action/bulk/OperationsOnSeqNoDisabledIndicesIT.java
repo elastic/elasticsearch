@@ -222,7 +222,8 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        prepareIndex("test").setId("1").setSource("value", "original").get();
+        var indexResult = prepareIndex("test").setId("1").setSource("value", "original").get();
+        assertThat(indexResult.getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
         var exception = expectThrows(
             UpdateNotSupportedException.class,

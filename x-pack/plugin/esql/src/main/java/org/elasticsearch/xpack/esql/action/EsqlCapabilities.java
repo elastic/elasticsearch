@@ -2080,7 +2080,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION(Build.current().isSnapshot()),
+        APPROXIMATION_V2(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2216,6 +2216,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142968
          */
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Fix for not including metadata _doc_count in the _timeseries column
+         * https://github.com/elastic/elasticsearch/issues/143464
+         */
+        FIX_DISPLAYING_TS_DIMENSIONS_IN_METRICS_GROUP_BY_ALL,
 
         /**
          * Support for the zero_terms_query option in the match function.

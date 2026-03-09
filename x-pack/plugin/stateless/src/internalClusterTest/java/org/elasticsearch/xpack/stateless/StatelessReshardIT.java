@@ -136,6 +136,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
@@ -146,10 +147,12 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
@@ -433,12 +436,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         assertNoFailures(flushResponse);
 
-        long totalNumberOfDocumentsInIndex = initialIndexedDocuments;
+        final var totalNumberOfDocumentsInIndex = new AtomicLong(initialIndexedDocuments);
 
         // works before resharding
         refresh(indexName);
 
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(1));
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName);
         client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
@@ -482,18 +485,38 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         // We can still perform search on the source shard and see all previous writes due to the pre-reshard refresh.
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(1));
 
-        // TODO write more data here.
-        // Writes to source shard at this point will not be copied to the target
-        // because they happen after commit copy logic is already disabled.
-        // Eventually we'll forward such writes to the target.
-        // But for now we can't write here because eventually we remove some documents written here
-        // as unowned but they are also not copied to the target.
-        // That of course leads to incorrect search results.
+        // At this point handoff is in progress and the source shard is holding all primary operation permits.
+        // So writes will only succeed after HANDOFF transition is unblocked below, but they should succeed.
+
+        final int duringHandoffIndexedDocuments = randomIntBetween(10, 20);
+        var duringHandoffIndexing = new Thread(() -> {
+            indexDocs(indexName, duringHandoffIndexedDocuments);
+            totalNumberOfDocumentsInIndex.getAndAdd(duringHandoffIndexedDocuments);
+        });
+        duringHandoffIndexing.start();
+
+        // Refresh should be blocked until the target shard is in SPLIT state. Start a request now and verify
+        // that it doesn't complete until then.
+        final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
+        final var refreshThread = new Thread(() -> {
+            var refreshResponse = refresh.actionGet();
+            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getTotalShards());
+            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getSuccessfulShards());
+            // Note that the coordinator does not need to observe SPLIT since refresh requests are resplit.
+            var split = getSplit(indexNode, index);
+            assertTrue(
+                "Unexpected split state " + split,
+                split.targetStates().allMatch(IndexReshardingState.Split.TargetShardState.SPLIT::equals)
+            );
+        });
+        refreshThread.start();
 
         // unblock HANDOFF transition
         stateTransitionBlock.await();
+
+        duringHandoffIndexing.join(SAFE_AWAIT_TIMEOUT.millis());
 
         awaitClusterState(
             searchCoordinator,
@@ -503,36 +526,29 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
 
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
+        // Since the refresh is blocked we can only see pre-split state.
+        assertDocAndShardCount(
+            searchCoordinator,
+            indexName,
+            useEsql,
+            equalTo(totalNumberOfDocumentsInIndex.get() - duringHandoffIndexedDocuments),
+            equalTo(1)
+        );
 
         // we can still index between handoff and split but refresh is blocked
         final int handoffIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, handoffIndexedDocuments);
-        totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
+        totalNumberOfDocumentsInIndex.getAndAdd(handoffIndexedDocuments);
 
-        // Refresh should block on the target shard until SPLIT is complete. Start a request now and verify
-        // that it doesn't complete until then.
-        final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
-        final var refreshThread = new Thread(() -> {
-            refresh.actionGet();
-            var split = getSplit(searchCoordinator, index);
-            assertTrue(
-                "Unexpected split state " + split,
-                split.targetStates().allMatch(IndexReshardingState.Split.TargetShardState.SPLIT::equals)
-            );
-        });
-        refreshThread.start();
-
-        // We may see some of the documents written, e.g., because refresh proceeds on the source shard.
+        // We may see some of the documents written because refresh succeeds on the source shard.
         // Shard count returned by search should still be 1 (only source shard)
         assertDocAndShardCount(
             searchCoordinator,
             indexName,
             useEsql,
             is(
-                both(greaterThanOrEqualTo(totalNumberOfDocumentsInIndex - handoffIndexedDocuments)).and(
-                    lessThanOrEqualTo(totalNumberOfDocumentsInIndex)
-                )
+                both(greaterThanOrEqualTo(totalNumberOfDocumentsInIndex.get() - handoffIndexedDocuments - duringHandoffIndexedDocuments))
+                    .and(lessThanOrEqualTo(totalNumberOfDocumentsInIndex.get()))
             ),
             equalTo(1)
         );
@@ -550,11 +566,25 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
         );
 
-        // refresh that was blocked earlier should now complete
+        // Refresh that was blocked earlier should now complete.
         refreshThread.join(SAFE_AWAIT_TIMEOUT.millis());
 
-        // and we should see the documents indexed during handoff now
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+        // Note however that source shard was refreshed immediately after handoff happened and
+        // the refresh was only blocked on the target shard.
+        // As such the source shard wasn't refreshed for a while, and we won't see some of the `handoffIndexedDocuments`.
+        // The refresh was also executed concurrently with writes of `duringHandoffIndexedDocuments` once
+        // primary operation permits were released.
+        // So we can't be sure that all `duringHandoffIndexedDocuments` were refreshed on the source shard either.
+        assertDocAndShardCount(
+            searchCoordinator,
+            indexName,
+            useEsql,
+            is(
+                both(greaterThanOrEqualTo(totalNumberOfDocumentsInIndex.get() - handoffIndexedDocuments - duringHandoffIndexedDocuments))
+                    .and(lessThanOrEqualTo(totalNumberOfDocumentsInIndex.get()))
+            ),
+            equalTo(multiple)
+        );
 
         // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
         // Refresh includes target shards, search includes target shards.
@@ -566,15 +596,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(multiple));
 
         final int splitIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, splitIndexedDocuments);
-        totalNumberOfDocumentsInIndex += splitIndexedDocuments;
+        totalNumberOfDocumentsInIndex.getAndAdd(splitIndexedDocuments);
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
         // The source shard has not yet deleted unowned documents but will filter them once targets have passed SPLIT
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(multiple));
 
         // unblock DONE transition
         stateTransitionBlock.await();
@@ -603,16 +633,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertEquals(multiple, doneRefresh.getSuccessfulShards());
 
         // all unowned documents should be deleted now so we should get the exact count
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(multiple));
 
         // indexing new data and searching for it works
         final int doneIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, doneIndexedDocuments);
-        totalNumberOfDocumentsInIndex += doneIndexedDocuments;
+        totalNumberOfDocumentsInIndex.getAndAdd(doneIndexedDocuments);
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
 
-        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex.get()), equalTo(multiple));
 
         waitForReshardCompletion(indexName);
     }
@@ -2713,7 +2743,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
         );
         ensureGreen(indexName);
 
@@ -2778,11 +2808,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             equalTo(2)
         );
 
-        // TODO:
-        // This should work once we have the logic to copy commits that arrive during handoff, ES-11531 and logic to route search
-        // requests post-handoff.
-        // assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 1);
-        // assertSearchHits(prepareSearch(indexName).setQuery(matchQuery("foo", "bar")), targetDocId);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 1);
+        assertSearchHits(prepareSearch(indexName).setQuery(matchQuery("foo", "bar")), targetDocId);
 
         // Note that stats won't include data copied from the source shard to target shard,
         // since they didn't go through the "normal" indexing logic.

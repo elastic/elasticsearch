@@ -169,10 +169,10 @@ public class PlannerSettings {
     );
 
     /**
-     * When a {@code BytesRefArrayVector}'s backing values exceed this size, the RAM estimate is
-     * multiplied by {@link #BYTES_REF_RAM_OVERESTIMATE_FACTOR} to account for untracked overhead
-     * in large byte arrays. The untracked overhead may come from loading large text fields from
-     * _source.
+     * When a {@code BytesRefArrayVector}'s average value length exceeds this size, the RAM
+     * estimate is multiplied by {@link #BYTES_REF_RAM_OVERESTIMATE_FACTOR} to account for
+     * untracked overhead in large byte arrays. The untracked overhead may come from loading
+     * large text fields from _source.
      */
     public static final Setting<ByteSizeValue> BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = Setting.byteSizeSetting(
         "esql.bytes_ref_ram_overestimate_threshold",

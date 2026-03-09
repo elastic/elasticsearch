@@ -1434,6 +1434,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+            settings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
         settings.put(extraSettings);
 
         final String nestedMapping = useNestedDocs ? """

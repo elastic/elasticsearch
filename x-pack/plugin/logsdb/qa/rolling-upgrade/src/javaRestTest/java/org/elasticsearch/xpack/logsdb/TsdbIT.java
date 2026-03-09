@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
-    private static final String SYNTHETIC_ID_PLACEHOLDER = "$SYNTHETIC_ID_SETTING";
+    private static final String EXTRA_INDEX_SETTINGS_PLACEHOLDER = "$SYNTHETIC_ID_SETTING";
     // Do not access directly, use getTemplate(Boolean useSyntheticId)
     private static final String TEMPLATE = """
         {
@@ -83,15 +83,21 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
                 }
             }
         }
-        """.formatted(SYNTHETIC_ID_PLACEHOLDER);
+        """.formatted(EXTRA_INDEX_SETTINGS_PLACEHOLDER);
 
     /**
      * Returns the template with optional synthetic_id setting. When {@code useSyntheticId} is null the setting is omitted;
      * when true/false, adds {@code "mapping": { "synthetic_id": true/false }} to index settings.
      */
-    static String getTemplate(Boolean useSyntheticId) {
-        String replacement = useSyntheticId == null ? "" : ", \"mapping\": { \"synthetic_id\": " + useSyntheticId + " }";
-        return TEMPLATE.replace(SYNTHETIC_ID_PLACEHOLDER, replacement);
+    static String getTemplate(Boolean useSyntheticId, Boolean disableSeqNo) {
+        StringBuilder replacement = new StringBuilder();
+        if(useSyntheticId != null) {
+            replacement.append(", \"mapping\": { \"synthetic_id\": ").append(useSyntheticId).append(" }");
+        }
+        if (disableSeqNo) {
+            replacement.append(", \"disable_sequence_numbers\": ").append(disableSeqNo);
+        }
+        return TEMPLATE.replace(EXTRA_INDEX_SETTINGS_PLACEHOLDER, replacement);
     }
 
     private static final String BULK =

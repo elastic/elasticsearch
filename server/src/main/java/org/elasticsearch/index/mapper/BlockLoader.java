@@ -245,6 +245,14 @@ public interface BlockLoader {
             boolean toInt,
             boolean binaryMultiValuedFormat
         ) throws IOException;
+
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose value contains the given term,
+         * or {@code null} if this optimization is not supported by the underlying data.
+         */
+        default DocIdSetIterator containsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
     }
 
     /**

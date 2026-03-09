@@ -22,11 +22,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -66,20 +64,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                     iterator = direct.lengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                    iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
-                        final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                        @Override
-                        public boolean matches() throws IOException {
-                            values.advance(counts.docID());
-                            return reader.match(values.binaryValue(), counts.longValue(), lengthPredicate);
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return matchCost;
-                        }
-                    });
+                    iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost());
                 }
 
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());

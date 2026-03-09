@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Integration tests verifying that the health node task is always assigned and that health API
+ * Integration tests verifying that the health node task is always assigned (unless disabled) and that health API
  * requests succeed during rolling node shutdowns.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -47,7 +47,7 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
         // Alternate shutdowns: each pass marks the current health node for shutdown and verifies
         // the task migrates to the other node, then clears the shutdown before the next pass.
         String currentHealthNodeName = initialHealthNode.getName();
-        final var passes = randomIntBetween(1,4);
+        final var passes = randomIntBetween(1, 4);
         for (int pass = 0; pass < passes; pass++) {
             final String shutdownNodeName = currentHealthNodeName;
             final String expectedNodeName = shutdownNodeName.equals(node1) ? node2 : node1;
@@ -58,7 +58,11 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
             NodeShutdownTestUtils.putShutdownMetadata(
                 shutdownNodeName,
                 internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
-                EnumSet.of(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM, SingleNodeShutdownMetadata.Type.RESTART)
+                EnumSet.of(
+                    SingleNodeShutdownMetadata.Type.REMOVE,
+                    SingleNodeShutdownMetadata.Type.SIGTERM,
+                    SingleNodeShutdownMetadata.Type.RESTART
+                )
             );
             try {
                 awaitClusterState(state -> {
@@ -123,9 +127,6 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
         return node.getId();
     }
 
-    /**
-     * Blocks until every node in the cluster has reported health to the health node cache.
-     */
     private void waitForAllNodesToReportHealthy(String healthNodeName) throws Exception {
         // todo(ines): can I get rid of the assertBusy here?
         assertBusy(() -> {
@@ -141,9 +142,9 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
             );
             for (final String nodeId : state.nodes().getNodes().keySet()) {
                 assertThat(
-                        "node [" + nodeId + "] must have GREEN disk health in cache on [" + healthNodeName + "]",
-                        diskInfo.get(nodeId),
-                        equalTo(GREEN_DISK_HEALTH)
+                    "node [" + nodeId + "] must have GREEN disk health in cache on [" + healthNodeName + "]",
+                    diskInfo.get(nodeId),
+                    equalTo(GREEN_DISK_HEALTH)
                 );
             }
         });

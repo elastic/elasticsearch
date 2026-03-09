@@ -119,6 +119,23 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    public void testMvMinToKeywordHighCardinality() throws IOException {
+        String min = "a".repeat(between(1, 256));
+        String max = "b".repeat(between(1, 256));
+        test(
+            b -> b.startObject("test")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("cardinality", "high")
+                .endObject()
+                .endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.SeparateCount", 1)
+        );
+    }
+
     public void testMvMinToIp() throws IOException {
         String min = "192.168.0." + between(0, 255);
         String max = "192.168.3." + between(0, 255);
@@ -224,6 +241,23 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
             matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromOrds.SortedSet", 1)
+        );
+    }
+
+    public void testMvMaxToKeywordHighCardinality() throws IOException {
+        String min = "a".repeat(between(1, 256));
+        String max = "b".repeat(between(1, 256));
+        test(
+            b -> b.startObject("test")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("cardinality", "high")
+                .endObject()
+                .endObject(),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.SeparateCount", 1)
         );
     }
 

@@ -162,7 +162,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, (ctx, shardIdx) -> {
                 if (shardIdx != 0) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
@@ -586,7 +586,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> {
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, (ctx, shardIdx) -> {
             if (shardIdx != 0) {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
@@ -901,7 +901,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 )
             ).results(checks::constantBytes).readers(StatusChecks::constantBytes)
         );
@@ -911,7 +911,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "null",
                     ElementType.NULL,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 )
             ).results(checks::constantNulls).readers(StatusChecks::constantNulls)
         );
@@ -1629,13 +1629,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
                         new IndexedByShardIdFromSingleton<>(
@@ -1787,7 +1787,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, (ctx, shardIdx) -> {
                     seenShards.add(shardIdx);
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),

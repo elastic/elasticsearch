@@ -30,6 +30,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -98,7 +100,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -214,6 +215,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
+        DriverContext.WarningsMode warningsMode,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
@@ -224,7 +226,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         // Apply any block loader function if present
+
         BlockLoaderFunctionConfig functionConfig = null;
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
         if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
@@ -237,6 +241,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 isUnsupported,
                 fieldExtractPreference,
                 functionConfig,
+                warnings,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -257,6 +262,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         isUnsupported,
                         fieldExtractPreference,
                         e.config(),
+                        warnings,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
                     )
@@ -268,6 +274,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             isUnsupported,
             fieldExtractPreference,
             functionConfig,
+            warnings,
             plannerSettings.blockLoaderSizeOrdinals(),
             plannerSettings.blockLoaderSizeScript()
         );
@@ -419,14 +426,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            IntFunction<ValuesSourceReaderOperator.LoaderAndConverter> loaderAndConverter = s -> blockLoaderAndConverter(
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
+                warningsMode,
                 s,
                 attr,
                 fieldExtractPreference
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
     }
@@ -584,6 +592,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
@@ -600,6 +609,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     ctx,
                     fieldExtractPreference,
                     blockLoaderFunctionConfig,
+                    warnings,
                     blockLoaderSizeOrdinals,
                     blockLoaderSizeScript
                 )

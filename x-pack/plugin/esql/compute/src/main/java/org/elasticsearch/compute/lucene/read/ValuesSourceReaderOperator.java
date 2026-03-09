@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -115,10 +114,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
      *                      without value for field x, all target documents returned from the source operator
      *                      will have a value for field x whether x is dense or sparse in the index.
-     * @param loaderAndConverter   maps shard index to the {@link BlockLoader} which load the actual blocks and an
-     *                             optional type converter.
+     * @param buildLoader builds the {@link BlockLoader} which loads the actual blocks and an
+     *                    optional type converter for a given shard.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, BuildLoader buildLoader) {}
+
+    /**
+     * Builds a {@link LoaderAndConverter} for a given shard.
+     */
+    public interface BuildLoader {
+        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+    }
 
     /**
      * Singleton to load constant {@code null}s.
@@ -376,7 +382,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.loaderAndConverter.apply(shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);

@@ -514,7 +514,9 @@ public final class InstrumenterImpl implements Instrumenter {
                     || constant instanceof Boolean) {
                         mv.visitInsn(Opcodes.IRETURN);
                     } else {
-                        throw new IllegalStateException("unexpected check method constant [" + constant + "]");
+                        throw new IllegalStateException(
+                            "unsupported default return value [" + constant + "] of type [" + constant.getClass().getName() + "]"
+                        );
                     }
             }
         }

@@ -146,8 +146,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
-    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
-    private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
@@ -163,6 +161,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         return Clock.systemUTC();
     }
 
+    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     static void additionalLookAheadTimeValidation(TimeValue lookAhead, TimeValue timeSeriesPollInterval) {
         if (lookAhead.compareTo(timeSeriesPollInterval) < 0) {
             final String message = String.format(

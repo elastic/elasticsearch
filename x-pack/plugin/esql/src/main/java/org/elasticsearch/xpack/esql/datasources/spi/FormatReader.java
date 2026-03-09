@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
@@ -50,6 +51,15 @@ public interface FormatReader extends Closeable {
         return SchemaResolution.FIRST_FILE_WINS;
     }
 
+    /**
+     * Returns the default error policy for this format.
+     * Override to change the default behavior for a specific format (e.g. NDJSON
+     * defaults to lenient because skipping malformed lines is its natural behavior).
+     */
+    default ErrorPolicy defaultErrorPolicy() {
+        return ErrorPolicy.STRICT;
+    }
+
     // === SYNC API (required - implement this for simple formats) ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
@@ -60,9 +70,30 @@ public interface FormatReader extends Closeable {
 
     CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
 
+    /**
+     * Read with an explicit error policy. Implementations that support error tolerance
+     * should override this to honor the policy. The default delegates to
+     * {@link #read(StorageObject, List, int)} which uses the format's default error policy.
+     */
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
+        throws IOException {
+        return read(object, projectedColumns, batchSize);
+    }
+
     default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
         throws IOException {
         CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
+        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
+    }
+
+    default CloseableIterator<Page> read(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize, errorPolicy);
         return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
     }
 
@@ -87,9 +118,31 @@ public interface FormatReader extends Closeable {
         return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
     }
 
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes);
+    }
+
     String formatName();
 
     List<String> fileExtensions();
+
+    /**
+     * Returns a format reader configured with the given config map.
+     * Implementations should parse format-specific options from the config
+     * and return a new reader instance if any options are present.
+     * The default returns {@code this} (no configuration).
+     */
+    default FormatReader withConfig(Map<String, Object> config) {
+        return this;
+    }
 
     // === ASYNC API (optional - default wraps sync in executor) ===
 
@@ -111,9 +164,22 @@ public interface FormatReader extends Closeable {
         Executor executor,
         ActionListener<CloseableIterator<Page>> listener
     ) {
+        readAsync(object, projectedColumns, batchSize, rowLimit, null, executor, listener);
+    }
+
+    default void readAsync(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        ErrorPolicy errorPolicy,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit));
+                ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
+                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit, effective));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

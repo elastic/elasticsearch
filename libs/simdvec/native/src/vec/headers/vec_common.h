@@ -18,6 +18,17 @@ static inline uintptr_t align_downwards(const void* ptr) {
     return addr;
 }
 
+template <typename T>
+static inline auto dot_scalar(const T a, const T b) {
+    return a * b;
+}
+
+template <typename T>
+static inline auto sqr_scalar(const T a, const T b) {
+    auto d = a - b;
+    return d * d;
+}
+
 static inline int64_t identity_mapper(const int32_t i, const int32_t* offsets) {
    return i;
 }
@@ -39,12 +50,12 @@ static inline const T* safe_mapper_offset(
 // Populates out[0..N-1] with safe_mapper_offset<T, 0..N-1, mapper>(...),
 // using recursive template instantiation to supply each array index as a
 // compile-time constant (required by safe_mapper_offset's template parameter).
-template <int I, int N, typename T, int64_t(*mapper)(const int32_t, const int32_t*)>
+template <int N, typename T, int64_t(*mapper)(const int32_t, const int32_t*), int I = 0>
 static inline void init_offsets(const T** out, const T* a, int32_t pitch,
                                 const int32_t* offsets, int32_t count) {
     if constexpr (I < N) {
         out[I] = safe_mapper_offset<T, I, mapper>(a, pitch, offsets, count);
-        init_offsets<I + 1, N, T, mapper>(out, a, pitch, offsets, count);
+        init_offsets<N, T, mapper, I + 1>(out, a, pitch, offsets, count);
     }
 }
 
@@ -77,15 +88,22 @@ static inline void apply_indexed(F&& f) {
     }
 }
 
-template <typename T>
-static inline auto dot_scalar(T a, T b) {
-    return a * b;
-}
+// Performs a binary tree reduction on an array of values.
+// Recurses, at compile time, to reduce N values to a single value
+// using pairwise reduction whilst not introducing
+// unneccessary data dependencies.
+template <int N, typename T, T(*reduce)(const T, const T)>
+static inline T tree_reduce(const T values[N]) {
+    static_assert((N & (N - 1)) == 0, "N must be a power of 2");
+    static_assert(N > 1, "There must be at least 2 values to reduce (N > 1)");
 
-template <typename T>
-static inline auto sqr_scalar(T a, T b) {
-    auto d = a - b;
-    return d * d;
+    if constexpr (N == 2) {
+        return reduce(values[0], values[1]);
+    } else {
+        return reduce(
+            tree_reduce<N/2, T, reduce>(values),
+            tree_reduce<N/2, T, reduce>(values + N/2));
+    }
 }
 
 #endif // VEC_COMMON_H

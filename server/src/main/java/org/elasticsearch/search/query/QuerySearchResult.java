@@ -569,8 +569,19 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     /**
      * Register SearchHits from a top_hits aggregation so they are released when this result is released.
-     * Takes a reference so the SearchHits stay valid until this result is serialized and released (the
-     * fetch phase may release its reference before the query result is serialized).
+     * Takes a new reference ({@link SearchHits#incRef()}) so the SearchHits stay valid until this
+     * result is serialized and released (the fetch phase may release its reference before the query
+     * result is serialized).
+     * <p>
+     * SearchHits can flow along two paths: the SearchResponse path and this QuerySearchResult path
+     * (used in the aggregation fetch phase). Both need a reference; the SearchResponse path holds
+     * the default one for all cases. This method adds a ref for the flow where this result is used
+     * (e.g. partial reduction on the shard). An alternative would be to incRef here and decRef in
+     * the caller (e.g. InternalTopHits reducer), but that would add more volatile access. Release
+     * timings for SearchContext and SearchResponse are not correlated, so both paths must keep a
+     * ref count. For the reduce path that does not go through this result, use
+     * {@link org.elasticsearch.search.aggregations.AggregationReduceContext#transferTopHitsForRelease}
+     * instead (caller keeps the ref, no extra incRef).
      */
     public void registerTopHitsForRelease(SearchHits searchHits) {
         if (topHitsToRelease == null) {

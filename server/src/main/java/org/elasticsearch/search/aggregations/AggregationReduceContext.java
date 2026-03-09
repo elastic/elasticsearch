@@ -100,9 +100,18 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     }
 
     /**
-     * Register SearchHits from a top_hits aggregation so that SearchResponse can release them.
+     * Transfer SearchHits from a top_hits aggregation into this context's release list so they are
+     * released when the reduce result is consumed (e.g. by SearchResponse). The caller (e.g.
+     * {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} during reduce) already
+     * holds a reference; this method does not {@link SearchHits#incRef() incRef}. The list owner
+     * will decRef when releasing.
+     * <p>
+     * Use this in the aggregation reduce path. For the other path, where hits are registered on
+     * {@link org.elasticsearch.search.query.QuerySearchResult#registerTopHitsForRelease} during
+     * the fetch phase, that method takes a new reference because release timings of SearchContext
+     * and SearchResponse are not correlated—both paths that touch the hits must keep a ref count.
      */
-    public final void registerTopHitsForRelease(SearchHits searchHits) {
+    public final void transferTopHitsForRelease(SearchHits searchHits) {
         if (topHitsToRelease != null) {
             topHitsToRelease.add(searchHits);
         }

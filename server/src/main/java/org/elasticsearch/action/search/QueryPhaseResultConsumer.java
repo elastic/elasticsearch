@@ -429,7 +429,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * the first element in {@code partialResults} is the local merge (in-memory); we do not add its
      * top_hits to the release list here because those refs are already registered during this same
      * reduce via {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} and
-     * {@link AggregationReduceContext#registerTopHitsForRelease}. Adding them again would double-release
+     * {@link AggregationReduceContext#transferTopHitsForRelease}. Adding them again would double-release
      * and corrupt ref counts. All other partials are from the wire; their top_hits are added so the
      * coordinator takes ownership for release.
      */

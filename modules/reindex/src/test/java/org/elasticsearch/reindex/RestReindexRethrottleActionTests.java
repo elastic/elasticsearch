@@ -82,24 +82,24 @@ public class RestReindexRethrottleActionTests extends RestActionTestCase {
         registerHandler(STATEFUL_SETTINGS);
         RestRequest request = createRestRequest(null);
         ObjectPath body = execute(request, RestStatus.OK);
-        // Expect structure "nodes" -> nodeId -> "tasks" -> taskId -> taskInfo, with correct node ID in taskInfo
-        assertTaskInfo(body.evaluate("nodes." + nodeId + ".tasks." + taskId), nodeId);
+        // Expect structure "nodes" -> nodeId -> "tasks" -> taskId -> taskInfo
+        assertTaskInfo(body.evaluate("nodes." + nodeId + ".tasks." + taskId));
     }
 
     public void testStateful_groupByNone() throws Exception {
         registerHandler(STATEFUL_SETTINGS);
         RestRequest request = createRestRequest("none");
         ObjectPath body = execute(request, RestStatus.OK);
-        // Expect structure "nodes" -> list of taskInfo, with correct node ID in taskInfo
-        assertTaskInfo(body.evaluate("tasks.0"), nodeId);
+        // Expect structure "nodes" -> list of taskInfo
+        assertTaskInfo(body.evaluate("tasks.0"));
     }
 
-    public void testStateless_groupByDefault_isNotGroupedAndNodeIdIsRedacted() throws Exception {
+    public void testStateless_groupByDefault_isNotGrouped() throws Exception {
         registerHandler(STATELESS_SETTINGS);
         RestRequest request = createRestRequest(null);
         ObjectPath body = execute(request, RestStatus.OK);
-        // Expect structure "nodes" -> list of taskInfo, with redacted node ID in taskInfo
-        assertTaskInfo(body.evaluate("tasks.0"), RestReindexRethrottleAction.REDACTED_NODE_ID_IN_STATELESS);
+        // Expect structure "nodes" -> list of taskInfo
+        assertTaskInfo(body.evaluate("tasks.0"));
     }
 
     public void testStateless_groupByNodes_fails() throws Exception {
@@ -200,9 +200,9 @@ public class RestReindexRethrottleActionTests extends RestActionTestCase {
         return new Thread(runnable, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX + "_" + randomIdentifier());
     }
 
-    private void assertTaskInfo(Map<String, Object> taskInfoMap, String expectedNodeId) {
+    private void assertTaskInfo(Map<String, Object> taskInfoMap) {
         assertThat(taskInfoMap, notNullValue());
-        assertThat(taskInfoMap.get("node"), equalTo(expectedNodeId));
+        assertThat(taskInfoMap.get("node"), equalTo(nodeId));
         assertThat(asInstanceOf(Number.class, taskInfoMap.get("id")).longValue(), equalTo(taskId.getId()));
         Map<?, ?> status = asInstanceOf(Map.class, taskInfoMap.get("status"));
         assertThat(asInstanceOf(Number.class, status.get("requests_per_second")).floatValue(), equalTo(requestsPerSecond));

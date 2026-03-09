@@ -32,8 +32,6 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 @ServerlessScope(Scope.INTERNAL)
 public class RestReindexRethrottleAction extends BaseRestHandler {
 
-    static final String REDACTED_NODE_ID_IN_STATELESS = "stateless";
-
     private final Supplier<DiscoveryNodes> nodesInCluster;
     private final boolean isStateless;
 
@@ -66,41 +64,11 @@ public class RestReindexRethrottleAction extends BaseRestHandler {
         // In stateless, we don't allow group_by, we never group, and we redact the node IDs: this minimizes the visibility of node IDs.
         final String groupBy = isStateless ? "none" : request.param("group_by", "nodes");
         return channel -> {
-            ActionListener<ListTasksResponse> responseListener = listTasksResponseListener(nodesInCluster, groupBy, channel);
             client.execute(
                 ReindexPlugin.RETHROTTLE_ACTION,
                 internalRequest,
-                isStateless ? responseListener.map(RestReindexRethrottleAction::redactNodeIdsInListTasksResponse) : responseListener
+                listTasksResponseListener(nodesInCluster, groupBy, channel)
             );
         };
-    }
-
-    private static ListTasksResponse redactNodeIdsInListTasksResponse(ListTasksResponse originalResponse) {
-        return new ListTasksResponse(
-            originalResponse.getTasks().stream().map(RestReindexRethrottleAction::redactNodeIdInTaskInfo).toList(),
-            originalResponse.getTaskFailures().stream().map(RestReindexRethrottleAction::redactNodeIdInTaskOperationFailure).toList(),
-            originalResponse.getNodeFailures()
-        );
-    }
-
-    private static TaskInfo redactNodeIdInTaskInfo(TaskInfo originalTaskInfo) {
-        return new TaskInfo(
-            originalTaskInfo.taskId(),
-            originalTaskInfo.type(),
-            REDACTED_NODE_ID_IN_STATELESS,
-            originalTaskInfo.action(),
-            originalTaskInfo.description(),
-            originalTaskInfo.status(),
-            originalTaskInfo.startTime(),
-            originalTaskInfo.runningTimeNanos(),
-            originalTaskInfo.cancellable(),
-            originalTaskInfo.cancelled(),
-            originalTaskInfo.parentTaskId(),
-            originalTaskInfo.headers()
-        );
-    }
-
-    private static TaskOperationFailure redactNodeIdInTaskOperationFailure(TaskOperationFailure taskOperationFailure) {
-        return new TaskOperationFailure(REDACTED_NODE_ID_IN_STATELESS, taskOperationFailure.getTaskId(), taskOperationFailure.getCause());
     }
 }

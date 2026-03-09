@@ -1,0 +1,5 @@
+area: "ES|QL, ES|QL"
+issues: []
+pr: 143841
+summary: Fix CCS for METRICS_INFO and TS_INFO
+type: enhancement

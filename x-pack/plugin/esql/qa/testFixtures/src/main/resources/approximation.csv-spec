@@ -29,7 +29,7 @@ FROM many_numbers | STATS count=COUNT(*)
 ;
 
 count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
-125250     | [125250,125250]                 | {any}
+125250     | [125250,125250]                 | true
 ;
 
 
@@ -41,7 +41,7 @@ FROM many_numbers | STATS count=COUNT(sv)
 ;
 
 count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
-125250     | [125250,125250]                 | {any}
+125250     | [125250,125250]                 | true
 ;
 
 
@@ -135,7 +135,7 @@ FROM many_numbers
 ;
 
 count:long | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean
-120300     | [120300,120300]                     | {any}
+120300     | [120300,120300]                     | true
 ;
 
 

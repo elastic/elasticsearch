@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
@@ -191,7 +192,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
 
         // Note: BigArrays also uses the breaker.
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         Exception e = expectThrows(CircuitBreakingException.class, () -> {

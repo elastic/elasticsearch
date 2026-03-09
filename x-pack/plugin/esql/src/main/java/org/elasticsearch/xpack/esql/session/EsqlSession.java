@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
-import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -114,11 +113,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
-import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -295,6 +294,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
+            statement.setting(QuerySettings.APPROXIMATION),
             viewResolution.viewQueries()
         );
         final FoldContext foldContext = configuration.newFoldContext();
@@ -316,7 +316,6 @@ public class EsqlSession {
             }
         }
 
-        final EsqlStatement statementFinal = statement;
         analyzedPlan(
             plan,
             statement.setting(UNMAPPED_FIELDS),
@@ -343,12 +342,6 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
-                        .<LogicalPlan>andThen((l, p) -> {
-                            if (statementFinal.setting(QuerySettings.APPROXIMATION) != null) {
-                                Approximation.verifyPlan(p);
-                            }
-                            l.onResponse(p);
-                        })
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
@@ -358,12 +351,14 @@ public class EsqlSession {
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
-                                statementFinal,
                                 executionInfo,
                                 planRunner,
                                 p,
                                 configuration,
                                 foldContext,
+                                configuration.approximationSettings() != null
+                                    ? new Approximation(p, configuration.approximationSettings())
+                                    : null,
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -394,12 +389,12 @@ public class EsqlSession {
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
-        EsqlStatement statement,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
+        Approximation approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -434,11 +429,10 @@ public class EsqlSession {
                 optimizedPlan,
                 configuration,
                 foldContext,
-                minimumVersion,
+                approximation,
                 planRunner,
                 executionInfo,
                 request,
-                statement,
                 physicalPlanOptimizer,
                 planTimeProfile,
                 listener
@@ -450,17 +444,16 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        TransportVersion minimumVersion,
+        Approximation approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
-        EsqlStatement statement,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = firstSubPlan(optimizedPlan, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, approximation, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -471,6 +464,7 @@ public class EsqlSession {
                 subPlan,
                 configuration,
                 foldContext,
+                approximation,
                 executionInfo,
                 runner,
                 request,
@@ -480,19 +474,6 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
-        } else if (statement.setting(QuerySettings.APPROXIMATION) != null) {
-            // TODO: unify the subplan execution of query approximation and joins.
-            new Approximation(
-                optimizedPlan,
-                statement.setting(QuerySettings.APPROXIMATION),
-                executionInfo,
-                p -> logicalPlanToPhysicalPlan(p, request, physicalPlanOptimizer, planTimeProfile),
-                runner,
-                configuration,
-                foldContext,
-                minimumVersion,
-                planTimeProfile
-            ).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             // execute main plan
@@ -500,12 +481,43 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Returns a subplan if one has to be executed, or null otherwise.
+     * @param subPlan     first subplan that needs to be executed
+     * @param newMainPlan callback to build the new main plan based on the subplan results
+     * @param cleanup     callback to release any resources hold by the subplan results
+     */
+    private record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
+
+    private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
+        if (approximation != null) {
+            LogicalPlan subPlan = approximation.firstSubPlan();
+            if (subPlan != null) {
+                return new SubPlanAndCallback(subPlan, approximation::newMainPlan, () -> {});
+            }
+        }
+
+        InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
+        if (subPlans == null) {
+            return null;
+        }
+        AtomicReference<Page> localRelationPage = new AtomicReference<>();
+        return new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+            // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+            LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+            localRelationPage.set(resultWrapper.supplier().get());
+            subPlansResults.add(resultWrapper);
+            return InlineJoin.newMainPlan(optimizedPlan, subPlans, resultWrapper);
+        }, () -> releaseLocalRelationBlocks(localRelationPage));
+    }
+
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         LogicalPlan optimizedPlan,
-        InlineJoin.LogicalPlanTuple subPlans,
+        SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
+        Approximation approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -514,31 +526,23 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
+        LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request, physicalPlanOptimizer, planTimeProfile);
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
 
         executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            completionInfoAccumulator.accumulate(result.completionInfo());
             try {
-                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-                completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                localRelationPage.set(resultWrapper.supplier().get());
-                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationPage));
-                subPlansResults.add(resultWrapper);
-
-                // replace the original logical plan with the backing result
-                LogicalPlan newMainPlan = newMainPlan(optimizedPlan, subPlans, resultWrapper);
+                var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
+                LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, approximation, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
-                    LOGGER.debug("Executing final plan:\n{}", newMainPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     runner.run(
                         newPhysicalPlan,
@@ -565,6 +569,7 @@ public class EsqlSession {
                         newSubPlan,
                         configuration,
                         foldContext,
+                        approximation,
                         executionInfo,
                         runner,
                         request,
@@ -577,27 +582,12 @@ public class EsqlSession {
             } catch (Exception e) {
                 // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
                 // the current thread, but with the blocks still referenced
-                releaseLocalRelationBlocks(localRelationPage);
+                subPlan.cleanup.run();
                 throw e;
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
-    }
-
-    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
-        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-            InlineJoin.class,
-            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-            // and equals would have ignored name IDs anyway
-            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-        );
-        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-        newLogicalPlan.setOptimized();
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
-        }
-        return newLogicalPlan;
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

@@ -37,6 +37,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
 /**
@@ -195,6 +197,7 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
+            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -273,13 +276,84 @@ record TestConfiguration(
 
     private record ParameterHelp(String name, String type, String description) {}
 
+    record DatasetInfo(Object docVectors, Object queryVectors, Object vectorSpace, Object dimensions) {}
+
+    public static String listDatasets() throws IOException {
+        var datasets = datasets();
+        int datasetLength = datasets.keySet().stream().mapToInt(String::length).max().orElseThrow() + 2;
+
+        System.out.printf("Dataset%s\tdocs\tqueries\tdims\tspace%n", " ".repeat(datasetLength - "Dataset".length()));
+        return datasets.entrySet()
+            .stream()
+            .map(
+                e -> String.format(
+                    "%s%s\t%s\t%s\t%s\t%s",
+                    e.getKey(),
+                    " ".repeat(datasetLength - e.getKey().length()),
+                    e.getValue().docVectors(),
+                    e.getValue().queryVectors(),
+                    e.getValue().dimensions(),
+                    e.getValue().vectorSpace()
+                )
+            )
+            .collect(Collectors.joining("\n"));
+    }
+
+    private static Map<String, DatasetInfo> datasets() throws IOException {
+        final String cloudProjectId = "benchmarking";
+        final String datasetBucket = "knnindextester";
+
+        try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
+            Map<String, DatasetInfo> datasets = new TreeMap<>();
+            var page = storage.list(datasetBucket);
+
+            while (true) {
+                for (Blob blob : page.iterateAll()) {
+                    String name = blob.getName();
+                    int slash = name.indexOf('/');
+
+                    String dataset = name.substring(0, slash);
+                    String descriptor = name.substring(slash + 1);
+                    if (descriptor.equals(dataset + ".json")) {
+                        Map<?, ?> dsData;
+                        try (
+                            XContentParser parser = XContentType.JSON.xContent()
+                                .createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                        ) {
+                            dsData = parser.map();
+                        }
+
+                        datasets.put(
+                            dataset,
+                            new DatasetInfo(
+                                dsData.get("num_doc_vectors"),
+                                dsData.get("num_query_vectors"),
+                                dsData.get("vector_space"),
+                                dsData.get("dimensions")
+                            )
+                        );
+                    }
+                }
+
+                if (page.hasNextPage() == false) {
+                    break;
+                }
+                page = page.getNextPage();
+            }
+
+            return datasets;
+        } catch (Exception e) {
+            throw new IOException("Failed to list datasets from gs://" + datasetBucket, e);
+        }
+    }
+
     static class Builder implements ToXContentObject {
         private String dataset;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
-        private int numDocs = 1000;
-        private int numQueries = 100;
+        private Integer numDocs;
+        private Integer numQueries;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
@@ -294,7 +368,7 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
+        private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
@@ -574,6 +648,13 @@ record TestConfiguration(
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
 
+            if (numDocs == null) {
+                numDocs = numDocVectors;
+            }
+            if (numQueries == null) {
+                numQueries = numQueryVectors;
+            }
+
             if (numDocs > numDocVectors) {
                 throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
             }
@@ -665,9 +746,15 @@ record TestConfiguration(
                 // this fills in various options from the dataset
                 resolveDataset();
             }
+            // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
-                // specify the default here, so it can be set by the config file or dataset first
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+            }
+            if (numDocs == null) {
+                numDocs = 1000;
+            }
+            if (numQueries == null) {
+                numQueries = 100;
             }
 
             if (docVectors == null) {

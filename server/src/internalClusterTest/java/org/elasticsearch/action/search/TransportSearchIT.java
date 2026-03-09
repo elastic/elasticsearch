@@ -21,8 +21,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +79,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -504,9 +505,9 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(
-                    exc.getCause().getMessage(),
-                    anyOf(containsString("<reduce_aggs>"), containsString("RecyclerBytesStreamOutput"))
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
                 );
             });
 
@@ -534,9 +535,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(
-                    exc.getCause().getMessage(),
-                    anyOf(containsString("<reduce_aggs>"), containsString("RecyclerBytesStreamOutput"))
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
                 );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));

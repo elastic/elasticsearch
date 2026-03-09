@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         Path homeDir = createTempDir();
         Path configDir = homeDir.resolve("config");
         Files.createDirectories(configDir);
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         Path userAgentConfigDir = configDir.resolve("ingest-user-agent");
         Files.createDirectories(userAgentConfigDir);
 

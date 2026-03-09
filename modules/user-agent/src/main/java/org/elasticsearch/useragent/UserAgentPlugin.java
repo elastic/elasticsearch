@@ -12,6 +12,7 @@ package org.elasticsearch.useragent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
 
@@ -20,6 +21,7 @@ import java.util.List;
 
 public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryProvider {
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     private final Setting<Long> deprecatedCacheSizeSetting;
     private final Setting<Long> cacheSizeSetting;
 
@@ -43,6 +45,7 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
      * Used by the logstash-bridge to create a registry without the plugin system.
      */
     public static UserAgentParserRegistry createRegistry(Environment env, Settings settings) {
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         Setting<Long> deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
         Setting<Long> cacheSizeSetting = Setting.longSetting(
             "user_agent.cache_size",
@@ -51,6 +54,7 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
             Setting.Property.NodeScope
         );
         Path userAgentConfigDirectory = env.configDir().resolve("user-agent");
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
         long cacheSize = cacheSizeSetting.get(settings);
         UserAgentCache cache = new UserAgentCache(cacheSize);

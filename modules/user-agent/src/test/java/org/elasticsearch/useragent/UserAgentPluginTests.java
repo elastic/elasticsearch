@@ -11,6 +11,7 @@ package org.elasticsearch.useragent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -44,6 +45,7 @@ public class UserAgentPluginTests extends ESTestCase {
         plugin.close();
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public void testCacheSizeSettingResolution() {
         // Scenario 1: Neither setting is present (should use default from fallback's default)
         Settings settings1 = Settings.EMPTY;

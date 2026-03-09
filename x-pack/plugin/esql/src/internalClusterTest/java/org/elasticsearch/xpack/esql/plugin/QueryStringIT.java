@@ -245,4 +245,24 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
     }
+
+    public void testQstrWithBoost() {
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("brown", {"boost": 2.0})
+            | KEEP id, content, _score
+            """;
+        try (var resp = run(query)) {
+            logger.info("Columns: " + resp.columns());
+            var values = resp.values();
+            while (values.hasNext()) {
+                var row = values.next();
+                List<Object> rowValues = new java.util.ArrayList<>();
+                row.forEachRemaining(rowValues::add);
+                logger.info("Row: " + rowValues);
+            }
+        }
+
+    }
 }

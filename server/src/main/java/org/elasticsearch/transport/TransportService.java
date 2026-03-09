@@ -661,11 +661,7 @@ public class TransportService extends AbstractLifecycleComponent
         return connectionManager;
     }
 
-    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return transport.newNetworkBytesStream();
-    }
-
-    public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
         return transport.newNetworkBytesStream(circuitBreaker);
     }
 

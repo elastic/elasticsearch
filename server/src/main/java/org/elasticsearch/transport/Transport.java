@@ -19,6 +19,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 
@@ -89,11 +90,7 @@ public interface Transport extends LifecycleComponent {
 
     RequestHandlers getRequestHandlers();
 
-    default RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return newNetworkBytesStream(null);
-    }
-
-    default RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+    default RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
         return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE, circuitBreaker);
     }
 

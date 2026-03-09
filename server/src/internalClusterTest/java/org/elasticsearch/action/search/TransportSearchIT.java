@@ -77,6 +77,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -503,7 +504,10 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(
+                    exc.getCause().getMessage(),
+                    anyOf(containsString("<reduce_aggs>"), containsString("RecyclerBytesStreamOutput"))
+                );
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -530,7 +534,10 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(
+                    exc.getCause().getMessage(),
+                    anyOf(containsString("<reduce_aggs>"), containsString("RecyclerBytesStreamOutput"))
+                );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {

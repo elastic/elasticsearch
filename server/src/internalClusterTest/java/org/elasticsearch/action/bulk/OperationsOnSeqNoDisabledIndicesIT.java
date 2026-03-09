@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
     public void testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices() {
         assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-        internalCluster().ensureAtLeastNumDataNodes(2);
 
         final var numSeqNoDisabled = randomIntBetween(1, 3);
         final var numSeqNoEnabled = randomIntBetween(1, 3);
@@ -215,7 +214,6 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
 
     public void testSingleUpdateOnSeqNoDisabledIndexIsRejected() {
         assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-        internalCluster().ensureAtLeastNumDataNodes(1);
         createIndex(
             "test",
             indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)

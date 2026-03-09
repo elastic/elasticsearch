@@ -28,9 +28,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -59,11 +56,11 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlPluginAbstract;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -271,14 +268,9 @@ public class CsvIT extends ESTestCase {
         return false;
     }
 
-    public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin, AnalysisPlugin {
-        protected XPackLicenseState getLicenseState() {
-            return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
-        }
-
-        @Override
-        public void loadExtensions(ExtensionLoader loader) {
-            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+    public static class EsqlTestPlugin extends EsqlPluginAbstract implements NetworkPlugin, AnalysisPlugin {
+        protected EsqlTestPlugin() {
+            super(true, null);
         }
 
         @Override

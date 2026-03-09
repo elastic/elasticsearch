@@ -1343,7 +1343,8 @@ selectable via the
 The `Store`
 exposes [MetadataSnapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L820)
 for each index commit, read and constructed from the Lucene `segments_N` files. A `MetadataSnapshot` is a point-in-time
-map from filename to [StoreFileMetadata] for the committed (flushed) files belonging to a Lucene index commit.
+map from filename to [StoreFileMetadata] for the committed files belonging to a Lucene index commit (what
+Elasticsearch calls a flush).
 Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
 Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
 
@@ -1378,7 +1379,7 @@ is preferred, minimizing the data that needs to be transferred during recovery.
 
 [ShardLock]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/ShardLock.java
 
-Access to a shard's on-disk data is protected by three layers of locking, each scoped to a different level:
+Access to a shard's on-disk data is protected by three layers of locking, each scoped to a different level.
 
 The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]. It is backed by a
 `Semaphore` and guarantees that at most one owner at a time has write access to a given shard directory
@@ -1439,9 +1440,10 @@ implementations serve more specialized roles. For example,
 the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
 gives read-only access to a frozen or relocating shard, and
 the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
-acts as a placeholder for shards that have been closed but whose store has not yet been released.
+acts as a do-nothing placeholder for shards belonging to a closed index, where an engine object must exist but
+all read and write operations throw `UnsupportedOperationException`.
 
-#### Lucene Concepts
+#### Segments, Refresh, and Flush
 
 Lucene organizes index data on disk into immutable files called *segments*. They are created whenever the in-memory
 write buffer is flushed or when merges combine existing segments into larger ones.
@@ -1462,6 +1464,10 @@ map Elasticsearch concepts onto Lucene's:
 This distinction is a core piece of Elasticsearch's durability model: documents are searchable after a refresh but
 only durably stored after a flush. In between, the translog bridges the gap. Every write is appended to the
 translog on disk before being acknowledged, so that it can be replayed in the event of a crash.
+
+The detailed mechanics of how a write flows through the engine (including translog interaction, sequence number
+assignment, and version map updates) are covered in the [Translog](#translog) and [Indexing / CRUD](#indexing--crud)
+sections.
 
 ### IndicesClusterStateService
 
@@ -1496,8 +1502,8 @@ is applied:
    for each [ShardRouting] targeting this node in `INITIALIZING` state, creates a new `Store` and `IndexShard` and kicks
    off recovery. For already-active shards, updates their routing metadata in-place.
 
-The following diagram illustrates the complete flow from a master publishing a new cluster state containing a
-newly assigned shard down to the `Engine` becoming active:
+The below diagram illustrates the end-to-end flow from a master publishing a new cluster state containing a
+newly assigned shard down to the `Engine` becoming active.
 
 ```mermaid
 sequenceDiagram
@@ -1525,7 +1531,7 @@ sequenceDiagram
     rect rgb(240, 255, 240)
     Note over IS,E: Recovery and Engine Start
     IS->>S: validate / prepare directory
-    IS->>E: new InternalEngine(store.directory, translog)
+    IS->>E: new InternalEngine(engineConfig)
     E->>S: IndexWriter.open(store.directory)
     Note right of E: Engine open, shard STARTED
     end
@@ -1555,9 +1561,11 @@ based on the [RecoverySource] in the [ShardRouting]:
 - `PEER`: first synchronizes Lucene segment files from the primary over the network (engine not open yet) via the
   `RecoverySourceHandler`/`PeerRecoveryTargetService` classes, then opens the engine
   and [skips](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L2270)
-  local translog replay (the primary streams any remaining operations directly during the recovery protocol instead).
+  local translog replay, because the primary streams any remaining operations directly during the recovery protocol.
 - `SNAPSHOT`: downloads segment files from a remote snapshot repository into the local store directory (`StoreRecovery`
   class), then proceeds as `EXISTING_STORE`.
+- `LOCAL_SHARDS`: copies segment files from another index's shards on the same node (used by the shrink, split, and
+  clone index APIs), then proceeds as `EXISTING_STORE`.
 
 Recovery also creates the `Engine` via `IndexShard.innerOpenEngineAndTranslog()`. Once
 recovery completes, `IndexShard` sends a `shardStarted` notification to the master via the

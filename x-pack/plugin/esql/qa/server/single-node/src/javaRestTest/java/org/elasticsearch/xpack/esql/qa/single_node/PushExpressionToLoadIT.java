@@ -122,7 +122,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMinToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-            test(
+        test(
             b -> b.startObject("test")
                 .field("type", "keyword")
                 .startObject("doc_values")

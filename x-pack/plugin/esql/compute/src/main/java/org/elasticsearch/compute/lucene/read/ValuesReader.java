@@ -132,7 +132,9 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             long sum = 0;
             for (int f = 0; f < current.length; f++) {
                 sum += finalBuilders[f].estimatedBytes();
-                sum += current[f].builder.estimatedBytes();
+                if (current[f].builder != finalBuilders[f]) {
+                    sum += current[f].builder.estimatedBytes();
+                }
             }
             return sum;
         }

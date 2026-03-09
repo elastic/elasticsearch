@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.logging.LogManager;
@@ -27,26 +26,9 @@ import java.io.IOException;
  *     invalidates non-reusable readers and {@link Run#fieldsMoved} refreshes the
  *     stored-field loader for the new context.
  * </p>
- * <p>
- *     Partial pages may produce single-position blocks whose memory is freed by
- *     downstream operators between pages. To prevent the circuit breaker from
- *     losing track of cumulative output, a reservation equal to each partial
- *     page's block size is held on the breaker (see {@link #docSequenceReservation}).
- *     This reservation accumulates across partial pages, ensuring the breaker
- *     trips when the total data produced exceeds its limit.
- * </p>
  */
 class ValuesFromDocSequence extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromDocSequence.class);
-
-    /**
-     * Cumulative circuit breaker reservation held across partial pages produced
-     * by {@link DocSequenceRun#load}. Each partial page's block data is tracked on the breaker
-     * while the blocks exist, but downstream operators release them before the next
-     * partial page is produced. This reservation keeps the breaker aware of the total
-     * data produced so it can trip when the accumulated output exceeds the limit.
-     */
-    private long docSequenceReservation;
 
     ValuesFromDocSequence(ValuesSourceReaderOperator operator, DocVector docs) {
         super(operator, docs);
@@ -57,14 +39,6 @@ class ValuesFromDocSequence extends ValuesReader {
     protected void load(Block[] target, int offset) throws IOException {
         try (DocSequenceRun run = new DocSequenceRun(target)) {
             run.load(offset);
-        }
-    }
-
-    @Override
-    public void close() {
-        if (docSequenceReservation > 0) {
-            operator.driverContext.blockFactory().breaker().addWithoutBreaking(-docSequenceReservation);
-            docSequenceReservation = 0;
         }
     }
 
@@ -108,16 +82,11 @@ class ValuesFromDocSequence extends ValuesReader {
             readColumnAtATimeBatch(runStart, i);
             int count = i - offset;
             buildBlocks(count);
-            long actualBytes = 0;
-            for (Block b : target) {
-                actualBytes += b.ramBytesUsed();
-            }
-            if (count < docs.getPositionCount() - offset) {
-                CircuitBreaker breaker = operator.driverContext.blockFactory().breaker();
-                breaker.addEstimateBytesAndMaybeBreak(actualBytes, "loadDocSequence");
-                docSequenceReservation += actualBytes;
-            }
             if (log.isDebugEnabled()) {
+                long actualBytes = 0;
+                for (Block b : target) {
+                    actualBytes += b.ramBytesUsed();
+                }
                 log.debug("loaded {} positions doc sequence estimated/actual {}/{} bytes", count, estimated, actualBytes);
             }
         }

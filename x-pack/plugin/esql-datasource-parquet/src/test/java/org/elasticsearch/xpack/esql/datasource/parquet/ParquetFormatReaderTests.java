@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -41,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ParquetFormatReaderTests extends ESTestCase {
@@ -268,7 +270,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("test_schema");
 
         byte[] parquetData = createParquetFile(schema, factory -> {
-            List<Group> groups = new java.util.ArrayList<>();
+            List<Group> groups = new ArrayList<>();
             for (int i = 1; i <= 25; i++) {
                 Group group = factory.newGroup();
                 group.add("id", (long) i);
@@ -384,6 +386,220 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // Float is converted to double
             assertEquals(98.6, ((DoubleBlock) page.getBlock(0)).getDouble(0), 0.1);
             assertEquals(37.0, ((DoubleBlock) page.getBlock(0)).getDouble(1), 0.1);
+        }
+    }
+
+    public void testReadWithRowLimit() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 100; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("value", i * 10);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // Read with a row limit of 10 — Parquet reader respects the budget natively
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50, 10)) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+            }
+            assertEquals(10, totalRows);
+        }
+    }
+
+    public void testReadWithRowLimitNoLimit() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 25; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // NO_LIMIT should read all rows
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10, FormatReader.NO_LIMIT)) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+            assertEquals(25, totalRows);
+        }
+    }
+
+    public void testReadWithColumnProjectionAndLimit() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 50; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("name", "name_" + i);
+                group.add("score", i * 1.5);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // Project only "name" column with limit of 5
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("name"), 10, 5)) {
+            int totalRows = 0;
+            int totalBlocks = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                totalBlocks = page.getBlockCount();
+            }
+            assertEquals(1, totalBlocks); // Only 1 projected column
+            assertEquals(5, totalRows);
+        }
+    }
+
+    public void testReadOptionalColumnsWithNulls() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("active")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("id", 1L);
+            g1.add("name", "Alice");
+            g1.add("age", 30);
+            g1.add("score", 95.5);
+            g1.add("active", true);
+
+            Group g2 = factory.newGroup();
+            g2.add("id", 2L);
+            // name, age, score, active are all null
+
+            Group g3 = factory.newGroup();
+            g3.add("id", 3L);
+            g3.add("name", "Charlie");
+            // age is null
+            g3.add("score", 88.0);
+            g3.add("active", false);
+
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            assertEquals(5, page.getBlockCount());
+
+            LongBlock idBlock = (LongBlock) page.getBlock(0);
+            assertEquals(1L, idBlock.getLong(0));
+            assertEquals(2L, idBlock.getLong(1));
+            assertEquals(3L, idBlock.getLong(2));
+
+            // name: "Alice", null, "Charlie"
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("Alice"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertTrue(nameBlock.isNull(1));
+            assertEquals(new BytesRef("Charlie"), nameBlock.getBytesRef(2, new BytesRef()));
+
+            // age: 30, null, null
+            IntBlock ageBlock = (IntBlock) page.getBlock(2);
+            assertFalse(ageBlock.isNull(0));
+            assertEquals(30, ageBlock.getInt(ageBlock.getFirstValueIndex(0)));
+            assertTrue(ageBlock.isNull(1));
+            assertTrue(ageBlock.isNull(2));
+
+            // score: 95.5, null, 88.0
+            DoubleBlock scoreBlock = (DoubleBlock) page.getBlock(3);
+            assertFalse(scoreBlock.isNull(0));
+            assertEquals(95.5, scoreBlock.getDouble(scoreBlock.getFirstValueIndex(0)), 0.001);
+            assertTrue(scoreBlock.isNull(1));
+            assertFalse(scoreBlock.isNull(2));
+            assertEquals(88.0, scoreBlock.getDouble(scoreBlock.getFirstValueIndex(2)), 0.001);
+
+            // active: true, null, false
+            BooleanBlock activeBlock = (BooleanBlock) page.getBlock(4);
+            assertFalse(activeBlock.isNull(0));
+            assertTrue(activeBlock.getBoolean(activeBlock.getFirstValueIndex(0)));
+            assertTrue(activeBlock.isNull(1));
+            assertFalse(activeBlock.isNull(2));
+            assertFalse(activeBlock.getBoolean(activeBlock.getFirstValueIndex(2)));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testReadOptionalLongWithNulls() throws Exception {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("value").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("value", 100L);
+            Group g2 = factory.newGroup();
+            // value is null
+            Group g3 = factory.newGroup();
+            g3.add("value", 300L);
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertFalse(block.isNull(0));
+            assertEquals(100L, block.getLong(block.getFirstValueIndex(0)));
+            assertTrue(block.isNull(1));
+            assertFalse(block.isNull(2));
+            assertEquals(300L, block.getLong(block.getFirstValueIndex(2)));
         }
     }
 

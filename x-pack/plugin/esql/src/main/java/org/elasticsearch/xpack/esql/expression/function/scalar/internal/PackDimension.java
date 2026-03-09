@@ -15,7 +15,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -65,10 +66,10 @@ public class PackDimension extends UnaryScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ElementType elementType = PlannerUtils.toElementType(field.dataType());
         return switch (elementType) {
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
             case BYTES_REF -> ctx -> new PackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.packBytesValues(ctx, (BytesRefBlock) block)
@@ -89,9 +90,7 @@ public class PackDimension extends UnaryScalarFunction {
         };
     }
 
-    record PackValuesEvaluator(EvalOperator.ExpressionEvaluator field, Function<Block, BytesRefBlock> pack)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    record PackValuesEvaluator(ExpressionEvaluator field, Function<Block, BytesRefBlock> pack) implements ExpressionEvaluator {
         static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PackValuesEvaluator.class);
 
         @Override

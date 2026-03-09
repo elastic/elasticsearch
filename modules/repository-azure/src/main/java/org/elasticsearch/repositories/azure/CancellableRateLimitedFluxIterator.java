@@ -18,6 +18,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -129,15 +130,21 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
         T nextElement = queue.poll();
 
-        if (nextElement == null) {
-            if (doneState.done() && doneState.error() != null) {
-                throw new RuntimeException(doneState.error());
-            } else {
-                cancelSubscription();
-                signalConsumer();
-
-                throw new IllegalStateException("Queue is empty: Expected one element to be available from the Reactive Streams source.");
+        if (doneState.done() && doneState.error() != null) {
+            // We can't trust anything we read after doneState is done with an error or cancellation
+            // as we may have begun clearing the queue
+            if (nextElement != null) {
+                cleanElement(nextElement);
             }
+            throw new RuntimeException(doneState.error());
+        } else if (nextElement == null) {
+            final var illegalStateException = new IllegalStateException(
+                "Queue is empty: Expected one element to be available from the Reactive Streams source."
+            );
+            doneState = new DoneState(true, illegalStateException);
+            cancelSubscription();
+            signalConsumer();
+            throw illegalStateException;
         }
 
         int totalEmittedElements = emittedElements + 1;
@@ -181,7 +188,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
-        doneState = DoneState.FINISHED;
+        doneState = new DoneState(true, new CancellationException());
         cancelSubscription();
         clearQueue();
         // cancel should be called from the consumer

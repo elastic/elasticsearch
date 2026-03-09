@@ -146,9 +146,11 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertThat(iterator.next(), equalTo(1));
 
         latch.countDown();
-        // noinspection ResultOfMethodCallIgnored
-        assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
-        assertThat(cleaning, equalTo(Set.of(2)));
+        assertBusy(() -> {
+            // noinspection ResultOfMethodCallIgnored
+            expectThrows(RuntimeException.class, iterator::hasNext);
+            assertThat(cleaning, equalTo(Set.of(2)));
+        });
         assertThat(iterator.getQueue(), is(empty()));
         iterator.cancel();
     }
@@ -196,7 +198,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertThat(iterator.next(), equalTo(1));
         assertThat(iterator.next(), equalTo(2));
         iterator.cancel();
-        assertThat(iterator.hasNext(), equalTo(false));
+        assertThrows(RuntimeException.class, iterator::hasNext);
 
         assertBusy(() -> assertThat(cleanedElements, equalTo(Set.of(3, 4))));
         assertThat(iterator.getQueue(), is(empty()));
@@ -204,7 +206,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
 
     public void testErrorAfterCancellation() throws Exception {
         int requestedElements = 4;
-        final AtomicBoolean cancelled = new AtomicBoolean();
         Publisher<Integer> publisher = s -> runOnNewThread(() -> {
             s.onSubscribe(new Subscription() {
                 final CountDownLatch cancellationLatch = new CountDownLatch(1);
@@ -229,7 +230,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
 
                 @Override
                 public void cancel() {
-                    cancelled.set(true);
                     cancellationLatch.countDown();
                 }
             });
@@ -246,9 +246,12 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertThat(iterator.next(), equalTo(1));
         assertThat(iterator.next(), equalTo(2));
         iterator.cancel();
-        // noinspection ResultOfMethodCallIgnored
-        assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
-        assertBusy(() -> assertThat(cleanedElements, equalTo(Set.of(3))));
+        assertBusy(() -> {
+            // noinspection ResultOfMethodCallIgnored
+            final var hasNextException = expectThrows(RuntimeException.class, iterator::hasNext);
+            assertThat(hasNextException.getCause().getMessage(), equalTo("Error!"));
+            assertThat(cleanedElements, equalTo(Set.of(3)));
+        });
         assertThat(iterator.getQueue(), is(empty()));
     }
 

@@ -1455,8 +1455,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testMultiValueEscapedComma() throws IOException {
-        // Uses pipe to avoid Jackson escaping - tests multi-element split on comma
+    public void testMultiValuePipeSeparatedElements() throws IOException {
         String csv = "id:integer,data:keyword\n1,\"[a|b,c]\"\n";
         CsvFormatOptions options = new CsvFormatOptions(
             ',',
@@ -1479,6 +1478,33 @@ public class CsvFormatReaderTests extends ESTestCase {
             BytesRefBlock dataBlock = (BytesRefBlock) page.getBlock(1);
             assertEquals(2, dataBlock.getValueCount(0));
             assertEquals(new BytesRef("a|b"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("c"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+        }
+    }
+
+    public void testMultiValueEscapedComma() throws IOException {
+        String csv = "id:integer,data:keyword\n1,\"[a\\\\,b,c]\"\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize(),
+            CsvFormatOptions.MultiValueSyntax.BRACKETS
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock dataBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, dataBlock.getValueCount(0));
+            assertEquals(new BytesRef("a,b"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0), new BytesRef()));
             assertEquals(new BytesRef("c"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0) + 1, new BytesRef()));
         }
     }

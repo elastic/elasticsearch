@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
@@ -386,9 +387,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             String name = parts[0].trim();
             String trimmedType = parts[1].trim();
-            String typeName = trimmedType.toUpperCase(java.util.Locale.ROOT);
+            String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
-            EsField field = new EsField(name, dataType, java.util.Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+            EsField field = new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             attributes.add(new FieldAttribute(Source.EMPTY, name, field));
         }
         return attributes;
@@ -423,6 +424,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateTimeFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private static final int MAX_WARNINGS = 20;
+        // TODO: propagate warnings to the query response (similar to deprecation warnings in search)
+        // when the compute framework supports it. For now, warnings are collected here and a summary
+        // is logged at INFO level in close().
         private final List<String> warnings = new ArrayList<>();
         private List<Attribute> schema;
         private int[] projectedIdx;
@@ -579,7 +583,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        org.elasticsearch.compute.data.ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
                         rows.size()
                     );
                 }
@@ -667,10 +671,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private List<String> splitBracketContent(String content) {
             List<String> result = new ArrayList<>();
             StringBuilder current = new StringBuilder();
+            char esc = options.escapeChar();
             int i = 0;
             while (i < content.length()) {
                 char c = content.charAt(i);
-                if (c == '\\' && i + 1 < content.length() && content.charAt(i + 1) == ',') {
+                if (c == esc && i + 1 < content.length() && content.charAt(i + 1) == ',') {
                     current.append(',');
                     i += 2;
                 } else if (c == ',') {

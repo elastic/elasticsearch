@@ -63,3 +63,14 @@ setup:
           sort: [{ _seq_no: asc }]
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
+
+---
+"requesting seq_no_primary_term is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          seq_no_primary_term: true
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot request seq_no_primary_term on index [test] because [index.disable_sequence_numbers] is [true]" }

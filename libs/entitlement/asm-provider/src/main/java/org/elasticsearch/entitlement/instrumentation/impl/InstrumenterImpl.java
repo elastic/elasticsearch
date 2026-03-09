@@ -287,21 +287,27 @@ public final class InstrumenterImpl implements Instrumenter {
             pushArguments();
             switch (strategy) {
                 case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
+                    // For return early strategy we want to catch not entitled and return early
                     catchNotEntitledAndReturnEarly();
                 }
                 case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
+                    // For default value strategy we want to catch not entitled and return a JVM constant
                     catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
                 }
                 case DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy refDefault -> {
+                    // For reference default value strategy we want to catch not entitled and return a reference from the registry
                     catchNotEntitledAndReturnReferenceDefault();
                 }
                 case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
+                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
                     catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
                 }
                 case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
+                    // For not entitled strategy we just want to let the not entitled exception propagate
                     invokeInstrumentationMethod();
                 }
                 case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
+                    // Custom exception strategy is handled by invoking the instrumentation method
                     invokeInstrumentationMethod();
                 }
             }

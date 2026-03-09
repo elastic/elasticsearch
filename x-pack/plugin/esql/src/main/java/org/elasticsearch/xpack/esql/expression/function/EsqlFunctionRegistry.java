@@ -868,7 +868,8 @@ public class EsqlFunctionRegistry {
 
     public static ArgSignature mapParam(MapParam mapParam) {
         String desc = mapParam.description().replace('\n', ' ');
-        Map<String, MapEntryArgSignature> params = new HashMap<>(mapParam.params().length);
+        // This method is used when generating the docs, so we use a LinkedHashMap to preserve the order in which the params are defined.
+        Map<String, MapEntryArgSignature> params = new LinkedHashMap<>();
         for (MapParam.MapParamEntry param : mapParam.params()) {
             String valueHint = param.valueHint().length <= 1
                 ? Arrays.toString(param.valueHint())

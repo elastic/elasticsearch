@@ -165,6 +165,7 @@ public class ConfigurationBuilder {
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
             projectRouting,
+            null,
             Map.of()
         );
     }

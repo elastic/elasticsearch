@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -35,6 +36,8 @@ public class Configuration implements Writeable {
     private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
+
+    private static final TransportVersion QUERY_APPROXIMATION = TransportVersion.fromName("esql_query_approximation");
 
     /**
      * Transport version for view queries support. This is needed to correctly serialize/deserialize
@@ -65,6 +68,8 @@ public class Configuration implements Writeable {
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
     private final String projectRouting;
+    private final ApproximationSettings approximationSettings;
+
     /**
      * Map of view names to their query strings. Used during deserialization to reconstruct
      * Source objects that originated from views.
@@ -88,6 +93,7 @@ public class Configuration implements Writeable {
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
         String projectRouting,
+        ApproximationSettings approximationSettings,
         Map<String, String> viewQueries
     ) {
         this.zoneId = zi.normalized();
@@ -107,6 +113,7 @@ public class Configuration implements Writeable {
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
         this.projectRouting = projectRouting;
+        this.approximationSettings = approximationSettings;
         this.viewQueries = viewQueries;
         assert viewQueries != null;
     }
@@ -135,6 +142,11 @@ public class Configuration implements Writeable {
         } else {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
+        }
+        if (in.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+            this.approximationSettings = in.readOptionalWriteable(ApproximationSettings::new);
+        } else {
+            this.approximationSettings = null;
         }
         if (in.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
             this.viewQueries = in.readImmutableMap(StreamInput::readString);
@@ -167,6 +179,9 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
+        }
+        if (out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+            out.writeOptionalWriteable(approximationSettings);
         }
         if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
             out.writeMap(viewQueries, StreamOutput::writeString);
@@ -262,6 +277,7 @@ public class Configuration implements Writeable {
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
             projectRouting,
+            approximationSettings,
             viewQueries
         );
     }
@@ -283,6 +299,10 @@ public class Configuration implements Writeable {
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    public ApproximationSettings approximationSettings() {
+        return approximationSettings;
     }
 
     /**
@@ -313,6 +333,7 @@ public class Configuration implements Writeable {
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
             projectRouting,
+            approximationSettings,
             viewQueries
         );
     }
@@ -357,6 +378,7 @@ public class Configuration implements Writeable {
             && profile == that.profile
             && tables.equals(that.tables)
             && allowPartialResults == that.allowPartialResults
+            && Objects.equals(approximationSettings, that.approximationSettings)
             && viewQueries.equals(that.viewQueries);
     }
 
@@ -377,6 +399,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
+            approximationSettings,
             viewQueries
         );
     }
@@ -409,8 +432,10 @@ public class Configuration implements Writeable {
             + profile
             + ", tables="
             + tables
-            + "allow_partial_result="
+            + ", allowPartialResults="
             + allowPartialResults
+            + ", approximationSettings="
+            + approximationSettings
             + '}';
     }
 

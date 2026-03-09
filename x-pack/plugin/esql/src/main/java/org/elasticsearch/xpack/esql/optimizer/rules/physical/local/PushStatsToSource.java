@@ -47,7 +47,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan plan = aggregateExec;
         if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-            var tuple = pushableStats(aggregateExec, context);
+            var tuple = pushableStats(aggregateExec.groupings(), aggregateExec.aggregates(), context);
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
@@ -69,15 +69,16 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         return plan;
     }
 
-    private Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
-        AggregateExec aggregate,
+    static Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
         LocalPhysicalOptimizerContext context
     ) {
         AttributeMap.Builder<EsStatsQueryExec.Stat> statsBuilder = AttributeMap.builder();
         Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
-        if (aggregate.groupings().isEmpty()) {
-            for (NamedExpression agg : aggregate.aggregates()) {
+        if (groupings.isEmpty()) {
+            for (NamedExpression agg : aggregates) {
                 var attribute = agg.toAttribute();
                 EsStatsQueryExec.Stat stat = statsBuilder.computeIfAbsent(attribute, a -> {
                     if (agg instanceof Alias as) {

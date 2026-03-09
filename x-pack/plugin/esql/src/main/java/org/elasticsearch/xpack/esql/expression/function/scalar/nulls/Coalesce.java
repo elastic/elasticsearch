@@ -118,7 +118,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
-        ) List<Expression> rest
+        ) List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

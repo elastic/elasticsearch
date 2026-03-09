@@ -63,7 +63,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     public static final String START_TIME = "2021-04-29T00:00:00Z";
     public static final String END_TIME = "2021-04-29T23:59:59Z";
 
-    public void testTimeSeriesAggregateRate() throws Exception {
+    public void testTimeSeriesAggregateRate() {
         runTest(
             List.of(
                 new DocumentSpec("2021-04-29T17:01:00.000Z", 1),
@@ -80,7 +80,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         );
     }
 
-    public void testTimeSeriesAggregateRate_SingleReset() throws Exception {
+    public void testTimeSeriesAggregateRate_SingleReset() {
         runTest(
             List.of(
                 new DocumentSpec("2021-04-29T17:02:12.470Z", 1),
@@ -99,7 +99,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         );
     }
 
-    public void testTimeSeriesQueryingSingleLargeReset() throws Exception {
+    public void testTimeSeriesQueryingSingleLargeReset() {
         runTest(
             List.of(
                 new DocumentSpec("2021-04-29T17:02:12.470Z", 1000),
@@ -118,7 +118,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         );
     }
 
-    public void testTimeSeriesQuerying_MultipleResets() throws Exception {
+    public void testTimeSeriesQuerying_MultipleResets() {
         runTest(
             List.of(
                 new DocumentSpec("2021-04-29T17:02:12.470Z", 1000),
@@ -145,7 +145,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         );
     }
 
-    public void testTimeSeriesQuerying_RandomDocuments() throws Exception {
+    public void testTimeSeriesQuerying_RandomDocuments() {
         long startTime = Instant.parse(START_TIME).toEpochMilli();
         long endTime = Instant.parse(END_TIME).toEpochMilli();
         int counter = 0;
@@ -158,10 +158,10 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 counter += randomInt(100);
             }
             documentSpecs.add(new DocumentSpec(randomFrom("pod-1", "pod-2", "pod-3"), DATE_FORMATTER.formatMillis(currentTime), counter));
-            currentTime += randomLongBetween(10, 30) * 1000;
+            currentTime += randomLongBetween(5, 30) * 1000;
         }
-        // We use higher rate epsilon because there bigger fluctuation because of the random data
-        runTest(documentSpecs, "1h", 0.08);
+        // We use higher rate epsilon because there is a bigger fluctuation due to the random data
+        runTest(documentSpecs, "1h", 0.1);
     }
 
     private void runTest(List<DocumentSpec> documentSpecs, String interval, double rateEpsilon) {

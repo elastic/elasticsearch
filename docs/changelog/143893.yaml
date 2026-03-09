@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 143859
+pr: 143893
+summary: Evaluate `ReferenceAttributes` to potentially `FieldAttributes` for full-text
+  functions restriction
+type: bug

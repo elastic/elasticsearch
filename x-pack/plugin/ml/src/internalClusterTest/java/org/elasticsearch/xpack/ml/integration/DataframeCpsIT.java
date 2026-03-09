@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataframeCpsIT extends MlSingleNodeTestCase {
     @Override
@@ -75,6 +76,42 @@ public class DataframeCpsIT extends MlSingleNodeTestCase {
         var response = client().execute(PutDataFrameAnalyticsAction.INSTANCE, request);
         var validationException = assertThrows(ValidationException.class, response::actionGet);
         assertThat(validationException.getMessage(), containsString("remote source and cross-project indices are not supported"));
+    }
+
+    public void testDFAAllowsOriginQualifier() throws IOException {
+        var sourceIndex = "dfa-origin-source";
+        createIndex(sourceIndex);
+        client().prepareIndex(sourceIndex).setSource("keyword-field", "value1").get();
+        client().admin().indices().prepareRefresh(sourceIndex).get();
+
+        var config = new DataFrameAnalyticsConfig.Builder().setId("test-origin-allowed")
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { "_origin:" + sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                    null,
+                    Collections.emptyMap()
+                )
+            )
+            .setDest(new DataFrameAnalyticsDest("dfa-origin-results", null))
+            .setAnalysis(
+                new Classification(
+                    "keyword-field",
+                    BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
+            .build();
+
+        var request = new PutDataFrameAnalyticsAction.Request(config);
+        var response = client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+        assertThat(response, notNullValue());
     }
 
     public static class CpsPlugin extends Plugin implements ClusterPlugin {

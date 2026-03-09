@@ -24,6 +24,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
 
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static java.util.Map.Entry.comparingByKey;
 import static java.util.function.Function.identity;
@@ -230,8 +232,25 @@ public final class SourceDestValidator {
 
         private void resolveLocalAndRemoteSource() {
             resolvedSource = new TreeSet<>(Arrays.asList(source));
+
+            // _origin: is a special qualifier meaning "local project only" - not a cross-project index.
+            // Strip the prefix so it resolves against local indices like any unqualified expression.
+            String originPrefix = ProjectRoutingResolver.ORIGIN + ":";
+            SortedSet<String> originQualifiedIndices = resolvedSource.stream()
+                .filter(idx -> idx.startsWith(originPrefix))
+                .collect(Collectors.toCollection(TreeSet::new));
+            SortedSet<String> strippedOriginIndices = originQualifiedIndices.stream()
+                .map(idx -> idx.substring(originPrefix.length()))
+                .collect(Collectors.toCollection(TreeSet::new));
+
+            // Compute truly remote indices, excluding _origin: which is local-only
             resolvedRemoteSource = new TreeSet<>(RemoteClusterLicenseChecker.remoteIndices(resolvedSource));
+            resolvedRemoteSource.removeAll(originQualifiedIndices);
+
+            // Build the set of indices to resolve locally: unqualified + stripped _origin: expressions
             resolvedSource.removeAll(resolvedRemoteSource);
+            resolvedSource.removeAll(originQualifiedIndices);
+            resolvedSource.addAll(strippedOriginIndices);
 
             // special case: if indexNameExpressionResolver gets an empty list it treats it as _all
             if (resolvedSource.isEmpty() == false) {

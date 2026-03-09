@@ -717,6 +717,75 @@ public class SourceDestValidatorTests extends ESTestCase {
         }, null);
     }
 
+    public void testRemoteSourceNotSupportedValidationAllowsOriginQualifier() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { "_origin:" + SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertNull(c.getValidationException());
+        }, null);
+    }
+
+    public void testRemoteSourceNotSupportedValidationRejectsCrossProjectIndices() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { "project1:" + SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertThat(
+                c.getValidationException().getMessage(),
+                containsString("remote source and cross-project indices are not supported")
+            );
+        }, null);
+    }
+
+    public void testRemoteSourceNotSupportedValidationRejectsMixedOriginAndCrossProjectIndices() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { "_origin:" + SOURCE_1, "project1:" + SOURCE_2 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertThat(
+                c.getValidationException().getMessage(),
+                containsString("remote source and cross-project indices are not supported")
+            );
+        }, null);
+    }
+
     public void testRemoteSourcePlatinum() throws InterruptedException {
         final Context context = spy(
             new SourceDestValidator.Context(

@@ -169,8 +169,7 @@ class IndicesAndAliasesResolver {
     }
 
     boolean resolvesCrossProject(TransportRequest request) {
-        return request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
-            && crossProjectModeDecider.resolvesCrossProject(crossProjectCandidate);
+        return request instanceof IndicesRequest indicesRequest && crossProjectModeDecider.resolvesCrossProject(indicesRequest);
     }
 
     private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {

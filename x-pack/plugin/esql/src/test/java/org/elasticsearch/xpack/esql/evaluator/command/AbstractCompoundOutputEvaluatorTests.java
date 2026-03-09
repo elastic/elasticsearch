@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -83,7 +83,7 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
             outputTypes[i] = PlannerUtils.toElementType(dataType);
         }
 
-        return new ColumnExtractOperator.Factory(outputTypes, dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+        return new ColumnExtractOperator.Factory(outputTypes, dvrCtx -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block input = page.getBlock(0);

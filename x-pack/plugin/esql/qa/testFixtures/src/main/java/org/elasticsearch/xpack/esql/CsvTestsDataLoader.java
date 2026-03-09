@@ -208,7 +208,7 @@ public class CsvTestsDataLoader {
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
         new TestDataset("many_numbers"),
         new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
+        new TestDataset("json_logs")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(

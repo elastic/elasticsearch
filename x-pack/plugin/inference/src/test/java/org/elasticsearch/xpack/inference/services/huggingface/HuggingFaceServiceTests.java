@@ -301,7 +301,6 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // The escapes are because the streaming response must be on a single line
         String responseJson = org.elasticsearch.common.Strings.format("""
             data: %s
 

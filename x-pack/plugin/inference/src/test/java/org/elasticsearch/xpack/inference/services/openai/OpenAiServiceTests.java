@@ -672,7 +672,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // The escapes are because the streaming response must be on a single line
         String responseJson = Strings.format("""
             data: %s
 

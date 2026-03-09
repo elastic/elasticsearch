@@ -711,10 +711,10 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
     private static IndexSettings timeSeriesIndexSettings(boolean useSyntheticId, boolean pruneSequenceNumber) {
         IndexVersion minVersion;
-        if (pruneSequenceNumber) {
-            minVersion = IndexVersions.DISABLE_SEQUENCE_NUMBERS;
-        } else if (useSyntheticId) {
+        if (useSyntheticId) {
             minVersion = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT;
+        } else if (pruneSequenceNumber) {
+            minVersion = IndexVersions.DISABLE_SEQUENCE_NUMBERS;
         } else {
             minVersion = IndexVersions.TIME_SERIES_ID_HASHING;
         }

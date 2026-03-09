@@ -50,13 +50,13 @@ public class MetricsApmIT extends ESRestTestCase {
     private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
     private static final MutableSettingsProvider clusterSettings = new MutableSettingsProvider();
     private static final MutableSystemPropertyProvider systemProperties = new MutableSystemPropertyProvider();
-    private final boolean useOTelSDK;
+    private final boolean withOTel;
 
     @ClassRule
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
-    public MetricsApmIT(@Name("withOTel") boolean useOTelSDK) {
-        this.useOTelSDK = useOTelSDK;
+    public MetricsApmIT(@Name("withOTel") boolean withOTel) {
+        this.withOTel = withOTel;
     }
 
     @ParametersFactory
@@ -79,12 +79,16 @@ public class MetricsApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    /**
+     * Restarts the shared test cluster when needed so the parameterized cluster settings and system properties
+     * for the current test instance take effect. This follows the same pattern used in {@code AbstractNetty4IT}.
+     */
     @Before
     public void maybeRestart() throws IOException {
         String current = systemProperties.get(null).get("telemetry.otel.metrics.enabled");
-        if (current == null || current.equals(Boolean.toString(useOTelSDK)) == false) {
-            systemProperties.get(null).put("telemetry.otel.metrics.enabled", String.valueOf(useOTelSDK));
-            if (useOTelSDK) {
+        if (current == null || current.equals(Boolean.toString(withOTel)) == false) {
+            systemProperties.get(null).put("telemetry.otel.metrics.enabled", String.valueOf(withOTel));
+            if (withOTel) {
                 clusterSettings.get(null).put("telemetry.otel.metrics.interval", "1s");
                 clusterSettings.get(null)
                     .put("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + recordingApmServer.getPort() + "/v1/metrics");

@@ -224,7 +224,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         );
     }
 
-    // TODO: remove when dashboards are migrated to OTel SDK auto-emitted jvm.thread.count
+    // TODO: remove when dashboards are migrated to OTel SDK auto-emitted jvm.thread.count (ES-14386)
     // (with jvm.thread.daemon and jvm.thread.state attributes)
     private void registerJvmThreadMetrics() {
         metrics.add(
@@ -237,7 +237,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         );
     }
 
-    // TODO: remove jvm.fd.used / jvm.fd.max once dashboards are migrated to the OTel semantic convention names
+    // TODO: remove jvm.fd.used / jvm.fd.max once dashboards are migrated to the OTel semantic convention names (ES-14386)
     // (jvm.file_descriptor.count / jvm.file_descriptor.limit)
     private void registerFileDescriptorMetrics() {
         registerLongGaugeUnlessNegative(

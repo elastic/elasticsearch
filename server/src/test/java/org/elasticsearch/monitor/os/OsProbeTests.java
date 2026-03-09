@@ -291,7 +291,7 @@ public class OsProbeTests extends ESTestCase {
             "Inactive:        8130280 kB"
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
-        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+        expectThrows(NumberFormatException.class, probe::getTotalMemFromProcMeminfo);
 
         // MemTotal line with invalid unit
         meminfoLines = Arrays.asList(
@@ -305,7 +305,7 @@ public class OsProbeTests extends ESTestCase {
             "Inactive:        8130280 kB"
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
-        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+        expectThrows(StringIndexOutOfBoundsException.class, probe::getTotalMemFromProcMeminfo);
 
         // MemTotal line with random valid value
         long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);

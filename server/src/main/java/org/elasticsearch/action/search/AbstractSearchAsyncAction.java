@@ -180,7 +180,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
         SearchRequest searchRequest,
-        List<SearchShardIterator> allIterators,
         Map<String, Integer> skippedByClusterAlias
     ) {
         var sourceBuilder = searchRequest.source();

@@ -85,7 +85,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         this.progressListener = task.getProgressListener();
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request, shardsIts, skippedByClusterAlias);
+            notifyListShards(progressListener, clusters, request, skippedByClusterAlias);
         }
         this.client = client;
     }

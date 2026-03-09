@@ -159,9 +159,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
-  issue: https://github.com/elastic/elasticsearch/issues/137457
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
@@ -432,6 +429,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.cluster.routing.allocation.allocator.NotPreferredAllocationRebalancingIT
+  method: testAllocatorDoesNotMoveShardsToNotPreferredNode
+  issue: https://github.com/elastic/elasticsearch/issues/143831
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_long_grouping_1min_nulls_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143837
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Eval_on_irate_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143838
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Eval_on_irate}
+  issue: https://github.com/elastic/elasticsearch/issues/143839
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_combined_sum}
+  issue: https://github.com/elastic/elasticsearch/issues/143840
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143842
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
+  issue: https://github.com/elastic/elasticsearch/issues/143845
+- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/143860
 
 # Examples:
 #

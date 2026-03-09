@@ -344,7 +344,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
 
                 SimpleTestResponse tsB = new SimpleTestResponse("TS_B");
-                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream()) {
+                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream(null)) {
                     out.setTransportVersion(transportVersion1);
                     tsB.writeTo(out);
                     // simulate what happens in SearchQueryThenFetchAsyncAction with NodeQueryResponse
@@ -417,7 +417,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 assertEquals(request.sourceNode, "TS_A");
 
                 SimpleTestResponse tsB = new SimpleTestResponse("TS_B");
-                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream()) {
+                try (RecyclerBytesStreamOutput out = serviceB.newNetworkBytesStream(null)) {
                     out.setTransportVersion(transportVersion1);
                     tsB.writeTo(out);
                     // simulate what happens in SearchQueryThenFetchAsyncAction with NodeQueryResponse

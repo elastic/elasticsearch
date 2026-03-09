@@ -179,7 +179,8 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         );
 
         // add a retention lease holding at a sequence number in the middle of the indexed range
-        final long retentionLeaseSeqNo = randomLongBetween(1, totalDocs - 1);
+        final long maxSeqNo = indicesAdmin().prepareStats(indexName).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
+        final long retentionLeaseSeqNo = randomLongBetween(1, maxSeqNo);
         final var retentionLeaseId = randomIdentifier();
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         client().execute(
@@ -200,7 +201,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
                                     assertThat(
                                         "retention lease [" + lease.id() + "] should have advanced",
                                         lease.retainingSequenceNumber(),
-                                        equalTo(totalDocs)
+                                        equalTo(maxSeqNo + 1)
                                     );
                                 }
                             }
@@ -225,7 +226,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         assertShardsHaveSeqNoDocValues(indexName, true, 1);
 
         // verify only docs with seq_no >= retentionLeaseSeqNo retained their doc values
-        final long expectedRetainedDocs = totalDocs - retentionLeaseSeqNo;
+        final long expectedRetainedDocs = maxSeqNo + 1 - retentionLeaseSeqNo;
 
         int checkedShards = 0;
         for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {

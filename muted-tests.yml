@@ -441,6 +441,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.Irate_of_long_grouping_1min_nulls_promql}
   issue: https://github.com/elastic/elasticsearch/issues/143837
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Eval_on_irate_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143838
 
 # Examples:
 #

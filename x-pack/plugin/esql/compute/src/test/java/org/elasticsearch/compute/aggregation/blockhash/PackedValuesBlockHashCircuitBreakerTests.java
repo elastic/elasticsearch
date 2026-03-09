@@ -13,7 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -37,7 +37,7 @@ public class PackedValuesBlockHashCircuitBreakerTests extends BlockHashTestCase 
      * , which is reused for each grouping set, will trigger CBE. CBE happens when adding around 11th group to bytes.
      */
     public void testCircuitBreakerWithManyGroups() {
-        CircuitBreaker bytesBreaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(1));
+        CircuitBreaker bytesBreaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(1));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 
         // 1000 group keys of BYTES_REF

@@ -70,6 +70,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Inference endpoint not found \\[foo_inference_id\\]",
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
+        "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
+        // multi_match query receiving a non-boolean value for a boolean type field
+        "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
+        // full-text function trying to parse text as date field and failing
+        "failed to parse date field \\[.*\\] with format",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -513,6 +518,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *   <li>Fields expanded by MV_EXPAND (the expanded fields)</li>
      *   <li>Fields created by GROK or DISSECT (the "extracted" fields)</li>
      *   <li>Fields renamed via RENAME</li>
+     *   <li>Any query with a REGISTERED_DOMAIN command in the pipeline — its sub-fields (or fields derived from them
+     *       via RENAME, EVAL, etc.) are not index mapping fields and may legitimately trigger this error</li>
      * </ul>
      * The error is allowed only when the offending field can be traced back to one of these commands.
      */
@@ -534,6 +541,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return true;
             }
         }
+
         for (var previous : previousCommands) {
             String name = previous.commandName();
             if (name == null) {
@@ -565,6 +573,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         return true;
                     }
                 }
+            } else if ("registered_domain".equals(name)) {
+                return true;
             }
         }
         return false;

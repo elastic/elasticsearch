@@ -277,7 +277,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             receiveNanos,
             emitNanos,
             inputQueue != null ? inputQueue.size() : 0,
-            keysHash != null ? keysHash.size() : 0,
+            keysHash != null ? (int) keysHash.size() : 0,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,

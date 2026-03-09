@@ -30,7 +30,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
     private final long receiveNanos;
     private final long emitNanos;
     private final int occupiedRows;
-    private final long groupCount;
+    private final int groupCount;
     private final long ramBytesUsed;
     private final int pagesReceived;
     private final int pagesEmitted;
@@ -41,7 +41,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         long receiveNanos,
         long emitNanos,
         int occupiedRows,
-        long groupCount,
+        int groupCount,
         long ramBytesUsed,
         int pagesReceived,
         int pagesEmitted,
@@ -63,7 +63,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         this.receiveNanos = in.readVLong();
         this.emitNanos = in.readVLong();
         this.occupiedRows = in.readVInt();
-        this.groupCount = in.readVLong();
+        this.groupCount = in.readVInt();
         this.ramBytesUsed = in.readVLong();
 
         this.pagesReceived = in.readVInt();
@@ -78,7 +78,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         out.writeVLong(emitNanos);
 
         out.writeVInt(occupiedRows);
-        out.writeVLong(groupCount);
+        out.writeVInt(groupCount);
         out.writeVLong(ramBytesUsed);
 
         out.writeVInt(pagesReceived);
@@ -104,7 +104,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         return occupiedRows;
     }
 
-    public long groupCount() {
+    public int groupCount() {
         return groupCount;
     }
 

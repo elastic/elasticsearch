@@ -52,7 +52,7 @@ public class GroupedTopNOperatorStatusTests extends AbstractWireSerializingTestC
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
-            randomNonNegativeLong(),
+            randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
@@ -66,7 +66,7 @@ public class GroupedTopNOperatorStatusTests extends AbstractWireSerializingTestC
         long receiveNanos = instance.receiveNanos();
         long emitNanos = instance.emitNanos();
         int occupiedRows = instance.occupiedRows();
-        long groupCount = instance.groupCount();
+        int groupCount = instance.groupCount();
         long ramBytesUsed = instance.ramBytesUsed();
         int pagesReceived = instance.pagesReceived();
         int pagesEmitted = instance.pagesEmitted();
@@ -83,7 +83,7 @@ public class GroupedTopNOperatorStatusTests extends AbstractWireSerializingTestC
                 occupiedRows = randomValueOtherThan(occupiedRows, ESTestCase::randomNonNegativeInt);
                 break;
             case 3:
-                groupCount = randomValueOtherThan(groupCount, ESTestCase::randomNonNegativeLong);
+                groupCount = randomValueOtherThan(groupCount, ESTestCase::randomNonNegativeInt);
                 break;
             case 4:
                 ramBytesUsed = randomValueOtherThan(ramBytesUsed, ESTestCase::randomNonNegativeLong);

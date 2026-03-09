@@ -82,7 +82,7 @@ public final class TDigestStates {
             } else {
                 try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
                     tempHolder.set(merger, sum, min, max);
-                    blocks[offset] = blockFactory.newConstantTDigestBlock(tempHolder.holderView(), 1);
+                    blocks[offset] = blockFactory.newConstantTDigestBlock(tempHolder.accessor(), 1);
                     blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
                 }
             }
@@ -101,7 +101,7 @@ public final class TDigestStates {
             } else {
                 try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
                     tempHolder.set(merger, sum, min, max);
-                    return blockFactory.newConstantTDigestBlock(tempHolder.holderView(), 1);
+                    return blockFactory.newConstantTDigestBlock(tempHolder.accessor(), 1);
                 }
             }
         }
@@ -199,7 +199,7 @@ public final class TDigestStates {
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
                         tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
-                        histoBuilder.appendTDigest(tempHolder.holderView());
+                        histoBuilder.appendTDigest(tempHolder.accessor());
                     } else {
                         seenBuilder.appendBoolean(false);
                         histoBuilder.appendTDigest(TDigestHolder.empty());
@@ -220,7 +220,7 @@ public final class TDigestStates {
                     TDigest state = getOrNull(groupId);
                     if (state != null) {
                         tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
-                        histoBuilder.appendTDigest(tempHolder.holderView());
+                        histoBuilder.appendTDigest(tempHolder.accessor());
                     } else {
                         histoBuilder.appendNull();
                     }

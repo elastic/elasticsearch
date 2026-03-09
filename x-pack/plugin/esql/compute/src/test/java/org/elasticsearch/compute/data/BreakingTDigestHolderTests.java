@@ -38,13 +38,13 @@ public class BreakingTDigestHolderTests extends ESTestCase {
 
         try (BreakingTDigestHolder copy = BreakingTDigestHolder.create(new NoopCircuitBreaker("test-breaker"))) {
             copy.set(source);
-            assertThat(copy.holderView(), equalTo(source));
+            assertThat(copy.accessor(), equalTo(source));
 
             // Mutating the source after set should not alter the copy.
             source.getEncodedDigest().bytes[source.getEncodedDigest().offset] = 42;
             source.reset(source.getEncodedDigest(), min + 1, max + 1, sum + 1, source.centroidCount() + 1);
 
-            Collection<Centroid> copyCentroids = copy.holderView().centroids();
+            Collection<Centroid> copyCentroids = copy.accessor().centroids();
             assertThat(copyCentroids.size(), equalTo(sourceCentroids.size()));
             Iterator<Centroid> copyIt = copyCentroids.iterator();
             Iterator<Centroid> sourceIt = sourceCentroids.iterator();
@@ -55,9 +55,9 @@ public class BreakingTDigestHolderTests extends ESTestCase {
                 assertThat(copyCentroid.count(), equalTo(sourceCentroid.count()));
             }
 
-            assertThat(copy.holderView().getMin(), equalTo(min));
-            assertThat(copy.holderView().getMax(), equalTo(max));
-            assertThat(copy.holderView().getSum(), equalTo(sum));
+            assertThat(copy.accessor().getMin(), equalTo(min));
+            assertThat(copy.accessor().getMax(), equalTo(max));
+            assertThat(copy.accessor().getSum(), equalTo(sum));
         }
     }
 
@@ -82,7 +82,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
             }
 
             holder.set(digest, expectedSum, expectedMin, expectedMax);
-            TDigestHolder view = holder.holderView();
+            TDigestHolder view = holder.accessor();
             assertThat(view.size(), equalTo(expectedCount));
             assertThat(view.getSum(), equalTo(expectedSum));
             assertThat(view.getMin(), equalTo(expectedMin));
@@ -103,15 +103,14 @@ public class BreakingTDigestHolderTests extends ESTestCase {
 
     public void testCrankyCircuitBreaker() {
         CircuitBreaker breaker = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
-        for (int i = 0; i < 100; i++) {
-            try {
+        assertThrows(CircuitBreakingException.class, () -> {
+            while (true) {
+                // Loop until we throw
                 try (BreakingTDigestHolder holder = BreakingTDigestHolder.create(breaker)) {
                     holder.set(randomStandaloneTDigestHolder());
                 }
-            } catch (CircuitBreakingException e) {
-                // ignore
             }
-        }
+        });
     }
 
     private TDigestHolder randomStandaloneTDigestHolder() {
@@ -135,7 +134,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
             }
             holder.set(digest, sum, min, max);
             TDigestHolder copy = new TDigestHolder();
-            TDigestHolder view = holder.holderView();
+            TDigestHolder view = holder.accessor();
             copy.reset(BytesRef.deepCopyOf(view.getEncodedDigest()), view.getMin(), view.getMax(), view.getSum(), view.size());
             return copy;
         }

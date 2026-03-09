@@ -72,7 +72,7 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
         holder.reset(encodedDigestBuffer.bytesRefView(), tdigest.getMin(), tdigest.getMax(), tdigest.getSum(), tdigest.size());
     }
 
-    public TDigestHolder holderView() {
+    public TDigestHolder accessor() {
         return holder;
     }
 

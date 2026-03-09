@@ -494,7 +494,7 @@ public class BlockTestUtils {
         }
         BreakingTDigestHolder digestHolder = BreakingTDigestHolder.create(noopBreaker);
         digestHolder.set(digest, sum, digest.getMin(), digest.getMax());
-        return digestHolder.holderView();
+        return digestHolder.accessor();
     }
 
     public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {

@@ -156,27 +156,23 @@ public class RootFlattenedFromKeyedFieldData implements IndexFieldData<LeafField
             for (int i = 0; i < count; i++) {
                 BytesRef keyedValue = delegate.nextValue();
                 BytesRef stripped = FlattenedFieldParser.extractValue(keyedValue);
-                BytesRef copy = BytesRef.deepCopyOf(stripped);
-                insertSortedUnique(copy);
+                dedupedValues.add(BytesRef.deepCopyOf(stripped));
             }
+
+            dedupedValues.sort(BytesRef::compareTo);
+            deduplicate(dedupedValues);
 
             return dedupedValues.isEmpty() == false;
         }
 
-        private void insertSortedUnique(BytesRef value) {
-            int pos = 0;
-            int size = dedupedValues.size();
-            while (pos < size) {
-                int cmp = dedupedValues.get(pos).compareTo(value);
-                if (cmp == 0) {
-                    return;
+        private static void deduplicate(List<BytesRef> values) {
+            int write = 0;
+            for (int read = 0; read < values.size(); read++) {
+                if (read == 0 || values.get(read).equals(values.get(write - 1)) == false) {
+                    values.set(write++, values.get(read));
                 }
-                if (cmp > 0) {
-                    break;
-                }
-                pos++;
             }
-            dedupedValues.add(pos, value);
+            values.subList(write, values.size()).clear();
         }
 
         @Override

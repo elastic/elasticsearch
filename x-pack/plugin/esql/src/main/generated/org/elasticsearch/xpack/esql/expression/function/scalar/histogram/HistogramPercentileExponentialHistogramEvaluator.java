@@ -14,33 +14,32 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link HistogramPercentile}.
+ * {@link ExpressionEvaluator} implementation for {@link HistogramPercentile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class HistogramPercentileExponentialHistogramEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class HistogramPercentileExponentialHistogramEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HistogramPercentileExponentialHistogramEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator value;
+  private final ExpressionEvaluator value;
 
-  private final EvalOperator.ExpressionEvaluator percentile;
+  private final ExpressionEvaluator percentile;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public HistogramPercentileExponentialHistogramEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator value, EvalOperator.ExpressionEvaluator percentile,
-      DriverContext driverContext) {
+  public HistogramPercentileExponentialHistogramEvaluator(Source source, ExpressionEvaluator value,
+      ExpressionEvaluator percentile, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.percentile = percentile;
@@ -121,15 +120,15 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory value;
 
-    private final EvalOperator.ExpressionEvaluator.Factory percentile;
+    private final ExpressionEvaluator.Factory percentile;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        EvalOperator.ExpressionEvaluator.Factory percentile) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        ExpressionEvaluator.Factory percentile) {
       this.source = source;
       this.value = value;
       this.percentile = percentile;

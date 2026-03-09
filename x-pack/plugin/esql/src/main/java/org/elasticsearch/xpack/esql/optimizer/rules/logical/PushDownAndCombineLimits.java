@@ -129,6 +129,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             return forkBranch;
         }
 
+        if (PushDownUtils.shouldPushDownPipelineBreakerIntoForkBranch(forkBranch)) {
+            return new Limit(forkBranch.source(), limit.limit(), forkBranch);
+        }
+
         Limit descendantLimit = descendantLimit((UnaryPlan) forkBranch);
         if (descendantLimit == null) {
             return forkBranch;

@@ -1849,6 +1849,93 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
+    public void testFullTextFunctionsAfterSimpleRename() throws Exception {
+        query("from test | rename title as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | where name : \"Meditation\"", fullTextAnalyzer);
+        query("from test | rename title as name | where match_phrase(name, \"Meditation\")", fullTextAnalyzer);
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            query("from test | rename title as name | where multi_match(\"Meditation\", name)", fullTextAnalyzer);
+        }
+    }
+
+    public void testFullTextFunctionsAfterChainedRename() throws Exception {
+        query("from test | rename title as x | rename x as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as x, x as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query(
+            "from test | rename title as name, body as description"
+                + " | where match(name, \"Meditation\") and match_phrase(description, \"long text\")",
+            fullTextAnalyzer
+        );
+    }
+
+    public void testFullTextFunctionsAfterRenameShadowingAndSwap() throws Exception {
+        query("from test | rename body as title | where match(title, \"Meditation\")", fullTextAnalyzer);
+        query(
+            "from test | rename title as tmp, body as title, tmp as body | where match(body, \"Meditation\")",
+            fullTextAnalyzer
+        );
+    }
+
+    public void testFullTextFunctionsAfterRenameWithInterveningCommands() throws Exception {
+        query("from test | rename title as name | keep name, body | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | sort name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | eval x = 1 | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | where match(name::keyword, \"Meditation\")", fullTextAnalyzer);
+    }
+
+    public void testFullTextFunctionsRejectEvalColumns() throws Exception {
+        assertThat(
+            error("from test | eval name = title | where match(name, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MATCH] function cannot operate on [name], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval name = title | where name : \"Meditation\"", fullTextAnalyzer),
+            containsString("[:] operator cannot operate on [name], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval name = title | where match_phrase(name, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+        );
+    }
+
+    public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
+        assertThat(
+            error(
+                "from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
+        );
+        assertThat(
+            error(
+                "from test | eval name = title | rename name as x | where match(x, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error(
+                "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error(
+                "from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error(
+                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [y], which is not a field from an index mapping")
+        );
+    }
+
     public void testConditionalFunctionsWithMixedNumericTypes() {
         for (String functionName : List.of("coalesce", "greatest", "least")) {
             assertEquals(

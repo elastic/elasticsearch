@@ -28,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ClearScrollRequest extends LegacyActionRequest implements ToXContentObject, IndicesRequest.CrossProjectCandidate {
 
     private List<String> scrollIds;
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
 
     public ClearScrollRequest() {}
 

@@ -50,7 +50,7 @@ public class SearchTemplateRequest extends LegacyActionRequest
     private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
 
     @Nullable
     private String projectRouting;

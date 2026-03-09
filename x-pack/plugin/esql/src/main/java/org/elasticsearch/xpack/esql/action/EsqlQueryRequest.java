@@ -46,7 +46,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private boolean async;
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
 
     private String query;
     private boolean columnar;

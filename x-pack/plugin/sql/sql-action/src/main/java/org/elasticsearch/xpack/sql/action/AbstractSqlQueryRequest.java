@@ -96,7 +96,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = emptyList();
     private Map<String, Object> runtimeMappings = emptyMap();
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
     private String projectRouting;
 
     static final ParseField QUERY = new ParseField(QUERY_NAME);

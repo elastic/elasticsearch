@@ -31,7 +31,7 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
 
     private String scrollId;
     private TimeValue scroll;
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
 
     public SearchScrollRequest() {}
 

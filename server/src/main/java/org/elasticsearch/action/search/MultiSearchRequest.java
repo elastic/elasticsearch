@@ -59,7 +59,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
-    private boolean resolvesCrossProject;
+    private boolean resolvesCrossProject = false;
 
     @Nullable
     private String projectRouting;

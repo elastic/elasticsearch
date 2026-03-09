@@ -1264,21 +1264,57 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 # Engine
 
-(What does Engine mean in the distrib layer? Distinguish Engine vs Directory vs Lucene)
+[Engine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java
 
-(High level explanation of how translog ties in with Lucene)
+[InternalEngine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java
 
-(contrast Lucene vs ES flush / refresh / fsync)
+[IndexShard]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java
 
-### Refresh for Read
+### IndexShard
 
-(internal vs external reader manager refreshes? flush vs refresh)
+The [IndexShard] class is the single entry point for all shard-level operations: indexing, deletion, real-time GET,
+refresh, flush, recovery, and snapshot. There is exactly one `IndexShard` object per allocated shard.
 
-### Reference Counting
+An `IndexShard` holds references to:
+
+- The shard's [Store], which provides access to the shard's Lucene index files on disk, by wrapping a Lucene
+  `Directory`.
+- The shard's [Engine], which coordinates indexing and searching operations for this shard across
+  the [Translog](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/translog/Translog.java)
+  and Lucene files (via the `Store`).
 
 ### Store
 
-(Data lives beyond a high level IndexShard instance. Continue to exist until all references to the Store go away, then Lucene data is removed)
+[Store]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java
+
+[RefCounted]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/core/RefCounted.java
+
+The [Store] is the lowest-level Elasticsearch persistence abstraction for a shard. Each shard has a single
+dedicated `Store` that wraps a
+Lucene [Directory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/Directory.html), which is Lucene's
+own file-system abstraction used to read and write index files on disk.
+Lucene's `Directory` is a pure I/O abstraction: callers open
+an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
+and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
+write one. The `Store` extends the Lucene `Directory` capabilities by tracking committed file metadata and enforcing
+integrity invariants. It also adds reference counting, file integrity verification and corruption detection.
+
+#### Reference Counting and Lifecycle
+
+The `Store` implements [RefCounted]. Processes call `store.incRef()` before using it and `store.decRef()` in
+a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
+directory is cleaned up. This allows the `Store` to outlive the higher-level [IndexShard] instance that owns it (for
+example, during shard relocation).
+
+#### Backing Directory
+
+#### Corruption Detection
+
+### Engine
+
+#### Lucene Concepts
+
+### IndicesClusterStateService
 
 ### Translog
 
@@ -1319,7 +1355,8 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 [`Location`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977
 [`AsyncIOProcessor`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java
 
-A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
+A bulk request will repeatedly call ultimately the Engine methods such as [`index()` or `delete()`] which adds
+operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
 This process involves multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.

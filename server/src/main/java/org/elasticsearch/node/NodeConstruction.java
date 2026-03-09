@@ -749,16 +749,9 @@ class NodeConstruction {
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
-        List<UserAgentParserRegistryProvider> userAgentParserProviders = pluginsService.filterPlugins(UserAgentParserRegistryProvider.class)
-            .toList();
-        final UserAgentParserRegistry userAgentParserRegistry;
-        if (userAgentParserProviders.isEmpty()) {
-            userAgentParserRegistry = UserAgentParserRegistry.NOOP;
-        } else if (userAgentParserProviders.size() == 1) {
-            userAgentParserRegistry = userAgentParserProviders.getFirst().createUserAgentParserRegistry(environment);
-        } else {
-            throw new IllegalStateException("Multiple UserAgentParserRegistryProvider implementations found: " + userAgentParserProviders);
-        }
+        UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
+            p -> p.createUserAgentParserRegistry(environment)
+        ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,

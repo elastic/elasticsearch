@@ -1381,9 +1381,9 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
         } else {
-            if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                && index.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM
-                && sequenceNumbersAreDisabled()) {
+            if (sequenceNumbersAreDisabled()
+                && index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && index.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
                 return IndexingStrategy.optimisticConcurrencyControlNotSupported(index.id(), shardId);
             }
             versionMap.enforceSafeAccess();
@@ -1817,9 +1817,9 @@ public class InternalEngine extends Engine {
 
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
-        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-            && delete.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM
-            && sequenceNumbersAreDisabled()) {
+        if (sequenceNumbersAreDisabled()
+            && delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+            && delete.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             return DeletionStrategy.optimisticConcurrencyControlNotSupported(delete.id(), shardId);
         }
 

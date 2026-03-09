@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
@@ -277,7 +277,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         MapExpression optionsMap = createOptions(numSnippets, numWords);
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 new TopSnippets(Source.EMPTY, field("field", DataType.KEYWORD), field("query", DataType.KEYWORD), optionsMap)
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(query))))

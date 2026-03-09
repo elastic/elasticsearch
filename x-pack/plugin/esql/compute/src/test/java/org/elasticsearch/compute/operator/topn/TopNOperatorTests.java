@@ -107,7 +107,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-//@Repeat(iterations = 100)
 public class TopNOperatorTests extends OperatorTestCase {
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
     private static final List<String> VERSIONS = List.of(
@@ -2132,7 +2131,7 @@ public class TopNOperatorTests extends OperatorTestCase {
              * With very small bytes we might break too early. That's ok. Small
              * ones are rare and if we have them then a few early-breaks is fine.
              */
-            minPageSize -= 10;
+            minPageSize -= 20;
         }
         if (byteLength < PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
             /*

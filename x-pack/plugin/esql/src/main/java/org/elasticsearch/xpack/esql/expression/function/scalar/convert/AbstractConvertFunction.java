@@ -13,9 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -126,7 +125,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         return evaluator(toEvaluator.apply(field()));
     }
 
-    public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
+    public abstract static class AbstractEvaluator implements ExpressionEvaluator {
 
         private static final Logger logger = LogManager.getLogger(AbstractEvaluator.class);
 

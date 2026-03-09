@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data.arrow;
 
 // begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.ValueVector;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,9 +24,8 @@ import org.elasticsearch.core.Nullable;
 public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
 
     /**
-     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
-     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
-     *  if they don't need them anymore.
+     *  Create an ArrowBuf block based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
+     *  are shared with other blocks or Arrow vectors.
      */
     public LongArrowBufBlock(
         ArrowBuf valueBuffer,
@@ -36,6 +36,14 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
         BlockFactory blockFactory
     ) {
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
+    }
+
+    private LongArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
+        super(arrowVector, blockFactory);
+    }
+
+    public static LongArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        return new LongArrowBufBlock(arrowVector, blockFactory);
     }
 
     @Override

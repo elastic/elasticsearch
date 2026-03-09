@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.complex.ListVector;
@@ -35,18 +35,29 @@ import org.junit.Before;
  */
 public class LongArrowBufTests extends ESTestCase {
 
-    private RootAllocator allocator;
+    private BufferAllocator allocator;
     private BlockFactory blockFactory;
 
     @Before
     public void setup() {
-        allocator = new RootAllocator();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        allocator = blockFactory.arrowAllocator();
     }
 
     @After
     public void cleanup() {
         allocator.close();
+    }
+
+    public void testInvalidSize() {
+        try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+            arrowVec.allocateNew(1);
+            arrowVec.set(0, 10L);
+            arrowVec.setValueCount(1);
+
+            assertThrows(IllegalArgumentException.class, () -> IntArrowBufVector.of(arrowVec, blockFactory));
+            assertThrows(IllegalArgumentException.class, () -> IntArrowBufBlock.of(arrowVec, blockFactory));
+        }
     }
 
     // -- Vector tests (from BigIntVector without nulls) --
@@ -61,7 +72,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(4, 50L);
             arrowVec.setValueCount(5);
 
-            try (var vector = new LongArrowBufVector(arrowVec.getDataBuffer(), 5, blockFactory)) {
+            try (var vector = LongArrowBufVector.of(arrowVec, blockFactory)) {
                 assertEquals(5, vector.getPositionCount());
                 assertEquals(ElementType.LONG, vector.elementType());
                 assertFalse(vector.isConstant());
@@ -82,15 +93,15 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(2, 300L);
             arrowVec.setValueCount(3);
 
-            try (var vector = new LongArrowBufVector(arrowVec.getDataBuffer(), 3, blockFactory)) {
-                try (LongBlock block = vector.asBlock()) {
-                    assertEquals(3, block.getPositionCount());
-                    assertEquals(100L, block.getLong(0));
-                    assertEquals(200L, block.getLong(1));
-                    assertEquals(300L, block.getLong(2));
-                    assertFalse(block.mayHaveNulls());
-                    assertFalse(block.mayHaveMultivaluedFields());
-                }
+            // Do not close vector, asBlock() transfers ownership
+            var vector = LongArrowBufVector.of(arrowVec, blockFactory);
+            try (LongBlock block = vector.asBlock()) {
+                assertEquals(3, block.getPositionCount());
+                assertEquals(100L, block.getLong(0));
+                assertEquals(200L, block.getLong(1));
+                assertEquals(300L, block.getLong(2));
+                assertFalse(block.mayHaveNulls());
+                assertFalse(block.mayHaveMultivaluedFields());
             }
         }
     }
@@ -107,7 +118,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(4, 40L);
             arrowVec.setValueCount(5);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertEquals(5, block.getPositionCount());
                 assertEquals(ElementType.LONG, block.elementType());
                 assertTrue(block.mayHaveNulls());
@@ -140,18 +151,18 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(2, 300L);
             arrowVec.setValueCount(3);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.areAllValuesNull());
                 assertEquals(3, block.getTotalValueCount());
 
+                // asVector() provides a view on the block and shouldn't be closed
                 LongVector vec = block.asVector();
                 assertNotNull(vec);
                 assertEquals(3, vec.getPositionCount());
                 assertEquals(100L, vec.getLong(0));
                 assertEquals(200L, vec.getLong(1));
                 assertEquals(300L, vec.getLong(2));
-                vec.close();
             }
         }
     }
@@ -164,7 +175,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.setNull(2);
             arrowVec.setValueCount(3);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 3, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertTrue(block.mayHaveNulls());
                 assertTrue(block.areAllValuesNull());
                 assertEquals(0, block.getTotalValueCount());
@@ -183,7 +194,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.setNull(4);
             arrowVec.setValueCount(5);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertEquals(3, block.getTotalValueCount());
             }
         }
@@ -199,7 +210,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(4, 40L);
             arrowVec.setValueCount(5);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (LongBlock filtered = block.filter(false, 0, 2, 3)) {
                     assertEquals(3, filtered.getPositionCount());
                     assertFalse(filtered.isNull(0));
@@ -221,7 +232,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(3, 40L);
             arrowVec.setValueCount(4);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), null, null, 4, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (LongBlock filtered = block.filter(false, 1, 3)) {
                     assertEquals(2, filtered.getPositionCount());
                     assertEquals(20L, filtered.getLong(0));
@@ -240,7 +251,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(2, 30L);
             arrowVec.setValueCount(3);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(true, 3)) {
                     try (LongBlock kept = block.keepMask(mask)) {
                         assertSame(block, kept);
@@ -258,7 +269,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(2, 30L);
             arrowVec.setValueCount(3);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(false, 3)) {
                     try (Block kept = block.keepMask(mask)) {
                         assertEquals(3, kept.getPositionCount());
@@ -278,7 +289,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(3, 30L);
             arrowVec.setValueCount(4);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 4, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (var maskBuilder = blockFactory.newBooleanVectorFixedBuilder(4)) {
                     maskBuilder.appendBoolean(true);
                     maskBuilder.appendBoolean(false);
@@ -308,7 +319,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(2, 30L);
             arrowVec.setValueCount(3);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (LongBlock expanded = block.expand()) {
                     assertSame(block, expanded);
                 }
@@ -325,7 +336,7 @@ public class LongArrowBufTests extends ESTestCase {
             arrowVec.set(3, 30L);
             arrowVec.setValueCount(4);
 
-            try (var block = new LongArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 4, 0, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (IntBlock.Builder posBuilder = blockFactory.newIntBlockBuilder(3)) {
                     posBuilder.appendInt(0);
                     posBuilder.appendInt(2);
@@ -396,15 +407,7 @@ public class LongArrowBufTests extends ESTestCase {
     }
 
     private LongArrowBufBlock blockFromListVector(ListVector listVector) {
-        BigIntVector childVector = (BigIntVector) listVector.getDataVector();
-        return new LongArrowBufBlock(
-            childVector.getDataBuffer(),
-            listVector.getValidityBuffer(),
-            listVector.getOffsetBuffer(),
-            listVector.getValueCount(),
-            listVector.getValueCount() + 1,
-            blockFactory
-        );
+        return LongArrowBufBlock.of(listVector, blockFactory);
     }
 
     public void testMultiValuedBlockBasics() {
@@ -528,7 +531,7 @@ public class LongArrowBufTests extends ESTestCase {
             listVector.setValueCount(2);
 
             // No validity buffer passed → no nulls in the block
-            try (var block = new LongArrowBufBlock(childVector.getDataBuffer(), null, listVector.getOffsetBuffer(), 2, 3, blockFactory)) {
+            try (var block = LongArrowBufBlock.of(listVector, blockFactory)) {
                 try (LongBlock expanded = block.expand()) {
                     assertEquals(4, expanded.getPositionCount());
                     assertFalse(expanded.mayHaveNulls());

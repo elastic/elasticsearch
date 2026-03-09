@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data.arrow;
 
 // begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.FixedWidthVector;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,12 +26,19 @@ import java.io.IOException;
 public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVector, FloatBlock> implements FloatVector {
 
     /**
-     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
-     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
-     *  if they don't need them anymore.
+     *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
+     *  are shared with other blocks or Arrow vectors.
      */
     public FloatArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
+    }
+
+    private FloatArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        super(arrowVector, blockFactory);
+    }
+
+    public static FloatArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new FloatArrowBufVector(arrowVector, blockFactory);
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.test;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.LongVectorFixedBuilder;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -58,6 +60,11 @@ public class MockBlockFactory extends BlockFactory {
     final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
 
     public void ensureAllBlocksAreReleased() {
+
+        if (arrowAllocator != null) {
+            arrowAllocator.close();
+        }
+
         purgeTrackBlocks();
         final Map<Object, Object> copy = new HashMap<>(TRACKED_BLOCKS);
         // we should really assert this, but not just yet, see comment below
@@ -89,6 +96,12 @@ public class MockBlockFactory extends BlockFactory {
 
     protected MockBlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
         super(builder, parent);
+    }
+
+    @Override
+    protected BufferAllocator childFactoryAllocator() {
+        var listener = new CircuitBreakerAllocationListener(this.breaker());
+        return super.arrowAllocator().newChildAllocator("mock-factory", listener, 0, Long.MAX_VALUE);
     }
 
     @Override

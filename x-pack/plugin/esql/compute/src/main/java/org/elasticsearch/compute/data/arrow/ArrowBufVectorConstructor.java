@@ -12,9 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Vector;
 
 /**
- * Constructor for a block backed by Arrow buffers. It should not take ownership of buffers but rather
- * increase their reference count. This means that callers must release the buffers (and decrease their reference counters)
- * if they don't need them anymore.
+ * Constructor for a vector backed by Arrow buffers. See @{@link AbstractArrowBufVector} for additional details.
  */
 @FunctionalInterface
 public interface ArrowBufVectorConstructor<V extends Vector> {

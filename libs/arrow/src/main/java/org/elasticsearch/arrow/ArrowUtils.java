@@ -12,6 +12,9 @@ package org.elasticsearch.arrow;
 import org.apache.arrow.vector.ValueVector;
 
 public class ArrowUtils {
+
+    private ArrowUtils() {}
+
     public static void close(ValueVector... vectors) {
         RuntimeException firstException = null;
         for (final var v : vectors) {

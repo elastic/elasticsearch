@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.FixedWidthVector;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted;
 import org.elasticsearch.compute.data.Block;
@@ -22,17 +23,38 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     protected final ArrowBuf valueBuffer;
     protected final int positionCount;
     protected final BlockFactory blockFactory;
+    protected boolean closed = false;
 
     /**
-     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
-     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
-     *  if they don't need them anymore.
+     * Create an ArrowBuf ES|QL vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffer
+     * if it's shared with other blocks or Arrow vectors.
      */
     protected AbstractArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
-        valueBuffer.getReferenceManager().retain();
         this.valueBuffer = valueBuffer;
         this.positionCount = positionCount;
         this.blockFactory = blockFactory;
+    }
+
+    @SuppressWarnings("this-escape")
+    protected AbstractArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        this(arrowVector.getDataBuffer(), arrowVector.getValueCount(), blockFactory);
+
+        if (arrowVector.getNullCount() > 0) {
+            throw new IllegalArgumentException("Expecting no nulls in " + arrowVector.getClass().getSimpleName());
+        }
+
+        ArrowUtils.checkItemSize(arrowVector, byteSize());
+        valueBuffer.getReferenceManager().retain();
+    }
+
+    /** Retains (increments the reference count) this vector's Arrow buffers */
+    public void retainBuffers() {
+        this.valueBuffer.getReferenceManager().retain();
+    }
+
+    /** Releases (decrements the reference count) this vector's Arrow buffers */
+    public void releaseBuffers() {
+        this.valueBuffer.getReferenceManager().release();
     }
 
     protected abstract int byteSize();
@@ -43,7 +65,11 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     protected void closeInternal() {
-        this.valueBuffer.getReferenceManager().release();
+        if (closed) {
+            return;
+        }
+        closed = true;
+        releaseBuffers();
     }
 
     @Override
@@ -68,6 +94,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     public B asBlock() {
+        // Don't retain the buffer, as this takes ownership of the vector.
         return blockConstructor().create(valueBuffer, null, null, positionCount, 0, blockFactory);
     }
 
@@ -90,17 +117,13 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
 
     @Override
     public V filter(boolean mayContainDuplicates, int... positions) {
-        final var allocator = valueBuffer.getReferenceManager().getAllocator();
+        final var allocator = blockFactory.arrowAllocator();
         final int size = byteSize();
         final var buffer = allocator.buffer((long) positions.length * size);
         for (int pos : positions) {
             buffer.setBytes((long) pos * size, valueBuffer, (long) pos * size, size);
         }
-        try {
-            return vectorConstructor().create(buffer, positions.length, blockFactory);
-        } finally {
-            buffer.getReferenceManager().release();
-        }
+        return vectorConstructor().create(buffer, positions.length, blockFactory);
     }
 
     // TODO

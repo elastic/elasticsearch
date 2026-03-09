@@ -10,8 +10,12 @@ package org.elasticsearch.compute.data.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.IntVector;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 public class CircuitBreakerAllocationListenerTests extends ESTestCase {
@@ -97,6 +101,48 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
             buf2.close();
             assertEquals(0, breaker.getUsed());
         }
+    }
+
+    public void testVectorTransfer() {
+
+        // This is what happens in FlightClient, that creates a child allocator. Closing the client also closes that allocator,
+        // so vectors and their buffers that must have a longer lifetime (as blocks) must be transferred to the parent allocator.
+
+        var breaker = breaker(1024);
+        var blockFactory = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+        var rootAllocator = blockFactory.arrowAllocator();
+        var childAllocator = rootAllocator.newChildAllocator("child", 0, Long.MAX_VALUE);
+
+        var childVector = new IntVector("test", childAllocator);
+        childVector.allocateNew(1);
+        childVector.set(0, 42);
+        childVector.setValueCount(1);
+        assertEquals(1, childVector.getValueCount());
+
+        // Transfer child vector to parent allocator
+        var pair = childVector.getTransferPair(rootAllocator);
+        pair.transfer();
+        var rootVector = pair.getTo();
+
+        // Child vector has been emptied
+        assertEquals(0, childVector.getValueCount());
+        childVector.close();
+        childAllocator.close();
+
+        // Data now lives in rootVector
+        assertEquals(1, rootVector.getValueCount());
+
+        // Need to retain buffers in the newly created block
+        var block = IntArrowBufBlock.of(rootVector, blockFactory);
+        rootVector.close();
+
+        assertEquals(1, block.getTotalValueCount());
+        assertEquals(42, block.getInt(0));
+        block.close();
+
+        assertEquals(0, breaker.getUsed());
+
+        blockFactory.ensureAllBlocksAreReleased();
     }
 
     static class TestBreaker implements CircuitBreaker {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -14,9 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
+import java.lang.ref.Cleaner;
 import java.util.BitSet;
 
 public class BlockFactory {
@@ -34,6 +40,8 @@ public class BlockFactory {
     // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
 
+    private static final Logger log = LogManager.getLogger(BlockFactory.class);
+
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
@@ -41,6 +49,8 @@ public class BlockFactory {
     private final BlockFactory parent;
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
+    protected volatile BufferAllocator arrowAllocator;
+    private static final Cleaner cleaner = Cleaner.create();
 
     /**
      * {@return a builder for constructing a {@link BlockFactory}}
@@ -68,6 +78,42 @@ public class BlockFactory {
     // For testing
     public CircuitBreaker breaker() {
         return breaker;
+    }
+
+    public BufferAllocator arrowAllocator() {
+        // There's one root Arrow allocator per top-level block factory.
+        // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no
+        // obvious lifecycle hook for that: BlockFactories are not Releasable, and child blockfactories are created only to use a
+        // LocalBreaker that reduces the number of atomic counting operations.
+        if (arrowAllocator == null) {
+            synchronized (this) {
+                if (arrowAllocator == null) {
+                    if (this.parent == null) {
+                        // Root block factory
+                        var listener = new CircuitBreakerAllocationListener(breaker);
+                        // TODO: see if the default rounding policy (power of 2) is appropriate
+                        var allocator = new RootAllocator(listener, Long.MAX_VALUE);
+                        cleaner.register(this, () -> {
+                            try {
+                                allocator.close();
+                            } catch (Exception e) {
+                                log.error("Error closing the Arrow root allocator", e);
+                            }
+                        });
+                        arrowAllocator = allocator;
+                    } else {
+                        arrowAllocator = childFactoryAllocator();
+                    }
+                }
+            }
+        }
+        return arrowAllocator;
+    }
+
+    protected BufferAllocator childFactoryAllocator() {
+        // Store it locally to avoid crawling the parent chain every time we need it.
+        // Overridden in tests
+        return parent.arrowAllocator();
     }
 
     // For testing

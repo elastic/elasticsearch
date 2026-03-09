@@ -45,7 +45,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
     @Before
     public void setup() {
         allocator = new RootAllocator();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     @After
@@ -73,7 +73,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(2, "".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(3);
 
-            try (var vector = new BytesRefArrowBufVector(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), 3, blockFactory)) {
+            try (var vector = BytesRefArrowBufVector.of(arrowVec, blockFactory)) {
                 assertEquals(3, vector.getPositionCount());
                 assertEquals(ElementType.BYTES_REF, vector.elementType());
                 assertFalse(vector.isConstant());
@@ -92,15 +92,15 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(1, "def".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(2);
 
-            try (var vector = new BytesRefArrowBufVector(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), 2, blockFactory)) {
-                try (BytesRefBlock block = vector.asBlock()) {
-                    assertEquals(2, block.getPositionCount());
-                    BytesRef scratch = new BytesRef();
-                    assertBytesRef("abc", block, 0, scratch);
-                    assertBytesRef("def", block, 1, scratch);
-                    assertFalse(block.mayHaveNulls());
-                    assertFalse(block.mayHaveMultivaluedFields());
-                }
+            // Don't release vector, asBlock() takes ownership
+            var vector = BytesRefArrowBufVector.of(arrowVec, blockFactory);
+            try (BytesRefBlock block = vector.asBlock()) {
+                assertEquals(2, block.getPositionCount());
+                BytesRef scratch = new BytesRef();
+                assertBytesRef("abc", block, 0, scratch);
+                assertBytesRef("def", block, 1, scratch);
+                assertFalse(block.mayHaveNulls());
+                assertFalse(block.mayHaveMultivaluedFields());
             }
         }
     }
@@ -114,7 +114,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(3, "ddd".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(4);
 
-            try (var vector = new BytesRefArrowBufVector(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), 4, blockFactory)) {
+            try (var vector = BytesRefArrowBufVector.of(arrowVec, blockFactory)) {
                 try (BytesRefVector filtered = vector.filter(false, 0, 2, 3)) {
                     assertEquals(3, filtered.getPositionCount());
                     BytesRef scratch = new BytesRef();
@@ -137,17 +137,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(3, "baz".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(4);
 
-            try (
-                var block = new BytesRefArrowBufBlock(
-                    arrowVec.getDataBuffer(),
-                    arrowVec.getOffsetBuffer(),
-                    arrowVec.getValidityBuffer(),
-                    null,
-                    4,
-                    0,
-                    blockFactory
-                )
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertEquals(4, block.getPositionCount());
                 assertEquals(ElementType.BYTES_REF, block.elementType());
                 assertTrue(block.mayHaveNulls());
@@ -173,20 +163,18 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(1, "two".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(2);
 
-            try (
-                var block = new BytesRefArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), null, null, 2, 0, blockFactory)
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.areAllValuesNull());
                 assertEquals(2, block.getTotalValueCount());
 
+                // Don't release vec, it's a view on the block
                 BytesRefVector vec = block.asVector();
                 assertNotNull(vec);
                 assertEquals(2, vec.getPositionCount());
                 BytesRef scratch = new BytesRef();
                 assertBytesRef("one", vec, 0, scratch);
                 assertBytesRef("two", vec, 1, scratch);
-                vec.close();
             }
         }
     }
@@ -198,17 +186,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.setNull(1);
             arrowVec.setValueCount(2);
 
-            try (
-                var block = new BytesRefArrowBufBlock(
-                    arrowVec.getDataBuffer(),
-                    arrowVec.getOffsetBuffer(),
-                    arrowVec.getValidityBuffer(),
-                    null,
-                    2,
-                    0,
-                    blockFactory
-                )
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertTrue(block.mayHaveNulls());
                 assertTrue(block.areAllValuesNull());
                 assertEquals(0, block.getTotalValueCount());
@@ -226,17 +204,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(3, "gamma".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(4);
 
-            try (
-                var block = new BytesRefArrowBufBlock(
-                    arrowVec.getDataBuffer(),
-                    arrowVec.getOffsetBuffer(),
-                    arrowVec.getValidityBuffer(),
-                    null,
-                    4,
-                    0,
-                    blockFactory
-                )
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BytesRefBlock filtered = block.filter(false, 0, 2, 3)) {
                     assertEquals(3, filtered.getPositionCount());
                     BytesRef scratch = new BytesRef();
@@ -259,17 +227,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(3, "d".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(4);
 
-            try (
-                var block = new BytesRefArrowBufBlock(
-                    arrowVec.getDataBuffer(),
-                    arrowVec.getOffsetBuffer(),
-                    arrowVec.getValidityBuffer(),
-                    null,
-                    4,
-                    0,
-                    blockFactory
-                )
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (var maskBuilder = blockFactory.newBooleanVectorFixedBuilder(4)) {
                     maskBuilder.appendBoolean(true);
                     maskBuilder.appendBoolean(false);
@@ -298,9 +256,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(0, "x".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(1);
 
-            try (
-                var block = new BytesRefArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), null, null, 1, 0, blockFactory)
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1)) {
                     try (BytesRefBlock kept = block.keepMask(mask)) {
                         assertSame(block, kept);
@@ -316,9 +272,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(0, "x".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(1);
 
-            try (
-                var block = new BytesRefArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), null, null, 1, 0, blockFactory)
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(false, 1)) {
                     try (Block kept = block.keepMask(mask)) {
                         assertEquals(1, kept.getPositionCount());
@@ -335,9 +289,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(0, "x".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(1);
 
-            try (
-                var block = new BytesRefArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getOffsetBuffer(), null, null, 1, 0, blockFactory)
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BytesRefBlock expanded = block.expand()) {
                     assertSame(block, expanded);
                 }
@@ -354,17 +306,7 @@ public class BytesRefArrowBufTests extends ESTestCase {
             arrowVec.set(3, "ddd".getBytes(StandardCharsets.UTF_8));
             arrowVec.setValueCount(4);
 
-            try (
-                var block = new BytesRefArrowBufBlock(
-                    arrowVec.getDataBuffer(),
-                    arrowVec.getOffsetBuffer(),
-                    arrowVec.getValidityBuffer(),
-                    null,
-                    4,
-                    0,
-                    blockFactory
-                )
-            ) {
+            try (var block = BytesRefArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (IntBlock.Builder posBuilder = blockFactory.newIntBlockBuilder(3)) {
                     posBuilder.appendInt(0);
                     posBuilder.appendInt(2);
@@ -434,16 +376,8 @@ public class BytesRefArrowBufTests extends ESTestCase {
     }
 
     private BytesRefArrowBufBlock blockFromListVector(ListVector listVector) {
-        VarCharVector childVector = (VarCharVector) listVector.getDataVector();
-        return new BytesRefArrowBufBlock(
-            childVector.getDataBuffer(),
-            childVector.getOffsetBuffer(),
-            listVector.getValidityBuffer(),
-            listVector.getOffsetBuffer(),
-            listVector.getValueCount(),
-            listVector.getValueCount() + 1,
-            blockFactory
-        );
+        var result = BytesRefArrowBufBlock.of(listVector, blockFactory);
+        return result;
     }
 
     public void testMultiValuedBlockBasics() {

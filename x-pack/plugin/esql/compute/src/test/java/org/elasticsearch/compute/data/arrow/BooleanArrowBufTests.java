@@ -40,7 +40,7 @@ public class BooleanArrowBufTests extends ESTestCase {
     @Before
     public void setup() {
         allocator = new RootAllocator();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     @After
@@ -60,7 +60,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(4, 0);
             arrowVec.setValueCount(5);
 
-            try (var vector = new BooleanArrowBufVector(arrowVec.getDataBuffer(), 5, blockFactory)) {
+            try (var vector = BooleanArrowBufVector.of(arrowVec, blockFactory)) {
                 assertEquals(5, vector.getPositionCount());
                 assertEquals(ElementType.BOOLEAN, vector.elementType());
                 assertFalse(vector.isConstant());
@@ -81,7 +81,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var vector = new BooleanArrowBufVector(arrowVec.getDataBuffer(), 3, blockFactory)) {
+            try (var vector = BooleanArrowBufVector.of(arrowVec, blockFactory)) {
                 assertTrue(vector.allTrue());
                 assertFalse(vector.allFalse());
             }
@@ -96,7 +96,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 0);
             arrowVec.setValueCount(3);
 
-            try (var vector = new BooleanArrowBufVector(arrowVec.getDataBuffer(), 3, blockFactory)) {
+            try (var vector = BooleanArrowBufVector.of(arrowVec, blockFactory)) {
                 assertFalse(vector.allTrue());
                 assertTrue(vector.allFalse());
             }
@@ -111,15 +111,15 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var vector = new BooleanArrowBufVector(arrowVec.getDataBuffer(), 3, blockFactory)) {
-                try (BooleanBlock block = vector.asBlock()) {
-                    assertEquals(3, block.getPositionCount());
-                    assertTrue(block.getBoolean(0));
-                    assertFalse(block.getBoolean(1));
-                    assertTrue(block.getBoolean(2));
-                    assertFalse(block.mayHaveNulls());
-                    assertFalse(block.mayHaveMultivaluedFields());
-                }
+            // Don't close vector, asBlock() takes ownership
+            var vector = BooleanArrowBufVector.of(arrowVec, blockFactory);
+            try (BooleanBlock block = vector.asBlock()) {
+                assertEquals(3, block.getPositionCount());
+                assertTrue(block.getBoolean(0));
+                assertFalse(block.getBoolean(1));
+                assertTrue(block.getBoolean(2));
+                assertFalse(block.mayHaveNulls());
+                assertFalse(block.mayHaveMultivaluedFields());
             }
         }
     }
@@ -134,7 +134,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(4, 1);
             arrowVec.setValueCount(5);
 
-            try (var vector = new BooleanArrowBufVector(arrowVec.getDataBuffer(), 5, blockFactory)) {
+            try (var vector = BooleanArrowBufVector.of(arrowVec, blockFactory)) {
                 try (BooleanVector filtered = vector.filter(false, 0, 2, 4)) {
                     assertEquals(3, filtered.getPositionCount());
                     assertTrue(filtered.getBoolean(0));
@@ -157,7 +157,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(4, 0);
             arrowVec.setValueCount(5);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertEquals(5, block.getPositionCount());
                 assertEquals(ElementType.BOOLEAN, block.elementType());
                 assertTrue(block.mayHaveNulls());
@@ -190,7 +190,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.areAllValuesNull());
                 assertEquals(3, block.getTotalValueCount());
@@ -201,7 +201,6 @@ public class BooleanArrowBufTests extends ESTestCase {
                 assertTrue(vec.getBoolean(0));
                 assertFalse(vec.getBoolean(1));
                 assertTrue(vec.getBoolean(2));
-                vec.close();
             }
         }
     }
@@ -214,7 +213,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.setNull(2);
             arrowVec.setValueCount(3);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 3, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertTrue(block.mayHaveNulls());
                 assertTrue(block.areAllValuesNull());
                 assertEquals(0, block.getTotalValueCount());
@@ -233,7 +232,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.setNull(4);
             arrowVec.setValueCount(5);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 assertEquals(3, block.getTotalValueCount());
             }
         }
@@ -249,7 +248,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(4, 0);
             arrowVec.setValueCount(5);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 5, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanBlock filtered = block.filter(false, 0, 2, 3)) {
                     assertEquals(3, filtered.getPositionCount());
                     assertFalse(filtered.isNull(0));
@@ -271,7 +270,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(3, 0);
             arrowVec.setValueCount(4);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), null, null, 4, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanBlock filtered = block.filter(false, 1, 3)) {
                     assertEquals(2, filtered.getPositionCount());
                     assertFalse(filtered.getBoolean(0));
@@ -290,7 +289,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(true, 3)) {
                     try (BooleanBlock kept = block.keepMask(mask)) {
                         assertSame(block, kept);
@@ -308,7 +307,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanVector mask = blockFactory.newConstantBooleanVector(false, 3)) {
                     try (Block kept = block.keepMask(mask)) {
                         assertEquals(3, kept.getPositionCount());
@@ -328,7 +327,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(3, 1);
             arrowVec.setValueCount(4);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 4, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (var maskBuilder = blockFactory.newBooleanVectorFixedBuilder(4)) {
                     maskBuilder.appendBoolean(true);
                     maskBuilder.appendBoolean(false);
@@ -358,7 +357,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(2, 1);
             arrowVec.setValueCount(3);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), null, null, 3, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (BooleanBlock expanded = block.expand()) {
                     assertSame(block, expanded);
                 }
@@ -375,7 +374,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(3, 1);
             arrowVec.setValueCount(4);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 4, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (IntBlock.Builder posBuilder = blockFactory.newIntBlockBuilder(3)) {
                     posBuilder.appendInt(0);
                     posBuilder.appendInt(2);
@@ -408,7 +407,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             arrowVec.set(3, 1);
             arrowVec.setValueCount(4);
 
-            try (var block = new BooleanArrowBufBlock(arrowVec.getDataBuffer(), arrowVec.getValidityBuffer(), null, 4, 0, blockFactory)) {
+            try (var block = BooleanArrowBufBlock.of(arrowVec, blockFactory)) {
                 try (var toMask = block.toMask()) {
                     assertFalse(toMask.hadMultivaluedFields());
                     BooleanVector mask = toMask.mask();
@@ -469,6 +468,7 @@ public class BooleanArrowBufTests extends ESTestCase {
 
     private BooleanArrowBufBlock blockFromListVector(ListVector listVector) {
         BitVector childVector = (BitVector) listVector.getDataVector();
+        ArrowUtils.retainBuffers(childVector.getDataBuffer(), listVector.getValidityBuffer(), listVector.getOffsetBuffer());
         return new BooleanArrowBufBlock(
             childVector.getDataBuffer(),
             listVector.getValidityBuffer(),
@@ -600,6 +600,7 @@ public class BooleanArrowBufTests extends ESTestCase {
             try (
                 var block = new BooleanArrowBufBlock(childVector.getDataBuffer(), null, listVector.getOffsetBuffer(), 2, 3, blockFactory)
             ) {
+                block.retainBuffers();
                 try (BooleanBlock expanded = block.expand()) {
                     assertEquals(4, expanded.getPositionCount());
                     assertFalse(expanded.mayHaveNulls());

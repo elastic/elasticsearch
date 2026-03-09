@@ -24,6 +24,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
     requires transitive org.apache.arrow.memory.core;
+    requires org.apache.arrow.vector;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

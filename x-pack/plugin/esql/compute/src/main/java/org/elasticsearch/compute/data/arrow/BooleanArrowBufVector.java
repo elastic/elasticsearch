@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.BitVector;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -24,6 +25,15 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
 
     public BooleanArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
+    }
+
+    public static BooleanArrowBufVector of(BitVector bitVector, BlockFactory blockFactory) {
+        if (bitVector.getNullCount() > 0) {
+            throw new IllegalArgumentException("Expecting no nulls in " + bitVector.getClass().getSimpleName());
+        }
+        var result = new BooleanArrowBufVector(bitVector.getDataBuffer(), bitVector.getValueCount(), blockFactory);
+        result.valueBuffer.getReferenceManager().retain();
+        return result;
     }
 
     @Override
@@ -73,7 +83,7 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
 
     @Override
     public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        var allocator = valueBuffer.getReferenceManager().getAllocator();
+        var allocator = blockFactory.arrowAllocator();
         int bufLen = ((positions.length + 63) / 64) * Long.BYTES;
         var buffer = allocator.buffer(Math.max(1, bufLen));
         buffer.setZero(0, buffer.capacity());
@@ -83,11 +93,8 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
                 buffer.setByte(byteIdx, buffer.getByte(byteIdx) | (1 << (i % 8)));
             }
         }
-        try {
-            return vectorConstructor().create(buffer, positions.length, blockFactory);
-        } finally {
-            buffer.getReferenceManager().release();
-        }
+
+        return vectorConstructor().create(buffer, positions.length, blockFactory);
     }
 
     @Override

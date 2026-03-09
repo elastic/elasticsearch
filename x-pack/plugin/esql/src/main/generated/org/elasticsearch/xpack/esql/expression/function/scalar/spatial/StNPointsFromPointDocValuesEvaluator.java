@@ -12,29 +12,29 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StNPoints}.
+ * {@link ExpressionEvaluator} implementation for {@link StNPoints}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StNPointsFromPointDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StNPointsFromPointDocValuesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StNPointsFromPointDocValuesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encoded;
+  private final ExpressionEvaluator encoded;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StNPointsFromPointDocValuesEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encoded, DriverContext driverContext) {
+  public StNPointsFromPointDocValuesEvaluator(Source source, ExpressionEvaluator encoded,
+      DriverContext driverContext) {
     this.source = source;
     this.encoded = encoded;
     this.driverContext = driverContext;
@@ -93,12 +93,12 @@ public final class StNPointsFromPointDocValuesEvaluator implements EvalOperator.
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encoded;
+    private final ExpressionEvaluator.Factory encoded;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded) {
+    public Factory(Source source, ExpressionEvaluator.Factory encoded) {
       this.source = source;
       this.encoded = encoded;
     }

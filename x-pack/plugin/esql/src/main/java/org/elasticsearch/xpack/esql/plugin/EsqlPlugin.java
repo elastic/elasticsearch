@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -61,10 +62,12 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
@@ -85,6 +88,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -203,6 +207,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
+    private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
@@ -236,17 +242,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         }
 
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(allDataSourcePlugins);
+        DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
-            capabilities,
+            dataSourceCapabilities,
             settings,
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
+
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         List<Object> components = new ArrayList<>(
             List.of(
@@ -271,8 +280,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
-            components.add(new ViewService(services.clusterService()));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
+            components.add(new ViewService(services.clusterService(), functionRegistry));
         }
         return components;
     }
@@ -344,6 +353,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 List.of(
                     new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                     new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
                     new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
                 )
             );
@@ -364,9 +374,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        EsqlCapabilities capabilities = this.capabilities.get();
         List<RestHandler> releasedRestHandlers = List.of(
-            new RestEsqlQueryAction(),
-            new RestEsqlAsyncQueryAction(),
+            new RestEsqlQueryAction(capabilities),
+            new RestEsqlAsyncQueryAction(capabilities),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),

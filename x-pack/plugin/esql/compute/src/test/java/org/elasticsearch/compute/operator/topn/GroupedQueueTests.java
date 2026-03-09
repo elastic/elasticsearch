@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -26,8 +27,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class GroupedQueueTests extends ESTestCase {
-    private final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-    private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker);
+    private final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(1));
+    private final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
     private final BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
 
     public void testGroupIsolation() {

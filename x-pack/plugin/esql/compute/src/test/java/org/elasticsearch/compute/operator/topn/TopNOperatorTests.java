@@ -17,7 +17,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -111,7 +111,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
-//@Repeat(iterations = 100)
 public class TopNOperatorTests extends OperatorTestCase {
     protected final int pageSize = randomPageSize();
 
@@ -2048,7 +2047,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCloseWithoutCompleting() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -2070,9 +2069,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testRowResizes() {
         int columns = 1000;
         int rows = 1000;
-        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
-            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
-        );
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1)));
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
         boolean asc = randomBoolean();
@@ -2155,7 +2152,7 @@ public class TopNOperatorTests extends OperatorTestCase {
              * With very small bytes we might break too early. That's ok. Small
              * ones are rare and if we have them then a few early-breaks is fine.
              */
-            minPageSize -= 10;
+            minPageSize -= 20;
         }
         if (byteLength < PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
             /*

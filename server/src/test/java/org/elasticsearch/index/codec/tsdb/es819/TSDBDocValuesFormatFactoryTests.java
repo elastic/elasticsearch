@@ -14,6 +14,8 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
 
     public void testVersion3() {
@@ -31,10 +33,14 @@ public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
     }
 
     public void testVersion3WithLargeBinaryBlockSize() {
-        assertSame(
-            TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, false, true)
+        var actual = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
+            IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+            false,
+            true
         );
+        assertSame(TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, actual);
+        assertThat(actual.blockBytesThreshold, equalTo(1024 * 1024));
+        assertThat(actual.blockCountThreshold, equalTo(32768));
     }
 
     public void testVersionAfterVersion3() {

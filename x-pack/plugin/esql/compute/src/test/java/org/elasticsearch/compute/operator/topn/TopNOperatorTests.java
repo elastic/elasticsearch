@@ -14,7 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -1983,7 +1983,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCloseWithoutCompleting() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -2005,9 +2005,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testRowResizes() {
         int columns = 1000;
         int rows = 1000;
-        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
-            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
-        );
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1)));
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
         boolean asc = randomBoolean();

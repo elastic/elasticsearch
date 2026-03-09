@@ -59,6 +59,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    private boolean resolvesCrossProject;
 
     @Nullable
     private String projectRouting;
@@ -447,6 +448,15 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 
     public void setProjectRouting(String projectRouting) {

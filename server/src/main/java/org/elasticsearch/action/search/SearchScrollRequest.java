@@ -31,6 +31,7 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
 
     private String scrollId;
     private TimeValue scroll;
+    private boolean resolvesCrossProject;
 
     public SearchScrollRequest() {}
 
@@ -165,5 +166,14 @@ public class SearchScrollRequest extends LegacyActionRequest implements ToXConte
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

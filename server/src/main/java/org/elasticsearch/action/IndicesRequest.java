@@ -61,6 +61,16 @@ public interface IndicesRequest {
         default boolean allowsCrossProject() {
             return false;
         }
+
+        /**
+         * Whether this specific request instance should resolve cross-project index expressions.
+         * For {@link IndicesRequest} types this delegates to {@link IndicesOptions#resolveCrossProjectIndexExpression()}.
+         * For other {@link CrossProjectCandidate} types this is based on an explicit field, defaulting to {@code false}.
+         * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+         */
+        default boolean resolvesCrossProject() {
+            return false;
+        }
     }
 
     interface Replaceable extends IndicesRequest, CrossProjectCandidate {
@@ -68,6 +78,11 @@ public interface IndicesRequest {
          * Sets the indices that the action relates to.
          */
         IndicesRequest indices(String... indices);
+
+        @Override
+        default boolean resolvesCrossProject() {
+            return indicesOptions().resolveCrossProjectIndexExpression();
+        }
 
         /**
          * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
@@ -126,6 +141,11 @@ public interface IndicesRequest {
          */
         default boolean allowsCrossProject() {
             return true;
+        }
+
+        @Override
+        default boolean resolvesCrossProject() {
+            return indicesOptions().resolveCrossProjectIndexExpression();
         }
 
         /**

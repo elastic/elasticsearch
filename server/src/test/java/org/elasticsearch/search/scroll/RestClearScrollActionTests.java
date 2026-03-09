@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class RestClearScrollActionTests extends ESTestCase {
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        RestClearScrollAction action = new RestClearScrollAction();
+        RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
@@ -50,7 +51,7 @@ public class RestClearScrollActionTests extends ESTestCase {
                     assertThat(request.getScrollIds().get(0), equalTo("BODY"));
                 }
             };
-            RestClearScrollAction action = new RestClearScrollAction();
+            RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY);
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
                 Collections.singletonMap("scroll_id", "QUERY_STRING")
             ).withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), XContentType.JSON).build();

@@ -23,13 +23,16 @@ import org.elasticsearch.common.settings.Settings;
  *       Serverless cluster or not.</li>
  *   <li><b>API level:</b> The {@link org.elasticsearch.action.IndicesRequest.Replaceable#allowsCrossProject()}
  *       method determines whether a particular request type supports CPS processing.</li>
- *   <li><b>Request level:</b> An {@link org.elasticsearch.action.support.IndicesOptions} flag
- *       determines whether CPS should apply to the current
- *       request being processed. This fine-grained control is required because APIs that
- *       support CPS may also be used in contexts where CPS should not apply—for example,
- *       internal searches against the security system index to retrieve user roles, or CPS
- *       actions that execute in a flow where a parent action has already performed CPS
- *       processing.</li>
+ *   <li><b>Request level:</b> The {@link org.elasticsearch.action.IndicesRequest.CrossProjectCandidate#resolvesCrossProject()}
+ *       method determines whether CPS should apply to the current request being processed.
+ *       For {@link org.elasticsearch.action.IndicesRequest} types this delegates to the
+ *       {@link org.elasticsearch.action.support.IndicesOptions} flag. For other
+ *       {@link org.elasticsearch.action.IndicesRequest.CrossProjectCandidate} types this is
+ *       based on an explicit field set by the REST handler. This fine-grained control is
+ *       required because APIs that support CPS may also be used in contexts where CPS should
+ *       not apply—for example, internal searches against the security system index to retrieve
+ *       user roles, ML datafeed scroll operations, or CPS actions that execute in a flow where
+ *       a parent action has already performed CPS processing.</li>
  * </ul>
  */
 public class CrossProjectModeDecider {
@@ -48,14 +51,9 @@ public class CrossProjectModeDecider {
         if (crossProjectEnabled == false) {
             return false;
         }
-
-        // TODO: The following check can be an method on the request itself
         if (request.allowsCrossProject() == false) {
             return false;
         }
-        if (request instanceof IndicesRequest indicesRequest) {
-            return indicesRequest.indicesOptions().resolveCrossProjectIndexExpression();
-        }
-        return true;
+        return request.resolvesCrossProject();
     }
 }

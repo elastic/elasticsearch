@@ -11,11 +11,13 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -30,6 +32,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestSearchScrollAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestSearchScrollAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public String getName() {
@@ -51,6 +58,9 @@ public class RestSearchScrollAction extends BaseRestHandler {
         String scrollId = request.param("scroll_id");
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(scrollId);
+        searchScrollRequest.setResolvesCrossProject(
+            crossProjectModeDecider.crossProjectEnabled() && searchScrollRequest.allowsCrossProject()
+        );
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchScrollRequest.scroll(parseTimeValue(scroll, null, "scroll"));

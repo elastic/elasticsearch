@@ -28,6 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ClearScrollRequest extends LegacyActionRequest implements ToXContentObject, IndicesRequest.CrossProjectCandidate {
 
     private List<String> scrollIds;
+    private boolean resolvesCrossProject;
 
     public ClearScrollRequest() {}
 
@@ -128,5 +129,14 @@ public class ClearScrollRequest extends LegacyActionRequest implements ToXConten
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

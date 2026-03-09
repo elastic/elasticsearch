@@ -32,41 +32,51 @@ public class CrossProjectModeDeciderTests extends ESTestCase {
             .build();
 
         final var candidateButNotAllowed = randomFrom(
-            new CrossProjectCandidateImpl(false),
+            new CrossProjectCandidateImpl(false, false),
+            new CrossProjectCandidateImpl(false, true),
             new IndicesRequestImpl(false, randomFrom(IndicesOptions.DEFAULT, cpsIndicesOptions))
         );
-        final var candidateAndAllowed = new CrossProjectCandidateImpl(true);
+        final var candidateAllowedButNotResolving = new CrossProjectCandidateImpl(true, false);
+        final var candidateAndResolving = new CrossProjectCandidateImpl(true, true);
 
         final var indicesRequestNoCpsOption = new IndicesRequestImpl(true, IndicesOptions.DEFAULT);
         final var indicesRequestWithCpsOption = new IndicesRequestImpl(true, cpsIndicesOptions);
 
         assertFalse(crossProjectModeDecider.resolvesCrossProject(candidateButNotAllowed));
+        assertFalse(crossProjectModeDecider.resolvesCrossProject(candidateAllowedButNotResolving));
         assertFalse(crossProjectModeDecider.resolvesCrossProject(indicesRequestNoCpsOption));
 
-        assertThat(crossProjectModeDecider.resolvesCrossProject(candidateAndAllowed), is(expected));
+        assertThat(crossProjectModeDecider.resolvesCrossProject(candidateAndResolving), is(expected));
         assertThat(crossProjectModeDecider.resolvesCrossProject(indicesRequestWithCpsOption), is(expected));
     }
 
     private static class CrossProjectCandidateImpl implements IndicesRequest.CrossProjectCandidate {
 
-        private boolean allowsCrossProject;
+        private final boolean allowsCrossProject;
+        private final boolean resolvesCrossProject;
 
-        CrossProjectCandidateImpl(boolean allowsCrossProject) {
+        CrossProjectCandidateImpl(boolean allowsCrossProject, boolean resolvesCrossProject) {
             this.allowsCrossProject = allowsCrossProject;
+            this.resolvesCrossProject = resolvesCrossProject;
         }
 
         @Override
         public boolean allowsCrossProject() {
             return allowsCrossProject;
         }
+
+        @Override
+        public boolean resolvesCrossProject() {
+            return resolvesCrossProject;
+        }
     }
 
     private static class IndicesRequestImpl extends CrossProjectCandidateImpl implements IndicesRequest {
 
-        private IndicesOptions indicesOptions;
+        private final IndicesOptions indicesOptions;
 
         IndicesRequestImpl(boolean allowsCrossProject, IndicesOptions indicesOptions) {
-            super(allowsCrossProject);
+            super(allowsCrossProject, indicesOptions.resolveCrossProjectIndexExpression());
             this.indicesOptions = indicesOptions;
         }
 

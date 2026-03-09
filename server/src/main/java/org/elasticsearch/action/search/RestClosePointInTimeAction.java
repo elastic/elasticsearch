@@ -10,11 +10,13 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -24,6 +26,12 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestClosePointInTimeAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestClosePointInTimeAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public List<Route> routes() {
@@ -41,6 +49,7 @@ public class RestClosePointInTimeAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             clearRequest = ClosePointInTimeRequest.fromXContent(parser);
         }
+        clearRequest.setResolvesCrossProject(crossProjectModeDecider.crossProjectEnabled() && clearRequest.allowsCrossProject());
         return channel -> client.execute(
             TransportClosePointInTimeAction.TYPE,
             clearRequest,

@@ -29,6 +29,7 @@ public class ClosePointInTimeRequest extends LegacyActionRequest implements ToXC
     private static final ParseField ID = new ParseField("id");
 
     private final BytesReference id;
+    private boolean resolvesCrossProject;
 
     public ClosePointInTimeRequest(StreamInput in) throws IOException {
         super(in);
@@ -94,5 +95,14 @@ public class ClosePointInTimeRequest extends LegacyActionRequest implements ToXC
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

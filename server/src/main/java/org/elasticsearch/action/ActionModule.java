@@ -952,10 +952,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateAction());
 
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings));
-        registerHandler.accept(new RestSearchScrollAction());
-        registerHandler.accept(new RestClearScrollAction());
+        registerHandler.accept(new RestSearchScrollAction(settings));
+        registerHandler.accept(new RestClearScrollAction(settings));
         registerHandler.accept(new RestOpenPointInTimeAction(settings));
-        registerHandler.accept(new RestClosePointInTimeAction());
+        registerHandler.accept(new RestClosePointInTimeAction(settings));
         registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
         registerHandler.accept(new RestKnnSearchAction());
 

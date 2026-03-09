@@ -13,11 +13,13 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -28,6 +30,12 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestClearScrollAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestClearScrollAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public List<Route> routes() {
@@ -44,6 +52,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(asList(Strings.splitStringByCommaToArray(scrollIds)));
+        clearRequest.setResolvesCrossProject(crossProjectModeDecider.crossProjectEnabled() && clearRequest.allowsCrossProject());
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence

@@ -138,6 +138,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();
+            multiRequest.setResolvesCrossProject(true);
             multiRequest.setProjectRouting(restRequest.param("project_routing"));
         }
 

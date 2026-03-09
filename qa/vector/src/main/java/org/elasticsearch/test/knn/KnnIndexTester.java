@@ -136,10 +136,11 @@ public class KnnIndexTester {
         DirectoryFactory factory,
         boolean shared,
         boolean preWarm,
-        @Nullable BiConsumer<Directory, String> diagnosticLogger
+        BiConsumer<Directory, String> diagnosticLogger
     ) {
+        private static final BiConsumer<Directory, String>  NOOP  = (a,b) -> {};
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
-            this(factory, shared, preWarm, null);
+            this(factory, shared, preWarm, NOOP);
         }
     }
 
@@ -521,9 +522,7 @@ public class KnnIndexTester {
     }
 
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
-        if (dirConfig.diagnosticLogger() != null) {
-            dirConfig.diagnosticLogger().accept(dir, label);
-        }
+        dirConfig.diagnosticLogger().accept(dir, label);
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {

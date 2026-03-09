@@ -1,4 +1,4 @@
-area: "ES|QL, ES|QL"
+area: ES|QL
 issues: []
 pr: 143841
 summary: Fix CCS for METRICS_INFO and TS_INFO

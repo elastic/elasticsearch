@@ -2,10 +2,10 @@
 
 ### Supported function named parameters
 
+`num_snippets`
+:   (integer) The maximum number of matching snippets to return.
+
 `num_words`
 :   (integer) The maximum number of words to return in each snippet.
 
-
-`num_snippets`
-:   (integer) The maximum number of matching snippets to return.
 

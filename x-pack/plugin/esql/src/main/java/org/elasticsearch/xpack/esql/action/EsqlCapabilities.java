@@ -226,6 +226,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
+         * Fix incorrect detection of unmapped fields in nullify/load mode when unresolved attributes
+         * match fields already present in the children's output.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
          * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          */
@@ -2074,7 +2080,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION(Build.current().isSnapshot()),
+        APPROXIMATION_V2(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2203,6 +2209,19 @@ public class EsqlCapabilities {
          * Support aggregating on integers in FIRST/LAST.
          */
         FIRST_LAST_AGG_ON_INTS,
+
+        /**
+         * Fix for KQL/QSTR functions failing when used with unmapped fields in NULLIFY mode.
+         * Unmapped fields are now added directly to EsRelation output with NULL type instead of using Eval nodes.
+         * https://github.com/elastic/elasticsearch/issues/142968
+         */
+        FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Fix for not including metadata _doc_count in the _timeseries column
+         * https://github.com/elastic/elasticsearch/issues/143464
+         */
+        FIX_DISPLAYING_TS_DIMENSIONS_IN_METRICS_GROUP_BY_ALL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

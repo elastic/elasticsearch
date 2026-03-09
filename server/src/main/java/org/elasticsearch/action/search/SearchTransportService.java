@@ -22,7 +22,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -799,16 +798,14 @@ public class SearchTransportService {
                 return;
             }
             var bytesRef = out.moveToBytesReference();
-            Releasable breakerRelease;
             try {
-                breakerRelease = detachRelease.apply(response);
+                Releasables.close(detachRelease.apply(response));
             } catch (Exception e) {
                 Releasables.close(bytesRef);
                 channelListener.onFailure(e);
                 return;
             }
-            var trackingBytes = new ReleasableBytesReference(bytesRef, Releasables.wrap(bytesRef, breakerRelease));
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(trackingBytes, out.getTransportVersion()));
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, out.getTransportVersion()));
         }
 
         @Override

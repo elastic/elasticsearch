@@ -120,12 +120,10 @@ public class AsBytesResponseTests extends ESTestCase {
         listener.onResponse(new SimpleTestResponse("hello"));
 
         assertTrue("detachRelease must be called after successful serialization", detachCalled.get());
-        assertFalse("releasable must NOT be closed yet (deferred to bytes release)", releasableClosed.get());
+        assertTrue("releasable must be closed eagerly after serialization", releasableClosed.get());
         assertThat(sentResponse.get(), notNullValue());
         assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
-
         sentResponse.get().decRef();
-        assertTrue("releasable must be closed after bytes are released", releasableClosed.get());
     }
 
     public void testNetworkPathReleasesImmediatelyOnSerializationFailure() {
@@ -150,7 +148,7 @@ public class AsBytesResponseTests extends ESTestCase {
         assertThat(sentException.get(), instanceOf(IOException.class));
     }
 
-    public void testNetworkPathDefersCircuitBreakerReleaseUntilBytesReleased() {
+    public void testNetworkPathReleasesResponseBreakerEagerlyAndPageBreakerOnSend() {
         long responseBytes = 5000L;
         long pageBytes = PageCacheRecycler.BYTE_PAGE_SIZE;
         var breakerUsed = new AtomicLong(responseBytes);
@@ -181,14 +179,14 @@ public class AsBytesResponseTests extends ESTestCase {
 
             assertThat("detach must zero out the field on the result", fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
             assertThat(
-                "breaker must account for both the detached response reservation and the serialized page bytes",
+                "response reservation must be released eagerly, only page bytes remain on the breaker",
                 breakerUsed.get(),
-                equalTo(responseBytes + pageBytes)
+                equalTo(pageBytes)
             );
             assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
 
             sentResponse.get().decRef();
-            assertThat("breaker must be released after bytes are released", breakerUsed.get(), equalTo(0L));
+            assertThat("breaker must be fully released after bytes are sent", breakerUsed.get(), equalTo(0L));
         } finally {
             fetchResult.decRef();
         }
@@ -345,10 +343,9 @@ public class AsBytesResponseTests extends ESTestCase {
         listener.onResponse(new SimpleTestResponse("task-network-test"));
 
         assertTrue("detachRelease must be called on task-wrapped network path", detachCalled.get());
-        assertFalse("releasable must NOT be closed yet on task-wrapped network path", releasableClosed.get());
+        assertTrue("releasable must be closed eagerly on task-wrapped network path", releasableClosed.get());
         assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
         sentResponse.get().decRef();
-        assertTrue("releasable must be closed after bytes are released", releasableClosed.get());
     }
 
     static class SimpleTestResponse extends TransportResponse {

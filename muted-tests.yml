@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.Irate_combined_sum}
   issue: https://github.com/elastic/elasticsearch/issues/143840
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143842
 
 # Examples:
 #

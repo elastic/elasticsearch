@@ -64,8 +64,7 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
      * same order as the search requests.
      */
     public MultiSearchTemplateRequest add(SearchTemplateRequestBuilder request) {
-        requests.add(request.request());
-        return this;
+        return add(request.request());
     }
 
     /**
@@ -73,6 +72,12 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
      * same order as the search requests.
      */
     public MultiSearchTemplateRequest add(SearchTemplateRequest request) {
+        assert request.resolvesCrossProject() == this.resolvesCrossProject
+            : "inner SearchTemplateRequest CPS ["
+                + request.resolvesCrossProject()
+                + "] must match MultiSearchTemplateRequest CPS ["
+                + resolvesCrossProject
+                + "]";
         requests.add(request);
         return this;
     }

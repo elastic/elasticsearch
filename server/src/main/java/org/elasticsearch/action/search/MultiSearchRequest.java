@@ -73,8 +73,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
      * same order as the search requests.
      */
     public MultiSearchRequest add(SearchRequestBuilder request) {
-        requests.add(request.request());
-        return this;
+        return add(request.request());
     }
 
     /**
@@ -82,6 +81,12 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
      * same order as the search requests.
      */
     public MultiSearchRequest add(SearchRequest request) {
+        assert request.resolvesCrossProject() == this.resolvesCrossProject
+            : "inner SearchRequest CPS ["
+                + request.resolvesCrossProject()
+                + "] must match MultiSearchRequest CPS ["
+                + resolvesCrossProject
+                + "]";
         requests.add(request);
         return this;
     }

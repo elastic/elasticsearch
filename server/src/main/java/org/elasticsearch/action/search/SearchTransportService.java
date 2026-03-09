@@ -327,7 +327,7 @@ public class SearchTransportService {
                 "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
                     + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
                     + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
-                shardTarget.getShardId().getId(),
+                shardTarget.getShardId(),
                 searchService.fetchPhaseChunked(),
                 dataNodeSupports,
                 dataNodeVersion.id(),

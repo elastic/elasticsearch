@@ -37,6 +37,15 @@ import java.io.IOException;
  */
 public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
+    /**
+     * Initial capacity hint for chunk metadata serialization.
+     * <p>
+     * The metadata contains a few fields plus a reference to the already serialized
+     * hit payload. The payload size dominates and the stream can grow if needed, so this is
+     * intentionally a small preallocation to avoid over-reserving per chunk.
+     */
+    private static final int INITIAL_CHUNK_SERIALIZATION_CAPACITY = 128;
+
     private final long timestampMillis;
     private final Type type;
     private final ShardId shardId;
@@ -136,7 +145,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     private BytesReference toBytesReference() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput(128)) {
+        try (BytesStreamOutput out = new BytesStreamOutput(INITIAL_CHUNK_SERIALIZATION_CAPACITY)) {
             writeTo(out);
             return out.copyBytes();
         }

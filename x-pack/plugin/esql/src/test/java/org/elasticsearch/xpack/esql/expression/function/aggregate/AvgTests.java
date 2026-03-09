@@ -45,9 +45,7 @@ public class AvgTests extends AbstractAggregationTestCase {
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            // Longs currently fail on overflow
-            // Restore after https://github.com/elastic/elasticsearch/issues/110437
-            // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
@@ -111,7 +109,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             var dataType = fieldTypedData.type().widenSmallNumeric();
 
             Double expected = null;
-            List<String> warnings = null;
+            String expectedWarning = null;
 
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
@@ -145,7 +143,15 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .map(v -> (Integer) v)
                         .collect(Collectors.summarizingInt(Integer::intValue))
                         .getAverage();
-                    case LONG -> fieldData.stream().map(v -> (Long) v).collect(Collectors.summarizingLong(Long::longValue)).getAverage();
+                    case LONG -> {
+                        try {
+                            long sum = fieldData.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                            yield (double) sum / fieldData.size();
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> fieldData.stream()
                         .map(v -> (Double) v)
                         .collect(Collectors.summarizingDouble(Double::doubleValue))
@@ -182,10 +188,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             if (expected != null) {
                 if (Double.isFinite(expected) == false) {
                     expected = null;
-                    warnings = List.of(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
-                    );
+                    expectedWarning = "java.lang.ArithmeticException: / by zero";
                 }
             }
 
@@ -194,7 +197,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                 "Avg[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
                 expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
-            ).withWarnings(warnings);
+            ).withWarnings(expectedWarning == null ? null : List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + expectedWarning
+            ));
         });
     }
 

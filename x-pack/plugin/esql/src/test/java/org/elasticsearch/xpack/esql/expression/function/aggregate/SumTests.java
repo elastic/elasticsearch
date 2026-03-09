@@ -187,20 +187,15 @@ public class SumTests extends AbstractAggregationTestCase {
                 : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
                 : DataType.LONG;
 
-            var testCase = new TestCaseSupplier.TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
-            );
-
-            if (expectedWarning != null) {
-                testCase = testCase.withWarning(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                ).withWarning("Line 1:1: " + expectedWarning);
-            }
-
-            return testCase;
+            ).withWarnings(expectedWarning == null ? null : List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + expectedWarning
+            ));
         });
     }
 }

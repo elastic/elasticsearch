@@ -46,6 +46,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
             MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
@@ -112,11 +113,19 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
 
             DataType type = fieldTypedData.type().widenSmallNumeric();
             var data = fieldTypedData.multiRowData();
+            String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
                 expected = switch (type) {
                     case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
-                    case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                    case LONG -> {
+                        try {
+                            yield data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
                     case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
@@ -153,7 +162,10 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                 standardAggregatorName(type == DataType.DOUBLE ? "LossySum" : "Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
-            );
+            ).withWarnings(expectedWarning == null ? null : List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + expectedWarning
+            ));
         });
     }
 

@@ -38,6 +38,12 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Setting.Property.IndexScope
     );
 
+    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "cluster_info_write_load_forecaster.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     public WriteLoadForecasterPlugin() {}
 
     protected boolean hasValidLicense() {
@@ -46,7 +52,7 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING);
+        return List.of(MAX_INDEX_AGE_SETTING, OVERRIDE_WRITE_LOAD_FORECAST_SETTING, CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING);
     }
 
     @Override
@@ -55,6 +61,11 @@ public class WriteLoadForecasterPlugin extends Plugin implements ClusterPlugin {
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
+        final boolean cluster_info_write_load_forecaster = CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING.get(settings);
+        if (cluster_info_write_load_forecaster) {
+            return List.of(new ClusterInfoWriteLoadForecaster());
+        } else {
+            return List.of(new LicensedWriteLoadForecaster(this::hasValidLicense, threadPool, settings, clusterSettings));
+        }
     }
 }

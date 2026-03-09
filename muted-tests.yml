@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  method: testRoutingPathBwc
+  issue: https://github.com/elastic/elasticsearch/issues/143814
 
 # Examples:
 #

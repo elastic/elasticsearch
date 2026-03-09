@@ -188,7 +188,6 @@ FROM partial_mapping_sample_data
 ;
 
 statsByUnmappedFieldExistsInSource
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -206,7 +205,6 @@ s:long       | c:long | unmapped_message:keyword
 ;
 
 inlineStatsByUnmappedFieldExistsInSource
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 required_capability: inline_stats
 
@@ -226,27 +224,24 @@ FROM partial_mapping_sample_data
 ;
 
 unmappedFieldExistsInSourceTsIndex
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped
-| EVAL event_log = SUBSTRING(event_log, 1, 10)
-| KEEP @timestamp, cluster, event_log
+| KEEP @timestamp, cluster, network.cost
 | SORT @timestamp
 | LIMIT 5
 ;
 
-@timestamp:date            | cluster:keyword | event_log:keyword
-2024-05-10T00:00:29.000Z   | staging        | Lorem ipsu
-2024-05-10T00:00:33.000Z   | staging        | interdum r
-2024-05-10T00:00:51.000Z   | prod           | integer, n
-2024-05-10T00:00:57.000Z   | prod           | tortor fel
-2024-05-10T00:01:25.000Z   | qa             | dapibus co
+@timestamp:date            | cluster:keyword | network.cost:double
+2024-05-10T00:00:29.000Z   | staging        | 9.375
+2024-05-10T00:00:33.000Z   | staging        | 1.25
+2024-05-10T00:00:51.000Z   | prod           | 9.25
+2024-05-10T00:00:57.000Z   | prod           | 12.125
+2024-05-10T00:01:25.000Z   | qa             | 5.375
 ;
 
 unmappedFieldNonExistentTsIndex
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -264,67 +259,31 @@ FROM k8s_unmapped
 2024-05-10T00:01:25.000Z   | qa             | null
 ;
 
-statsImplicitLastOverTimeUnmappedTsIndex
-required_capability: unmapped_fields
-required_capability: optional_fields_v2
+// Copied over from k8s-timeseries.csv-spec
+GroupingOnScalarFunction
 required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s_unmapped
-| STATS x = max(max_over_time(event_log)) BY time_bucket = bucket(@timestamp, 10minute)
-| SORT time_bucket
-| LIMIT 5
+required_capability: ts_command_group_on_aliases
+TS k8s
+| STATS m = max(max_over_time(network.cost :: double)) by pod = to_upper(pod), bucket = bucket(@timestamp,5minute)
+| sort bucket, pod
 ;
 
-x:keyword                                                                                                                                                                                                                 | time_bucket:datetime
-vulputate suscipit fames imperdiet per scelerisque viverra. Odio sem mi molestie luctus dictumst sagittis inceptos, sociis congue aenean vitae himenaeos quam sociosqu, class parturient | 2024-05-10T00:00:00.000Z
-vulputate quisque neque aliquam per cras sed mauris cubilia, ornare netus id laoreet bibendum lacus lacinia                                                                              | 2024-05-10T00:10:00.000Z
-volutpat vestibulum elementum auctor                                                                                                                                                     | 2024-05-10T00:20:00.000Z
-;
-
-statsByUnmappedFieldTsIndex
-required_capability: unmapped_fields
-required_capability: optional_fields_v2
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s_unmapped
-| STATS s = SUM(events_received), c = COUNT(events_received) BY event_log
-| SORT event_log
-| LIMIT 10
-;
-
-s:long | c:long | event_log:keyword
-6      | 1      | Aenean himenaeos urna
-3      | 1      | Cubilia lacinia luctus tincidunt convallis ridiculus habitant vel potenti, arcu pellentesque semper sociis ac felis. Vitae sagittis natoque mollis arcu diam lacus sociosqu, lacinia suspendisse quisque tristique cursus phasellus.
-2      | 1      | Lorem ipsum dolor sit amet consectetur adipiscing elit nulla ut in
-3      | 1      | Lorem ipsum dolor sit amet consectetur adipiscing elit nulla ut in nullam tristique viverra penatibus ac integer
-2      | 1      | Nunc
-4      | 1      | Nunc tortor maecenas turpis donec est rutrum penatibus, velit quam ante condimentum dictum at nibh, nisl a lobortis lacus ultrices primis, vulputate quis volutpat hac tristique mattis. Hendrerit integer mattis
-7      | 1      | Placerat mi litora fringilla tellus pretium aliquet ut ridiculus magnis magna, interdum dictumst lacinia hendrerit
-6      | 1      | Scelerisque donec luctus laoreet vulputate phasellus interdum cursus a
-4      | 1      | Scelerisque donec luctus laoreet vulputate phasellus interdum cursus a sapien,
-5      | 1      | Sed ultricies mus nostra mauris vivamus velit habitant aenean, venenatis nisi parturient faucibus facilisis himenaeos varius, nunc dictumst per metus magna
-;
-
-explicitLastOverTimeUnmappedTsIndex
-required_capability: unmapped_fields
-required_capability: optional_fields_v2
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s_unmapped
-| STATS x = max(max_over_time(event_log)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| SORT cluster, time_bucket
-| LIMIT 5
-;
-
-x:keyword                                                                                                                                                                                                                                        | cluster:keyword | time_bucket:datetime
-vivamus, sociis erat lectus torquent luctus pharetra, nunc cubilia imperdiet malesuada. Scelerisque donec luctus laoreet vulputate phasellus interdum cursus a sapien, penatibus dictum malesuada nostra suscipit congue aptent sociis, dictumst | prod            | 2024-05-10T00:00:00.000Z
-vivamus, sociis erat lectus torquent luctus pharetra, nunc cubilia imperdiet malesuada. Scelerisque donec luctus laoreet vulputate phasellus interdum cursus a sapien, penatibus dictum malesuada nostra suscipit                                | prod            | 2024-05-10T00:10:00.000Z
-volutpat vestibulum elementum auctor                                                                                                                                                                                                             | prod            | 2024-05-10T00:20:00.000Z
-vulputate quisque neque aliquam per cras sed mauris cubilia,                                                                                                                                                                                     | qa              | 2024-05-10T00:00:00.000Z
-volutpat hac tristique mattis. Hendrerit integer mattis venenatis nibh ad nascetur posuere et, viverra tincidunt eu sagittis torquent nunc velit, nulla auctor molestie pellentesque lacinia                                                     | qa              | 2024-05-10T00:10:00.000Z
+m:double | pod:keyword | bucket:datetime
+11.0     | ONE         | 2024-05-10T00:00:00.000Z
+12.125   | THREE       | 2024-05-10T00:00:00.000Z
+12.375   | TWO         | 2024-05-10T00:00:00.000Z
+12.375   | ONE         | 2024-05-10T00:05:00.000Z
+11.5     | THREE       | 2024-05-10T00:05:00.000Z
+12.5     | TWO         | 2024-05-10T00:05:00.000Z
+11.875   | ONE         | 2024-05-10T00:10:00.000Z
+11.625   | THREE       | 2024-05-10T00:10:00.000Z
+7.75     | TWO         | 2024-05-10T00:10:00.000Z
+12.125   | ONE         | 2024-05-10T00:15:00.000Z
+12.375   | THREE       | 2024-05-10T00:15:00.000Z
+11.5     | TWO         | 2024-05-10T00:15:00.000Z
+11.875   | ONE         | 2024-05-10T00:20:00.000Z
+10.875   | THREE       | 2024-05-10T00:20:00.000Z
+10.75    | TWO         | 2024-05-10T00:20:00.000Z
 ;
 
 # Kept this test disabled to show the difference from IGNORE_🐔: if everywhere unmapped and not mentioned, a field (message) won't show

@@ -595,12 +595,12 @@ required_capability: ts_command_v0
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped
-| KEEP @timestamp, cluster, event_log
+| KEEP @timestamp, cluster, network.cost
 | SORT @timestamp
 | LIMIT 5
 ;
 
-@timestamp:date            | cluster:keyword | event_log:null
+@timestamp:date            | cluster:keyword | network.cost:null
 2024-05-10T00:00:29.000Z   | staging        | null
 2024-05-10T00:00:33.000Z   | staging        | null
 2024-05-10T00:00:51.000Z   | prod           | null
@@ -625,21 +625,48 @@ r:double | tbucket:datetime
 null    | 2024-05-10T00:00:00.000Z
 ;
 
-explicitLastOverTimeUnmappedNullifyTsIndex
+maxOverTimeOfDoubleNoGroupingUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped
-| STATS x = max(max_over_time(event_log)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| SORT cluster, time_bucket
-| LIMIT 5
+| STATS cost=sum(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
+| SORT time_bucket | LIMIT 10
 ;
 
-x:null | cluster:keyword | time_bucket:datetime
-null     | prod            | 2024-05-10T00:00:00.000Z
-null     | prod            | 2024-05-10T00:10:00.000Z
-null     | prod            | 2024-05-10T00:20:00.000Z
-null     | qa              | 2024-05-10T00:00:00.000Z
-null     | qa              | 2024-05-10T00:10:00.000Z
+cost:double | time_bucket:datetime
+null       | 2024-05-10T00:00:00.000Z
+null       | 2024-05-10T00:01:00.000Z
+null       | 2024-05-10T00:02:00.000Z
+null       | 2024-05-10T00:03:00.000Z
+null       | 2024-05-10T00:04:00.000Z
+null       | 2024-05-10T00:05:00.000Z
+null       | 2024-05-10T00:06:00.000Z
+null       | 2024-05-10T00:07:00.000Z
+null       | 2024-05-10T00:08:00.000Z
+null       | 2024-05-10T00:09:00.000Z
+;
+
+tsPartiallyMappedCostKeyword
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s, k8s_unmapped
+| STATS cost=sum(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
+| SORT cost DESC, time_bucket DESC | LIMIT 10
+;
+
+cost:double | time_bucket:datetime
+83.125      | 2024-05-10T00:09:00.000Z
+65.75       | 2024-05-10T00:08:00.000Z
+60.375      | 2024-05-10T00:17:00.000Z
+55.25       | 2024-05-10T00:18:00.000Z
+51.625      | 2024-05-10T00:22:00.000Z
+50.125      | 2024-05-10T00:15:00.000Z
+44.875      | 2024-05-10T00:06:00.000Z
+43.5        | 2024-05-10T00:20:00.000Z
+42.625      | 2024-05-10T00:13:00.000Z
+42.25       | 2024-05-10T00:03:00.000Z
 ;

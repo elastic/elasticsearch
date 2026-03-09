@@ -1399,7 +1399,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze("from test | limit 1 by emp_no");
 
         var defaultLimit = as(plan, Limit.class);
-        assertThat(as(defaultLimit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        assertThat(as(defaultLimit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         var limit = as(defaultLimit.child(), Limit.class);
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
     }

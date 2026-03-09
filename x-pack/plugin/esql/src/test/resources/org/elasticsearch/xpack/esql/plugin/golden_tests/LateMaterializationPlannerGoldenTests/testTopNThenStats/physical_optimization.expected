@@ -1,6 +1,6 @@
 ProjectExec[[avg_salary{r}#0, count{r}#1]]
 \_EvalExec[[$$SUM$avg_salary$0{r$}#2 / $$COUNT$avg_salary$1{r$}#3 AS avg_salary#0]]
-  \_LimitExec[10000[INTEGER],null]
+  \_LimitExec[10000[INTEGER],[],null]
     \_AggregateExec[[],[SUM(salary{f}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg_salary$0#2, COUNT(salary{f}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg_salary$1#3, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#1],SINGLE,[$$SUM$avg_salary$0$sum{r}#5, $$SUM$avg_salary$0$seen{r}#6, $$COUNT$avg_salary$1$count{r}#7, $$COUNT$avg_salary$1$seen{r}#8, $$count$count{r}#9, $$count$seen{r}#10],null]
       \_TopNExec[[Order[hire_date{f}#11,ASC,LAST]],20[INTEGER],null]
         \_ExchangeExec[[hire_date{f}#11, salary{f}#4],false]

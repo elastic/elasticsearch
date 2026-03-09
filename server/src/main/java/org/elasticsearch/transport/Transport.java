@@ -88,11 +88,6 @@ public interface Transport extends LifecycleComponent {
 
     RequestHandlers getRequestHandlers();
 
-<<<<<<< fix/release-breaker-after-send-response
-    default RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
-        return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE, circuitBreaker);
-    }
-=======
     /**
      * @return a {@link RecyclerBytesStreamOutput} which allocates its pages with {@code org.elasticsearch.transport.netty4.NettyAllocator},
      * tracking these allocations using the provided {@link CircuitBreaker} if this is not {@code null}.
@@ -100,7 +95,6 @@ public interface Transport extends LifecycleComponent {
      * In tests in which Netty is not in use, each page is allocated as a {@code new byte[]}.
      */
     RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker);
->>>>>>> main
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}

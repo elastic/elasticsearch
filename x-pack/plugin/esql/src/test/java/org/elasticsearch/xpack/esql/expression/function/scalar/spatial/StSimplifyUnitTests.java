@@ -19,8 +19,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefVectorBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +71,7 @@ public class StSimplifyUnitTests extends ESTestCase {
         BytesRef wkb = UNSPECIFIED.wktToWkb(wkt);
         DataType toleranceType = DataType.fromJava(tolerance.getClass());
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, tolerance, toleranceType)))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, tolerance)))

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * This handler delegates the execution of computes on data nodes within each remote cluster to {@link DataNodeComputeHandler}.
  */
 final class ClusterComputeHandler implements TransportRequestHandler<ClusterComputeRequest> {
+    static final TransportVersion ESQL_CCS_EXCHANGE_ACTION = TransportVersion.fromName("esql_ccs_exchange_action");
+
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final TransportService transportService;
@@ -141,7 +146,20 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    final RemoteSink remoteSink;
+                    final EsqlFlags flags = computeService.createFlags();
+                    if (flags.ccsExchangeEnabled() && cluster.connection.getTransportVersion().supports(ESQL_CCS_EXCHANGE_ACTION)) {
+                        remoteSink = exchangeService.newCcsRemoteSink(
+                            groupTask,
+                            childSessionId,
+                            transportService,
+                            cluster.connection,
+                            cluster.originalIndices.indices(),
+                            cluster.originalIndices.indicesOptions()
+                        );
+                    } else {
+                        remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    }
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
@@ -259,6 +277,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         ActionListener<ComputeResponse> listener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
+        exchangeService.setExpectedIndices(globalSessionId, Set.copyOf(Arrays.asList(originalIndices.indices())));
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );

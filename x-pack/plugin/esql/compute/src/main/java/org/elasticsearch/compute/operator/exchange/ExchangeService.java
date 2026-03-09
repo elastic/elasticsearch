@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -69,6 +71,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
 
+    public static final String CCS_EXCHANGE_ACTION_NAME = "indices:data/read/esql/exchange";
+
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
      * removed from the exchange service if no sinks are attached (i.e., no computation uses that sink handler).
@@ -84,6 +88,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
     private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Set<String>> sinkExpectedIndices = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -143,6 +148,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }
             }
         );
+
+        transportService.registerRequestHandler(
+            CCS_EXCHANGE_ACTION_NAME,
+            this.executor,
+            CcsExchangeRequest::new,
+            new CcsExchangeTransportAction()
+        );
     }
 
     /**
@@ -197,12 +209,51 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         );
     }
 
+    public void setExpectedIndices(String exchangeId, Set<String> indices) {
+        sinkExpectedIndices.put(exchangeId, Set.copyOf(indices));
+    }
+
+    public void validateSinkIndices(String exchangeId, String[] queryIndices) {
+        validateSinkIndices(exchangeId, queryIndices, ValidationMode.REQUEST_TIME);
+    }
+
+    private void validateSinkIndices(String exchangeId, String[] queryIndices, ValidationMode mode) {
+        final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
+        if (expectedIndices == null) {
+            if (mode == ValidationMode.REQUEST_TIME) {
+                return;
+            }
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for data response");
+        }
+        if (queryIndices.length == 0) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for empty indices");
+        }
+        final Set<String> requestIndices = Set.copyOf(Arrays.asList(queryIndices));
+        if (expectedIndices.equals(requestIndices) == false) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices);
+        }
+    }
+
+    private enum ValidationMode {
+        /**
+         * Request-time validation for CCS fetch requests.
+         * Missing expected indices is treated as a transient state and allowed.
+         */
+        REQUEST_TIME,
+        /**
+         * Response-time validation for CCS data-bearing responses.
+         * Missing expected indices is rejected to fail closed before returning data.
+         */
+        RESPONSE_TIME_DATA
+    }
+
     /**
      * Removes the exchange sink handler associated with the given exchange id.
-     * W will abort the sink handler if the given failure is not null.
+     * Will abort the sink handler if the given failure is not null.
      */
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
+        sinkExpectedIndices.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {
                 sinkHandler.onFailure(failure);
@@ -291,17 +342,47 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private class ExchangeTransportAction implements TransportRequestHandler<ExchangeRequest> {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
-            final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
-            final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
-            if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
-            } else {
-                final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
-                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
-            }
+            fetchFromSink(request.exchangeId(), request.sourcesFinished(), channel, exchangeTask);
         }
+    }
+
+    private class CcsExchangeTransportAction implements TransportRequestHandler<CcsExchangeRequest> {
+        @Override
+        public void messageReceived(CcsExchangeRequest request, TransportChannel channel, Task exchangeTask) {
+            validateSinkIndices(request.exchangeId(), request.originalQueryIndices());
+            final ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            fetchFromSink(
+                request.exchangeId(),
+                request.sourcesFinished(),
+                exchangeTask,
+                listener.delegateFailureAndWrap((delegate, response) -> {
+                    validateSinkIndicesOnResponse(request.exchangeId(), request.originalQueryIndices(), response);
+                    delegate.onResponse(response);
+                })
+            );
+        }
+    }
+
+    private void fetchFromSink(String exchangeId, boolean sourcesFinished, TransportChannel channel, Task exchangeTask) {
+        fetchFromSink(exchangeId, sourcesFinished, exchangeTask, new ChannelActionListener<>(channel));
+    }
+
+    private void fetchFromSink(String exchangeId, boolean sourcesFinished, Task exchangeTask, ActionListener<ExchangeResponse> listener) {
+        final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+        if (sinkHandler == null) {
+            listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+        } else {
+            final CancellableTask task = (CancellableTask) exchangeTask;
+            task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+            sinkHandler.fetchPageAsync(sourcesFinished, listener);
+        }
+    }
+
+    void validateSinkIndicesOnResponse(String exchangeId, String[] queryIndices, ExchangeResponse response) {
+        if (response.ramBytesUsedByPage() == 0) {
+            return;
+        }
+        validateSinkIndices(exchangeId, queryIndices, ValidationMode.RESPONSE_TIME_DATA);
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
@@ -367,7 +448,45 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+        return new TransportRemoteSink(
+            transportService,
+            blockFactory,
+            conn,
+            parentTask,
+            exchangeId,
+            executor,
+            EXCHANGE_ACTION_NAME,
+            ExchangeRequest::new
+        );
+    }
+
+    /**
+     * Creates a new {@link RemoteSink} for CCS that sends {@link CcsExchangeRequest}s carrying indices context,
+     * so the remote cluster can enforce index-level privileges.
+     */
+    public RemoteSink newCcsRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        String[] indices,
+        IndicesOptions indicesOptions
+    ) {
+        return new TransportRemoteSink(
+            transportService,
+            blockFactory,
+            conn,
+            parentTask,
+            exchangeId,
+            executor,
+            CCS_EXCHANGE_ACTION_NAME,
+            (id, finished) -> new CcsExchangeRequest(id, finished, indices, indicesOptions)
+        );
+    }
+
+    @FunctionalInterface
+    interface ExchangeRequestFactory {
+        AbstractTransportRequest create(String exchangeId, boolean sourcesFinished);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -377,6 +496,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
+        final String actionName;
+        final ExchangeRequestFactory requestFactory;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
@@ -387,7 +508,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
-            Executor responseExecutor
+            Executor responseExecutor,
+            String actionName,
+            ExchangeRequestFactory requestFactory
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -395,6 +518,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
+            this.actionName = actionName;
+            this.requestFactory = requestFactory;
         }
 
         @Override
@@ -432,8 +557,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             transportService.sendChildRequest(
                 connection,
-                EXCHANGE_ACTION_NAME,
-                new ExchangeRequest(exchangeId, allSourcesFinished),
+                actionName,
+                requestFactory.create(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, in -> {

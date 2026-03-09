@@ -1,10 +1,17 @@
 // Tests focused on query approximation.
 //
-// The data set "many_numbers" contains 200,100 rows with a multi-valued field
-// "value" containing 10 integers each. Aggregated all over rows, there are
-// 1x1, 2x2, ..., 1999x1999 and 2000x2000, and no row contains the same number
-// twice. This adds up to over 2 million numbers, so that query approximation
-// kicks in. It's not one number per row, because that's slow to ingest. 
+// The data set "many_numbers" contains 125,250 rows with the following columns:
+//
+// - sv: a single-valued field containing the values 1x1, 2x2, ..., 500x500
+//       (hence the 125,250 rows)
+//
+// - mv: a multi-valued field containing the values 1x1, 2x2, ..., 1000x1000
+//       (15-16 values per multi-valued field and 2,001,000 values in total)
+//
+// - sv_and_one_mv: same as "sv", except that one row has the field [x,0] instead
+//                  of the single value (this leads in a multi-node setup to exactly
+//                  one node with a multi-valued field, and all other nodes with a
+//                  single-valued field)
 //
 // Note: this tests only basic behavior, because of limitations of the CSV tests.
 // Most tests assert that the count, average and sum of some values are within a
@@ -22,7 +29,7 @@ FROM many_numbers | STATS count=COUNT(*)
 ;
 
 count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
-200100     | [200100,200100]                 | {any}
+125250     | [125250,125250]                 | {any}
 ;
 
 
@@ -30,7 +37,7 @@ approximate total count field
 required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
-FROM many_numbers | STATS count=COUNT(value)
+FROM many_numbers | STATS count=COUNT(mv)
 ;
 
 count:long       | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean
@@ -43,8 +50,8 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | MV_EXPAND mv
+    | STATS count=COUNT(), avg=AVG(mv), sum=SUM(mv)
 ;
 
 count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
@@ -57,9 +64,9 @@ required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
-    | MV_EXPAND value
-    | WHERE value <= 25
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | MV_EXPAND mv
+    | WHERE mv <= 25
+    | STATS count=COUNT(), avg=AVG(mv), sum=SUM(mv)
 ;
 
 count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long | CERTIFIED(sum):boolean
@@ -72,11 +79,11 @@ required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
-    | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(value)
+    | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(mv)
 ;
 
 count:long     | count2:long    | countValue:long  | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(count2):long| CERTIFIED(count2):boolean | CONFIDENCE_INTERVAL(countValue):long | CERTIFIED(countValue):boolean
-130000..270000 | 130000..270000 | 1300000..2700000 | [130000..270000,130000..270000] | {any}                    | [130000..270000,130000..270000] | {any}                     | [1300000..2700000,1300000..2700000]  | {any}
+100000..150000 | 100000..150000 | 1300000..2700000 | [100000..150000,100000..150000] | {any}                    | [100000..150000,100000..150000] | {any}                     | [1300000..2700000,1300000..2700000]  | {any}
 ;
 
 
@@ -85,9 +92,9 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | WHERE value >= 1000
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | MV_EXPAND mv
+    | WHERE mv >= 1000
+    | STATS count=COUNT(), avg=AVG(mv), sum=SUM(mv)
 ;
 
 count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
@@ -100,10 +107,10 @@ required_capability: approximation_v2
 
 SET approximation={"confidence_level":0.85}\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS count=COUNT()  WHERE value >= 999,
-            avg=AVG(value) WHERE value >= 1000,
-            sum=SUM(value) WHERE value >= 1001
+    | MV_EXPAND mv
+    | STATS count=COUNT() WHERE mv >= 999,
+            avg=AVG(mv)   WHERE mv >= 1000,
+            sum=SUM(mv)   WHERE mv >= 1001
 ;
 
 count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
@@ -116,9 +123,9 @@ required_capability: approximation_v2
 
 SET approximation={"rows":100000,"confidence_level":0.85}\;
 FROM many_numbers
-    | MV_EXPAND value
+    | MV_EXPAND mv
     | SAMPLE 0.8
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | STATS count=COUNT(), avg=AVG(mv), sum=SUM(mv)
 ;
 
 count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                 | CERTIFIED(sum):boolean
@@ -131,9 +138,9 @@ required_capability: approximation_v2
 
 SET approximation={}\;
 FROM many_numbers
-    | MV_EXPAND value
-    | EVAL value2 = 2 * value
-    | DROP value
+    | MV_EXPAND mv
+    | EVAL value2 = 2 * mv
+    | DROP mv
     | SORT value2 DESC
     | RENAME value2 AS value3
     | MV_EXPAND value3
@@ -155,8 +162,8 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS count=COUNT(), avg=AVG(value), sum=SUM(value)
+    | MV_EXPAND mv
+    | STATS count=COUNT(), avg=AVG(mv), sum=SUM(mv)
     | EVAL avg2 = 2 * avg
     | LIMIT 10
     | MV_EXPAND avg
@@ -174,8 +181,8 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS avg=AVG(value)
+    | MV_EXPAND mv
+    | STATS avg=AVG(mv)
     | EVAL x = 2*avg*avg + sin(avg), y = 1
     | KEEP x, y
     | EVAL plus_one = y + x + 1
@@ -193,8 +200,8 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS avg=AVG(value)
+    | MV_EXPAND mv
+    | STATS avg=AVG(mv)
     | EVAL str=TO_STRING(avg)
     | EVAL from_str = str::DOUBLE
     | KEEP from_str
@@ -210,8 +217,8 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS avg=AVG(value)
+    | MV_EXPAND mv
+    | STATS avg=AVG(mv)
     | EVAL mv=MV_APPEND(1.0,avg)
     | DROP avg
 ;
@@ -226,13 +233,13 @@ required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS avg=avg(value), median=median(value), one=3/(1+SUM(2.0*value)/SUM(value)) BY value
-    | SORT value DESC
+    | MV_EXPAND mv
+    | STATS avg=avg(mv), median=median(mv), one=3/(1+SUM(2.0*mv)/SUM(mv)) BY mv
+    | SORT mv DESC
     | LIMIT 5
 ;
 
-avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(median):double | CERTIFIED(median):boolean | CONFIDENCE_INTERVAL(one):double | CERTIFIED(one):boolean
+avg:double | median:double | one:double | mv:integer | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(median):double | CERTIFIED(median):boolean | CONFIDENCE_INTERVAL(one):double | CERTIFIED(one):boolean
 2000       | 2000          | 1          | 2000          | [2000,2000]                     | {any}                  | [2000,2000]                        | {any}                    | [1,1]                            | {any}
 1999       | 1999          | 1          | 1999          | [1999,1999]                     | {any}                  | [1999,1999]                        | {any}                    | [1,1]                            | {any}
 1998       | 1998          | 1          | 1998          | [1998,1998]                     | {any}                  | [1998,1998]                        | {any}                    | [1,1]                            | {any}
@@ -246,18 +253,18 @@ required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
-    | MV_EXPAND value
-    | STATS count=COUNT() BY value
-    | SORT value DESC
+    | MV_EXPAND mv
+    | STATS count=COUNT() BY mv
+    | SORT mv DESC
     | LIMIT 5
 ;
 
-count:long | value:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
-1000..3000 | 2000          | [500..2500,1500..4000]          | {any}
-1000..3000 | 1999          | [500..2500,1500..4000]          | {any}
-1000..3000 | 1998          | [500..2500,1500..4000]          | {any}
-1000..3000 | 1997          | [500..2500,1500..4000]          | {any}
-1000..3000 | 1996          | [500..2500,1500..4000]          | {any}
+count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
+1000..3000 | 2000       | [500..2500,1500..4000]          | {any}
+1000..3000 | 1999       | [500..2500,1500..4000]          | {any}
+1000..3000 | 1998       | [500..2500,1500..4000]          | {any}
+1000..3000 | 1997       | [500..2500,1500..4000]          | {any}
+1000..3000 | 1996       | [500..2500,1500..4000]          | {any}
 ;
 
 
@@ -266,16 +273,16 @@ required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
-    | MV_EXPAND value
-    | WHERE value <= 5
-    | STATS count=COUNT() BY value
-    | SORT value
+    | MV_EXPAND mv
+    | WHERE mv <= 5
+    | STATS count=COUNT() BY mv
+    | SORT mv
 ;
 
-count:long | value:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean 
-1          | 1             | [1, 1]                          | true
-2          | 2             | [2, 2]                          | true
-3          | 3             | [3, 3]                          | true
-4          | 4             | [4, 4]                          | true
-5          | 5             | [5, 5]                          | true
+count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean 
+1          | 1          | [1, 1]                          | true
+2          | 2          | [2, 2]                          | true
+3          | 3          | [3, 3]                          | true
+4          | 4          | [4, 4]                          | true
+5          | 5          | [5, 5]                          | true
 ;

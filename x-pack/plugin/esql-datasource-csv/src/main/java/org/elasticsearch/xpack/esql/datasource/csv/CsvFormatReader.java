@@ -76,6 +76,55 @@ import java.util.regex.Pattern;
  *
  * <h2>Configurable options</h2>
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
+ *
+ * <table>
+ *   <caption>CSV options and their equivalents in other engines</caption>
+ *   <tr><th>ES/ESQL key</th><th>Default</th><th>Spark</th><th>DuckDB</th><th>ClickHouse</th></tr>
+ *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>{@code sep}</td>
+ *       <td>{@code delim}</td><td>{@code format_csv_delimiter}</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "}</td><td>{@code quote}</td>
+ *       <td>{@code quote}</td><td>{@code format_csv_allow_single_quotes}</td></tr>
+ *   <tr><td>{@code escape}</td><td>{@code \}</td><td>{@code escape}</td>
+ *       <td>{@code escape}</td><td>—</td></tr>
+ *   <tr><td>{@code comment}</td><td>{@code //}</td><td>{@code comment}</td>
+ *       <td>{@code comment}</td><td>—</td></tr>
+ *   <tr><td>{@code null_value}</td><td>(empty)</td><td>{@code nullValue}</td>
+ *       <td>{@code nullstr}</td><td>{@code format_csv_null_representation}</td></tr>
+ *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>{@code encoding}</td>
+ *       <td>—</td><td>—</td></tr>
+ *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>{@code timestampFormat}</td>
+ *       <td>{@code timestampformat}</td><td>{@code date_time_input_format}</td></tr>
+ *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>{@code maxCharsPerColumn}</td>
+ *       <td>{@code max_line_size}</td><td>—</td></tr>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td><td>—</td>
+ *       <td>—</td><td>{@code Array()} type notation</td></tr>
+ * </table>
+ *
+ * <h2>Error handling</h2>
+ * Controlled by {@link ErrorPolicy} and its {@link ErrorPolicy.Mode}:
+ * <table>
+ *   <caption>Error mode comparison</caption>
+ *   <tr><th>ES/ESQL key</th><th>Spark</th><th>DuckDB</th><th>Behaviour</th></tr>
+ *   <tr><td>{@code fail_fast}</td><td>FAILFAST</td><td>(default)</td><td>Abort on first error</td></tr>
+ *   <tr><td>{@code skip_row}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
+ *       <td>Drop the entire bad row</td></tr>
+ *   <tr><td>{@code null_field}</td><td>PERMISSIVE</td><td>—</td>
+ *       <td>Null-fill unparseable fields, keep the row</td></tr>
+ * </table>
+ *
+ * <h2>Examples</h2>
+ * <pre>{@code
+ *   FROM s3://bucket/data.tsv WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
+ * }</pre>
+ * <pre>{@code
+ *   FROM s3://bucket/employees.csv WITH {"multi_value_syntax": "brackets"}
+ * }</pre>
+ * <pre>{@code
+ *   FROM s3://bucket/data.csv WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
+ * }</pre>
+ *
+ * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
+ * (HTTP, S3, local filesystem).
  */
 public class CsvFormatReader implements SegmentableFormatReader {
 
@@ -424,9 +473,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final DateTimeFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private static final int MAX_WARNINGS = 20;
-        // TODO: propagate warnings to the query response (similar to deprecation warnings in search)
-        // when the compute framework supports it. For now, warnings are collected here and a summary
-        // is logged at INFO level in close().
         private final List<String> warnings = new ArrayList<>();
         private List<Attribute> schema;
         private int[] projectedIdx;
@@ -466,8 +512,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         @Override
         public boolean hasNext() {
-            if (closed) return false;
-            if (nextPage != null) return true;
+            if (closed) {
+                return false;
+            }
+            if (nextPage != null) {
+                return true;
+            }
             try {
                 nextPage = readNextBatch();
                 return nextPage != null;
@@ -478,7 +528,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         @Override
         public Page next() {
-            if (hasNext() == false) throw new NoSuchElementException();
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
             Page result = nextPage;
             nextPage = null;
             return result;
@@ -509,13 +561,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         line = line.trim();
-                        if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) continue;
+                        if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
+                            continue;
+                        }
                         schema = parseSchema(line);
                         break;
                     }
-                    if (schema == null) return null;
+                    if (schema == null) {
+                        return null;
+                    }
                 }
                 initProjection();
+
                 CsvSchema csvSchema = CsvSchema.emptySchema()
                     .withColumnSeparator(options.delimiter())
                     .withQuoteChar(options.quoteChar())
@@ -534,13 +591,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     if (hasCommentFilter && row.length > 0 && row[0] != null) {
                         String trimmedFirstCell = row[0].trim();
-                        if (trimmedFirstCell.startsWith(options.commentPrefix())) continue;
+                        if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                            continue;
+                        }
                     }
                     rows.add(row);
                 }
-                if (rows.isEmpty()) return null;
+
+                if (rows.isEmpty()) {
+                    return null;
+                }
+
                 Page page = convertRowsToPage(rows);
-                if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) return page;
+                if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                    return page;
+                }
             }
         }
 
@@ -549,8 +614,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (projectedColumns == null || projectedColumns.isEmpty()) {
                 columnCount = schemaSize;
                 projectedIdx = new int[schemaSize];
-                for (int i = 0; i < schemaSize; i++)
+                for (int i = 0; i < schemaSize; i++) {
                     projectedIdx[i] = i;
+                }
             } else {
                 columnCount = projectedColumns.size();
                 projectedIdx = new int[columnCount];
@@ -563,7 +629,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             break;
                         }
                     }
-                    if (index == -1) throw new EsqlIllegalArgumentException("Column not found in CSV schema: [{}]", colName);
+                    if (index == -1) {
+                        throw new EsqlIllegalArgumentException("Column not found in CSV schema: [{}]", colName);
+                    }
                     projectedIdx[c] = index;
                 }
             }
@@ -596,15 +664,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         continue;
                     }
                     if (convertRowInPlace(row)) {
-                        for (int i = 0; i < columnCount; i++)
+                        for (int i = 0; i < columnCount; i++) {
                             builders[i].append().accept(rowBuffer[i]);
+                        }
                         acceptedRows++;
                     }
                 }
-                if (acceptedRows == 0) return null;
+                if (acceptedRows == 0) {
+                    return null;
+                }
                 Block[] blocks = new Block[columnCount];
-                for (int i = 0; i < columnCount; i++)
+                for (int i = 0; i < columnCount; i++) {
                     blocks[i] = builders[i].builder().build();
+                }
                 return new Page(acceptedRows, blocks);
             } finally {
                 Releasables.closeExpectNoException(builders);
@@ -616,7 +688,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 int si = projectedIdx[i];
                 String value = si < row.length ? row[si] : null;
-                if (value != null) value = value.trim();
+                if (value != null) {
+                    value = value.trim();
+                }
                 Object result = tryConvertValue(value, projectedTypes[i]);
                 if (lastFieldError != null) {
                     if (mode == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
@@ -637,9 +711,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object tryConvertValue(String value, DataType dataType) {
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) return null;
-            if (hasCustomNullValue && value.equals(nullValueStr)) return null;
-            if (bracketMultiValues && value.startsWith("[") && value.endsWith("]")) return tryConvertMultiValue(value, dataType);
+            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                return null;
+            }
+            if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
+            if (bracketMultiValues && value.startsWith("[") && value.endsWith("]")) {
+                return tryConvertMultiValue(value, dataType);
+            }
             return switch (dataType) {
                 case INTEGER -> tryParseInt(value);
                 case LONG -> tryParseLong(value);
@@ -657,13 +737,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryConvertMultiValue(String value, DataType dataType) {
             String content = value.substring(1, value.length() - 1).trim();
-            if (content.isEmpty()) return null;
+            if (content.isEmpty()) {
+                return null;
+            }
             List<String> parts = splitBracketContent(content);
             List<Object> result = new ArrayList<>(parts.size());
             for (String part : parts) {
                 Object elem = parseElement(part, dataType);
-                if (lastFieldError != null) return null;
-                if (elem != null) result.add(elem);
+                if (lastFieldError != null) {
+                    return null;
+                }
+                if (elem != null) {
+                    result.add(elem);
+                }
             }
             return result.isEmpty() ? null : result;
         }
@@ -692,8 +778,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private Object parseElement(String value, DataType dataType) {
-            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) return null;
-            if (hasCustomNullValue && value.equals(nullValueStr)) return null;
+            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                return null;
+            }
+            if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
             return switch (dataType) {
                 case INTEGER -> tryParseInt(value);
                 case LONG -> tryParseLong(value);
@@ -768,16 +858,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private void onRowError(String message, Exception cause, String[] row) {
-            if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) throw new EsqlIllegalArgumentException(cause, message);
+            if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                throw new EsqlIllegalArgumentException(cause, message);
+            }
             errorCount++;
-            if (warnings.size() < MAX_WARNINGS) warnings.add("Row error: " + message);
+            if (warnings.size() < MAX_WARNINGS) {
+                warnings.add("Row error: " + message);
+            }
             if (logErrors) logger.warn("Skipping malformed CSV row (error {}/{}): {}", errorCount, errorPolicy.maxErrors(), message);
             checkBudget(message, cause);
         }
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            if (warnings.size() < MAX_WARNINGS) warnings.add("Field [" + attr.name() + "] value [" + value + "]: " + message);
+            if (warnings.size() < MAX_WARNINGS) {
+                warnings.add("Field [" + attr.name() + "] value [" + value + "]: " + message);
+            }
             if (logErrors) logger.warn(
                 "Null-filling unparseable field [{}] value [{}] (error {}/{}): {}",
                 attr.name(),
@@ -816,9 +912,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private static boolean looksNumeric(String value) {
             int start = (value.charAt(0) == '-') ? 1 : 0;
-            if (start >= value.length()) return false;
+            if (start >= value.length()) {
+                return false;
+            }
             for (int i = start; i < value.length(); i++) {
-                if (value.charAt(i) < '0' || value.charAt(i) > '9') return false;
+                if (value.charAt(i) < '0' || value.charAt(i) > '9') {
+                    return false;
+                }
             }
             return true;
         }

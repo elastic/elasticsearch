@@ -247,9 +247,9 @@ public class JoinHelper {
             logger.warn(
                 () -> format(
                     "last failed join attempt was %s ago, failed to join %s with %s",
-                    // 'timestamp' is when this error exception was received by the local node. If the time that has passed since the error
-                    // was originally received is quite large, it could indicate that this is a stale error exception from some prior
-                    // out-of-order request response (where a later sent request but earlier received response was successful); or
+                    // 'attemptTimeMillis' is when this error exception was received by the local node. If the time that has passed since
+                    // the error was originally received is quite large, it could indicate that this is a stale error exception from some
+                    // prior out-of-order request response (where a later sent request but earlier received response was successful); or
                     // alternatively an old error could indicate that this node did not retry the join request for a very long time.
                     TimeValue.timeValueMillis(relativeTimeMillisSupplier.getAsLong() - attemptTimeMillis),
                     destination,

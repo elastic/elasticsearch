@@ -1,5 +1,5 @@
 dateRange
-required_capability: date_range_field_type
+required_capability: range_within
 FROM decades;
 
 date_range:date_range  | decade:integer | description:keyword
@@ -19,7 +19,7 @@ date_range:date_range  | decade:integer | description:keyword
 ;
 
 dateRangeToString
-required_capability: date_range_field_type
+required_capability: range_within
 
 FROM decades
 | WHERE decade == 1900
@@ -30,8 +30,9 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
 ;
 
-toDateRangeFromString#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
-required_capability: date_range_field_type
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeFromString
+required_capability: range_within
 
 // tag::to_date_range-str[]
 ROW str = "2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z"
@@ -46,7 +47,7 @@ str:keyword                                          | range:date_range
 ;
 
 toDateRangeIdentity
-required_capability: date_range_field_type
+required_capability: range_within
 
 FROM decades
 | WHERE decade == 1900
@@ -57,8 +58,9 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
 ;
 
-toDateRangeFromShortFormat#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
-required_capability: date_range_field_type
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeFromShortFormat
+required_capability: range_within
 
 ROW str = "2024-06-01..2024-06-30"
 | EVAL range = TO_DATE_RANGE(str)
@@ -68,8 +70,9 @@ str:keyword            | range:date_range
 2024-06-01..2024-06-30 | 2024-06-01..2024-06-30
 ;
 
-toDateRangeWithEval#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
-required_capability: date_range_field_type
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeWithEval
+required_capability: range_within
 
 ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2023-12-31T23:59:59.999Z"
 | EVAL range_str = CONCAT(start_date, "..", end_date)
@@ -81,8 +84,9 @@ start_date:keyword              | end_date:keyword                | range:date_r
 2023-01-01T00:00:00.000Z        | 2023-12-31T23:59:59.999Z        | 2023-01-01T00:00:00.000Z..2023-12-31T23:59:59.999Z
 ;
 
-toDateRangeSingleDay#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
-required_capability: date_range_field_type
+// Requires range_within (TO_DATE_RANGE(keyword) support).
+toDateRangeSingleDay
+required_capability: range_within
 
 ROW str = "2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z"
 | EVAL range = TO_DATE_RANGE(str)
@@ -96,8 +100,8 @@ str:keyword                                          | range:date_range
 # RANGE_WITHIN tests
 ###############################################
 
-rangeWithinWithEmployees#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithEmployees
+required_capability: range_within
 
 // tag::rangeWithin[]
 FROM employees
@@ -114,8 +118,8 @@ emp_no:integer | hire_date:date
 // end::rangeWithin-result[]
 ;
 
-rangeWithinWithDateRangesTable#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithDateRangesTable
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range)
@@ -126,8 +130,8 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinAtBoundaryStart#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinAtBoundaryStart
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1950-01-01"), date_range)
@@ -138,8 +142,8 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinAtBoundaryEnd#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinAtBoundaryEnd
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
@@ -150,8 +154,8 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinOutsideRange#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinOutsideRange
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2050-01-01"), date_range)
@@ -161,8 +165,8 @@ FROM decades
 decade:integer | description:keyword
 ;
 
-rangeWithinWithEval#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithEval
+required_capability: range_within
 
 FROM decades
 | EVAL test_date = TO_DATETIME("1965-07-20")
@@ -175,8 +179,8 @@ decade:integer | description:keyword | in_range:boolean
 1960           | Swinging Sixties    | true
 ;
 
-rangeWithinMultipleMatches#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinMultipleMatches
+required_capability: range_within
 
 FROM employees
 | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -187,8 +191,8 @@ count:long
 11
 ;
 
-rangeWithinWithNull#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithNull
+required_capability: range_within
 
 FROM employees
 | WHERE emp_no == 10040
@@ -200,8 +204,8 @@ emp_no:integer | birth_date:date | in_range:boolean
 10040          | null            | null
 ;
 
-rangeWithinWithStats#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithStats
+required_capability: range_within
 
 FROM employees
 | EVAL in_1985 = RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -212,8 +216,8 @@ count_in_1985:long | total:long
 11                  | 100
 ;
 
-rangeWithinBeforeStart#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinBeforeStart
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
@@ -223,8 +227,8 @@ FROM decades
 decade:integer | description:keyword
 ;
 
-rangeWithinAfterEnd#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinAfterEnd
+required_capability: range_within
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
@@ -234,8 +238,8 @@ FROM decades
 decade:integer | description:keyword
 ;
 
-rangeWithinWithLiteralRange#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeWithinWithLiteralRange
+required_capability: range_within
 
 ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
 | EVAL in_june = RANGE_WITHIN(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
@@ -251,8 +255,8 @@ date:date                     | in_june:boolean | in_july:boolean
 # range_min / range_max tests
 ###############################################
 
-rangeMin#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeMin
+required_capability: range_within
 
 // tag::range_min[]
 FROM decades
@@ -268,8 +272,8 @@ date_range:date_range  | min_bound:date
 // end::range_min-result[]
 ;
 
-rangeMax#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
-required_capability: date_range_field_type
+rangeMax
+required_capability: range_within
 
 // tag::range_max[]
 FROM decades

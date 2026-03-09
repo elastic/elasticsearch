@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
@@ -177,8 +178,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // check for a trivial conversion introduced by a surrogate
             new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval(),
-            new ReplaceLimitByExpressionWithEval()
+            new ReplaceLimitByExpressionWithEval(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+            new SubstituteApproximationPlan()
         );
     }
 

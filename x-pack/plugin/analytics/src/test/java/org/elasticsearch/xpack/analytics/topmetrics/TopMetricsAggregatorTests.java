@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.CheckedConsumer;
@@ -355,8 +354,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
+        TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
+
         // Build a "simple" circuit breaker that trips at 20k
-        ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.ofBytes(ByteSizeValue.ofKb(20).getBytes() + builder.bytesToPreallocate());
         CircuitBreakerService breakerService = newLimitedBreakerService(max);
 
         // Collect some buckets with it
@@ -366,7 +367,6 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
                     AggregationContext context = createAggregationContext(
                         indexReader,

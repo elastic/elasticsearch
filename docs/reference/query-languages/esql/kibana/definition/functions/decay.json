@@ -29,7 +29,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -60,7 +60,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -91,7 +91,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -122,7 +122,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -153,7 +153,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -184,7 +184,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -215,7 +215,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,
@@ -246,7 +246,7 @@
           "type" : "function_named_parameters",
           "mapParams" : "{name='offset', values=[], description='Distance from the origin where no decay occurs.', type=[double, integer, long, time_duration, keyword, text]}, {name='type', values=[], description='Decay function to use: linear, exponential or gaussian.', type=[keyword]}, {name='decay', values=[], description='Multiplier value returned at the scale distance from the origin.', type=[double]}",
           "optional" : true,
-          "description" : ""
+          "description" : "(Optional) Additional options such as `decay`, `offset` and `type`."
         }
       ],
       "variadic" : false,

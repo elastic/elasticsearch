@@ -18,8 +18,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -64,7 +64,7 @@ public class BreakerTests extends ESTestCase {
     public void testBreaker() {
         DriverContext unlimited = driverContext(ByteSizeValue.ofGb(1));
         DriverContext context = driverContext(limit);
-        EvalOperator.ExpressionEvaluator eval = AbstractScalarFunctionTestCase.evaluator(expression).get(context);
+        ExpressionEvaluator eval = AbstractScalarFunctionTestCase.evaluator(expression).get(context);
         try (Block b = unlimited.blockFactory().newConstantNullBlock(1)) {
             Exception e = expectThrows(CircuitBreakingException.class, () -> eval.eval(new Page(b)));
             assertThat(e.getMessage(), equalTo("over test limit"));

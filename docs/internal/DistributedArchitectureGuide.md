@@ -1270,6 +1270,8 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 [IndexShard]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java
 
+[Translog]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/translog/Translog.java
+
 ### IndexShard
 
 The [IndexShard] class is the single entry point for all shard-level operations: indexing, deletion, real-time GET,
@@ -1279,8 +1281,7 @@ An `IndexShard` holds references to:
 
 - The shard's [Store], which provides access to the shard's Lucene index files on disk, by wrapping a Lucene
   `Directory`.
-- The shard's [Engine], which coordinates indexing and searching operations for this shard across
-  the [Translog](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/translog/Translog.java)
+- The shard's [Engine], which coordinates indexing and searching operations for this shard across the [Translog]
   and Lucene files (via the `Store`).
 
 ### Store
@@ -1289,6 +1290,10 @@ An `IndexShard` holds references to:
 
 [RefCounted]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/core/RefCounted.java
 
+[StoreFileMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/StoreFileMetadata.java
+
+[FsDirectoryFactory]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java
+
 The [Store] is the lowest-level Elasticsearch persistence abstraction for a shard. Each shard has a single
 dedicated `Store` that wraps a
 Lucene [Directory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/Directory.html), which is Lucene's
@@ -1296,7 +1301,7 @@ own file-system abstraction used to read and write index files on disk.
 Lucene's `Directory` is a pure I/O abstraction: callers open
 an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
 and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
-write one. The `Store` extends the Lucene `Directory` capabilities by tracking committed file metadata and enforcing
+write one. The `Store` builds on the Lucene `Directory` capabilities by tracking committed file metadata and enforcing
 integrity invariants. It also adds reference counting, file integrity verification and corruption detection.
 
 #### Reference Counting and Lifecycle
@@ -1308,7 +1313,114 @@ example, during shard relocation).
 
 #### Backing Directory
 
-#### Corruption Detection
+The Lucene `Directory` used by a `Store` is created by
+an [IndexStorePlugin.DirectoryFactory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/IndexStorePlugin.java#L40).
+The default built-in implementation is [FsDirectoryFactory], which
+supports [several store types](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L107)
+selectable via the
+`index.store.type` [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexModule.java#L111):
+
+- `hybridfs` (default):
+  a [HybridDirectory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L180)
+  that delegates
+  to a [MMapDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/MMapDirectory.html) for
+  performance-sensitive file types (postings, term vectors index, norms, vectors, etc.)
+  and [NIOFSDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/NIOFSDirectory.html) for files
+  where sequential access is preferred (e.g. stored fields). Direct I/O is also enabled for vector index files when
+  supported by the OS. The `HybridDirectory` selects between mmap and NIO on a per-file basis
+  by [checking](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L252)
+  the file's Lucene extension and I/O context.
+- `mmapfs`: uses `MMapDirectory` for all files.
+- `niofs`: uses `NIOFSDirectory` for all files.
+- `fs`: automatically selects the best type for the underlying file system.
+
+#### MetadataSnapshot
+
+The `Store`
+exposes [MetadataSnapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L820)
+for each index commit, read and constructed from the Lucene `segments_N` files. A `MetadataSnapshot` is a point-in-time
+map from filename to [StoreFileMetadata] for the committed (flushed) files belonging to a Lucene index commit.
+Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
+Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
+
+`MetadataSnapshot`s are used by several Elasticsearch workflows, including peer recovery, and replica shard allocation (
+via `TransportNodesListShardStoreMetadata`), always as one half of a diff: two distinct snapshots are compared to decide
+how much work is needed to get them in sync.
+
+During peer recovery, the recovering shard (target) calls `indexShard.snapshotStoreMetadata()` to capture its
+local `MetadataSnapshot`
+and [bundles](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java#L483)
+it into the `StartRecoveryRequest` sent to the primary. On the source side, `RecoverySourceHandler.phase1` reads its own
+`MetadataSnapshot` from the current Lucene commit,
+then [computes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/recovery/plan/PeerOnlyRecoveryPlannerService.java#L43)
+a `RecoveryDiff` that will classify every committed file as `identical`, `different` or `missing`. The source's
+`MetadataSnapshot` is also included in the subsequent `RecoveryCleanFilesRequest` so the target knows which files belong
+to the new commit and can delete anything stale.
+
+During replica shard allocation, before allocating a replica, the master
+will [ask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L168)
+every data node to report its on-disk `MetadataSnapshot` for the shard via `TransportNodesListShardStoreMetadata`. This
+read [happens directly](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L179)
+against the Lucene directory without going through the engine, so it works even on nodes where the
+shard is not active. The `ReplicaShardAllocator` then compares each candidate node's snapshot against the
+primary's, [counting the total bytes of files](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L428)
+that are identical. The node
+with [the most reusable state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L474)
+is preferred, minimizing the data that needs to be transferred during recovery.
+
+#### Concurrency
+
+[NodeEnvironment]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java
+
+[ShardLock]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/ShardLock.java
+
+Access to a shard's on-disk data is protected by three layers of locking, each scoped to a different level:
+
+The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]. It is backed by a
+`Semaphore` and guarantees that at most one owner at a time has write access to a given shard directory
+within a JVM process. The
+`Store` [acquires](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
+a `ShardLock` when it is created and holds it for its entire lifetime. Write operations such as creating an
+`IndexWriter`, deleting shard files, or recovering from another shard all require holding the `ShardLock` first. Callers
+that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading metadata
+for allocation
+decisions) [acquire a temporary](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L182)
+`ShardLock` for the duration of the read.
+
+The [metadataLock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L168)
+is an in-process `ReentrantReadWriteLock` inside the `Store`. It guards access to the
+directory's file listing and segment metadata. Operations that only read metadata (e.g. `getMetadata` with an
+existing
+commit) [take the read lock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L300),
+allowing concurrent readers. Operations that structurally modify the
+directory, (eg renaming temporary recovery files via `renameTempFilesSafe`, cleaning up stale files
+via `cleanupAndVerify`, or running `CheckIndex`) take the write lock, which excludes all readers and other
+writers until the operation completes.
+
+Lucene's [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html) write lock
+is a native file lock (`write.lock`) that Lucene places in the index
+directory. It prevents two `IndexWriter` instances from ever opening the same directory simultaneously, even
+across processes. When the `Store` needs to read metadata from a directory that has no active engine (e.g.
+during `getMetadata(commit=null, lockDirectory=true)`), it acquires the Lucene write lock together with the
+`metadataLock` write lock, ensuring no writer can interfere. In normal operation, the running `InternalEngine`
+already holds this
+lock [through its IndexWriter](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L149).
+
+To summarize, `ShardLock` operates at the node level across the JVM, `metadataLock`
+coordinates in-process readers and writers within the `Store`, and the Lucene write lock guards the raw
+directory at the file-system level.
+
+#### Corruption
+
+The `Store` maintains
+corruption [markers](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L142)
+as special files prefixed with `corrupted_` written into the Lucene directory.
+When an unrecoverable I/O error or checksum mismatch
+is [detected](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L1372),
+a marker file is written containing the serialized exception. Subsequent calls to `failIfCorrupted()` scan for these
+marker files and throw a `CorruptIndexException` if any are found, preventing any further operations on a known-bad
+shard. Corruption markers are removed only after the shard has been successfully recovered from another source (e.g. a
+primary or a snapshot).
 
 ### Engine
 

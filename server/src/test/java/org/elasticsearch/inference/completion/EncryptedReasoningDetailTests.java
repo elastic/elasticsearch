@@ -13,12 +13,15 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
@@ -26,60 +29,178 @@ import static org.hamcrest.Matchers.is;
 
 public class EncryptedReasoningDetailTests extends AbstractBWCSerializationTestCase<ReasoningDetail.EncryptedReasoningDetail> {
 
-    public void testParsingEncryptedReasoningDetails_AllFields() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.encrypted",
-                "format": "some encrypted reasoning detail format",
-                "id": "some id 0",
-                "index": 0,
-                "data": "some encrypted data"
-            }
-            """;
+    private static final String FORMAT_VALUE = "some encrypted reasoning detail format";
+    private static final String ID_VALUE = "some id 0";
+    private static final long INDEX_VALUE = 0L;
+    private static final String DATA_VALUE = "some encrypted data";
+    private static final String SUMMARY_VALUE = "some summary";
+    private static final String TEXT_VALUE = "some text";
+    private static final String SIGNATURE_VALUE = "some signature";
 
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.EncryptedReasoningDetail(
-                "some encrypted reasoning detail format",
-                "some id 0",
-                0L,
-                "some encrypted data"
-            );
-
-            assertThat(reasoningDetail, is(expected));
-        }
+    public void testParsingRequestEncryptedReasoningDetail_AllFields() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "format": "%s",
+                    "id": "%s",
+                    "index": %d,
+                    "data": "%s"
+                }
+                """, FORMAT_VALUE, ID_VALUE, INDEX_VALUE, DATA_VALUE),
+            ReasoningDetail.REQUEST_PARSER,
+            new ReasoningDetail.EncryptedReasoningDetail(FORMAT_VALUE, ID_VALUE, INDEX_VALUE, DATA_VALUE)
+        );
     }
 
-    public void testParsingEncryptedReasoningDetail_OnlyRequiredFields() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.encrypted",
-                "data": "some encrypted data"
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, "some encrypted data");
-
-            assertThat(reasoningDetail, is(expected));
-        }
+    public void testParsingResponseEncryptedReasoningDetail_AllFields() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "format": "%s",
+                    "id": "%s",
+                    "index": %d,
+                    "data": "%s"
+                }
+                """, FORMAT_VALUE, ID_VALUE, INDEX_VALUE, DATA_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.EncryptedReasoningDetail(FORMAT_VALUE, ID_VALUE, INDEX_VALUE, DATA_VALUE)
+        );
     }
 
-    public void testParsingEncryptedReasoningDetail_NoData_ThrowsException() throws IOException {
-        String reasoningDetailJson = """
+    public void testParsingRequestEncryptedReasoningDetail_OnlyRequiredFields() throws IOException {
+        testSuccessfulParsing(Strings.format("""
+            {
+                "type": "reasoning.encrypted",
+                "data": "%s"
+            }
+            """, DATA_VALUE), ReasoningDetail.REQUEST_PARSER, new ReasoningDetail.EncryptedReasoningDetail(null, null, null, DATA_VALUE));
+    }
+
+    public void testParsingRequestEncryptedReasoningDetail_NoData_ThrowsException() throws IOException {
+        testFailedParsing("""
             {
                 "type": "reasoning.encrypted"
             }
-            """;
+            """, "Required field [data] is missing for reasoning details of type [reasoning.encrypted]");
+    }
 
+    public void testParsingResponseEncryptedReasoningDetail_NoData_Ignored() throws IOException {
+        testSuccessfulParsing("""
+            {
+                "type": "reasoning.encrypted"
+            }
+            """, ReasoningDetail.RESPONSE_PARSER, new ReasoningDetail.EncryptedReasoningDetail(null, null, null, null));
+    }
+
+    public void testParsingRequestEncryptedReasoningDetail_SummaryFieldPresent_ThrowsException() throws IOException {
+        testFailedParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "summary": "%s"
+                }
+                """, DATA_VALUE, SUMMARY_VALUE),
+            Strings.format(
+                "Field [summary] is not expected for reasoning details of type [reasoning.encrypted], but found [%s]",
+                SUMMARY_VALUE
+            )
+        );
+    }
+
+    public void testParsingResponseEncryptedReasoningDetail_SummaryFieldPresent_Ignored() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "summary": "%s"
+                }
+                """, DATA_VALUE, SUMMARY_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.EncryptedReasoningDetail(null, null, null, DATA_VALUE)
+        );
+    }
+
+    public void testParsingRequestEncryptedReasoningDetail_TextFieldPresent_ThrowsException() throws IOException {
+        testFailedParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "text": "%s"
+                }
+                """, DATA_VALUE, TEXT_VALUE),
+            Strings.format("Field [text] is not expected for reasoning details of type [reasoning.encrypted], but found [%s]", TEXT_VALUE)
+        );
+    }
+
+    public void testParsingResponseEncryptedReasoningDetail_TextFieldPresent_Ignored() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "text": "%s"
+                }
+                """, DATA_VALUE, TEXT_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.EncryptedReasoningDetail(null, null, null, DATA_VALUE)
+        );
+    }
+
+    public void testParsingRequestEncryptedReasoningDetail_SignatureFieldPresent_ThrowsException() throws IOException {
+        testFailedParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "signature": "%s"
+                }
+                """, DATA_VALUE, SIGNATURE_VALUE),
+            Strings.format(
+                "Field [signature] is not expected for reasoning details of type [reasoning.encrypted], but found [%s]",
+                SIGNATURE_VALUE
+            )
+        );
+    }
+
+    public void testParsingResponseEncryptedReasoningDetail_SignatureFieldPresent_Ignored() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.encrypted",
+                    "data": "%s",
+                    "signature": "%s"
+                }
+                """, DATA_VALUE, SIGNATURE_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.EncryptedReasoningDetail(null, null, null, DATA_VALUE)
+        );
+    }
+
+    private void testSuccessfulParsing(
+        String reasoningDetailJson,
+        ConstructingObjectParser<ReasoningDetail, Void> responseParser,
+        ReasoningDetail.EncryptedReasoningDetail expectedReasoningDetail
+    ) throws IOException {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = responseParser.apply(parser, null);
+
+            assertThat(reasoningDetail, Matchers.is(expectedReasoningDetail));
+        }
+    }
+
+    private void testFailedParsing(String reasoningDetailJson, String expectedExceptionMessage) throws IOException {
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(rootCause.getMessage(), is("Required field [data] is missing for reasoning details of type [reasoning.encrypted]"));
+            assertThat(rootCause.getMessage(), is(expectedExceptionMessage));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }

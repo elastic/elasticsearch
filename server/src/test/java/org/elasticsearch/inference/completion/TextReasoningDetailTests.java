@@ -13,12 +13,15 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
@@ -26,81 +29,160 @@ import static org.hamcrest.Matchers.is;
 
 public class TextReasoningDetailTests extends AbstractBWCSerializationTestCase<ReasoningDetail.TextReasoningDetail> {
 
-    public void testParsingTextReasoningDetails_AllFields() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.text",
-                "format": "some text reasoning detail format",
-                "id": "some id 2",
-                "index": 2,
-                "text": "some text",
-                "signature": "some signature"
-            }
-            """;
+    private static final String FORMAT_VALUE = "some encrypted reasoning detail format";
+    private static final String ID_VALUE = "some id 0";
+    private static final long INDEX_VALUE = 0L;
+    private static final String DATA_VALUE = "some encrypted data";
+    private static final String SUMMARY_VALUE = "some summary";
+    private static final String TEXT_VALUE = "some text";
+    private static final String SIGNATURE_VALUE = "some signature";
 
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.TextReasoningDetail(
-                "some text reasoning detail format",
-                "some id 2",
-                2L,
-                "some text",
-                "some signature"
-            );
-
-            assertThat(reasoningDetail, is(expected));
-        }
+    public void testParsingRequestTextReasoningDetail_AllFields() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "format": "%s",
+                    "id": "%s",
+                    "index": %d,
+                    "text": "%s",
+                    "signature": "%s"
+                }
+                """, FORMAT_VALUE, ID_VALUE, INDEX_VALUE, TEXT_VALUE, SIGNATURE_VALUE),
+            ReasoningDetail.REQUEST_PARSER,
+            new ReasoningDetail.TextReasoningDetail(FORMAT_VALUE, ID_VALUE, INDEX_VALUE, TEXT_VALUE, SIGNATURE_VALUE)
+        );
     }
 
-    public void testParsingTextReasoningDetail_OnlyTypeAndText() throws IOException {
-        String reasoningDetailJson = """
-            {
-                "type": "reasoning.text",
-                "text": "some text"
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, "some text", null);
-
-            assertThat(reasoningDetail, is(expected));
-        }
+    public void testParsingResponseTextReasoningDetail_AllFields() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "format": "%s",
+                    "id": "%s",
+                    "index": %d,
+                    "text": "%s",
+                    "signature": "%s"
+                }
+                """, FORMAT_VALUE, ID_VALUE, INDEX_VALUE, TEXT_VALUE, SIGNATURE_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.TextReasoningDetail(FORMAT_VALUE, ID_VALUE, INDEX_VALUE, TEXT_VALUE, SIGNATURE_VALUE)
+        );
     }
 
-    public void testParsingTextReasoningDetail_OnlyTypeAndSignature() throws IOException {
-        String reasoningDetailJson = """
+    public void testParsingRequestTextReasoningDetail_OnlyText() throws IOException {
+        testSuccessfulParsing(Strings.format("""
             {
                 "type": "reasoning.text",
-                "signature": "some signature"
+                "text": "%s"
             }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
-            var reasoningDetail = ReasoningDetail.REQUEST_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, null, "some signature");
-
-            assertThat(reasoningDetail, is(expected));
-        }
+            """, TEXT_VALUE), ReasoningDetail.REQUEST_PARSER, new ReasoningDetail.TextReasoningDetail(null, null, null, TEXT_VALUE, null));
     }
 
-    public void testParsingTextReasoningDetail_OnlyType_ThrowsException() throws IOException {
-        String reasoningDetailJson = """
+    public void testParsingRequestTextReasoningDetail_OnlySignature() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "signature": "%s"
+                }
+                """, SIGNATURE_VALUE),
+            ReasoningDetail.REQUEST_PARSER,
+            new ReasoningDetail.TextReasoningDetail(null, null, null, null, SIGNATURE_VALUE)
+        );
+    }
+
+    public void testParsingRequestTextReasoningDetail_NoTextNoSignature_ThrowsException() throws IOException {
+        testFailedParsing("""
             {
                 "type": "reasoning.text"
             }
-            """;
+            """, "At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]");
+    }
 
+    public void testParsingResponseTextReasoningDetail_NoTextNoSignature_Ignored() throws IOException {
+        testSuccessfulParsing("""
+            {
+                "type": "reasoning.text"
+            }
+            """, ReasoningDetail.RESPONSE_PARSER, new ReasoningDetail.TextReasoningDetail(null, null, null, null, null));
+    }
+
+    public void testParsingRequestTextReasoningDetail_DataFieldPresent_ThrowsException() throws IOException {
+        testFailedParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "data": "%s",
+                    "text": "%s"
+                }
+                """, DATA_VALUE, TEXT_VALUE),
+            Strings.format("Field [data] is not expected for reasoning details of type [reasoning.text], but found [%s]", DATA_VALUE)
+        );
+    }
+
+    public void testParsingResponseTextReasoningDetail_DataFieldPresent_Ignored() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "data": "%s",
+                    "text": "%s"
+                }
+                """, DATA_VALUE, TEXT_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.TextReasoningDetail(null, null, null, TEXT_VALUE, null)
+        );
+    }
+
+    public void testParsingRequestTextReasoningDetail_SummaryFieldPresent_ThrowsException() throws IOException {
+        testFailedParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "text": "%s",
+                    "summary": "%s"
+                }
+                """, TEXT_VALUE, SUMMARY_VALUE),
+            Strings.format("Field [summary] is not expected for reasoning details of type [reasoning.text], but found [%s]", SUMMARY_VALUE)
+        );
+    }
+
+    public void testParsingResponseTextReasoningDetail_SummaryFieldPresent_Ignored() throws IOException {
+        testSuccessfulParsing(
+            Strings.format("""
+                {
+                    "type": "reasoning.text",
+                    "text": "%s",
+                    "summary": "%s"
+                }
+                """, TEXT_VALUE, SUMMARY_VALUE),
+            ReasoningDetail.RESPONSE_PARSER,
+            new ReasoningDetail.TextReasoningDetail(null, null, null, TEXT_VALUE, null)
+        );
+    }
+
+    private void testSuccessfulParsing(
+        String reasoningDetailJson,
+        ConstructingObjectParser<ReasoningDetail, Void> responseParser,
+        ReasoningDetail.TextReasoningDetail expectedReasoningDetail
+    ) throws IOException {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = responseParser.apply(parser, null);
+
+            assertThat(reasoningDetail, Matchers.is(expectedReasoningDetail));
+        }
+    }
+
+    private void testFailedParsing(String reasoningDetailJson, String expectedExceptionMessage) throws IOException {
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(
-                rootCause.getMessage(),
-                is("At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]")
-            );
+            assertThat(rootCause.getMessage(), is(expectedExceptionMessage));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }

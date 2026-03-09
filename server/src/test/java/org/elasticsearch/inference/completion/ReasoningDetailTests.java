@@ -22,6 +22,8 @@ import static org.hamcrest.Matchers.is;
 
 public class ReasoningDetailTests extends ESTestCase {
 
+    private static final String DATA_VALUE = "some encrypted data";
+
     public void testParsingReasoningDetail_NoType_ThrowsException() throws IOException {
         String reasoningDetailJson = "{}";
 
@@ -51,10 +53,11 @@ public class ReasoningDetailTests extends ESTestCase {
         }
     }
 
-    public void testParsingReasoningDetail_NegativeIndex_ThrowsException() throws IOException {
+    public void testParsingRequestReasoningDetail_NegativeIndex_ThrowsException() throws IOException {
         String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted",
+                "data": "some encrypted data",
                 "index": -1
             }
             """;
@@ -70,18 +73,18 @@ public class ReasoningDetailTests extends ESTestCase {
         }
     }
 
-    public void testParsingResponseReasoningDetail_UnknownField_Ignored() throws IOException {
+    public void testParsingResponseReasoningDetail_NegativeIndex_Ignored() throws IOException {
         String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted",
                 "data": "some encrypted data",
-                "unknown_field": "some value"
+                "index": -1
             }
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var reasoningDetail = ReasoningDetail.RESPONSE_PARSER.apply(parser, null);
-            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, "some encrypted data");
+            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, -1L, DATA_VALUE);
 
             assertThat(reasoningDetail, is(expected));
         }
@@ -99,6 +102,23 @@ public class ReasoningDetailTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.REQUEST_PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("[4:5] [ReasoningDetail] unknown field [unknown_field]"));
+        }
+    }
+
+    public void testParsingResponseReasoningDetail_UnknownField_Ignored() throws IOException {
+        String reasoningDetailJson = """
+            {
+                "type": "reasoning.encrypted",
+                "data": "some encrypted data",
+                "unknown_field": "some value"
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.RESPONSE_PARSER.apply(parser, null);
+            var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, DATA_VALUE);
+
+            assertThat(reasoningDetail, is(expected));
         }
     }
 

@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
-import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.util.function.DoubleBinaryOperator;

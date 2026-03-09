@@ -20,6 +20,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
@@ -30,6 +31,7 @@ import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD1Q4Bulk;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScorer {
@@ -238,7 +240,20 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         });
     }
 
+    static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     private static void quantizeScore128BulkImpl(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
+        if (SUPPORTS_HEAP_SEGMENTS && NATIVE_SUPPORTED) {
+            var querySegment = MemorySegment.ofArray(q);
+            var scoresSegment = MemorySegment.ofArray(scores);
+            dotProductD1Q4Bulk(memorySegment, querySegment, length, count, scoresSegment);
+        } else {
+            quantizeScore128BulkImplPanama(q, count, scores, memorySegment, length);
+        }
+    }
+
+    private static void quantizeScore128BulkImplPanama(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
         long offset = 0L;
         for (int iter = 0; iter < count; iter++) {
             long subRet0 = 0;

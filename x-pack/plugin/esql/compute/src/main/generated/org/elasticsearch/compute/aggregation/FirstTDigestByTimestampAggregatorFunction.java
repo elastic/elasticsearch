@@ -69,65 +69,66 @@ public final class FirstTDigestByTimestampAggregatorFunction implements Aggregat
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock, mask);
+    addRawBlock(tdigestBlock, timestampBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock);
+    addRawBlock(tdigestBlock, timestampBlock);
   }
 
-  private void addRawBlock(TDigestBlock valueBlock, LongBlock timestampBlock) {
-    TDigestHolder valueScratch = new TDigestHolder();
-    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      int valueValueCount = valueBlock.getValueCount(p);
-      if (valueValueCount == 0) {
+  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock timestampBlock) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int p = 0; p < tdigestBlock.getPositionCount(); p++) {
+      int tdigestValueCount = tdigestBlock.getValueCount(p);
+      if (tdigestValueCount == 0) {
         continue;
       }
       int timestampValueCount = timestampBlock.getValueCount(p);
       if (timestampValueCount == 0) {
         continue;
       }
-      int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueCount;
-      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
+      int tdigestStart = tdigestBlock.getFirstValueIndex(p);
+      int tdigestEnd = tdigestStart + tdigestValueCount;
+      for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+        TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
         int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          FirstTDigestByTimestampAggregator.combine(state, valueValue, timestampValue);
+          FirstTDigestByTimestampAggregator.combine(state, tdigestValue, timestampValue);
         }
       }
     }
   }
 
-  private void addRawBlock(TDigestBlock valueBlock, LongBlock timestampBlock, BooleanVector mask) {
-    TDigestHolder valueScratch = new TDigestHolder();
-    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock timestampBlock,
+      BooleanVector mask) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int p = 0; p < tdigestBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      int valueValueCount = valueBlock.getValueCount(p);
-      if (valueValueCount == 0) {
+      int tdigestValueCount = tdigestBlock.getValueCount(p);
+      if (tdigestValueCount == 0) {
         continue;
       }
       int timestampValueCount = timestampBlock.getValueCount(p);
       if (timestampValueCount == 0) {
         continue;
       }
-      int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueValueCount;
-      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
+      int tdigestStart = tdigestBlock.getFirstValueIndex(p);
+      int tdigestEnd = tdigestStart + tdigestValueCount;
+      for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+        TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
         int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          FirstTDigestByTimestampAggregator.combine(state, valueValue, timestampValue);
+          FirstTDigestByTimestampAggregator.combine(state, tdigestValue, timestampValue);
         }
       }
     }

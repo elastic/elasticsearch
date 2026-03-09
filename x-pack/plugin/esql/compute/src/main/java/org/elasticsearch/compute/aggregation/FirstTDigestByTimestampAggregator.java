@@ -31,18 +31,18 @@ public class FirstTDigestByTimestampAggregator {
         return new TDigestStates.WithLongSingleState(driverContext.breaker());
     }
 
-    public static void combine(TDigestStates.WithLongSingleState current, TDigestHolder value, long timestamp) {
+    public static void combine(TDigestStates.WithLongSingleState current, TDigestHolder tdigest, long timestamp) {
         if (current.isSeen() == false || timestamp < current.longValue()) {
-            current.set(timestamp, value);
+            current.set(timestamp, tdigest);
         }
     }
 
-    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long timestamp, TDigestHolder value, boolean seen) {
+    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long timestamp, TDigestHolder tdigest, boolean seen) {
         if (seen) {
             if (current.isSeen()) {
-                combine(current, value, timestamp);
+                combine(current, tdigest, timestamp);
             } else {
-                current.set(timestamp, value);
+                current.set(timestamp, tdigest);
             }
         }
     }
@@ -55,9 +55,9 @@ public class FirstTDigestByTimestampAggregator {
         return new TDigestStates.WithLongGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(TDigestStates.WithLongGroupingState current, int groupId, TDigestHolder value, long timestamp) {
+    public static void combine(TDigestStates.WithLongGroupingState current, int groupId, TDigestHolder tdigest, long timestamp) {
         if (current.seen(groupId) == false || timestamp < current.longValue(groupId)) {
-            current.set(groupId, timestamp, value);
+            current.set(groupId, timestamp, tdigest);
         }
     }
 
@@ -65,11 +65,11 @@ public class FirstTDigestByTimestampAggregator {
         TDigestStates.WithLongGroupingState current,
         int groupId,
         long timestamp,
-        TDigestHolder value,
+        TDigestHolder tdigest,
         boolean seen
     ) {
         if (seen) {
-            combine(current, groupId, value, timestamp);
+            combine(current, groupId, tdigest, timestamp);
         }
     }
 

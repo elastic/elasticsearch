@@ -68,10 +68,6 @@ public final class SourceFilter {
         return excludes;
     }
 
-    public boolean isEmpty() {
-        return empty;
-    }
-
     /**
      * Checks if the given path matches at least one explicitly defined include pattern.
      * <p>

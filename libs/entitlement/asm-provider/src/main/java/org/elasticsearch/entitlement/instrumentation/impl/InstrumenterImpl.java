@@ -60,6 +60,19 @@ public final class InstrumenterImpl implements Instrumenter {
         return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, checkMethods);
     }
 
+    private static boolean isJvmConstant(Object value) {
+        return value == null
+            || value instanceof String
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Float
+            || value instanceof Double
+            || value instanceof Character
+            || value instanceof Short
+            || value instanceof Byte
+            || value instanceof Boolean;
+    }
+
     private enum VerificationPhase {
         BEFORE_INSTRUMENTATION,
         AFTER_INSTRUMENTATION
@@ -291,12 +304,15 @@ public final class InstrumenterImpl implements Instrumenter {
                     catchNotEntitledAndReturnEarly();
                 }
                 case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
-                    // For default value strategy we want to catch not entitled and return a JVM constant
-                    catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
-                }
-                case DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy refDefault -> {
-                    // For reference default value strategy we want to catch not entitled and return a reference from the registry
-                    catchNotEntitledAndReturnReferenceDefault();
+                    // For default value strategy we want to catch not entitled and return a default value;
+                    // null, String, and boxed primitives are embedded as JVM constants, all other reference
+                    // types are retrieved at runtime via defaultValue$
+                    Object value = defaultValue.getDefaultValue();
+                    if (isJvmConstant(value)) {
+                        catchNotEntitledAndReturnValue(value);
+                    } else {
+                        catchNotEntitledAndReturnReferenceDefault();
+                    }
                 }
                 case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
                     // For method argument value strategy we want to catch not entitled and return the method argument at the given index

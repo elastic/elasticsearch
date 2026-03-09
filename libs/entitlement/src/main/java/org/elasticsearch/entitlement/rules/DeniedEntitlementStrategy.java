@@ -27,9 +27,8 @@ import java.util.function.Function;
  * </ul>
  */
 public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy, DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy, DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy,
-    DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
+    DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy, DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy,
+    DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy, DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy {
 
     /**
      * Strategy that throws a {@link NotEntitledException} when an entitlement check fails.
@@ -65,39 +64,6 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
          * @return the default value
          */
         public T getDefaultValue() {
-            return defaultValue;
-        }
-    }
-
-    /**
-     * Strategy that returns a reference-type default value when an entitlement check fails.
-     * <p>
-     * Unlike {@link DefaultValueDeniedEntitlementStrategy} which handles values that can be
-     * loaded as JVM constants (primitives, String, null), this strategy handles arbitrary
-     * reference objects (e.g. empty collections) that are returned from the check method
-     * at runtime rather than embedded in bytecode.
-     */
-    public static final class ReferenceDefaultValueDeniedEntitlementStrategy extends DeniedEntitlementStrategy {
-        private final Object defaultValue;
-
-        /**
-         * Creates a strategy that returns the specified reference default value on denial.
-         *
-         * @param defaultValue the reference value to return when the entitlement check fails; must not be null
-         */
-        public ReferenceDefaultValueDeniedEntitlementStrategy(Object defaultValue) {
-            if (defaultValue == null) {
-                throw new IllegalArgumentException("Use DefaultValueDeniedEntitlementStrategy for null defaults");
-            }
-            this.defaultValue = defaultValue;
-        }
-
-        /**
-         * Gets the default value to return on denial.
-         *
-         * @return the default value
-         */
-        public Object getDefaultValue() {
             return defaultValue;
         }
     }

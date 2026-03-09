@@ -50,10 +50,10 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     @Override
     public Object defaultValue$(String instrumentationId) {
         DeniedEntitlementStrategy strategy = implementationIdToStrategy.get(instrumentationId);
-        if (strategy instanceof DeniedEntitlementStrategy.ReferenceDefaultValueDeniedEntitlementStrategy refDefault) {
-            return refDefault.getDefaultValue();
+        if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<?> defaultValue) {
+            return defaultValue.getDefaultValue();
         }
-        throw new IllegalStateException("No reference default value configured for instrumentation id [" + instrumentationId + "]");
+        throw new IllegalStateException("No default value configured for instrumentation id [" + instrumentationId + "]");
     }
 
     @Override

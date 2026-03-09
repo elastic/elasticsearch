@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -29,7 +33,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -306,6 +313,1026 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> reader.schema(object));
         assertTrue(e.getMessage().contains("illegal data type"));
+    }
+
+    public void testDefaultErrorPolicyIsStrict() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(ErrorPolicy.STRICT, reader.defaultErrorPolicy());
+        assertTrue(reader.defaultErrorPolicy().isStrict());
+    }
+
+    public void testStrictPolicyFailsOnMalformedRow() {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            not_a_number,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, ErrorPolicy.STRICT)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+    }
+
+    public void testLenientPolicySkipsMalformedRows() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            not_a_number,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testErrorBudgetExceeded() {
+        String csv = """
+            id:long,name:keyword
+            bad1,Alice
+            bad2,Bob
+            bad3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy limited = new ErrorPolicy(2, false);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, limited)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("error budget exceeded"));
+    }
+
+    public void testLenientPolicyWithExtraColumns() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,Bob,extra_column
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testLenientPolicyAllRowsBad() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            bad1,Alice
+            bad2,Bob
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testLenientPolicyAcrossBatches() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 1; i <= 15; i++) {
+            if (i % 3 == 0) {
+                csv.append("bad,Name").append(i).append("\n");
+            } else {
+                csv.append(i).append(",Name").append(i).append("\n");
+            }
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, false);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 5, lenient)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+            }
+        }
+        assertEquals(10, totalRows);
+    }
+
+    public void testErrorRatioExceeded() {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 1; i <= 10; i++) {
+            if (i <= 4) {
+                csv.append("bad").append(i).append(",Name").append(i).append("\n");
+            } else {
+                csv.append(i).append(",Name").append(i).append("\n");
+            }
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy ratioPolicy = new ErrorPolicy(Long.MAX_VALUE, 0.3, true);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, ratioPolicy)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("error budget exceeded"));
+    }
+
+    public void testErrorRatioWithinBudget() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 1; i <= 100; i++) {
+            if (i == 50) {
+                csv.append("bad,Name").append(i).append("\n");
+            } else {
+                csv.append(i).append(",Name").append(i).append("\n");
+            }
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy ratioPolicy = new ErrorPolicy(Long.MAX_VALUE, 0.1, false);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 200, ratioPolicy)) {
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals(99, totalRows);
+    }
+
+    // --- Delimiter and format variation tests ---
+
+    public void testSemicolonInQuotedField() throws IOException {
+        String csv = "id:long,data:keyword\n1,\"value;with;semicolons\"\n2,normal\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("value;with;semicolons"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testPipeInQuotedField() throws IOException {
+        String csv = "id:long,data:keyword\n1,\"col1|col2|col3\"\n2,simple\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("col1|col2|col3"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    // --- Quoted field handling tests (RFC 4180) ---
+
+    public void testQuotedFieldsWithCommas() throws IOException {
+        String csv = "id:long,name:keyword\n1,\"Smith, John\"\n2,\"Doe, Jane\"\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("Smith, John"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Doe, Jane"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testQuotedFieldsWithNewlines() throws IOException {
+        String csv = "id:long,description:keyword\n1,\"line1\nline2\"\n2,\"simple\"\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("line1\nline2"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testEscapedQuotesInFields() throws IOException {
+        String csv = "id:long,name:keyword\n1,\"She said \\\"hello\\\"\"\n2,normal\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
+    // --- Empty and null value handling ---
+
+    public void testEmptyFieldsTreatedAsNull() throws IOException {
+        String csv = "id:long,name:keyword,score:double\n1,,95.5\n2,Bob,\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(2).isNull(1));
+        }
+    }
+
+    public void testExplicitNullString() throws IOException {
+        String csv = "id:long,name:keyword\n1,null\n2,Bob\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(1).isNull(0));
+            assertFalse(page.getBlock(1).isNull(1));
+        }
+    }
+
+    // --- Trailing/missing column handling ---
+
+    public void testFewerColumnsThanSchema() throws IOException {
+        String csv = "id:long,name:keyword,score:double\n1,Alice\n2,Bob,87.3\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(2).isNull(0));
+            assertFalse(page.getBlock(2).isNull(1));
+        }
+    }
+
+    // --- Whitespace trimming ---
+
+    public void testWhitespaceTrimming() throws IOException {
+        String csv = "id:long,name:keyword\n 1 , Alice \n 2 , Bob \n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    // --- All supported data types ---
+
+    public void testAllSupportedDataTypes() throws IOException {
+        String csv = "i:integer,l:long,d:double,k:keyword,t:text,b:boolean,dt:datetime,n:null\n"
+            + "42,9999999999,3.14,hello,world,true,2021-01-01T00:00:00Z,\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(8, page.getBlockCount());
+        }
+    }
+
+    // --- Type alias coverage ---
+
+    public void testTypeAliases() throws IOException {
+        String csv = "a:int,b:l,c:d,d:k,e:s,f:txt,g:bool,h:date,i:dt,j:n\n"
+            + "1,2,3.0,kw,str,text,false,2021-01-01T00:00:00Z,2021-01-01T00:00:00Z,\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(10, page.getBlockCount());
+        }
+    }
+
+    // --- Empty file handling ---
+
+    public void testEmptyFile() throws IOException {
+        StorageObject object = createStorageObject("");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testSchemaOnlyNoData() throws IOException {
+        String csv = "id:long,name:keyword\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    // --- Mixed error types with lenient policy ---
+
+    public void testMixedErrorTypesWithLenientPolicy() throws IOException {
+        String csv = """
+            id:long,score:double,active:boolean,ts:datetime
+            1,95.5,true,2021-01-01T00:00:00Z
+            bad_id,95.5,true,2021-01-01T00:00:00Z
+            3,not_a_double,true,2021-01-01T00:00:00Z
+            4,80.0,not_bool,2021-01-01T00:00:00Z
+            5,90.0,false,not_a_date
+            6,85.0,true,2021-06-15T12:00:00Z
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals(2, totalRows);
+    }
+
+    // --- Large batch with sparse errors ---
+
+    public void testLargeBatchWithSparseErrors() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,value:integer\n");
+        int expectedGood = 0;
+        for (int i = 1; i <= 1000; i++) {
+            if (i % 100 == 0) {
+                csv.append("bad,").append(i).append("\n");
+            } else {
+                csv.append(i).append(",").append(i * 10).append("\n");
+                expectedGood++;
+            }
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, false);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 200, lenient)) {
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals(expectedGood, totalRows);
+    }
+
+    // --- Configurable Delimiter Tests (Gap 3) ---
+
+    public void testTsvPreset() throws IOException {
+        String tsv = "id:long\tname:keyword\tvalue:integer\n1\tAlice\t100\n2\tBob\t200\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(100, ((IntBlock) page.getBlock(2)).getInt(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertEquals(200, ((IntBlock) page.getBlock(2)).getInt(1));
+        }
+    }
+
+    public void testPipeDelimited() throws IOException {
+        String csv = "id:long|name:keyword|score:double\n1|Alice|95.5\n2|Bob|87.3\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            '|',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+        }
+    }
+
+    public void testSemicolonDelimited() throws IOException {
+        String csv = "id:long;name:keyword;value:integer\n1;Alice;42\n2;Bob;99\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ';',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(42, ((IntBlock) page.getBlock(2)).getInt(0));
+        }
+    }
+
+    public void testRandomizedDelimiter() throws IOException {
+        char delimiter = randomFrom(',', '\t', '|', ';');
+        int numCols = between(2, 5);
+        int numRows = between(5, 20);
+        StringBuilder schema = new StringBuilder();
+        StringBuilder data = new StringBuilder();
+        for (int c = 0; c < numCols; c++) {
+            if (c > 0) schema.append(delimiter);
+            schema.append("col").append(c).append(":long");
+        }
+        schema.append("\n");
+        for (int r = 0; r < numRows; r++) {
+            for (int c = 0; c < numCols; c++) {
+                if (c > 0) data.append(delimiter);
+                data.append(r * 10 + c);
+            }
+            data.append("\n");
+        }
+        CsvFormatOptions options = new CsvFormatOptions(
+            delimiter,
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(schema.append(data).toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 10))) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    long expected = (totalRows - page.getPositionCount() + i) * 10L;
+                    assertEquals(expected, ((LongBlock) page.getBlock(0)).getLong(i));
+                }
+            }
+        }
+        assertEquals(numRows, totalRows);
+    }
+
+    // --- Configurable Quote/Escape Characters (Gap 4) ---
+
+    public void testSingleQuoteAsQuoteChar() throws IOException {
+        String csv = "id:long,name:keyword\n1,'Alice'\n2,'Bob,Smith'\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            '\'',
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Bob,Smith"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testCustomEscapeChar() throws IOException {
+        String csv = "id:long,data:keyword\n1,\"value\\\"quoted\"\n2,normal\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            '"',
+            '\\',
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("value\"quoted"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testRandomizedQuoteChar() throws IOException {
+        char quoteChar = randomFrom('"', '\'');
+        String csv = "id:long,name:keyword\n1," + quoteChar + "Alice" + quoteChar + "\n2," + quoteChar + "Bob" + quoteChar + "\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            quoteChar,
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    // --- Custom Comment Prefix (Gap 4) ---
+
+    public void testHashCommentPrefix() throws IOException {
+        String csv = """
+            # This is a comment
+            id:long,name:keyword
+            # Another comment
+            1,Alice
+            2,Bob
+            """;
+
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            "#",
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+        }
+    }
+
+    public void testCustomCommentPrefix() throws IOException {
+        String csv = """
+            -- SQL style comment
+            id:long,name:keyword
+            -- Another comment
+            1,Alice
+            2,Bob
+            """;
+
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            "--",
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+        }
+    }
+
+    // --- Custom Null Value (Gap 4) ---
+
+    public void testNaAsNullValue() throws IOException {
+        String csv = "id:long,name:keyword,score:double\n1,N/A,95.5\n2,Bob,N/A\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            "N/A",
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(2).isNull(1));
+        }
+    }
+
+    public void testBackslashNAsNullValue() throws IOException {
+        String csv = "id:long,name:keyword\n1,\\N\n2,Bob\n";
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            '\0',
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            "\\N",
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(1).isNull(0));
+            assertFalse(page.getBlock(1).isNull(1));
+        }
+    }
+
+    // --- PERMISSIVE Mode (Gap 1) ---
+
+    public void testPermissiveModeNullFillsBadFields() throws IOException {
+        String csv = """
+            id:long,name:keyword,score:double
+            1,Alice,95.5
+            not_a_number,Bob,87.3
+            3,Charlie,bad_double
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+            assertTrue(page.getBlock(0).isNull(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(2));
+            assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
+            assertTrue(page.getBlock(2).isNull(2));
+        }
+    }
+
+    public void testPermissiveModeKeepsAllRows() throws IOException {
+        String csv = """
+            id:long,name:keyword,age:integer
+            1,Alice,30
+            bad_id,Bob,25
+            3,Charlie,not_int
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(0).isNull(1));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(2));
+            assertTrue(page.getBlock(2).isNull(2));
+        }
+    }
+
+    public void testPermissiveModeErrorBudgetExceeded() {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad2,Bob
+            bad3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 1, 0.0, false);
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("error budget exceeded"));
+    }
+
+    public void testPermissiveModeMultipleBadFieldsInSameRow() throws IOException {
+        String csv = """
+            id:long,name:keyword,age:integer,active:boolean
+            1,Alice,30,true
+            bad_id,valid_name,bad_age,bad_bool
+            3,Charlie,25,false
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+            assertFalse(page.getBlock(3).isNull(0));
+            assertTrue(((BooleanBlock) page.getBlock(3)).getBoolean(0));
+            assertTrue(page.getBlock(0).isNull(1));
+            assertEquals(new BytesRef("valid_name"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertTrue(page.getBlock(2).isNull(1));
+            assertTrue(page.getBlock(3).isNull(1));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(2));
+            assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
+        }
+    }
+
+    // --- Custom Datetime Format (Gap 6) ---
+
+    public void testCustomDatetimeFormat() throws IOException {
+        String csv = "id:long,ts:datetime\n1,2021-01-15 14:30:00\n2,2022-06-20 09:00:00\n";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            formatter,
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(Instant.parse("2022-06-20T09:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
+        }
+    }
+
+    // --- withConfig() Integration Tests ---
+
+    public void testWithConfigDelimiter() throws IOException {
+        String csv = "id:long|name:keyword\n1|Alice\n2|Bob\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("delimiter", "|"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testWithConfigMultipleOptions() throws IOException {
+        String csv = "id:long;name:keyword\n1;N/A\n2;Bob\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("delimiter", ";", "null_value", "N/A", "comment", "#"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertTrue(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testWithConfigEmptyReturnsSameReader() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        FormatReader result = reader.withConfig(Map.of());
+        assertSame(reader, result);
+    }
+
+    public void testWithConfigNullReturnsSameReader() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        FormatReader result = reader.withConfig(null);
+        assertSame(reader, result);
+    }
+
+    // --- Randomized Tests ---
+
+    public void testRandomizedDelimiterColumnRowBatchCount() throws IOException {
+        char delimiter = randomFrom(',', '\t', '|', ';');
+        int numCols = between(2, 10);
+        int numRows = between(1, 100);
+        int batchSize = between(1, 20);
+        StringBuilder schema = new StringBuilder();
+        StringBuilder data = new StringBuilder();
+        for (int c = 0; c < numCols; c++) {
+            if (c > 0) schema.append(delimiter);
+            schema.append("c").append(c).append(":long");
+        }
+        schema.append("\n");
+        for (int r = 0; r < numRows; r++) {
+            for (int c = 0; c < numCols; c++) {
+                if (c > 0) data.append(delimiter);
+                data.append(r * 1000L + c);
+            }
+            data.append("\n");
+        }
+        CsvFormatOptions options = new CsvFormatOptions(
+            delimiter,
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize()
+        );
+        StorageObject object = createStorageObject(schema.append(data).toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, batchSize)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    int rowIdx = totalRows - page.getPositionCount() + i;
+                    long expected = rowIdx * 1000L;
+                    assertEquals(expected, ((LongBlock) page.getBlock(0)).getLong(i));
+                }
+            }
+        }
+        assertEquals(numRows, totalRows);
+    }
+
+    public void testRandomizedErrorInjectionDropMalformed() throws IOException {
+        int numRows = between(10, 50);
+        int numBad = between(1, 5);
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 1; i <= numRows; i++) {
+            if (i <= numBad) {
+                csv.append("bad").append(i).append(",Name").append(i).append("\n");
+            } else {
+                csv.append(i).append(",Name").append(i).append("\n");
+            }
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy dropMalformed = new ErrorPolicy(numBad + 10, false);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 15), dropMalformed)) {
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals(numRows - numBad, totalRows);
+    }
+
+    public void testRandomizedErrorInjectionPermissive() throws IOException {
+        int numRows = between(10, 50);
+        int numBadId = between(1, 3);
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,score:double\n");
+        for (int i = 1; i <= numRows; i++) {
+            if (i <= numBadId) {
+                csv.append("bad").append(i).append(",Name").append(i).append(",").append(90.0 + i).append("\n");
+            } else {
+                csv.append(i).append(",Name").append(i).append(",").append(90.0 + i).append("\n");
+            }
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 15), permissive)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    int rowIdx = totalRows - page.getPositionCount() + i;
+                    if (rowIdx < numBadId) {
+                        assertTrue("Row " + rowIdx + " with bad id should have null id", page.getBlock(0).isNull(i));
+                    } else {
+                        assertEquals((long) (rowIdx + 1), ((LongBlock) page.getBlock(0)).getLong(i));
+                    }
+                }
+            }
+        }
+        assertEquals(numRows, totalRows);
     }
 
     private StorageObject createStorageObject(String csvContent) {

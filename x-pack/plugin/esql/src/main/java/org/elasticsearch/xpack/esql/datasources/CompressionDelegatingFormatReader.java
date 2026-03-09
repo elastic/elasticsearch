@@ -11,12 +11,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Delegating {@link FormatReader} that wraps the raw {@link StorageObject} in a
@@ -46,9 +48,26 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
+        throws IOException {
+        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, errorPolicy);
+    }
+
+    @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
         throws IOException {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
+    }
+
+    @Override
+    public CloseableIterator<Page> read(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit, errorPolicy);
     }
 
     @Override
@@ -88,6 +107,32 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        return inner.readSplit(
+            new DecompressingStorageObject(object, codec),
+            projectedColumns,
+            batchSize,
+            skipFirstLine,
+            lastSplit,
+            resolvedAttributes,
+            errorPolicy
+        );
+    }
+
+    @Override
+    public ErrorPolicy defaultErrorPolicy() {
+        return inner.defaultErrorPolicy();
+    }
+
+    @Override
     public String formatName() {
         return inner.formatName();
     }
@@ -95,6 +140,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public List<String> fileExtensions() {
         return inner.fileExtensions();
+    }
+
+    @Override
+    public FormatReader withConfig(Map<String, Object> config) {
+        FormatReader configured = inner.withConfig(config);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 
     @Override

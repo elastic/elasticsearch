@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -65,6 +66,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
+    private final ErrorPolicy errorPolicy;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -78,7 +80,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FileSet fileSet,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
-        ExternalSliceQueue sliceQueue
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -114,6 +117,38 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
+        this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileSet fileSet,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileSet,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -141,7 +176,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             fileSet,
             partitionColumnNames,
             partitionValues,
-            sliceQueue
+            sliceQueue,
+            null
         );
     }
 
@@ -169,6 +205,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             fileSet,
             partitionColumnNames,
             partitionValues,
+            null,
             null
         );
     }
@@ -195,6 +232,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             fileSet,
             null,
             null,
+            null,
             null
         );
     }
@@ -217,6 +255,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
+            null,
             null,
             null,
             null,
@@ -306,7 +345,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     batchSize,
                                     skipFirstLine,
                                     lastSplit,
-                                    attributes
+                                    attributes,
+                                    errorPolicy
                                 )
                             ) {
                                 int consumed = drainPagesWithBudget(pages, buffer, injector);
@@ -343,7 +383,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     }
                     StorageObject obj = storageProvider.newObject(entry.path(), entry.length(), entry.lastModified());
                     int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
-                    try (CloseableIterator<Page> pages = formatReader.read(obj, projectedColumns, batchSize, fileBudget)) {
+                    try (CloseableIterator<Page> pages = formatReader.read(obj, projectedColumns, batchSize, fileBudget, errorPolicy)) {
                         int consumed = drainPagesWithBudget(pages, buffer, injector);
                         if (rowLimit != FormatReader.NO_LIMIT) {
                             rowsRemaining -= consumed;
@@ -366,12 +406,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        formatReader.readAsync(storageObject, projectedColumns, batchSize, rowLimit, executor, ActionListener.wrap(iterator -> {
-            consumePagesInBackground(iterator, buffer, driverContext, injector);
-        }, e -> {
-            buffer.onFailure(e);
-            driverContext.removeAsyncAction();
-        }));
+        formatReader.readAsync(
+            storageObject,
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            errorPolicy,
+            executor,
+            ActionListener.wrap(iterator -> {
+                consumePagesInBackground(iterator, buffer, driverContext, injector);
+            }, e -> {
+                buffer.onFailure(e);
+                driverContext.removeAsyncAction();
+            })
+        );
     }
 
     private void startSyncWrapperRead(
@@ -384,7 +432,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         executor.execute(() -> {
             CloseableIterator<Page> pages = null;
             try {
-                pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit);
+                pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit, errorPolicy);
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {
                 buffer.onFailure(e);
@@ -555,5 +603,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public ExternalSliceQueue sliceQueue() {
         return sliceQueue;
+    }
+
+    public ErrorPolicy errorPolicy() {
+        return errorPolicy;
     }
 }

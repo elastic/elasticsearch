@@ -140,9 +140,10 @@ public class DatafeedJobBuilder {
             listener.onFailure(e);
         });
 
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeDisabled(datafeedConfig);
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            datafeedConfig,
+            effectiveDatafeedConfig,
             job,
             xContentRegistry,
             timingStatsReporter,

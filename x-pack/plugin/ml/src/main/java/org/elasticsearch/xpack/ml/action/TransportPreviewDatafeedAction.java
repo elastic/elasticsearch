@@ -154,9 +154,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeDisabled(previewDatafeedConfig);
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
-                previewDatafeedConfig,
+                effectiveDatafeedConfig,
                 extraFilters,
                 job,
                 xContentRegistry,

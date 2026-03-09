@@ -311,6 +311,26 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return TYPE + "-" + datafeedId;
     }
 
+    /**
+     * Returns a new DatafeedConfig with CPS mode explicitly disabled in IndicesOptions.
+     * This prevents automatic cross-project index rewriting when the datafeed executes searches.
+     *
+     * @param datafeed the original datafeed configuration
+     * @return new DatafeedConfig with CPS mode disabled, or original if already disabled
+     */
+    public static DatafeedConfig withCrossProjectModeDisabled(DatafeedConfig datafeed) {
+        Objects.requireNonNull(datafeed, "datafeed must not be null");
+
+        IndicesOptions baseOptions = datafeed.getIndicesOptions();
+        if (baseOptions.resolveCrossProjectIndexExpression()) {
+            IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
+                .build();
+            return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+        }
+        return datafeed;
+    }
+
     public String getId() {
         return id;
     }

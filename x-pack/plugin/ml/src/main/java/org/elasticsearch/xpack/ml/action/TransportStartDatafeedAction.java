@@ -339,9 +339,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
-            datafeed,
+            effectiveDatafeed,
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index

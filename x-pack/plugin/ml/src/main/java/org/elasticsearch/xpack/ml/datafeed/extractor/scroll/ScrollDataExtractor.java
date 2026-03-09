@@ -14,8 +14,9 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -265,7 +266,21 @@ class ScrollDataExtractor implements DataExtractor {
 
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return executeSearchRequest(new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId));
+        SearchScrollRequest request = new SearchScrollRequest(scrollId) {
+            @Override
+            public boolean allowsCrossProject() {
+                return false;
+            }
+        };
+        request.scroll(SCROLL_TIMEOUT);
+        return checkForSkippedClusters(
+            ClientHelper.executeWithHeaders(
+                context.queryContext.headers,
+                ClientHelper.ML_ORIGIN,
+                client,
+                () -> client.execute(TransportSearchScrollAction.TYPE, request).actionGet()
+            )
+        );
     }
 
     private void clearScroll() {
@@ -285,7 +300,12 @@ class ScrollDataExtractor implements DataExtractor {
 
     private void innerClearScroll(String scrollId) {
         if (scrollId != null) {
-            ClearScrollRequest request = new ClearScrollRequest();
+            ClearScrollRequest request = new ClearScrollRequest() {
+                @Override
+                public boolean allowsCrossProject() {
+                    return false;
+                }
+            };
             request.addScrollId(scrollId);
             ClientHelper.executeWithHeaders(
                 context.queryContext.headers,

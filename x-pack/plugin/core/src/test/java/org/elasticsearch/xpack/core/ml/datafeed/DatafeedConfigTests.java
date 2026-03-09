@@ -1071,4 +1071,59 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             json.streamInput()
         );
     }
+
+    public void testWithCrossProjectModeDisabled_GivenNullDatafeed() {
+        expectThrows(NullPointerException.class, () -> DatafeedConfig.withCrossProjectModeDisabled(null));
+    }
+
+    public void testWithCrossProjectModeDisabled_GivenAlreadyDisabled() {
+        DatafeedConfig datafeed = createRandomizedDatafeedConfig("job-id");
+        assertFalse(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression());
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
+        assertSame("Should return same instance when CPS already disabled", datafeed, result);
+    }
+
+    public void testWithCrossProjectModeDisabled_WithExplicitRemoteIndices() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-with-remote", "job-id");
+        builder.setIndices(List.of("local:logs"));
+        DatafeedConfig datafeed = builder.build();
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
+        assertSame("Should return same instance when CPS already disabled", datafeed, result);
+        assertFalse(result.getIndicesOptions().resolveCrossProjectIndexExpression());
+        assertEquals(List.of("local:logs"), result.getIndices());
+    }
+
+    public void testWithCrossProjectModeDisabled_WithMixedIndices() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-mixed", "job-id");
+        builder.setIndices(List.of("logs", "metrics"));
+        DatafeedConfig datafeed = builder.build();
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
+        assertSame("Should return same instance when CPS already disabled", datafeed, result);
+        assertFalse(result.getIndicesOptions().resolveCrossProjectIndexExpression());
+        assertEquals(List.of("logs", "metrics"), result.getIndices());
+    }
+
+    public void testWithCrossProjectModeDisabled_WithImplicitIndices() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-implicit", "job-id");
+        builder.setIndices(List.of("logs"));
+        DatafeedConfig datafeed = builder.build();
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
+        assertSame("Should return same instance when CPS already disabled", datafeed, result);
+        assertFalse(result.getIndicesOptions().resolveCrossProjectIndexExpression());
+        assertEquals(List.of("logs"), result.getIndices());
+    }
+
+    public void testWithCrossProjectModeDisabled_WithWildcards() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-wildcards", "job-id");
+        builder.setIndices(List.of("logs-*", "metrics-*"));
+        DatafeedConfig datafeed = builder.build();
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeDisabled(datafeed);
+        assertSame("Should return same instance when CPS already disabled", datafeed, result);
+        assertFalse(result.getIndicesOptions().resolveCrossProjectIndexExpression());
+        assertEquals(List.of("logs-*", "metrics-*"), result.getIndices());
+    }
 }

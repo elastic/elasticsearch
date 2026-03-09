@@ -1597,6 +1597,138 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
+    public void testLimitByNotPushedToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+    }
+
+    public void testLimitByMultipleKeys() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 5 by first_name, last_name
+            """));
+
+        var defaultLimit = as(optimized, LimitExec.class);
+        assertThat(defaultLimit.groupings(), empty());
+
+        var limitBy = as(defaultLimit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByAfterStats() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg_salary = avg(salary) by first_name
+            | limit 5 by first_name
+            """));
+
+        // AVG is decomposed into SUM/COUNT with a ProjectExec + EvalExec on top
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+        assertThat(defaultLimit.groupings(), empty());
+
+        var limitBy = as(defaultLimit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var aggregate = as(limitBy.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+    }
+
+    public void testLimitByAfterEval() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | eval x = salary + 1
+            | limit 10 by first_name
+            """));
+
+        // Eval is pushed above the limits by the logical optimizer
+        var eval = as(optimized, EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+        assertThat(defaultLimit.groupings(), empty());
+
+        var limitBy = as(defaultLimit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByWithFilter() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(0));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+    }
+
+    public void testLimitByExpressionWithEval() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no * 2
+            """));
+
+        // ReplaceLimitByExpressionWithEval wraps the plan in a Project to hide the synthetic eval attribute
+        var topProject = as(optimized, ProjectExec.class);
+
+        var defaultLimit = as(topProject.child(), LimitExec.class);
+        assertThat(defaultLimit.groupings(), empty());
+
+        var limitBy = as(defaultLimit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        var groupKey = as(limitBy.groupings().get(0), ReferenceAttribute.class);
+        assertThat(groupKey.name(), equalTo("emp_no * 2"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        // An EvalExec for the "emp_no * 2" expression must be present inside the exchange
+        assertThat(exchange.anyMatch(EvalExec.class::isInstance), is(true));
+
+        // Limit must NOT be pushed to source; the filter must be pushed
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+    }
+
     /**
      * Expected
      * EvalExec[[emp_no{f}#5 * 10[INTEGER] AS emp_no_10]]

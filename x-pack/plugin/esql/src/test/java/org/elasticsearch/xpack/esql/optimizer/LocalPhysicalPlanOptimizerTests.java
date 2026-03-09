@@ -128,10 +128,12 @@ import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsT
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -2510,6 +2512,68 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var sorts = esQueryExec.sorts();
         assertThat(sorts.size(), equalTo(1));
         assertThat(sorts.getFirst().field().name(), equalTo("last_name"));
+    }
+
+    public void testLimitByNotPushedToSource() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | limit 10 by first_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        assertThat(limit.groupings(), empty());
+
+        var limitBy = as(limit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
+
+        // LIMIT BY must NOT push the limit into EsQueryExec
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByMultipleKeys() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | limit 5 by first_name, last_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        assertThat(limit.groupings(), empty());
+
+        var limitBy = as(limit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByWithFilter() {
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where salary > 1000
+            | limit 10 by first_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        assertThat(limit.groupings(), empty());
+
+        var limitBy = as(limit.child(), LimitExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
+
+        // Filter should be pushed to source but limit should not
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        assertThat(source.query(), is(not(nullValue())));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

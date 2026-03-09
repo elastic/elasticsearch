@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.UnifiedCompletionRequestTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;

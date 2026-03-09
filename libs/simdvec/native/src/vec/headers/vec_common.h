@@ -88,4 +88,22 @@ static inline void apply_indexed(F&& f) {
     }
 }
 
+// Performs a binary tree reduction on an array of values.
+// Recurses, at compile time, to reduce N values to a single value
+// using pairwise reduction whilst not introducing
+// unneccessary data dependencies.
+template <int N, typename T, T(*reduce)(const T, const T)>
+static inline T tree_reduce(const T values[N]) {
+    static_assert((N & (N - 1)) == 0, "N must be a power of 2");
+    static_assert(N > 1, "There must be at least 2 values to reduce (N > 1)");
+
+    if constexpr (N == 2) {
+        return reduce(values[0], values[1]);
+    } else {
+        return reduce(
+            tree_reduce<N/2, T, reduce>(values),
+            tree_reduce<N/2, T, reduce>(values + N/2));
+    }
+}
+
 #endif // VEC_COMMON_H

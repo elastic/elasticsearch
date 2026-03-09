@@ -143,6 +143,43 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testMalformedLineDoesNotCrash() throws IOException {
+        // A completely invalid JSON line should not crash the parser; it should be skipped
+        String ndjson = "{\"name\":\"alice\",\"age\":30}\n" + "NOT-JSON-AT-ALL\n" + "{\"name\":\"charlie\",\"age\":40}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        List<Page> pages = new ArrayList<>();
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                pages.add(iterator.next());
+            }
+        }
+
+        // Should produce at least 2 rows (alice + charlie); the invalid line is handled gracefully
+        int totalRows = 0;
+        for (var page : pages) {
+            totalRows += page.getPositionCount();
+            checkBlockSizes(page);
+        }
+        assertTrue("Should produce at least the valid rows", totalRows >= 2);
+    }
+
+    public void testConsistentBlockPositionCounts() throws IOException {
+        // Ensures all blocks in a page have the same position count even with malformed data
+        String ndjson = "{\"x\":1,\"y\":\"a\"}\n" + "{\"x\":2}\n" + "{\"x\":3,\"y\":\"c\"}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                checkBlockSizes(page);
+                assertEquals(3, page.getPositionCount());
+            }
+        }
+    }
+
     private int blockIdx(SourceMetadata meta, String name) {
         for (int i = 0; i < meta.schema().size(); i++) {
             if (meta.schema().get(i).name().equals(name)) {

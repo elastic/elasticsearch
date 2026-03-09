@@ -31,7 +31,9 @@ import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -486,13 +488,13 @@ public final class InstrumenterImpl implements Instrumenter {
             if (constant == null) {
                 mv.visitInsn(Opcodes.ACONST_NULL);
                 mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_MAP) {
+            } else if (constant instanceof Map<?, ?> m && m.isEmpty()) {
                 mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyMap", "()Ljava/util/Map;", false);
                 mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_LIST) {
+            } else if (constant instanceof List<?> l && l.isEmpty()) {
                 mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyList", "()Ljava/util/List;", false);
                 mv.visitInsn(Opcodes.ARETURN);
-            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_SET) {
+            } else if (constant instanceof Set<?> s && s.isEmpty()) {
                 mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptySet", "()Ljava/util/Set;", false);
                 mv.visitInsn(Opcodes.ARETURN);
             } else {

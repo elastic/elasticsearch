@@ -14,6 +14,8 @@ import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.util.Collections;
+
 /**
  * Builder for configuring failure handling strategies for methods that return values.
  * <p>
@@ -51,17 +53,17 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
     @SuppressWarnings("unchecked")
     public ClassMethodBuilder<T> elseReturnEmptyMap() {
-        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_MAP);
+        return elseReturn((R) Collections.emptyMap());
     }
 
     @SuppressWarnings("unchecked")
     public ClassMethodBuilder<T> elseReturnEmptyList() {
-        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_LIST);
+        return elseReturn((R) Collections.emptyList());
     }
 
     @SuppressWarnings("unchecked")
     public ClassMethodBuilder<T> elseReturnEmptySet() {
-        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_SET);
+        return elseReturn((R) Collections.emptySet());
     }
 
     /**

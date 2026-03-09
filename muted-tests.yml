@@ -426,9 +426,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRoutingPathBwc
   issue: https://github.com/elastic/elasticsearch/issues/143814
-- class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
-  method: testRetrievedFromIdInTimeSeriesMode
-  issue: https://github.com/elastic/elasticsearch/issues/143815
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023

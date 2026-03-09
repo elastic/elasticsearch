@@ -210,9 +210,10 @@ public class JoinHelper {
         private final long attemptTimeMillis;
 
         /**
-         * @param destination the master node targeted by the join request.
-         * @param joinRequest the join request that was sent to the perceived master node.
-         * @param exception   the error response received in reply to the join request attempt.
+         * @param destination       the master node targeted by the join request.
+         * @param joinRequest       the join request that was sent to the perceived master node.
+         * @param exception         the error response received in reply to the join request attempt.
+         * @param attemptTimeMillis the (relative milliseconds) time at which the failed attempt occurred.
          */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception, long attemptTimeMillis) {
             this.destination = destination;

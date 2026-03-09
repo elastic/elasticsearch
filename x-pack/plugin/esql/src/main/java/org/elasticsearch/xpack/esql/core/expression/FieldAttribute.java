@@ -116,19 +116,7 @@ public class FieldAttribute extends TypedAttribute {
      * @return The time series field attribute.
      */
     public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
-        return timeSeriesAttribute(source, Set.of());
-    }
-
-    /**
-     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field with
-     * query-dependent metadata used by time-series block loading.
-     *
-     * @param source The source of the attribute.
-     * @param withoutFields The dimensions excluded by the query semantics.
-     * @return The time series field attribute.
-     */
-    public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source, Set<String> withoutFields) {
-        return new TimeSeriesMetadataAttribute(source, withoutFields);
+        return new TimeSeriesMetadataAttribute(source, Set.of());
     }
 
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {

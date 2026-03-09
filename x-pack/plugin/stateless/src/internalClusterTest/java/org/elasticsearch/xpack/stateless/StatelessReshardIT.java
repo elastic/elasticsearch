@@ -20,7 +20,6 @@ package org.elasticsearch.xpack.stateless;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -48,6 +47,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -1435,7 +1435,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // expect exception for doc that routes to shard 1 after delete-unowned completes
         final var getShard1Thread = new Thread(
             () -> assertThrows(
-                ElasticsearchStatusException.class,
+                StaleRequestException.class,
                 () -> client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
             )
         );
@@ -1553,7 +1553,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // Document on shard 1 should still be returned since this is a non-realtime get
         MultiGetItemResponse item1 = response.getResponses()[1];
         assertThat("Document on target shard should fail", item1.isFailed(), is(true));
-        assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
     }
 
     // A successful realtime get should return the latest value of a doc regardless of refresh.
@@ -1627,7 +1627,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // expect exception for realtime get that routes to shard 1 after HANDOFF (well, before SPLIT)
         final var getShard1Thread = new Thread(() -> {
             assertThrows(
-                ElasticsearchStatusException.class,
+                StaleRequestException.class,
                 () -> client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
             );
             // unblock SPLIT transition
@@ -1740,7 +1740,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // Document that moves to shard 1 should fail
             MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
             assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), is(true));
-            assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+            assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
 
             // unblock SPLIT transition
             mgetComplete.countDown();

@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -381,12 +382,14 @@ public class ViewResolver {
 
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-        List<LogicalPlan> otherPlans = new ArrayList<>();
+        LinkedHashMap<String, LogicalPlan> otherPlans = new LinkedHashMap<>();
         for (ViewPlan lp : subqueries) {
             if (lp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 unresolvedRelations.add(urp);
             } else {
-                otherPlans.add(new Subquery(ur.source(), lp.plan, lp.name));
+                assert otherPlans.containsKey(lp.name) == false;
+                // TODO: Consider dropping Subquery nodes entirely
+                otherPlans.put(lp.name, new Subquery(ur.source(), lp.plan, lp.name));
             }
         }
         if (unresolvedRelations.isEmpty() == false) {
@@ -402,24 +405,27 @@ public class ViewResolver {
                 ur.indexMode(),
                 ur.unresolvedMessage()
             );
-            otherPlans.addFirst(mergedUnresolved);
+            assert otherPlans.containsKey(null) == false;
+            otherPlans.putFirst(null, mergedUnresolved);
         }
         if (otherPlans.size() == 1) {
-            return otherPlans.getFirst();
+            return otherPlans.values().stream().findFirst().get();
         }
         traceUnionAllBranches(depth, otherPlans);
         return new ViewUnionAll(ur.source(), otherPlans, List.of());
     }
 
-    private void traceUnionAllBranches(int depth, List<LogicalPlan> plans) {
+    private void traceUnionAllBranches(int depth, Map<String, LogicalPlan> plans) {
         if (log.isTraceEnabled() == false) {
             return;
         }
         String tab = "    ".repeat(depth);
         log.trace("{}  creating UnionAll with {} branches:", tab, plans.size());
         String branchPrefix = "      " + tab;
-        for (LogicalPlan p : plans) {
-            log.trace("{}    branch plan=\n{}{}", tab, branchPrefix, p.toString().replace("\n", "\n" + branchPrefix));
+        for (Map.Entry<String, LogicalPlan> entry : plans.entrySet()) {
+            String name = entry.getKey();
+            LogicalPlan p = entry.getValue();
+            log.trace("{}    branch plan[{}]=\n{}{}", tab, branchPrefix, name, p.toString().replace("\n", "\n" + branchPrefix));
         }
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.useragent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.useragent.api.UserAgentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,16 +29,16 @@ public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.
 
     static final String DEFAULT_PARSER_NAME = org.elasticsearch.useragent.api.UserAgentParserRegistry.DEFAULT_PARSER_NAME;
 
-    private final Map<String, UserAgentParser> registry;
+    private final Map<String, UserAgentParserImpl> registry;
 
     UserAgentParserRegistry(UserAgentCache cache, Path... regexFileDirectories) {
         registry = createParsersMap(cache, regexFileDirectories);
     }
 
-    static Map<String, UserAgentParser> createParsersMap(UserAgentCache cache, Path... regexFileDirectories) {
-        Map<String, UserAgentParser> userAgentParsers = new HashMap<>();
+    static Map<String, UserAgentParserImpl> createParsersMap(UserAgentCache cache, Path... regexFileDirectories) {
+        Map<String, UserAgentParserImpl> userAgentParsers = new HashMap<>();
 
-        UserAgentParser defaultParser = new UserAgentParser(
+        UserAgentParserImpl defaultParser = new UserAgentParserImpl(
             DEFAULT_PARSER_NAME,
             UserAgentPlugin.class.getResourceAsStream("/regexes.yml"),
             UserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml"),
@@ -54,7 +55,7 @@ public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.
     private static void readAndAppendUserAgentParsers(
         Path userAgentConfigDirectory,
         UserAgentCache cache,
-        Map<String, UserAgentParser> userAgentParsers
+        Map<String, UserAgentParserImpl> userAgentParsers
     ) {
         if (Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
             PathMatcher pathMatcher = userAgentConfigDirectory.getFileSystem().getPathMatcher("glob:**.yml");
@@ -72,7 +73,7 @@ public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.
                         InputStream regexStream = Files.newInputStream(path, StandardOpenOption.READ);
                         InputStream deviceTypeRegexStream = UserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml")
                     ) {
-                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, deviceTypeRegexStream, cache));
+                        userAgentParsers.put(parserName, new UserAgentParserImpl(parserName, regexStream, deviceTypeRegexStream, cache));
                     }
                 }
             } catch (IOException e) {

@@ -10,7 +10,7 @@
 package org.elasticsearch.useragent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.useragent.UserAgentParser.VersionedName;
+import org.elasticsearch.useragent.api.VersionedName;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.useragent.UserAgentParser.readParserConfigurations;
+import static org.elasticsearch.useragent.UserAgentParserImpl.readParserConfigurations;
 import static org.hamcrest.Matchers.is;
 
 public class DeviceTypeParserTests extends ESTestCase {
@@ -68,7 +68,7 @@ public class DeviceTypeParserTests extends ESTestCase {
     }
 
     private static VersionedName getVersionName(String name) {
-        return new VersionedName(name, null, null, null, null);
+        return new VersionedName(name, null);
     }
 
     @BeforeClass
@@ -82,57 +82,36 @@ public class DeviceTypeParserTests extends ESTestCase {
         deviceTypeParser.init(deviceTypeRegexStream);
     }
 
-    @SuppressWarnings("unchecked")
-    public void testMacDesktop() throws Exception {
+    public void testMacDesktop() {
         VersionedName os = getVersionName("Mac OS X");
-
         VersionedName userAgent = getVersionName("Chrome");
-
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
-
         assertThat(deviceType, is("Desktop"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testAndroidMobile() throws Exception {
-
+    public void testAndroidMobile() {
         VersionedName os = getVersionName("iOS");
-
         VersionedName userAgent = getVersionName("Safari");
-
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
-
         assertThat(deviceType, is("Phone"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testIPadTablet() throws Exception {
-
+    public void testIPadTablet() {
         VersionedName os = getVersionName("iOS");
-
         VersionedName userAgent = getVersionName("Safari");
-
         VersionedName device = getVersionName("iPad");
-
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, device);
-
         assertThat(deviceType, is("Tablet"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testWindowDesktop() throws Exception {
-
+    public void testWindowDesktop() {
         VersionedName os = getVersionName("Mac OS X");
-
         VersionedName userAgent = getVersionName("Chrome");
-
         String deviceType = deviceTypeParser.findDeviceType(userAgent, os, null);
-
         assertThat(deviceType, is("Desktop"));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testRobotAgentString() throws Exception {
+    public void testRobotAgentString() {
 
         String deviceType = deviceTypeParser.findDeviceType(
             "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:63.0.247) Gecko/20100101 Firefox/63.0.247 Site24x7",
@@ -144,7 +123,6 @@ public class DeviceTypeParserTests extends ESTestCase {
         assertThat(deviceType, is("Robot"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testRobotDevices() throws Exception {
 
         InputStream testRobotDevices = UserAgentPlugin.class.getResourceAsStream("/test-robot-devices.yml");
@@ -162,7 +140,6 @@ public class DeviceTypeParserTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testDesktopDevices() throws Exception {
 
         InputStream testDesktopDevices = UserAgentPlugin.class.getResourceAsStream("/test-desktop-devices.yml");
@@ -180,7 +157,6 @@ public class DeviceTypeParserTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testMobileDevices() throws Exception {
 
         InputStream testMobileDevices = UserAgentPlugin.class.getResourceAsStream("/test-mobile-devices.yml");
@@ -198,7 +174,6 @@ public class DeviceTypeParserTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testTabletDevices() throws Exception {
 
         InputStream testTabletDevices = UserAgentPlugin.class.getResourceAsStream("/test-tablet-devices.yml");

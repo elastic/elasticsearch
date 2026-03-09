@@ -11,7 +11,7 @@ package org.elasticsearch.useragent;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.useragent.UserAgentParser.Details;
+import org.elasticsearch.useragent.api.Details;
 
 class UserAgentCache {
     private final Cache<CompositeCacheKey, Details> cache;

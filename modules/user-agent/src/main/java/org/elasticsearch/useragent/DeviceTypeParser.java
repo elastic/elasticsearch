@@ -10,7 +10,7 @@
 package org.elasticsearch.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.useragent.UserAgentParser.VersionedName;
+import org.elasticsearch.useragent.api.VersionedName;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.useragent.UserAgentParser.readParserConfigurations;
+import static org.elasticsearch.useragent.UserAgentParserImpl.readParserConfigurations;
 
 public class DeviceTypeParser {
 

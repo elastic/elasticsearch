@@ -15,24 +15,11 @@ package org.elasticsearch.useragent.api;
 public interface UserAgentParser {
 
     /**
-     * Parses the given user-agent string and populates the collector with the extracted information.
-     *
-     * @param agentString       the user-agent header value to parse
-     * @param extractDeviceType whether to extract the device type
-     * @param collector         the collector to populate with parsed information
-     */
-    void parseUserAgentInfo(String agentString, boolean extractDeviceType, UserAgentInfoCollector collector);
-
-    /**
      * Parses the given user-agent string and returns a {@link Details} record.
      *
      * @param agentString       the user-agent header value to parse
      * @param extractDeviceType whether to extract the device type
      * @return the parsed details
      */
-    default Details parseUserAgentInfo(String agentString, boolean extractDeviceType) {
-        Details.Factory factory = new Details.Factory();
-        parseUserAgentInfo(agentString, extractDeviceType, factory);
-        return factory.build();
-    }
+    Details parseUserAgentInfo(String agentString, boolean extractDeviceType);
 }

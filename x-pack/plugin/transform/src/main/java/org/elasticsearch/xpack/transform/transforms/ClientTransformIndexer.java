@@ -91,6 +91,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final boolean crossProjectEnabled;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -140,6 +141,7 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled();
     }
 
     @Override
@@ -536,7 +538,10 @@ class ClientTransformIndexer extends TransformIndexer {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
         // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || crossProjectEnabled) {
             listener.onResponse(namedSearchRequest);
             return;
         }

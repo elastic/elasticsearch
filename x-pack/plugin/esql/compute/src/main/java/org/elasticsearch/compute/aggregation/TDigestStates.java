@@ -28,7 +28,6 @@ import java.util.function.DoubleBinaryOperator;
 public final class TDigestStates {
 
     // Currently we use the same defaults as for queryDSL, we might make this configurable later
-    private static final TDigestExecutionHint EXECUTION_HINT = TDigestExecutionHint.DEFAULT;
     public static final double COMPRESSION = 100.0;
 
     private TDigestStates() {}
@@ -288,7 +287,7 @@ public final class TDigestStates {
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
                 blocks[offset] = blockFactory.newConstantLongBlockWith(longValue, 1);
-                blocks[offset + 1] = blockFactory.newConstantTDigestBlock(value.holderView(), 1);
+                blocks[offset + 1] = blockFactory.newConstantTDigestBlock(value.accessor(), 1);
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
@@ -298,7 +297,7 @@ public final class TDigestStates {
             if (value == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                return blockFactory.newConstantTDigestBlock(value.holderView(), 1);
+                return blockFactory.newConstantTDigestBlock(value.accessor(), 1);
             }
         }
 
@@ -368,7 +367,7 @@ public final class TDigestStates {
                     if (seen(groupId)) {
                         seenBuilder.appendBoolean(true);
                         longBuilder.appendLong(longValues.get(groupId));
-                        valueBuilder.appendTDigest(values.get(groupId).holderView());
+                        valueBuilder.appendTDigest(values.get(groupId).accessor());
                     } else {
                         seenBuilder.appendBoolean(false);
                         longBuilder.appendLong(0L);
@@ -405,7 +404,7 @@ public final class TDigestStates {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     if (seen(groupId)) {
-                        builder.appendTDigest(values.get(groupId).holderView());
+                        builder.appendTDigest(values.get(groupId).accessor());
                     } else {
                         builder.appendNull();
                     }

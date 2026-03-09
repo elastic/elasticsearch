@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 142968
+ - 142959
+pr: 143399
+summary: Fix KQL/QSTR with unmapped fields in NULLIFY mode
+type: bug

@@ -482,3 +482,47 @@ ROW x = 1
 x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;
+
+kqlWithUnmappedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: kql_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/142968
+// KQL function should work when unmapped fields are referenced later in the query
+SET unmapped_fields="nullify"\;
+FROM books
+| WHERE KQL("author: Faulkner")
+| EVAL x = does_not_exist_field + 1
+| KEEP book_no, author, does_not_exist_field, x
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text                                        | does_not_exist_field:null | x:integer
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
+2713            | William Faulkner                                   | null                      | null
+2847            | Colleen Faulkner                                   | null                      | null
+;
+
+qstrWithUnmappedField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: qstr_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/142959
+// QSTR function should work when unmapped fields are referenced later in the query
+SET unmapped_fields="nullify"\;
+FROM books
+| WHERE QSTR("author: Faulkner")
+| EVAL x = does_not_exist_field + 1
+| KEEP book_no, author, does_not_exist_field, x
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text                                        | does_not_exist_field:null | x:integer
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
+2713            | William Faulkner                                   | null                      | null
+2847            | Colleen Faulkner                                   | null                      | null
+;

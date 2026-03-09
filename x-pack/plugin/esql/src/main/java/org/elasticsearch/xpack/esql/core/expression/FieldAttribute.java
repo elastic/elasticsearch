@@ -109,11 +109,8 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     /**
-     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field
-     * that can be used to get a JSON representation of the time series in the output.
-     *
-     * @param source The source of the attribute.
-     * @return The time series field attribute.
+     * Creates a {@link TimeSeriesMetadataAttribute} representing the {@link MetadataAttribute#TIMESERIES} field
+     * with no excluded dimensions.
      */
     public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
         return new TimeSeriesMetadataAttribute(source, Set.of());

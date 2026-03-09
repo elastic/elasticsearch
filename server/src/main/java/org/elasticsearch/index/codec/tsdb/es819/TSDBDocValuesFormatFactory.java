@@ -23,8 +23,8 @@ public final class TSDBDocValuesFormatFactory {
     static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = ES819TSDBDocValuesFormat.getInstance(true);
 
     static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT = new ES819Version3TSDBDocValuesFormat();
-    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(true, false);
-    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(false, true);
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(false, true);
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(true, false);
 
     private TSDBDocValuesFormatFactory() {}
 

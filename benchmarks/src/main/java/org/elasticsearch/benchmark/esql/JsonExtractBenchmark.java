@@ -13,8 +13,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -81,7 +81,7 @@ public class JsonExtractBenchmark {
     )
     public String scenario;
 
-    private EvalOperator.ExpressionEvaluator evaluator;
+    private ExpressionEvaluator evaluator;
     private Page page;
 
     @Setup(Level.Trial)

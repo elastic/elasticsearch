@@ -132,13 +132,9 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(
-        DirectoryFactory factory,
-        boolean shared,
-        boolean preWarm,
-        BiConsumer<Directory, String> diagnosticLogger
-    ) {
-        private static final BiConsumer<Directory, String>  NOOP  = (a,b) -> {};
+    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+        private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
+
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
             this(factory, shared, preWarm, NOOP);
         }

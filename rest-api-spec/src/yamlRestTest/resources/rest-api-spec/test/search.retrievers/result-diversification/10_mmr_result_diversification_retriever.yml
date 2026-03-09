@@ -23,6 +23,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               id:
                 type: integer
 
@@ -41,6 +43,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               id:
                 type: integer
 
@@ -76,6 +80,8 @@ setup:
               textvector:
                 type: dense_vector
                 dims: 4
+                index_options:
+                  type: hnsw
               rankfield:
                 type: integer
               id:
@@ -215,7 +221,7 @@ teardown:
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "seventh text" }
   - match: { hits.hits.8._source.textbody: "eighth text" }
-  - match: { hits.hits.9._source.textbody: "fourth text" }
+  - match: { hits.hits.9._source.textbody: "fifth text" }
 
   - do:
       search:
@@ -308,7 +314,7 @@ teardown:
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "seventh text" }
   - match: { hits.hits.8._source.textbody: "eighth text" }
-  - match: { hits.hits.9._source.textbody: "fourth text" }
+  - match: { hits.hits.9._source.textbody: "fifth text" }
 
   - do:
       search:
@@ -356,7 +362,7 @@ teardown:
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "seventh text" }
   - match: { hits.hits.1._source.textbody: "eighth text" }
-  - match: { hits.hits.2._source.textbody: "fourth text" }
+  - match: { hits.hits.2._source.textbody: "fifth text" }
 
 ---
 "Test MMR result diversification byte vector type":
@@ -459,7 +465,7 @@ teardown:
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "third text other" }
   - match: { hits.hits.8._source.textbody: "third text duplicate other" }
-  - match: { hits.hits.9._source.textbody: "fifth text other" }
+  - match: { hits.hits.9._source.textbody: "sixth text other" }
 
   - do:
       search:
@@ -514,7 +520,7 @@ teardown:
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "seventh text" }
   - match: { hits.hits.8._source.textbody: "eighth text" }
-  - match: { hits.hits.9._source.textbody: "fourth text" }
+  - match: { hits.hits.9._source.textbody: "fifth text" }
 
 ---
 "Test MMR result diversification rank_window_size restricts top docs":

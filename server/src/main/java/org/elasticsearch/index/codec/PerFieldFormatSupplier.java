@@ -22,14 +22,23 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.AdaptivePipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.BlockProfiler;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.PipelineSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +86,8 @@ public class PerFieldFormatSupplier {
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
+    private final ES94TSDBDocValuesFormat es94TsdbDocValuesFormat;
+    private final ES94TSDBDocValuesFormat es94TsdbDocValuesFormatLargeNumericBlock;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -86,6 +97,10 @@ public class PerFieldFormatSupplier {
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
         this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
+        final FieldContextResolver fieldContextResolver = this::resolveFieldContext;
+        final PipelineResolver pipelineResolver = new AdaptivePipelineResolver(new BlockProfiler(), PipelineSelector.INSTANCE);
+        this.es94TsdbDocValuesFormat = ES94TSDBDocValuesFormat.getInstance(false, fieldContextResolver, pipelineResolver);
+        this.es94TsdbDocValuesFormatLargeNumericBlock = ES94TSDBDocValuesFormat.getInstance(true, fieldContextResolver, pipelineResolver);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -189,15 +204,83 @@ public class PerFieldFormatSupplier {
         return knnVectorsFormat;
     }
 
+    private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
+        final IndexMode indexMode = mapperService.getIndexSettings().getMode();
+        final int blockSize = resolveBlockSize(indexMode);
+        // NOTE: metadata fields like _seq_no are not in MappingLookup.getMapper() — handle by name
+        if (SeqNoFieldMapper.NAME.equals(fieldName)) {
+            return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineDescriptor.DataType.LONG, null, null, false, blockSize);
+        }
+        final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
+            return new PipelineResolver.FieldContext(
+                fieldName,
+                indexMode,
+                resolveDataType(numberFieldMapper.type()),
+                parseOptimizeFor(numberFieldMapper.fieldType().optimizeFor()),
+                extractMetricType(numberFieldMapper.fieldType()),
+                false,
+                blockSize
+            );
+        }
+        if (mapper instanceof DateFieldMapper dateFieldMapper) {
+            return new PipelineResolver.FieldContext(
+                fieldName,
+                indexMode,
+                PipelineDescriptor.DataType.LONG,
+                parseOptimizeFor(dateFieldMapper.fieldType().optimizeFor()),
+                null,
+                true,
+                blockSize
+            );
+        }
+        return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineDescriptor.DataType.LONG, null, null, false, blockSize);
+    }
+
+    @Nullable
+    private static TimeSeriesParams.MetricType extractMetricType(final NumberFieldMapper.NumberFieldType fieldType) {
+        return fieldType.getMetricType();
+    }
+
+    private static PipelineDescriptor.DataType resolveDataType(final NumberFieldMapper.NumberType numberType) {
+        return switch (numberType) {
+            case DOUBLE -> PipelineDescriptor.DataType.DOUBLE;
+            case FLOAT, HALF_FLOAT -> PipelineDescriptor.DataType.FLOAT;
+            default -> PipelineDescriptor.DataType.LONG;
+        };
+    }
+
+    @Nullable
+    private static PipelineResolver.OptimizeFor parseOptimizeFor(@Nullable final String value) {
+        if (value == null) {
+            return null;
+        }
+        return switch (value) {
+            case "storage" -> PipelineResolver.OptimizeFor.STORAGE;
+            case "speed" -> PipelineResolver.OptimizeFor.SPEED;
+            case "balanced" -> PipelineResolver.OptimizeFor.BALANCED;
+            default -> null;
+        };
+    }
+
+    static int resolveBlockSize(final IndexMode indexMode) {
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return 512;
+        }
+        if (indexMode == IndexMode.LOGSDB) {
+            return 128;
+        }
+        return 128;
+    }
+
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBSyntheticId(field)) {
             return idBloomFilterDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeBlockSize);
+            boolean largeBlock = mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
+            return largeBlock ? es94TsdbDocValuesFormatLargeNumericBlock : es94TsdbDocValuesFormat;
         }
 
         return docValuesFormat;

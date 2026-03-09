@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
@@ -18,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleFieldMapperTests extends NumberFieldMapperTests {
@@ -155,6 +159,54 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
                 };
             }
         };
+    }
+
+    public void testOptimizeForParameterSerializesAndParses() throws IOException {
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            b.field("type", "double");
+            b.field("time_series_metric", "gauge");
+            b.field("optimize_for", "storage");
+        }));
+        var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertEquals("storage", ft.optimizeFor());
+    }
+
+    public void testOptimizeForWithoutMetricRejected() {
+        final Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "double");
+            b.field("optimize_for", "storage");
+        })));
+        assertThat(e.getCause().getMessage(), containsString("[optimize_for] requires [time_series_metric] to be set"));
+    }
+
+    public void testOptimizeForOnUnsupportedTypeRejected() {
+        final Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "byte");
+            b.field("time_series_metric", "gauge");
+            b.field("optimize_for", "storage");
+        })));
+        assertThat(e.getCause().getMessage(), containsString("[optimize_for] is only supported on [double] and [integer] field types"));
+    }
+
+    public void testOptimizeForDefaultIsNull() throws IOException {
+        var mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.optimizeFor());
+    }
+
+    public void testOptimizeForInvalidValueRejected() {
+        final Exception e = expectThrows(MapperParsingException.class, () -> {
+            var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+            createMapperService(indexSettings.build(), fieldMapping(b -> {
+                b.field("type", "double");
+                b.field("time_series_metric", "gauge");
+                b.field("optimize_for", "fast");
+            }));
+        });
+        assertThat(e.getCause().getMessage(), containsString("[optimize_for] must be one of [storage, speed, balanced] but was [fast]"));
     }
 
     @Override

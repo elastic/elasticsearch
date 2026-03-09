@@ -133,6 +133,8 @@ public class NumberFieldMapper extends FieldMapper {
          */
         private final Parameter<MetricType> metric;
 
+        private final Parameter<String> optimizeFor;
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
@@ -199,6 +201,30 @@ public class NumberFieldMapper extends FieldMapper {
                     );
                 }
             }).precludesParameters(dimension);
+
+            this.optimizeFor = new Parameter<>(
+                "optimize_for",
+                true,
+                () -> null,
+                (n, c, o) -> o == null ? null : (String) o,
+                m -> toType(m).optimizeFor,
+                XContentBuilder::field,
+                Objects::toString
+            ).acceptsNull().addValidator(v -> {
+                if (v != null) {
+                    if (type != NumberType.DOUBLE && type != NumberType.INTEGER) {
+                        throw new IllegalArgumentException("[optimize_for] is only supported on [double] and [integer] field types");
+                    }
+                    if (metric.getValue() == null) {
+                        throw new IllegalArgumentException(
+                            "[optimize_for] requires [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] to be set"
+                        );
+                    }
+                    if ("storage".equals(v) == false && "speed".equals(v) == false && "balanced".equals(v) == false) {
+                        throw new IllegalArgumentException("[optimize_for] must be one of [storage, speed, balanced] but was [" + v + "]");
+                    }
+                }
+            });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -271,6 +297,11 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder optimizeFor(String optimizeFor) {
+            this.optimizeFor.setValue(optimizeFor);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
@@ -284,7 +315,8 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptErrorParam,
                 meta,
                 dimension,
-                metric };
+                metric,
+                optimizeFor };
         }
 
         @Override
@@ -2002,6 +2034,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final MetricType metricType;
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
+        private final String optimizeFor;
 
         public NumberFieldType(
             String name,
@@ -2015,7 +2048,8 @@ public class NumberFieldMapper extends FieldMapper {
             boolean isDimension,
             MetricType metricType,
             IndexMode indexMode,
-            boolean isSyntheticSource
+            boolean isSyntheticSource,
+            String optimizeFor
         ) {
             super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
@@ -2026,6 +2060,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.metricType = metricType;
             this.indexMode = indexMode;
             this.isSyntheticSource = isSyntheticSource;
+            this.optimizeFor = optimizeFor;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2041,7 +2076,8 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.dimension.getValue(),
                 builder.metric.getValue(),
                 builder.indexSettings.getMode(),
-                isSyntheticSource
+                isSyntheticSource,
+                builder.optimizeFor.getValue()
             );
         }
 
@@ -2050,7 +2086,21 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, IndexType.points(isIndexed, true), false, true, null, Collections.emptyMap(), null, false, null, null, false);
+            this(
+                name,
+                type,
+                IndexType.points(isIndexed, true),
+                false,
+                true,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null,
+                false,
+                null
+            );
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed, boolean hasDocValues) {
@@ -2066,8 +2116,13 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
-                false
+                false,
+                null
             );
+        }
+
+        public String optimizeFor() {
+            return optimizeFor;
         }
 
         @Override
@@ -2306,6 +2361,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
+    private final String optimizeFor;
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
     private final String offsetsFieldName;
@@ -2333,6 +2389,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
+        this.optimizeFor = builder.optimizeFor.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
@@ -2462,6 +2519,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), type, scriptCompiler, indexSettings).dimension(dimension)
             .metric(metricType)
+            .optimizeFor(optimizeFor)
             .allowMultipleValues(allowMultipleValues)
             .init(this);
     }

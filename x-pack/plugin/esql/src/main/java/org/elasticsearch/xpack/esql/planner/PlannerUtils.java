@@ -250,46 +250,10 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        var isCoordPlan = new Holder<>(Boolean.TRUE);
         var logicalPlanString = new Holder<String>(null);
-        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
-            .stream()
-            .map(x -> ((LookupJoinExec) x).right())
-            .collect(Collectors.toSet());
-
-        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f)) {
-                return f;
-            }
-            isCoordPlan.set(Boolean.FALSE);
-
-            boolean profilingEnabled = planTimeProfile != null;
-            long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
-            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+        PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
-            PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
-            if (profilingEnabled) {
-                planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
-            }
-            QueryBuilder filter = f.esFilter();
-            if (filter != null) {
-                physicalFragment = physicalFragment.transformUp(
-                    EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
-                );
-            }
-
-            long physicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
-            var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
-            if (profilingEnabled) {
-                planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - physicalStartNanos);
-            }
-
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
-
-        PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-
         return new LocalPlanResult(resultPlan, logicalPlanString.get());
     }
 
@@ -358,6 +322,16 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -377,6 +351,9 @@ public class PlannerUtils {
             boolean profilingEnabled = planTimeProfile != null;
             long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            if (onLogicalPlanOptimized != null) {
+                onLogicalPlanOptimized.accept(optimizedFragment);
+            }
             PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
             if (profilingEnabled) {
                 planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);

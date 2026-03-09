@@ -1381,6 +1381,11 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
         } else {
+            if (sequenceNumbersAreDisabled()
+                && index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && index.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return IndexingStrategy.optimisticConcurrencyControlNotSupported(index.id(), shardId);
+            }
             versionMap.enforceSafeAccess();
             // resolves incoming version
             final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -1617,6 +1622,11 @@ public class InternalEngine extends Engine {
             final IndexResult result = new IndexResult(e, Versions.NOT_FOUND, id);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
+
+        static IndexingStrategy optimisticConcurrencyControlNotSupported(String id, ShardId shardId) {
+            final IndexResult result = new IndexResult(new OCCNotSupportedException(shardId), Versions.NOT_FOUND, id);
+            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+        }
     }
 
     /**
@@ -1807,6 +1817,12 @@ public class InternalEngine extends Engine {
 
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
+        if (sequenceNumbersAreDisabled()
+            && delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+            && delete.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            return DeletionStrategy.optimisticConcurrencyControlNotSupported(delete.id(), shardId);
+        }
+
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
@@ -1976,6 +1992,18 @@ public class InternalEngine extends Engine {
         static DeletionStrategy failAsTooManyDocs(Exception e, String id) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
+                Versions.NOT_FOUND,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                false,
+                id
+            );
+            return new DeletionStrategy(false, false, false, Versions.NOT_FOUND, 0, deleteResult);
+        }
+
+        static DeletionStrategy optimisticConcurrencyControlNotSupported(String id, ShardId shardId) {
+            final DeleteResult deleteResult = new DeleteResult(
+                new OCCNotSupportedException(shardId),
                 Versions.NOT_FOUND,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -3721,5 +3749,9 @@ public class InternalEngine extends Engine {
     // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
     protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
         indexWriter.deleteDocuments(query);
+    }
+
+    private boolean sequenceNumbersAreDisabled() {
+        return engineConfig.getIndexSettings().sequenceNumbersDisabled();
     }
 }

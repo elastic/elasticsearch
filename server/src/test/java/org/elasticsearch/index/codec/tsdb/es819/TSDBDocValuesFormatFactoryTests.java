@@ -32,12 +32,23 @@ public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
 
     public void testVersionAfterVersion3() {
         assertSame(
-            TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
+            TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
             TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false)
         );
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
             TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true)
+        );
+        IndexVersion prevAlwaysLargeBlocks = IndexVersionUtils.getPreviousVersion(
+            IndexVersions.TIME_SERIES_DOC_VALUES_ALWAYS_LARGE_NUMERIC_BLOCKS
+        );
+        assertSame(
+            TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
+            TSDBDocValuesFormatFactory.createDocValuesFormat(prevAlwaysLargeBlocks, true)
+        );
+        assertSame(
+            TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
+            TSDBDocValuesFormatFactory.createDocValuesFormat(prevAlwaysLargeBlocks, false)
         );
     }
 

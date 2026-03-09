@@ -13,6 +13,8 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
+import static org.elasticsearch.index.IndexVersions.TIME_SERIES_DOC_VALUES_ALWAYS_LARGE_NUMERIC_BLOCKS;
+
 /**
  * Factory class for creating instances of {@link DocValuesFormat} tailored for time-series
  * use cases in relation to specific index versions and numeric block size preferences.
@@ -38,6 +40,9 @@ public final class TSDBDocValuesFormatFactory {
      */
     public static DocValuesFormat createDocValuesFormat(IndexVersion indexCreatedVersion, boolean useLargeBlockSize) {
         if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
+            if (indexCreatedVersion.onOrAfter(TIME_SERIES_DOC_VALUES_ALWAYS_LARGE_NUMERIC_BLOCKS)) {
+                return ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK;
+            }
             return useLargeBlockSize ? ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_3_TSDB_DOC_VALUES_FORMAT;
         } else {
             return useLargeBlockSize ? ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_2_TSDB_DOC_VALUES_FORMAT;

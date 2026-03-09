@@ -357,6 +357,10 @@ tests:
 - class: org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests
   method: testOrderByCardinality
   issue: https://github.com/elastic/elasticsearch/issues/142484
+- class: org.elasticsearch.repositories.azure.CancellableRateLimitedFluxIteratorTests
+  method: testErrorPath
+  issue: https://github.com/elastic/elasticsearch/issues/143879
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

@@ -226,6 +226,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
+         * Fix incorrect detection of unmapped fields in nullify/load mode when unresolved attributes
+         * match fields already present in the children's output.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
          * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          */

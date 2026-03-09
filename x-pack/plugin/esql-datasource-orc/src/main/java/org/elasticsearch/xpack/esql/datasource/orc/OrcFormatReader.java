@@ -349,11 +349,6 @@ public class OrcFormatReader implements FormatReader {
             }
         }
 
-        /**
-         * Timestamps and dates need special handling since they require per-element
-         * transformation (getTime or days→millis), so they still use a builder.
-         * The repeating case is optimized via constant block.
-         */
         private Block createDatetimeBlock(ColumnVector vector, int rowCount) {
             if (vector instanceof TimestampColumnVector tsVector) {
                 if (tsVector.isRepeating) {
@@ -362,16 +357,20 @@ public class OrcFormatReader implements FormatReader {
                     }
                     return blockFactory.newConstantLongBlockWith(tsVector.getTime(0), rowCount);
                 }
-                try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                    for (int i = 0; i < rowCount; i++) {
-                        if (tsVector.noNulls == false && tsVector.isNull[i]) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendLong(tsVector.getTime(i));
-                        }
-                    }
-                    return builder.build();
+                long[] millis = new long[rowCount];
+                for (int i = 0; i < rowCount; i++) {
+                    millis[i] = tsVector.getTime(i);
                 }
+                if (tsVector.noNulls) {
+                    return blockFactory.newLongArrayVector(millis, rowCount).asBlock();
+                }
+                return blockFactory.newLongArrayBlock(
+                    millis,
+                    rowCount,
+                    null,
+                    toBitSet(tsVector.isNull, rowCount),
+                    Block.MvOrdering.UNORDERED
+                );
             } else if (vector instanceof LongColumnVector longVector) {
                 if (longVector.isRepeating) {
                     if (longVector.noNulls == false && longVector.isNull[0]) {

@@ -346,6 +346,11 @@ public class EsqlCapabilities {
         ENRICH_LOAD,
 
         /**
+         * Support for loading a value from a flattened field.
+         */
+        LOAD_FLATTENED_FIELD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

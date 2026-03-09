@@ -1,4 +1,5 @@
 loadsFlattenedFieldSimple
+required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields
 

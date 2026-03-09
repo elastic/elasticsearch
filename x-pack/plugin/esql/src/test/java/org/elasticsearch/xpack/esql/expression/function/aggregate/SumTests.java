@@ -192,10 +192,14 @@ public class SumTests extends AbstractAggregationTestCase {
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
-            ).withWarnings(expectedWarning == null ? null : List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: " + expectedWarning
-            ));
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
+            );
         });
     }
 }

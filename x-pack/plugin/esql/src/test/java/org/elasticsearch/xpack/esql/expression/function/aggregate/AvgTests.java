@@ -197,10 +197,14 @@ public class AvgTests extends AbstractAggregationTestCase {
                 "Avg[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
                 expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
-            ).withWarnings(expectedWarning == null ? null : List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: " + expectedWarning
-            ));
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
+            );
         });
     }
 

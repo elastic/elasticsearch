@@ -43,7 +43,6 @@ configurations {
 }
 
 dependencies {
-  compileOnly project(":server")
   api project(':libs:grok')
   api project(":libs:ssl-config")
 

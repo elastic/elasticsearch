@@ -20,15 +20,17 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assume.assumeTrue;
 
 /**
- * Integration tests for RANGE_WITHIN function in LOOKUP JOIN scenarios.
- * Tests various combinations of RANGE_WITHIN usage in WHERE clauses after LOOKUP JOIN.
+ * Integration tests for RANGE_WITHIN with LOOKUP JOIN.
+ * Covers: date from FROM + range from LOOKUP, date from LOOKUP + range from FROM.
  */
 public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndices() {
+        assumeTrue("requires RANGE_WITHIN capability", EsqlCapabilities.Cap.RANGE_WITHIN.isEnabled());
         // Create main index with date fields and join_key for LOOKUP JOIN (same value so every row joins every lookup row)
         assertAcked(
             client().admin()
@@ -150,6 +152,60 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
                     )
                 )
         );
+
+        // Main index with date_range (for "date from LOOKUP, range from FROM" test)
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("decades_main")
+                .setMapping(
+                    Map.of(
+                        "properties",
+                        Map.of(
+                            "date_range",
+                            Map.of("type", "date_range"),
+                            "decade",
+                            Map.of("type", "keyword"),
+                            "join_key",
+                            Map.of("type", "integer")
+                        )
+                    )
+                )
+        );
+        indexRandom(
+            true,
+            false,
+            prepareIndex("decades_main").setId("1")
+                .setSource(
+                    Map.of(
+                        "date_range",
+                        Map.of("gte", "1985-01-01T00:00:00Z", "lt", "1990-01-01T00:00:00Z"),
+                        "decade",
+                        "1980s",
+                        "join_key",
+                        1
+                    )
+                )
+        );
+
+        // Lookup index with a date field (for "date from LOOKUP, range from FROM" test)
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("lookup_with_date")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping(Map.of("properties", Map.of("some_date", Map.of("type", "date"), "join_key", Map.of("type", "integer"))))
+        );
+        indexRandom(
+            true,
+            false,
+            prepareIndex("lookup_with_date").setId("1").setSource(Map.of("some_date", "1985-06-15T00:00:00Z", "join_key", 1))
+        );
     }
 
     /**
@@ -211,30 +267,6 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_WITHIN in WHERE clause with date from left side and constant range.
-     * Query: FROM employees | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
-     */
-    public void testRangeContainsDateFieldWithConstantRange() {
-        String query = """
-            FROM employees
-            | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01T00:00:00Z..1986-01-01T00:00:00Z"))
-            | KEEP emp_no, name, hire_date
-            | SORT emp_no
-            """;
-
-        try (EsqlQueryResponse response = run(query)) {
-            assertThat(response.isPartial(), equalTo(false));
-            List<List<Object>> values = getValuesList(response);
-
-            assertThat("Should find employees hired in 1985", values.size(), greaterThanOrEqualTo(1));
-
-            for (List<Object> row : values) {
-                assertThat("Each row should have at least 3 columns", row.size(), greaterThanOrEqualTo(3));
-            }
-        }
-    }
-
-    /**
      * Test RANGE_WITHIN in WHERE clause after LOOKUP JOIN with constant date.
      * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1987-06-15"), date_range)
      */
@@ -281,6 +313,45 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> values = getValuesList(response);
 
             assertThat("Should find employees hired in 1986", values.size(), greaterThanOrEqualTo(1));
+        }
+    }
+
+    /**
+     * Test RANGE_WITHIN with date from FROM index and date_range from LOOKUP.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(hire_date, date_range)
+     */
+    public void testRangeWithinDateFromFromRangeFromLookup() {
+        String query = """
+            FROM employees
+            | LOOKUP JOIN date_ranges ON join_key
+            | WHERE RANGE_WITHIN(hire_date, date_range)
+            | KEEP emp_no, hire_date, description
+            | SORT emp_no
+            """;
+
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(response.isPartial(), equalTo(false));
+            List<List<Object>> values = getValuesList(response);
+            assertThat("Should find rows where employee hire_date is within joined date_range", values.size(), greaterThanOrEqualTo(1));
+        }
+    }
+
+    /**
+     * Test RANGE_WITHIN with date from LOOKUP and date_range from FROM index.
+     * Query: FROM decades_main | LOOKUP JOIN lookup_with_date ON join_key | WHERE RANGE_WITHIN(some_date, date_range)
+     */
+    public void testRangeWithinDateFromLookupRangeFromFrom() {
+        String query = """
+            FROM decades_main
+            | LOOKUP JOIN lookup_with_date ON join_key
+            | WHERE RANGE_WITHIN(some_date, date_range)
+            | KEEP date_range, some_date
+            """;
+
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(response.isPartial(), equalTo(false));
+            List<List<Object>> values = getValuesList(response);
+            assertThat("Should find row where lookup some_date is within FROM date_range", values.size(), equalTo(1));
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -76,7 +77,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     public LongRangeBlockBuilder copyFrom(LongRangeBlock block, int pos) {
-        if (block.isNull(pos) || block.getFromBlock().isNull(pos) || block.getToBlock().isNull(pos)) {
+        if (block.isNull(pos)) {
             appendNull();
             return this;
         }
@@ -97,7 +98,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return new LongRange(from, to);
     }
 
-    public LongRangeBlockBuilder appendLongRange(LongRange lit) {
+    public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {
         if (lit == null || lit.from == null || lit.to == null) {
             appendNull();
             return this;
@@ -156,6 +157,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         );
 
         public LongRange(StreamInput in) throws IOException {
+            // Box to Long for record fields (from/to are Long for nullability elsewhere).
             this(Long.valueOf(in.readLong()), Long.valueOf(in.readLong()));
         }
 

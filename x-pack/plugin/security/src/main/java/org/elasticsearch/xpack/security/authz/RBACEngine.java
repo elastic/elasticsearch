@@ -49,7 +49,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
@@ -658,16 +657,11 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         // Privilege checks can trigger expensive automaton operations (Automatons.minimize, subsetOf)
-        // whose cost scales with index privilege groups and pattern complexity. When on a transport
-        // thread (Netty event loop), running this inline causes head-of-line blocking for all other
-        // requests sharing that connection, so fork to the generic pool.
-        if (Transports.isTransportThread(Thread.currentThread())) {
-            privilegeCheckExecutor.execute(
-                ActionRunnable.wrap(listener, l -> doCheckPrivileges(userRole, privilegesToCheck, applicationPrivileges, l))
-            );
-        } else {
-            doCheckPrivileges(userRole, privilegesToCheck, applicationPrivileges, listener);
-        }
+        // whose cost scales with index privilege groups and pattern complexity. Fork to a throttled
+        // executor to avoid blocking transport threads and to bound concurrent CPU-bound work.
+        privilegeCheckExecutor.execute(
+            ActionRunnable.wrap(listener, l -> doCheckPrivileges(userRole, privilegesToCheck, applicationPrivileges, l))
+        );
     }
 
     private void doCheckPrivileges(

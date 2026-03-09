@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -1239,14 +1238,13 @@ public class RBACEngineTests extends ESTestCase {
                     .build() },
             randomBoolean()
         );
-        final RuntimeException e1 = expectThrows(
-            RuntimeException.class,
-            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
-        );
+        final PlainActionFuture<PrivilegesCheckResult> future3 = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, future3);
+        final RuntimeException e1 = expectThrows(RuntimeException.class, future3::actionGet);
         assertThat(e1, is(stallCheckException));
     }
 
-    public void testCheckPrivilegesForksWhenCalledOnTransportThread() throws Exception {
+    public void testCheckPrivilegesAlwaysForksToExecutor() {
         final AtomicInteger executorInvocations = new AtomicInteger();
         final AtomicReference<Runnable> capturedRunnable = new AtomicReference<>();
         final RBACEngine engineWithCapturingExecutor = createEngineWithPrivilegeCheckExecutor(runnable -> {
@@ -1264,41 +1262,13 @@ public class RBACEngineTests extends ESTestCase {
         );
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
 
-        final Thread transportThread = new Thread(
-            () -> engineWithCapturingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future),
-            "test-" + Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX
-        );
-        transportThread.start();
-        transportThread.join();
+        engineWithCapturingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future);
 
         assertThat(executorInvocations.get(), is(1));
         assertThat(capturedRunnable.get(), notNullValue());
         assertThat("task should not complete before executor runs it", future.isDone(), is(false));
 
         capturedRunnable.get().run();
-        assertThat(future.actionGet().allChecksSuccess(), is(true));
-    }
-
-    public void testCheckPrivilegesRunsInlineOffTransportThread() {
-        final AtomicInteger executorInvocations = new AtomicInteger();
-        final RBACEngine engineWithCountingExecutor = createEngineWithPrivilegeCheckExecutor(runnable -> {
-            executorInvocations.incrementAndGet();
-            runnable.run();
-        });
-
-        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").cluster(Set.of("monitor"), Set.of()).build();
-        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { "monitor" },
-            new IndicesPrivileges[0],
-            new ApplicationResourcePrivileges[0],
-            true
-        );
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-
-        engineWithCountingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future);
-
-        assertThat(executorInvocations.get(), is(0));
         assertThat(future.actionGet().allChecksSuccess(), is(true));
     }
 

@@ -132,7 +132,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                     case TDIGEST -> {
                         var sums = data.stream()
                             .map(obj -> (TDigestHolder) obj)
-                            .filter(obj -> obj.getValueCount() > 0)
+                            .filter(obj -> obj.size() > 0)
                             .mapToDouble(TDigestHolder::getSum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();

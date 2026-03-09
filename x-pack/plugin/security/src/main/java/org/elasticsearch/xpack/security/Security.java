@@ -1477,7 +1477,7 @@ public class Security extends Plugin
                     abstractRunnable.onFailure(e);
                 }
                 // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running [{}]", r, e);
+                logger.error(() -> "unexpected failure running [" + r + "]", e);
                 assert false : new AssertionError("unexpected failure running " + r, e);
             }
         });

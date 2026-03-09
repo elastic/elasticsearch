@@ -172,7 +172,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         if (inferenceId != null) {
             builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         }
-        builder.field(INPUT_FIELD.getPreferredName(), input);
+        builder.xContentList(INPUT_FIELD.getPreferredName(), input.inferenceStrings());
         if (timeout != null) {
             builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
         }

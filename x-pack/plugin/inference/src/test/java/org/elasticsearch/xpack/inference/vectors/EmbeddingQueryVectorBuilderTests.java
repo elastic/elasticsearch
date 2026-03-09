@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloat
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
@@ -46,7 +49,9 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
         assertEquals(builder.getInferenceId(), embeddingRequest.getInferenceEntityId());
         assertEquals(TaskType.ANY, embeddingRequest.getTaskType());
         assertThat(embeddingRequest.getEmbeddingRequest().inputs(), hasSize(1));
-        assertThat(embeddingRequest.getEmbeddingRequest().inputs().getFirst().inferenceStrings(), hasSize(1));
+
+        int expectedInputSize = builder.getInput().inferenceStrings().size();
+        assertThat(embeddingRequest.getEmbeddingRequest().inputs().getFirst().inferenceStrings(), hasSize(expectedInputSize));
 
         TimeValue expectedTimeout = builder.getTimeout() != null ? builder.getTimeout() : DEFAULT_TIMEOUT;
         assertEquals(expectedTimeout, embeddingRequest.getTimeout());
@@ -64,37 +69,43 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
 
     @Override
     protected EmbeddingQueryVectorBuilder createTestInstance() {
-        DataType type = randomFrom(DataType.values());
-        DataFormat format = randomBoolean() ? randomFrom(type.getSupportedFormats()) : null;
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
-        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), type, format, randomAlphaOfLength(20), timeout);
+        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), randomInferenceStringGroup(), timeout);
     }
 
     @Override
     protected EmbeddingQueryVectorBuilder mutateInstance(EmbeddingQueryVectorBuilder instance) throws IOException {
         String inferenceId = instance.getInferenceId();
-        DataType type = instance.getType();
-        DataFormat format = instance.getFormat();
-        String value = instance.getValue();
+        InferenceStringGroup input = instance.getInput();
         TimeValue timeout = instance.getTimeout();
 
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 2)) {
             case 0 -> inferenceId = randomValueOtherThan(instance.getInferenceId(), () -> randomAlphaOfLength(10));
-            case 1 -> {
-                type = randomValueOtherThan(type, () -> randomFrom(DataType.values()));
-                format = randomBoolean() ? randomFrom(type.getSupportedFormats()) : null;
-            }
-            case 2 -> format = format == null ? randomFrom(type.getSupportedFormats()) : null;
-            case 3 -> value = randomValueOtherThan(instance.getValue(), () -> randomAlphaOfLength(20));
-            case 4 -> timeout = timeout == null ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
+            case 1 -> input = randomValueOtherThan(instance.getInput(), EmbeddingQueryVectorBuilderTests::randomInferenceStringGroup);
+            case 2 -> timeout = timeout == null ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
             default -> throw new AssertionError("Unexpected value");
         }
 
-        return new EmbeddingQueryVectorBuilder(inferenceId, type, format, value, timeout);
+        return new EmbeddingQueryVectorBuilder(inferenceId, input, timeout);
     }
 
     @Override
     protected EmbeddingQueryVectorBuilder doParseInstance(XContentParser parser) throws IOException {
         return EmbeddingQueryVectorBuilder.fromXContent(parser);
+    }
+
+    static InferenceStringGroup randomInferenceStringGroup() {
+        int numInputs = randomIntBetween(1, 5);
+        List<InferenceString> inferenceStrings = new ArrayList<>(numInputs);
+        for (int i = 0; i < numInputs; i++) {
+            inferenceStrings.add(randomInferenceString());
+        }
+        return new InferenceStringGroup(inferenceStrings);
+    }
+
+    static InferenceString randomInferenceString() {
+        DataType type = randomFrom(DataType.values());
+        DataFormat format = randomBoolean() ? randomFrom(type.getSupportedFormats()) : null;
+        return new InferenceString(type, format, randomAlphaOfLength(20));
     }
 }

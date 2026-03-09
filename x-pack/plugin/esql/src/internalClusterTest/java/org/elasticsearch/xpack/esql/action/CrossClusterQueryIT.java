@@ -45,11 +45,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -805,7 +810,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteFailureInlinestats() throws IOException {
-        assumeTrue("requires inlinestats", EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
+        assumeTrue("requires inlinestats", INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
@@ -1051,7 +1056,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      * Test EXPLAIN with CCS (Cross-Cluster Search) to verify that local plans are fetched from remote clusters.
      */
     public void testExplainCCS() throws Exception {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
         setupTwoClusters();
 
         // Run EXPLAIN query that targets both local and remote clusters
@@ -1138,7 +1143,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      * - Remote cluster: LocalRelation (field doesn't exist, optimizer prunes to empty result)
      */
     public void testExplainCCSWithFieldOnlyOnLocalCluster() throws Exception {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
 
         // First set up the standard cluster infrastructure
         setupTwoClusters();
@@ -1304,11 +1309,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      * For EXPLAIN, we skip remote planning and only show coordinator plans plus subplan information.
      */
     public void testExplainCCSWithInlineStats() throws Exception {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        assumeTrue("INLINE STATS requires the capability to be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
         assumeTrue(
             "INLINE STATS with remote requires the capability to be enabled",
-            EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled()
+            INLINE_STATS_SUPPORTS_REMOTE.isEnabled()
         );
 
         // Set up the standard cluster infrastructure
@@ -1428,8 +1433,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
      */
     private List<String> extractOperators(String plan) {
         List<String> operators = new ArrayList<>();
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
-        java.util.regex.Matcher matcher = pattern.matcher(plan);
+        Pattern pattern = Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
+        Matcher matcher = pattern.matcher(plan);
         while (matcher.find()) {
             operators.add(matcher.group(1));
         }

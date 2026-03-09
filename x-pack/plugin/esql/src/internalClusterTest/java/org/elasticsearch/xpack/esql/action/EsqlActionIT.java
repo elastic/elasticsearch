@@ -84,6 +84,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -94,6 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -2110,7 +2113,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExplain() {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
 
         String query = "FROM test | WHERE data > 2 | STATS count = COUNT(*) BY color";
 
@@ -2227,8 +2230,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      */
     private List<String> extractOperators(String plan) {
         List<String> operators = new ArrayList<>();
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
-        java.util.regex.Matcher matcher = pattern.matcher(plan);
+        Pattern pattern = Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
+        Matcher matcher = pattern.matcher(plan);
         while (matcher.find()) {
             operators.add(matcher.group(1));
         }
@@ -2236,7 +2239,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExplainSimple() {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
         try (EsqlQueryResponse results = run("EXPLAIN (ROW x = 1)")) {
             // Verify the columns are correct
             assertThat(
@@ -2263,7 +2266,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * and match the actual profiled execution plans.
      */
     public void testExplainMultiNode() {
-        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
 
         // Ensure we have at least 2 data nodes
         internalCluster().ensureAtLeastNumDataNodes(2);

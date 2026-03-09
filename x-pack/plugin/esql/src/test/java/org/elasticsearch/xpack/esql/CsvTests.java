@@ -390,8 +390,9 @@ public class CsvTests extends ESTestCase {
                 testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
             );
             assumeFalseLogging(
-                "CSV tests cannot handle replace approximate total field count by exact (requires ES pushdown)",
-                groupName.equals("approximation") && testName.equals("Exact total single-valued field count")
+                "CSV tests cannot handle replacing approximate count by exact (requires ES filter pushdown)",
+                groupName.equals("approximation")
+                    && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
             if (Build.current().isSnapshot()) {

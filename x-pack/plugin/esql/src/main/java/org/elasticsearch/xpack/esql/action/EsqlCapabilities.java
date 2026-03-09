@@ -1924,10 +1924,10 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
-         * Support for {@code TSDIM_WITHOUT} grouping function that excludes
-         * specific dimensions from time-series grouping.
+         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
+         * grouping function that excludes specific dimensions from time-series grouping.
          */
-        TSDIM_WITHOUT,
+        TIME_SERIES_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options

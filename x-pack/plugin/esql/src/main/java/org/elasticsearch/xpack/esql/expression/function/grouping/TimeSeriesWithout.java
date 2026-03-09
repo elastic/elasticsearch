@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,26 +23,41 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * Grouping function that modifies the effective {@code _tsid} grouping to exclude the specified dimension fields.
+ * Grouping function that keeps time-series grouping generic while excluding the specified dimensions.
+ * An empty field list means "group by all dimensions".
  */
-public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunction {
+public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "TsdimWithout",
-        TsdimWithout::new
+        "TimeSeriesWithout",
+        TimeSeriesWithout::new
     );
 
-    public TsdimWithout(Source source, List<Expression> fields) {
+    public TimeSeriesWithout(Source source, List<Expression> fields) {
         super(source, fields);
     }
 
-    public TsdimWithout(StreamInput in) throws IOException {
+    public TimeSeriesWithout(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
+    }
+
+    /**
+     * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
+     */
+    public Alias asTimeSeriesAttribute() {
+        return asTimeSeriesAttribute(null);
+    }
+
+    /**
+     * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
+     */
+    public Alias asTimeSeriesAttribute(@Nullable NameId id) {
+        return new Alias(source(), MetadataAttribute.TIMESERIES, this, id);
     }
 
     @Override
@@ -54,12 +73,12 @@ public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunctio
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TsdimWithout::new, children());
+        return NodeInfo.create(this, TimeSeriesWithout::new, children());
     }
 
     @Override
-    public TsdimWithout replaceChildren(List<Expression> newChildren) {
-        return new TsdimWithout(source(), newChildren);
+    public TimeSeriesWithout replaceChildren(List<Expression> newChildren) {
+        return new TimeSeriesWithout(source(), newChildren);
     }
 
     @Override
@@ -77,11 +96,13 @@ public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunctio
         for (Expression field : children()) {
             if (field instanceof FieldAttribute fa) {
                 if (fa.isDimension() == false) {
-                    return new TypeResolution("TSDIM_WITHOUT requires dimension fields, but [" + fa.sourceText() + "] is not a dimension");
+                    return new TypeResolution(
+                        "TIME_SERIES_WITHOUT requires dimension fields, but [" + fa.sourceText() + "] is not a dimension"
+                    );
                 }
             } else {
                 return new TypeResolution(
-                    "TSDIM_WITHOUT requires field attributes, got ["
+                    "TIME_SERIES_WITHOUT requires field attributes, got ["
                         + field.sourceText()
                         + "] of type ["
                         + field.dataType().typeName()
@@ -96,7 +117,7 @@ public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunctio
      * Returns the set of field names to exclude from the time-series grouping.
      */
     public Set<String> excludedFieldNames() {
-        Set<String> excluded = new HashSet<>();
+        Set<String> excluded = new LinkedHashSet<>();
         for (Expression field : children()) {
             if (field instanceof FieldAttribute fa) {
                 excluded.add(fa.fieldName().string());
@@ -107,6 +128,6 @@ public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunctio
 
     @Override
     public String toString() {
-        return "TsdimWithout{fields=" + children() + "}";
+        return "TimeSeriesWithout{fields=" + children() + "}";
     }
 }

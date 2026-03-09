@@ -49,6 +49,28 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
         return Collections.unmodifiableSet(new LinkedHashSet<>(without));
     }
 
+    /**
+     * Builds a {@code _timeseries} attribute from an existing attribute while preserving its identity.
+     */
+    public static TimeSeriesMetadataAttribute from(Attribute attribute, Set<String> withoutFields) {
+        if (attribute instanceof TimeSeriesMetadataAttribute timeSeriesAttribute
+            && timeSeriesAttribute.withoutFields.equals(withoutFields)) {
+            return timeSeriesAttribute;
+        }
+        String parentName = attribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
+        return new TimeSeriesMetadataAttribute(
+            attribute.source(),
+            parentName,
+            attribute.qualifier(),
+            MetadataAttribute.TIMESERIES,
+            timeSeriesField(),
+            attribute.nullable(),
+            attribute.id(),
+            attribute.synthetic(),
+            withoutFields
+        );
+    }
+
     public Set<String> withoutFields() {
         return withoutFields;
     }

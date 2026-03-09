@@ -5,8 +5,9 @@ Converts histogram-like values to an exponential histogram.
 
 ```esql
 FROM histogram_standard_index
- | WHERE instance == "hand-rolled"
- | EVAL tdigest = to_tdigest(responseTime)
- | KEEP responseTime, tdigest
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = to_exponential_histogram(responseTime)
+ | SORT instance
+ | KEEP responseTime, converted
 ;
 ```

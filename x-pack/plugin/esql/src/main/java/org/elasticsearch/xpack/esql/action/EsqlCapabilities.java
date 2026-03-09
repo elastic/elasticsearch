@@ -1605,6 +1605,11 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
+         * COALESCE function support for dense_vector type.
+         */
+        COALESCE_DENSE_VECTOR,
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),

@@ -90,6 +90,7 @@ public class ConfigurationTestUtils {
             tsTruncation,
             defaultTsTruncation,
             null,
+            null,
             Map.of()
         );
     }

@@ -560,11 +560,7 @@ public class SnapshotResiliencyTestHelper {
                     }
 
                     @Override
-<<<<<<< fix/release-breaker-after-send-response
-                    public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
-=======
                     public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
->>>>>>> main
                         // skip leak checks in these tests since they do indeed leak
                         return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE, circuitBreaker);
                         // TODO fix these leaks and implement leak checking

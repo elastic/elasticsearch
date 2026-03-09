@@ -1093,6 +1093,31 @@ _timeseries:keyword                                                   | tbucket:
 "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z | 2.874  
 ;
 
+bare_downsampled_rate_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: fix_displaying_ts_dimensions_in_metrics_group_by_all
+
+TS k8s-downsampled
+| STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
+| EVAL rate=ROUND(rate, 3)
+| SORT rate DESC
+;
+ignoreOrder:true
+
+_timeseries:keyword                           | tbucket:datetime         | rate:double
+"{""cluster"":""prod"",""pod"":""one""}"      | 2024-05-09T23:00:00.000Z | 0.019
+"{""cluster"":""prod"",""pod"":""three""}"    | 2024-05-09T23:00:00.000Z | 0.015
+"{""cluster"":""prod"",""pod"":""two""}"      | 2024-05-09T23:00:00.000Z | 0.092
+"{""cluster"":""qa"",""pod"":""one""}"        | 2024-05-09T23:00:00.000Z | 0.021
+"{""cluster"":""qa"",""pod"":""three""}"      | 2024-05-09T23:00:00.000Z | 0.059
+"{""cluster"":""qa"",""pod"":""two""}"        | 2024-05-09T23:00:00.000Z | 0.066
+"{""cluster"":""staging"",""pod"":""one""}"   | 2024-05-09T23:00:00.000Z | 0.101
+"{""cluster"":""staging"",""pod"":""three""}" | 2024-05-09T23:00:00.000Z | 0.036
+"{""cluster"":""staging"",""pod"":""two""}"   | 2024-05-09T23:00:00.000Z | 0.034  
+;
+
 bare_rate_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 

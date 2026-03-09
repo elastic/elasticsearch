@@ -135,7 +135,7 @@ FROM many_numbers
 ;
 
 count:long | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean
-120300     | [120300,120300]                     | {any}                   
+120300     | [120300,120300]                     | {any}
 ;
 
 
@@ -222,7 +222,7 @@ FROM many_numbers
 ;
 
 avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(avg2):double | CERTIFIED(avg2):boolean
-315..350   | 630..700    | [315..350,315..350]             | {any}                  | [630..700,630..700]              | {any} 
+315..350   | 630..700    | [315..350,315..350]             | {any}                  | [630..700,630..700]              | {any}
 ;
 
 
@@ -237,7 +237,7 @@ FROM many_numbers
     | KEEP x, y
     | EVAL plus_one = y + x + 1
     | RENAME plus1 = plus_one
-    | DROP x 
+    | DROP x
 ;
 
 y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | CERTIFIED(plus1):boolean
@@ -345,7 +345,7 @@ FROM many_numbers
     | SORT sv
 ;
 
-count:long | sv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean 
+count:long | sv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 1          | 1          | [1, 1]                          | true
 2          | 2          | [2, 2]                          | true
 3          | 3          | [3, 3]                          | true
@@ -365,10 +365,29 @@ FROM many_numbers
     | SORT mv
 ;
 
-count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean 
+count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 1          | 1          | [1, 1]                          | true
 2          | 2          | [2, 2]                          | true
 3          | 3          | [3, 3]                          | true
 4          | 4          | [4, 4]                          | true
 5          | 5          | [5, 5]                          | true
+;
+
+
+// This test fails in a multi-node setup: on one node, the field "sv_and_one_mv"
+// is multi-valued, and on the other nodes it is single-valued. This leads to
+// wrong sample correction on the coordinator node.
+// TODO: fix this issue by moving the sample correction logic to the data nodes,
+// and re-enable this test.
+
+Approximate stats by on mixed data-Ignore
+required_capability: approximation_v2
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS count=COUNT(sv_and_one_mv)
+;
+
+count:long     | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
+110000..140000 | [110000..140000,110000..140000] | {any}
 ;

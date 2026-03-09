@@ -49,11 +49,11 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
     }
 
     private static EsRelation addLoweredAttributes(EsRelation relation, Iterable<TimeSeriesMetadataAttribute> loweredAttributes) {
+        var existingIds = relation.outputSet();
         List<Attribute> attributes = new ArrayList<>(relation.output());
         boolean changed = false;
         for (TimeSeriesMetadataAttribute loweredAttribute : loweredAttributes) {
-            boolean exists = attributes.stream().anyMatch(attr -> attr.semanticEquals(loweredAttribute));
-            if (exists == false) {
+            if (existingIds.contains(loweredAttribute) == false) {
                 attributes.add(loweredAttribute);
                 changed = true;
             }

@@ -329,6 +329,21 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(12L, indexingPressure.stats().getPrimaryDocumentRejections());
     }
 
+    public void testCoordinatingReduceBytes() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);
+        assertEquals(1024, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(1024, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.reduceBytes(512);
+        assertEquals(512, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(512, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.close();
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+    }
+
     public void testForceExecutionOnCoordinating() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1, 1024 * 11, false));

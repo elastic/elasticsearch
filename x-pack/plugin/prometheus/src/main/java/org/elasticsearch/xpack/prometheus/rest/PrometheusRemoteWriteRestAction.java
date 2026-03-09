@@ -11,10 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.IndexingPressureAwareContentAggregator;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -23,8 +24,22 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * REST handler for Prometheus Remote Write requests. Accumulates the protobuf request body
+ * while tracking memory usage via {@link IndexingPressure}, then dispatches to
+ * {@link PrometheusRemoteWriteTransportAction}.
+ */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
+
+    private final IndexingPressure indexingPressure;
+    private final long maxRequestSize;
+
+    public PrometheusRemoteWriteRestAction(IndexingPressure indexingPressure, long maxRequestSize) {
+        this.indexingPressure = indexingPressure;
+        this.maxRequestSize = maxRequestSize;
+    }
+
     @Override
     public String getName() {
         return "prometheus_remote_write_action";
@@ -40,6 +55,11 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
+    @Override
     public boolean mediaTypesValid(RestRequest request) {
         return request.getXContentType() == null
             && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
@@ -49,29 +69,36 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String dataset = request.param(DataStream.DATASET, "generic");
         String namespace = request.param(DataStream.NAMESPACE, "default");
-        if (request.hasContent()) {
-            DataStream.validateDataset(dataset);
-            DataStream.validateNamespace(namespace);
-            var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
-                request.content().retain(),
-                dataset,
-                namespace
-            );
-            return channel -> client.execute(
-                PrometheusRemoteWriteTransportAction.TYPE,
-                transportRequest,
-                ActionListener.releaseBefore(request.content(), new RestResponseListener<>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
-                        if (r.getMessage() != null) {
-                            return new RestResponse(r.getStatus(), r.getMessage());
-                        }
-                        return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                    }
-                })
-            );
-        }
+        DataStream.validateDataset(dataset);
+        DataStream.validateNamespace(namespace);
 
-        return channel -> channel.sendResponse(new RestResponse(RestStatus.NO_CONTENT, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSize, false);
+
+        return new IndexingPressureAwareContentAggregator(
+            request,
+            coordinating,
+            maxRequestSize,
+            (channel, content, indexingPressureRelease) -> {
+                var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
+                    content,
+                    dataset,
+                    namespace,
+                    indexingPressureRelease
+                );
+                client.execute(
+                    PrometheusRemoteWriteTransportAction.TYPE,
+                    transportRequest,
+                    ActionListener.releaseBefore(transportRequest, new RestResponseListener<>(channel) {
+                        @Override
+                        public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
+                            if (r.getMessage() != null) {
+                                return new RestResponse(r.getStatus(), r.getMessage());
+                            }
+                            return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                        }
+                    })
+                );
+            }
+        );
     }
 }

@@ -376,8 +376,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
         List<RestHandler> releasedRestHandlers = List.of(
-            new RestEsqlQueryAction(capabilities),
-            new RestEsqlAsyncQueryAction(capabilities),
+            new RestEsqlQueryAction(capabilities, settings),
+            new RestEsqlAsyncQueryAction(capabilities, settings),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),

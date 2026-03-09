@@ -49,6 +49,7 @@ public class RestSqlTranslateAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
+        sqlRequest.setResolvesCrossProject(crossProjectModeDecider.crossProjectEnabled() && sqlRequest.allowsCrossProject());
         if (sqlRequest.projectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
             throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
         }

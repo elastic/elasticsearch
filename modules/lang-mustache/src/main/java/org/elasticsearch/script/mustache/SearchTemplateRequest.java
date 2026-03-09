@@ -50,6 +50,7 @@ public class SearchTemplateRequest extends LegacyActionRequest
     private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
+    private boolean resolvesCrossProject;
 
     @Nullable
     private String projectRouting;
@@ -272,5 +273,14 @@ public class SearchTemplateRequest extends LegacyActionRequest
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

@@ -41,6 +41,7 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    private boolean resolvesCrossProject;
 
     @Nullable
     private String projectRouting;
@@ -185,5 +186,14 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

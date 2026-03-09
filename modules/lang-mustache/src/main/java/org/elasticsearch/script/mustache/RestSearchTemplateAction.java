@@ -91,6 +91,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             }
         }
 
+        searchTemplateRequest.setResolvesCrossProject(crossProjectEnabled && searchTemplateRequest.allowsCrossProject());
         searchTemplateRequest.setRequest(searchRequest);
         // This param is parsed within the search request
         if (searchRequest.source().explain() != null) {

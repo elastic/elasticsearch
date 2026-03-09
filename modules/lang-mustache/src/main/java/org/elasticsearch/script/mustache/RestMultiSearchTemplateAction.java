@@ -74,6 +74,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
         if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
+            multiRequest.setResolvesCrossProject(true);
             multiRequest.setProjectRouting(restRequest.param("project_routing"));
             multiRequest.indicesOptions(
                 IndicesOptions.builder(multiRequest.indicesOptions())

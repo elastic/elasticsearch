@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -15,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,9 +31,11 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     private final EsqlCapabilities capabilities;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestEsqlQueryAction(EsqlCapabilities capabilities) {
+    public RestEsqlQueryAction(EsqlCapabilities capabilities, Settings settings) {
         this.capabilities = capabilities;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -52,7 +56,9 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            return restChannelConsumer(RequestXContent.parseSync(parser), request, client);
+            EsqlQueryRequest esqlRequest = RequestXContent.parseSync(parser);
+            esqlRequest.setResolvesCrossProject(crossProjectModeDecider.crossProjectEnabled() && esqlRequest.allowsCrossProject());
+            return restChannelConsumer(esqlRequest, request, client);
         }
     }
 

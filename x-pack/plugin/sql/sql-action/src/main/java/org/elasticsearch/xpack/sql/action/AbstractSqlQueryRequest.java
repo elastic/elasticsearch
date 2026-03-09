@@ -96,6 +96,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = emptyList();
     private Map<String, Object> runtimeMappings = emptyMap();
+    private boolean resolvesCrossProject;
     private String projectRouting;
 
     static final ParseField QUERY = new ParseField(QUERY_NAME);
@@ -518,5 +519,14 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    public void setResolvesCrossProject(boolean resolvesCrossProject) {
+        this.resolvesCrossProject = resolvesCrossProject;
+    }
+
+    @Override
+    public boolean resolvesCrossProject() {
+        return resolvesCrossProject;
     }
 }

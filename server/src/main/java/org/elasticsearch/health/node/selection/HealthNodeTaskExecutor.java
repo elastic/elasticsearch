@@ -112,6 +112,11 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, HealthNodeTaskParams params, PersistentTaskState state) {
         HealthNode healthNode = (HealthNode) task;
         currentTask.set(healthNode);

@@ -149,7 +149,13 @@ public class TDigestFieldMapper extends FieldMapper {
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
+                new TDigestFieldType(
+                    context.buildFullName(leafName()),
+                    meta.getValue(),
+                    this.metric.getValue(),
+                    this.digestType.getValue(),
+                    this.compression.getValue()
+                ),
                 builderParams(this, context),
                 this
             );
@@ -208,10 +214,20 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static class TDigestFieldType extends MappedFieldType {
         private final TimeSeriesParams.MetricType metricType;
+        private final TDigestExecutionHint digestExecutionHint;
+        private final Double compression;
 
-        public TDigestFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
+        public TDigestFieldType(
+            String name,
+            Map<String, String> meta,
+            TimeSeriesParams.MetricType metricType,
+            TDigestExecutionHint digestExecutionHint,
+            Double compression
+        ) {
             super(name, IndexType.docValuesOnly(), false, meta);
             this.metricType = metricType;
+            this.digestExecutionHint = digestExecutionHint;
+            this.compression = compression;
         }
 
         @Override
@@ -222,6 +238,14 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
+        }
+
+        public TDigestExecutionHint getDigestExecutionHint() {
+            return digestExecutionHint;
+        }
+
+        public Double getCompression() {
+            return compression;
         }
 
         @Override

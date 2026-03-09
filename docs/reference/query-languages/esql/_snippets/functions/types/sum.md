@@ -5,6 +5,7 @@
 | number | result |
 | --- | --- |
 | aggregate_metric_double | double |
+| dense_vector | dense_vector |
 | double | double |
 | exponential_histogram {applies_to}`stack: preview 9.3.0` | double |
 | integer | long |

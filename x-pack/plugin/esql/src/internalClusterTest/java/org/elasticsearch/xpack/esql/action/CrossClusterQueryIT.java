@@ -1414,16 +1414,37 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertNotNull("Should have subplan logical plan", explainSubplanLogical);
             assertNotNull("Should have subplan physical plan", explainSubplanPhysical);
 
-            // Verify subplan contains the aggregation
+            // Verify subplan logical plan contains the aggregation components:
+            // - Aggregate node for the INLINE STATS aggregation
+            // - SUM function for the "total = SUM(value)" expression
+            // - Grouping by "category"
             assertThat(
-                "Subplan should contain aggregation",
+                "Subplan logical plan should contain Aggregate",
                 explainSubplanLogical,
-                anyOf(containsString("Aggregate"), containsString("SUM"))
+                containsString("Aggregate")
+            );
+            assertThat(
+                "Subplan logical plan should contain SUM aggregation",
+                explainSubplanLogical,
+                containsString("SUM")
+            );
+            assertThat(
+                "Subplan logical plan should group by category",
+                explainSubplanLogical,
+                containsString("category")
             );
 
-            // For INLINE STATS, we currently skip data node planning due to StubRelation serialization limitation
-            // This is expected behavior - we only show coordinator plans
-            assertFalse("EXPLAIN with INLINE STATS should not include data node plans (current limitation)", hasDataNodePlans);
+            // Verify subplan physical plan contains execution operators
+            assertThat(
+                "Subplan physical plan should contain aggregation execution",
+                explainSubplanPhysical,
+                anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
+            );
+
+            // With the unified execution path, INLINE STATS queries now show full execution plans
+            // including data node plans from subplan execution. This is an improvement over the
+            // previous limitation where subplans prevented data node plan capture.
+            assertTrue("EXPLAIN with INLINE STATS should now include data node plans", hasDataNodePlans);
         }
     }
 

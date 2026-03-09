@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -24,8 +25,9 @@ public final class ExplainPlanTransformer {
     private ExplainPlanTransformer() {}
 
     /**
-     * Transforms the plan by replacing ES data source nodes with empty LocalSourceExec.
+     * Transforms the plan by replacing data source nodes with empty LocalSourceExec.
      * This preserves the plan structure but makes execution cheap since no data is read.
+     * Handles both ES data sources and external data sources (Iceberg, Parquet, S3, etc.).
      *
      * @param plan the original physical plan
      * @return a transformed plan with empty data sources
@@ -33,16 +35,16 @@ public final class ExplainPlanTransformer {
     public static PhysicalPlan replaceDataSourcesWithEmpty(PhysicalPlan plan) {
         return plan.transformUp(PhysicalPlan.class, p -> {
             if (p instanceof EsQueryExec esQuery) {
-                // Replace EsQueryExec with empty LocalSourceExec preserving output schema
                 return new LocalSourceExec(esQuery.source(), esQuery.output(), EmptyLocalSupplier.EMPTY);
             }
             if (p instanceof EsSourceExec esSource) {
-                // Replace EsSourceExec with empty LocalSourceExec preserving output schema
                 return new LocalSourceExec(esSource.source(), esSource.output(), EmptyLocalSupplier.EMPTY);
             }
             if (p instanceof EsStatsQueryExec esStats) {
-                // Replace EsStatsQueryExec with empty LocalSourceExec preserving output schema
                 return new LocalSourceExec(esStats.source(), esStats.output(), EmptyLocalSupplier.EMPTY);
+            }
+            if (p instanceof ExternalSourceExec externalSource) {
+                return new LocalSourceExec(externalSource.source(), externalSource.output(), EmptyLocalSupplier.EMPTY);
             }
             return p;
         });

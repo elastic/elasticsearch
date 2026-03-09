@@ -96,6 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -2357,6 +2358,275 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         } finally {
             // Clean up the test index
             assertAcked(indicesAdmin().prepareDelete(indexName));
+        }
+    }
+
+    /**
+     * Test EXPLAIN with LOOKUP JOIN to verify that join plans are captured correctly.
+     * Unlike INLINE STATS, LOOKUP JOIN is optimized into a regular Join and executed
+     * directly without creating a separate subplan.
+     */
+    public void testExplainWithLookupJoin() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+
+        String mainIndex = "explain_lookup_main";
+        String lookupIndex = "explain_lookup_index";
+
+        try {
+            // Create the lookup index (must be in lookup mode)
+            Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+            assertAcked(
+                indicesAdmin().prepareCreate(lookupIndex)
+                    .setSettings(lookupSettings)
+                    .setMapping("category_id", "type=keyword", "category_name", "type=keyword")
+            );
+
+            // Index lookup data
+            prepareIndex(lookupIndex).setSource("category_id", "A", "category_name", "Alpha").get();
+            prepareIndex(lookupIndex).setSource("category_id", "B", "category_name", "Beta").get();
+            prepareIndex(lookupIndex).setSource("category_id", "C", "category_name", "Gamma").get();
+            indicesAdmin().prepareRefresh(lookupIndex).get();
+
+            // Create main index
+            assertAcked(
+                indicesAdmin().prepareCreate(mainIndex)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                    .setMapping("id", "type=integer", "category_id", "type=keyword")
+            );
+
+            // Index main data
+            prepareIndex(mainIndex).setSource("id", 1, "category_id", "A").get();
+            prepareIndex(mainIndex).setSource("id", 2, "category_id", "B").get();
+            prepareIndex(mainIndex).setSource("id", 3, "category_id", "A").get();
+            indicesAdmin().prepareRefresh(mainIndex).get();
+
+            // Query with LOOKUP JOIN
+            String query = "FROM " + mainIndex + " | LOOKUP JOIN " + lookupIndex + " ON category_id | KEEP id, category_id, category_name";
+
+            try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                // Track plans from EXPLAIN
+                String parsedPlan = null;
+                String optimizedLogicalPlan = null;
+                String optimizedPhysicalPlan = null;
+                String localPhysicalPlan = null;
+                int dataNodePlanCount = 0;
+
+                for (List<Object> row : values) {
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("coordinator".equals(role)) {
+                        if ("parsedPlan".equals(type)) {
+                            parsedPlan = plan;
+                        } else if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = plan;
+                        } else if ("optimizedPhysicalPlan".equals(type)) {
+                            optimizedPhysicalPlan = plan;
+                        }
+                    } else if ("data".equals(role)) {
+                        dataNodePlanCount++;
+                        if ("localPhysicalPlan".equals(type)) {
+                            localPhysicalPlan = plan;
+                        }
+                    }
+                }
+
+                // Verify coordinator plans are present
+                assertNotNull("Should have parsed plan", parsedPlan);
+                assertNotNull("Should have optimized logical plan", optimizedLogicalPlan);
+                assertNotNull("Should have optimized physical plan", optimizedPhysicalPlan);
+
+                // === Parsed Plan Assertions ===
+                // The parsed plan should show the original LookupJoin before any optimization
+                assertThat("Parsed plan should contain LookupJoin", parsedPlan, containsString("LookupJoin"));
+                assertThat("Parsed plan should reference main index", parsedPlan, containsString(mainIndex));
+                assertThat("Parsed plan should reference lookup index", parsedPlan, containsString(lookupIndex));
+                assertThat("Parsed plan should contain join key category_id", parsedPlan, containsString("category_id"));
+
+                // === Optimized Logical Plan Assertions ===
+                // LookupJoin is transformed into a LEFT Join during optimization
+                assertThat("Optimized logical plan should contain Join[LEFT", optimizedLogicalPlan, containsString("Join[LEFT"));
+                assertThat("Optimized logical plan should reference main index", optimizedLogicalPlan, containsString(mainIndex));
+                assertThat("Optimized logical plan should reference lookup index", optimizedLogicalPlan, containsString(lookupIndex));
+                // The lookup index should be marked as LOOKUP mode
+                assertThat("Optimized logical plan should show LOOKUP mode", optimizedLogicalPlan, containsString("[LOOKUP]"));
+                // Project should contain the kept fields
+                assertThat("Optimized logical plan should have Project", optimizedLogicalPlan, containsString("Project"));
+
+                // === Optimized Physical Plan Assertions ===
+                // The physical plan should contain LookupJoinExec for LOOKUP JOIN execution
+                assertThat(
+                    "Optimized physical plan should contain LookupJoinExec",
+                    optimizedPhysicalPlan,
+                    containsString("LookupJoinExec")
+                );
+                // Should have exchange for distributed execution
+                assertThat(
+                    "Optimized physical plan should contain ExchangeExec for distribution",
+                    optimizedPhysicalPlan,
+                    containsString("ExchangeExec")
+                );
+                // Should have FragmentExec for query fragments
+                assertThat(
+                    "Optimized physical plan should contain FragmentExec",
+                    optimizedPhysicalPlan,
+                    containsString("FragmentExec")
+                );
+
+                // === Data Node Plan Assertions ===
+                assertTrue("EXPLAIN with LOOKUP JOIN should include data node plans", dataNodePlanCount > 0);
+                assertNotNull("Should have local physical plan from data node", localPhysicalPlan);
+                // Local plan should contain the source operations
+                assertThat(
+                    "Local physical plan should contain source execution",
+                    localPhysicalPlan,
+                    anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
+                );
+            }
+        } finally {
+            // Clean up
+            try {
+                indicesAdmin().prepareDelete(mainIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                indicesAdmin().prepareDelete(lookupIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Test EXPLAIN with query approximation to verify that approximation plans are captured.
+     * Approximation transforms STATS into SampledAggregate when the data set is large enough.
+     * With small data sets (like this test), approximation may fall back to exact execution.
+     */
+    public void testExplainWithApproximation() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V2.isEnabled());
+
+        String indexName = "explain_approximation_test";
+
+        try {
+            // Create an index
+            assertAcked(
+                indicesAdmin().prepareCreate(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                    .setMapping("value", "type=integer", "category", "type=keyword")
+            );
+
+            // Index test data
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < 1000; i++) {
+                bulk.add(new IndexRequest(indexName).source(Map.of("value", i, "category", "cat" + (i % 10))));
+            }
+            BulkResponse bulkResponse = bulk.get();
+            assertFalse(bulkResponse.hasFailures());
+
+            // Query with approximation enabled via SET command
+            // rows must be at least 10000 per ApproximationSettings validation
+            // SET must be placed before EXPLAIN as a separate statement
+            String query = "SET approximation={\"rows\":10000}; EXPLAIN (FROM " + indexName + " | STATS count=COUNT(*), sum=SUM(value))";
+
+            try (EsqlQueryResponse explainResults = run(query)) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                // Track what we find in the EXPLAIN output
+                String parsedPlan = null;
+                String optimizedLogicalPlan = null;
+                String optimizedPhysicalPlan = null;
+                String localPhysicalPlan = null;
+                int dataNodePlanCount = 0;
+
+                for (List<Object> row : values) {
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("coordinator".equals(role)) {
+                        if ("parsedPlan".equals(type)) {
+                            parsedPlan = plan;
+                        } else if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = plan;
+                        } else if ("optimizedPhysicalPlan".equals(type)) {
+                            optimizedPhysicalPlan = plan;
+                        }
+                    } else if ("data".equals(role)) {
+                        dataNodePlanCount++;
+                        if ("localPhysicalPlan".equals(type)) {
+                            localPhysicalPlan = plan;
+                        }
+                    }
+                }
+
+                // === Verify all plan types are present ===
+                assertNotNull("Should have parsed plan", parsedPlan);
+                assertNotNull("Should have optimized logical plan", optimizedLogicalPlan);
+                assertNotNull("Should have optimized physical plan", optimizedPhysicalPlan);
+
+                // === Parsed Plan Assertions ===
+                // The parsed plan shows the original query structure before optimization
+                assertThat("Parsed plan should contain Aggregate", parsedPlan, containsString("Aggregate"));
+                assertThat("Parsed plan should contain COUNT aggregation", parsedPlan, containsString("COUNT"));
+                assertThat("Parsed plan should contain SUM aggregation", parsedPlan, containsString("SUM"));
+                assertThat("Parsed plan should reference the index", parsedPlan, containsString(indexName));
+
+                // === Optimized Logical Plan Assertions ===
+                // With approximation enabled, STATS may be transformed to SampledAggregate
+                // However, with small data (1000 rows < 10000 target), it may use exact Aggregate
+                assertThat(
+                    "Optimized logical plan should contain aggregation (Aggregate or SampledAggregate)",
+                    optimizedLogicalPlan,
+                    anyOf(containsString("Aggregate"), containsString("SampledAggregate"))
+                );
+                // The aggregation functions should be present
+                assertThat("Optimized logical plan should contain COUNT", optimizedLogicalPlan, containsString("COUNT"));
+                assertThat("Optimized logical plan should contain SUM", optimizedLogicalPlan, containsString("SUM"));
+                // Should reference the source index
+                assertThat("Optimized logical plan should reference index", optimizedLogicalPlan, containsString(indexName));
+
+                // === Optimized Physical Plan Assertions ===
+                // Physical plan should have aggregation execution operators
+                assertThat(
+                    "Optimized physical plan should contain AggregateExec",
+                    optimizedPhysicalPlan,
+                    containsString("AggregateExec")
+                );
+                // Should have exchange for final aggregation coordination
+                assertThat(
+                    "Optimized physical plan should contain ExchangeExec",
+                    optimizedPhysicalPlan,
+                    containsString("ExchangeExec")
+                );
+
+                // === Data Node Plan Assertions ===
+                assertTrue("EXPLAIN with approximation should include data node plans", dataNodePlanCount > 0);
+                assertNotNull("Should have local physical plan from data node", localPhysicalPlan);
+                // Local plan should contain source and aggregation operators
+                assertThat(
+                    "Local physical plan should contain source execution",
+                    localPhysicalPlan,
+                    anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
+                );
+                // Local plan should have partial aggregation
+                assertThat(
+                    "Local physical plan should contain aggregation operator",
+                    localPhysicalPlan,
+                    anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
+                );
+            }
+        } finally {
+            // Clean up
+            try {
+                indicesAdmin().prepareDelete(indexName).get();
+            } catch (Exception e) {
+                // ignore
+            }
         }
     }
 }

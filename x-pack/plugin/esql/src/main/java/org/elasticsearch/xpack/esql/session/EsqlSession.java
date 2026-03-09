@@ -412,139 +412,107 @@ public class EsqlSession {
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
-        if (explainMode) {
-            executeExplain(
-                request,
-                executionInfo,
-                planRunner,
-                optimizedPlan,
-                configuration,
-                foldContext,
-                minimumVersion,
-                planTimeProfile,
-                physicalPlanOptimizer,
-                listener
-            );
-        } else {
-            // TODO: this could be snuck into the underlying listener
-            EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-            // execute any potential subplans
-            executeSubPlans(
-                optimizedPlan,
-                configuration,
-                foldContext,
-                approximation,
-                planRunner,
-                executionInfo,
-                request,
-                physicalPlanOptimizer,
-                planTimeProfile,
-                listener
-            );
-        }
+        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+
+        // In explain mode, wrap the listener to transform results into EXPLAIN table format.
+        // We use the same execution path as normal queries to ensure accuracy.
+        ActionListener<Result> effectiveListener = explainMode
+            ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
+            : listener;
+
+        // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
+        executeSubPlans(
+            optimizedPlan,
+            configuration,
+            foldContext,
+            approximation,
+            planRunner,
+            executionInfo,
+            request,
+            physicalPlanOptimizer,
+            planTimeProfile,
+            effectiveListener
+        );
     }
 
     /**
-     * Execute EXPLAIN command to return query execution plans.
-     * This includes coordinator plans, data node local plans, and remote cluster plans for CCS.
-     * Uses the normal execution path with explainOnly=true to capture plans from all nodes.
+     * Creates a listener that intercepts execution results and transforms them into EXPLAIN output.
+     * This ensures EXPLAIN shows exactly the same plans that would be executed.
      */
-    private void executeExplain(
-        EsqlQueryRequest request,
-        EsqlExecutionInfo executionInfo,
-        PlanRunner planRunner,
+    private ActionListener<Result> createExplainListener(
+        ActionListener<Result> delegate,
         LogicalPlan optimizedPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        TransportVersion minimumVersion,
-        PlanTimeProfile planTimeProfile,
+        EsqlQueryRequest request,
         PhysicalPlanOptimizer physicalPlanOptimizer,
-        ActionListener<Result> listener
+        PlanTimeProfile planTimeProfile,
+        Configuration configuration,
+        PlanRunner planRunner
     ) {
+        // Capture the coordinator physical plan string before execution
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
         String physicalPlanString = physicalPlan.toString();
 
-        // Set planning time on execution info (required for CCS metadata)
-        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-
-        List<List<Object>> values = Collections.synchronizedList(new ArrayList<>());
-        String localCluster = "";  // Empty string for local cluster
-        String coordinatorNode = clusterName;
-
-        // Add coordinator plans
-        values.add(List.of(localCluster, coordinatorNode, "coordinator", "parsedPlan", parsedPlanString));
-        values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
-        values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedPhysicalPlan", physicalPlanString));
-
-        // Check if there are subplans (for INLINE STATS, LOOKUP JOIN)
+        // Capture subplan information before execution (for INLINE STATS, LOOKUP JOIN)
+        List<List<Object>> subplanValues = new ArrayList<>();
         var subPlansResults = new HashSet<LocalRelation>();
         var subPlan = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
         if (subPlan != null) {
-            // Add subplan information
             int subPlanIndex = 0;
             InlineJoin.LogicalPlanTuple currentSubPlan = subPlan;
             while (currentSubPlan != null) {
                 String subPlanStr = currentSubPlan.stubReplacedSubPlan().toString();
-                values.add(List.of(localCluster, coordinatorNode, "subplan-" + subPlanIndex, "logicalPlan", subPlanStr));
+                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "logicalPlan", subPlanStr));
                 PhysicalPlan subPhysicalPlan = logicalPlanToPhysicalPlan(
                     currentSubPlan.stubReplacedSubPlan(),
                     request,
                     physicalPlanOptimizer,
                     planTimeProfile
                 );
-                values.add(List.of(localCluster, coordinatorNode, "subplan-" + subPlanIndex, "physicalPlan", subPhysicalPlan.toString()));
+                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "physicalPlan", subPhysicalPlan.toString()));
                 subPlanIndex++;
                 currentSubPlan = InlineJoin.firstSubPlan(currentSubPlan.stubReplacedSubPlan(), subPlansResults);
             }
         }
 
-        // Check if there's a data node plan and no subplans
-        // Subplans (from INLINE STATS) contain StubRelation which cannot be serialized for remote execution.
-        // In normal execution, subplans are executed first and their results replace StubRelation.
-        // For EXPLAIN, we skip remote planning when subplans exist and only return coordinator-level plans.
-        var coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, configuration);
-        PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
-        boolean hasSubPlans = subPlan != null;
+        return delegate.delegateFailureAndWrap((next, result) -> {
+            List<List<Object>> values = Collections.synchronizedList(new ArrayList<>());
+            String localCluster = "";
+            String coordinatorNode = clusterName;
 
-        if (dataNodePlan != null && hasSubPlans == false) {
-            // Run the plan through the normal execution path with profile=true
-            // This will route to data nodes and remote clusters, execute the query,
-            // and capture each node's locally optimized plan via profile data
-            planRunner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-                // Extract local plans from profile data
-                // Include profiles with role based on description:
-                // - "data" description -> "data" role (data node physical plan)
-                // - "node_reduce" description -> "reduce" role (coordinator reduce plan)
-                if (result.completionInfo() != null && result.completionInfo().planProfiles() != null) {
-                    for (var planProfile : result.completionInfo().planProfiles()) {
-                        String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
-                        String node = planProfile.nodeName() != null ? planProfile.nodeName() : "";
-                        String planTree = planProfile.planTree() != null ? planProfile.planTree() : "";
-                        String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
-                        // Map description to role and type
-                        String description = planProfile.description();
-                        if (ComputeService.DATA_DESCRIPTION.equals(description)) {
-                            if (logicalPlanTree.isEmpty() == false) {
-                                values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
-                            }
-                            values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
-                        } else if (ComputeService.REDUCE_DESCRIPTION.equals(description)) {
-                            // Reduce plans are from the coordinator, skip for now (coordinator plan is already shown above)
-                            // values.add(List.of(cluster, node, "reduce", "reducePhysicalPlan", planTree));
+            // Add coordinator plans (captured before execution)
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "parsedPlan", parsedPlanString));
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedPhysicalPlan", physicalPlanString));
+
+            // Add subplan information (captured before execution)
+            values.addAll(subplanValues);
+
+            // Extract local plans from profile data (captured during execution)
+            if (result.completionInfo() != null && result.completionInfo().planProfiles() != null) {
+                for (var planProfile : result.completionInfo().planProfiles()) {
+                    String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
+                    String node = planProfile.nodeName() != null ? planProfile.nodeName() : "";
+                    String planTree = planProfile.planTree() != null ? planProfile.planTree() : "";
+                    String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
+                    String description = planProfile.description();
+
+                    if (ComputeService.DATA_DESCRIPTION.equals(description)) {
+                        if (logicalPlanTree.isEmpty() == false) {
+                            values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
                         }
-                        // Other descriptions can be added as needed
+                        values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
                     }
                 }
-                // Release pages from the intermediate result to avoid memory leak
-                for (var page : result.pages()) {
-                    page.releaseBlocks();
-                }
-                finishExplain(values, configuration, foldContext, planTimeProfile, planRunner, next);
-            }));
-        } else {
-            // Either no data node plan, or has subplans (subplans not supported for remote EXPLAIN)
-            finishExplain(values, configuration, foldContext, planTimeProfile, planRunner, listener);
-        }
+            }
+
+            // Release pages from the intermediate result
+            for (var page : result.pages()) {
+                page.releaseBlocks();
+            }
+
+            // Build and return the EXPLAIN table
+            finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
+        });
     }
 
     private void finishExplain(

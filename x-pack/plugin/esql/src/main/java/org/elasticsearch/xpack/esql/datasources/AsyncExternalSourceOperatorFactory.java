@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -338,17 +339,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                 boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                                 skipFirstLine = isFirstSplit == false;
                             }
-                            try (
-                                CloseableIterator<Page> pages = formatReader.readSplit(
-                                    obj,
-                                    cols,
-                                    batchSize,
-                                    skipFirstLine,
-                                    lastSplit,
-                                    attributes,
-                                    errorPolicy
-                                )
-                            ) {
+                            FormatReadContext ctx = FormatReadContext.builder()
+                                .projectedColumns(cols)
+                                .batchSize(batchSize)
+                                .errorPolicy(errorPolicy)
+                                .skipFirstLine(skipFirstLine)
+                                .lastSplit(lastSplit)
+                                .resolvedAttributes(attributes)
+                                .build();
+                            try (CloseableIterator<Page> pages = formatReader.read(obj, ctx)) {
                                 int consumed = drainPagesWithBudget(pages, buffer, injector);
                                 if (rowLimit != FormatReader.NO_LIMIT) {
                                     rowsRemaining -= consumed;
@@ -383,7 +382,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     }
                     StorageObject obj = storageProvider.newObject(entry.path(), entry.length(), entry.lastModified());
                     int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
-                    try (CloseableIterator<Page> pages = formatReader.read(obj, projectedColumns, batchSize, fileBudget, errorPolicy)) {
+                    FormatReadContext ctx = FormatReadContext.builder()
+                        .projectedColumns(projectedColumns)
+                        .batchSize(batchSize)
+                        .rowLimit(fileBudget)
+                        .errorPolicy(errorPolicy)
+                        .build();
+                    try (CloseableIterator<Page> pages = formatReader.read(obj, ctx)) {
                         int consumed = drainPagesWithBudget(pages, buffer, injector);
                         if (rowLimit != FormatReader.NO_LIMIT) {
                             rowsRemaining -= consumed;
@@ -406,20 +411,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        formatReader.readAsync(
-            storageObject,
-            projectedColumns,
-            batchSize,
-            rowLimit,
-            errorPolicy,
-            executor,
-            ActionListener.wrap(iterator -> {
-                consumePagesInBackground(iterator, buffer, driverContext, injector);
-            }, e -> {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            })
-        );
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .rowLimit(rowLimit)
+            .errorPolicy(errorPolicy)
+            .build();
+        formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+            consumePagesInBackground(iterator, buffer, driverContext, injector);
+        }, e -> {
+            buffer.onFailure(e);
+            driverContext.removeAsyncAction();
+        }));
     }
 
     private void startSyncWrapperRead(
@@ -432,7 +435,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         executor.execute(() -> {
             CloseableIterator<Page> pages = null;
             try {
-                pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit, errorPolicy);
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(projectedColumns)
+                    .batchSize(batchSize)
+                    .rowLimit(rowLimit)
+                    .errorPolicy(errorPolicy)
+                    .build();
+                pages = formatReader.read(storageObject, ctx);
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {
                 buffer.onFailure(e);

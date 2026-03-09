@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -43,22 +44,31 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        return inner.read(new DecompressingStorageObject(object, codec), context);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
         throws IOException {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, errorPolicy);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
         throws IOException {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> read(
         StorageObject object,
@@ -70,6 +80,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit, errorPolicy);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> readSplit(
         StorageObject object,
@@ -87,6 +98,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         );
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> readSplit(
         StorageObject object,
@@ -106,6 +118,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         );
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> readSplit(
         StorageObject object,
@@ -146,6 +159,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     public FormatReader withConfig(Map<String, Object> config) {
         FormatReader configured = inner.withConfig(config);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public FormatReader withPushedFilter(Object pushedFilter) {
+        FormatReader filtered = inner.withPushedFilter(pushedFilter);
+        return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec);
     }
 
     @Override

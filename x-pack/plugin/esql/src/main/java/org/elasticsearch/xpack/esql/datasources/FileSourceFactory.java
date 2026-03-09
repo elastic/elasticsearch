@@ -128,7 +128,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config);
+            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                .withPushedFilter(context.pushedFilter());
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();

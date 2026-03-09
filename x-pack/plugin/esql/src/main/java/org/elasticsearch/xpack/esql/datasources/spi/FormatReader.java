@@ -22,14 +22,22 @@ import java.util.concurrent.Executor;
 /**
  * Unified interface for reading data formats.
  * <p>
- * Simple formats: implement only {@link #read} (sync) - async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync} for native async behavior.
+ * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
+ * async wrapping is automatic.
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
  * mandating Arrow as a dependency for all format implementations.
  * <p>
  * Implementations should provide metadata discovery via {@link #metadata(StorageObject)}
  * which returns a unified {@link SourceMetadata} containing schema and source information.
+ * <p>
+ * Per-query format configuration (delimiter, encoding, etc.) is set on the reader instance
+ * via {@link #withConfig(Map)}. Per-query optimizer hints (pushed filters for row-group
+ * or stripe skipping) are set via {@link #withPushedFilter(Object)}. Per-read execution
+ * parameters (projection, batch size, limit, error policy, split config) are bundled in
+ * {@link FormatReadContext}.
  */
 public interface FormatReader extends Closeable {
 
@@ -60,7 +68,7 @@ public interface FormatReader extends Closeable {
         return ErrorPolicy.STRICT;
     }
 
-    // === SYNC API (required - implement this for simple formats) ===
+    // === METADATA ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
 
@@ -68,24 +76,119 @@ public interface FormatReader extends Closeable {
         return metadata(object).schema();
     }
 
+    // === CONTEXT-BASED API (preferred) ===
+
+    /**
+     * Reads data from the given storage object using the provided context.
+     * <p>
+     * This is the primary read method. The default implementation delegates to the
+     * legacy parameter-based overloads for backward compatibility with existing
+     * implementations. New implementations should override this method directly.
+     */
+    default CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        if (context.resolvedAttributes() != null) {
+            return readSplit(
+                object,
+                context.projectedColumns(),
+                context.batchSize(),
+                context.skipFirstLine(),
+                context.lastSplit(),
+                context.resolvedAttributes(),
+                context.errorPolicy()
+            );
+        }
+        if (context.rowLimit() != NO_LIMIT) {
+            return read(object, context.projectedColumns(), context.batchSize(), context.rowLimit(), context.errorPolicy());
+        }
+        return read(object, context.projectedColumns(), context.batchSize(), context.errorPolicy());
+    }
+
+    /**
+     * Asynchronously reads data from the given storage object using the provided context.
+     * <p>
+     * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
+     * provided executor. Formats with native async support should override this.
+     */
+    default void readAsync(
+        StorageObject object,
+        FormatReadContext context,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(read(object, context));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    // === CONFIGURATION ===
+
+    String formatName();
+
+    List<String> fileExtensions();
+
+    /**
+     * Returns a format reader configured with the given config map (from the WITH clause).
+     * Implementations should parse format-specific options from the config
+     * and return a new reader instance if any options are present.
+     * The default returns {@code this} (no configuration).
+     */
+    default FormatReader withConfig(Map<String, Object> config) {
+        return this;
+    }
+
+    /**
+     * Returns a format reader configured with the given pushed filter from the optimizer.
+     * <p>
+     * The pushed filter is an opaque object produced by {@code FilterPushdownSupport} during
+     * local physical optimization. Only format readers that support predicate pushdown
+     * (e.g., Parquet row-group skipping, ORC stripe-level predicates) need to override this.
+     * <p>
+     * The filter is per-query: it applies identically to every file/split in the query.
+     * Implementations should cast the filter to their expected type and return a new reader
+     * instance with the filter stored as an instance field.
+     *
+     * @param pushedFilter opaque filter object, or null if no filter was pushed
+     * @return a new reader with the filter applied, or {@code this} if the filter is not applicable
+     */
+    default FormatReader withPushedFilter(Object pushedFilter) {
+        return this;
+    }
+
+    // === LEGACY API (deprecated - use context-based methods above) ===
+
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
 
     /**
-     * Read with an explicit error policy. Implementations that support error tolerance
-     * should override this to honor the policy. The default delegates to
-     * {@link #read(StorageObject, List, int)} which uses the format's default error policy.
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
      */
+    @Deprecated
     default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
         throws IOException {
         return read(object, projectedColumns, batchSize);
     }
 
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
         throws IOException {
         CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
         return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
     }
 
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     default CloseableIterator<Page> read(
         StorageObject object,
         List<String> projectedColumns,
@@ -97,6 +200,10 @@ public interface FormatReader extends Closeable {
         return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
     }
 
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     default CloseableIterator<Page> readSplit(
         StorageObject object,
         List<String> projectedColumns,
@@ -107,6 +214,10 @@ public interface FormatReader extends Closeable {
         return read(object, projectedColumns, batchSize);
     }
 
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     default CloseableIterator<Page> readSplit(
         StorageObject object,
         List<String> projectedColumns,
@@ -118,6 +229,10 @@ public interface FormatReader extends Closeable {
         return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
     }
 
+    /**
+     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
+     */
+    @Deprecated
     default CloseableIterator<Page> readSplit(
         StorageObject object,
         List<String> projectedColumns,
@@ -130,22 +245,12 @@ public interface FormatReader extends Closeable {
         return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes);
     }
 
-    String formatName();
-
-    List<String> fileExtensions();
+    // === LEGACY ASYNC API (deprecated) ===
 
     /**
-     * Returns a format reader configured with the given config map.
-     * Implementations should parse format-specific options from the config
-     * and return a new reader instance if any options are present.
-     * The default returns {@code this} (no configuration).
+     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
      */
-    default FormatReader withConfig(Map<String, Object> config) {
-        return this;
-    }
-
-    // === ASYNC API (optional - default wraps sync in executor) ===
-
+    @Deprecated
     default void readAsync(
         StorageObject object,
         List<String> projectedColumns,
@@ -156,6 +261,10 @@ public interface FormatReader extends Closeable {
         readAsync(object, projectedColumns, batchSize, NO_LIMIT, executor, listener);
     }
 
+    /**
+     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
+     */
+    @Deprecated
     default void readAsync(
         StorageObject object,
         List<String> projectedColumns,
@@ -167,6 +276,10 @@ public interface FormatReader extends Closeable {
         readAsync(object, projectedColumns, batchSize, rowLimit, null, executor, listener);
     }
 
+    /**
+     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
+     */
+    @Deprecated
     default void readAsync(
         StorageObject object,
         List<String> projectedColumns,

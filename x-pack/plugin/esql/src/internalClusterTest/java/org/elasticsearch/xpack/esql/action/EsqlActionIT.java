@@ -2195,7 +2195,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * Normalize a plan string by removing non-deterministic elements like IDs, timestamps, memory addresses,
      * and computed statistics. This allows comparing plan structures across different executions.
      */
-    private String normalizePlan(String plan) {
+    private String determinizePlanString(String plan) {
         // Remove ExchangeSinkExec wrapper (present in profile but not in EXPLAIN local plan)
         // This regex handles nested brackets by matching until we find "] \_"
         String result = plan.replaceAll("ExchangeSinkExec\\[.*?\\],\\w+\\]\\s*\\\\_", "");
@@ -2336,8 +2336,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertNotNull("Should have local physical plan from EXPLAIN", explainLocalPhysicalPlan);
 
                 // Compare the plans by normalizing non-deterministic elements
-                String normalizedProfiledPlan = normalizePlan(profiledPlanTree);
-                String normalizedExplainPlan = normalizePlan(explainLocalPhysicalPlan);
+                String normalizedProfiledPlan = determinizePlanString(profiledPlanTree);
+                String normalizedExplainPlan = determinizePlanString(explainLocalPhysicalPlan);
 
                 assertThat(
                     "EXPLAIN local physical plan should match profiled execution plan structure",

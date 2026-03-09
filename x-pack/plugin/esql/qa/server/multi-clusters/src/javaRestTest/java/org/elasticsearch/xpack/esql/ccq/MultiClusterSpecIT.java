@@ -56,11 +56,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
@@ -212,17 +210,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
-
-        if (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())) {
-            assumeFalse(
-                "METRICS_INFO not supported in CCS",
-                hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
-            );
-        }
-
-        if (testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName())) {
-            assumeFalse("TS_INFO not supported in CCS", hasCapabilities(remoteClusterClient(), List.of(TS_INFO_COMMAND.capabilityName())));
-        }
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

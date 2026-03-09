@@ -411,10 +411,21 @@ public class MetricsInfoOperator implements Operator {
      * If the name matches the standard format produced by
      * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
      * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     * <p>
+     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
+     * by stripping the prefix before matching and re-adding it to the resolved name so that
+     * the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
     static String resolveDataStreamName(String indexName) {
-        Matcher m = BACKING_INDEX_PATTERN.matcher(indexName);
-        return m.matches() ? m.group(1) : indexName;
+        String prefix = "";
+        String localName = indexName;
+        int sep = indexName.indexOf(':');
+        if (sep > 0) {
+            prefix = indexName.substring(0, sep + 1);
+            localName = indexName.substring(sep + 1);
+        }
+        Matcher m = BACKING_INDEX_PATTERN.matcher(localName);
+        return m.matches() ? prefix + m.group(1) : indexName;
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {

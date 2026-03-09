@@ -135,7 +135,7 @@ public class CountTests extends AbstractAggregationTestCase {
             } else if (fieldSupplier.type() == DataType.TDIGEST) {
                 count = fieldData.stream().mapToLong(data -> {
                     TDigestHolder tdigest = (TDigestHolder) data;
-                    return tdigest.getValueCount();
+                    return tdigest.size();
                 }).sum();
             } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 count = fieldData.stream().mapToLong(obj -> ((ExponentialHistogram) obj).valueCount()).sum();

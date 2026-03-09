@@ -11,8 +11,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,17 +20,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.function.BiFunction;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations when
+ * {@link ExpressionEvaluator} implementation for performing arithmetic operations when
  * lhs is a dense_vector and rhs a scalar or vice versa.
  *
  */
-class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {
+class DenseVectorScalarEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorScalarEvaluator.class);
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator lhs;
+    private final ExpressionEvaluator lhs;
     private final Float rhs;
     private final DriverContext driverContext;
     private Warnings warnings;
@@ -39,7 +39,7 @@ class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {
         BiFunction<Float, Float, Float> op,
         String name,
         Source source,
-        EvalOperator.ExpressionEvaluator lhs,
+        ExpressionEvaluator lhs,
         Float rhs,
         DriverContext driverContext
     ) {
@@ -114,15 +114,15 @@ class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {
         return warnings;
     }
 
-    static final class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    static final class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory vector;
+        private final ExpressionEvaluator.Factory vector;
         private final Float scalar;
         private final BiFunction<Float, Float, Float> op;
         private final String opName;
 
         // Factory when lhs is a dense_vector and rhs a scalar
-        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, Float rhs, BiFunction<Float, Float, Float> op, String opName) {
+        Factory(Source source, ExpressionEvaluator.Factory lhs, Float rhs, BiFunction<Float, Float, Float> op, String opName) {
             this.source = source;
             this.vector = lhs;
             this.scalar = rhs;
@@ -131,7 +131,7 @@ class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {
         }
 
         // Factory when lhs is a scalar and rhs a dense_vector.
-        Factory(Source source, Float lhs, EvalOperator.ExpressionEvaluator.Factory rhs, BiFunction<Float, Float, Float> op, String opName) {
+        Factory(Source source, Float lhs, ExpressionEvaluator.Factory rhs, BiFunction<Float, Float, Float> op, String opName) {
             this.source = source;
             this.scalar = lhs;
             this.vector = rhs;

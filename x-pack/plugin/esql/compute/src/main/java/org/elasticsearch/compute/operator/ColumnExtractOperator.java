@@ -12,7 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 public class ColumnExtractOperator extends AbstractPageMappingOperator {
@@ -38,7 +38,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     }
 
     private final ElementType[] types;
-    private final EvalOperator.ExpressionEvaluator inputEvaluator;
+    private final ExpressionEvaluator inputEvaluator;
     private final ColumnExtractOperator.Evaluator evaluator;
     private final DriverContext driverContext;
 

@@ -1870,10 +1870,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testFullTextFunctionsAfterRenameShadowingAndSwap() throws Exception {
         query("from test | rename body as title | where match(title, \"Meditation\")", fullTextAnalyzer);
-        query(
-            "from test | rename title as tmp, body as title, tmp as body | where match(body, \"Meditation\")",
-            fullTextAnalyzer
-        );
+        query("from test | rename title as tmp, body as title, tmp as body | where match(body, \"Meditation\")", fullTextAnalyzer);
     }
 
     public void testFullTextFunctionsAfterRenameWithInterveningCommands() throws Exception {
@@ -1907,24 +1904,15 @@ public class VerifierTests extends ESTestCase {
             containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
         );
         assertThat(
-            error(
-                "from test | eval name = title | rename name as x | where match(x, \"Meditation\")",
-                fullTextAnalyzer
-            ),
+            error("from test | eval name = title | rename name as x | where match(x, \"Meditation\")", fullTextAnalyzer),
             containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
         );
         assertThat(
-            error(
-                "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-                fullTextAnalyzer
-            ),
+            error("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")", fullTextAnalyzer),
             containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
         );
         assertThat(
-            error(
-                "from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")",
-                fullTextAnalyzer
-            ),
+            error("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")", fullTextAnalyzer),
             containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
         );
         assertThat(

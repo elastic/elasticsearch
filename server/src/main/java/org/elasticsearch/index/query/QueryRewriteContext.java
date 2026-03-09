@@ -419,10 +419,6 @@ public class QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    public boolean isMapUnmappedFieldAsString() {
-        return mapUnmappedFieldAsString;
-    }
-
     /**
      * Returns the CCS minimize round-trips setting. Returns null if the value of the setting is unknown.
      */

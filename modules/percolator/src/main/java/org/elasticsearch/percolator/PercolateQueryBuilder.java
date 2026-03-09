@@ -577,15 +577,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         return percolateShardContext.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
                     });
 
-                    // The QueryBuilder.toQuery() function modifies the search context's
-                    // AutoPrefilteringScope in a way that is not thread safe. For other
-                    // queries this is not a problem, but Percolate will call the returned
-                    // PercolateQuery.QueryStore function from multiple threads.
-                    // The context's NestedScope is also vulnerable to concurrent modification.
-                    // Use a cloned SearchExecutionContext for each thread with new instances of
-                    // the mutable fields.
                     queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
-                    // toQuery will access localAutoPrefilteringScope
                     return queryBuilder.toQuery(percolateShardContext);
                 } else {
                     return null;
@@ -640,9 +632,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      * Create a shallow copy of the {@code source} context with specific
      * overrides for Percolator usage. The shallow copy makes the shared
      * elements thread safe
-     * @param source
-     * @param mapUnmappedFieldsAsText
-     * @return
+     * @param source The context to copy
+     * @param mapUnmappedFieldsAsText Controls unmapped fields behavior
+     * @return A copy of the source context with overrides
      */
     static SearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
         assert source.getClass().isAnonymousClass() == false

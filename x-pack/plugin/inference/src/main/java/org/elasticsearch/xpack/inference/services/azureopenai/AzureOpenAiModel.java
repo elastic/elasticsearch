@@ -33,11 +33,7 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
     protected URI uri;
     private final AzureOpenAiServiceSettings baseServiceSettings;
 
-    public AzureOpenAiModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        AzureOpenAiServiceSettings baseServiceSettings
-    ) {
+    public AzureOpenAiModel(ModelConfigurations configurations, ModelSecrets secrets, AzureOpenAiServiceSettings baseServiceSettings) {
         super(configurations, secrets);
 
         this.baseServiceSettings = Objects.requireNonNull(baseServiceSettings);

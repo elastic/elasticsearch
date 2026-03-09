@@ -138,10 +138,7 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
     /**
      * Applies this secret to the given HTTP request (e.g. sets API key header or Bearer token).
      */
-    public abstract void applyTo(
-        HttpRequestBase request,
-        ActionListener<HttpRequestBase> listener
-    );
+    public abstract void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener);
 
     /**
      * Allows the secret to initialize itself based on the service settings. This is useful for one-time initialization that is expensive

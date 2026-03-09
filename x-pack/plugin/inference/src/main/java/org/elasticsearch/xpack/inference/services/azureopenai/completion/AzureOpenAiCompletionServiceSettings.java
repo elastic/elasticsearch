@@ -33,10 +33,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
 
-public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
-    implements
-        ServiceSettings,
-    AzureOpenAiServiceSettings {
+public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, AzureOpenAiServiceSettings {
 
     public static final String NAME = "azure_openai_completions_service_settings";
 
@@ -146,13 +143,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     }
 
     private AzureOpenAiCompletionServiceSettings(AzureOpenAiCompletionServiceSettings.CommonFields fields) {
-        this(
-            fields.resourceName(),
-            fields.deploymentId(),
-            fields.apiVersion(),
-            fields.rateLimitSettings(),
-            fields.oauthSettings()
-        );
+        this(fields.resourceName(), fields.deploymentId(), fields.apiVersion(), fields.rateLimitSettings(), fields.oauthSettings());
     }
 
     public String resourceName() {

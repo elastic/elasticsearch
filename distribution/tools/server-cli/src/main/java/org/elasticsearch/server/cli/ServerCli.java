@@ -31,6 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,9 +46,9 @@ import java.util.Map;
  *
  * <p> This program (the "preparer") does all the heavy lifting: parsing options, loading secure
  * settings, auto-configuring security, syncing plugins, computing JVM options, and building the
- * full command line. It then writes a {@link LaunchDescriptor} to a file in the temp directory
- * and exits. The startup script hands off to the launcher, which reads the descriptor and
- * spawns the actual server process.
+ * full command line. It then writes a {@link LaunchDescriptor} to stdout and exits. The
+ * server-launcher runs the preparer with stdout redirected and reads the descriptor from the
+ * preparer's stdout pipe, then spawns the actual server process.
  */
 class ServerCli extends EnvironmentAwareCommand {
 
@@ -235,8 +236,8 @@ class ServerCli extends EnvironmentAwareCommand {
 
     /**
      * Builds a {@link LaunchDescriptor} with all the information the launcher needs to spawn
-     * the server process, writes it to a file, and prints the file path to stdout for the
-     * startup script to pick up.
+     * the server process and writes it to the terminal's output stream (stdout when the
+     * launcher runs the preparer with redirect mode).
      */
     // protected to allow tests to override
     protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
@@ -259,8 +260,13 @@ class ServerCli extends EnvironmentAwareCommand {
             serverArgsBytes
         );
 
-        Path descriptorPath = tempDir.resolve(LaunchDescriptor.DESCRIPTOR_FILENAME);
-        descriptor.writeTo(descriptorPath);
+        var out = terminal.getOutputStream();
+        if (out == null) {
+            throw new IllegalStateException("terminal.getOutputStream() is null; preparer must be run with ES_REDIRECT_STDOUT_TO_STDERR");
+        }
+        DataOutputStream dos = new DataOutputStream(out);
+        descriptor.writeTo(dos);
+        dos.flush();
     }
 
     private static String getJavaCommand(ProcessInfo processInfo) {

@@ -21,6 +21,8 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.Map;
 
 /**
@@ -50,6 +52,12 @@ class CliToolLauncher {
      * @throws Exception if the tool fails with an unknown error
      */
     public static void main(String[] args) throws Exception {
+        OutputStream originalStdOut = null;
+        if (isRedirectStdoutToStderr()) {
+            originalStdOut = System.out;
+            setOutToStderr();
+        }
+
         ProcessInfo pinfo = ProcessInfo.fromSystem();
 
         // configure logging as early as possible
@@ -59,7 +67,7 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
-        Terminal terminal = Terminal.DEFAULT;
+        Terminal terminal = originalStdOut != null ? new RedirectedStdoutTerminal(originalStdOut) : Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);
@@ -67,6 +75,21 @@ class CliToolLauncher {
         if (exitCode != ExitCodes.OK) {
             exit(exitCode);
         }
+    }
+
+    /**
+     * Returns true when stdout should be redirected to stderr so that the real
+     * stdout can be used for binary output (e.g. the launch descriptor).
+     */
+    @SuppressForbidden(reason = "Check redirect env and sysprop")
+    static boolean isRedirectStdoutToStderr() {
+        return "true".equalsIgnoreCase(System.getenv("ES_REDIRECT_STDOUT_TO_STDERR"))
+            || "true".equalsIgnoreCase(System.getProperty("cli.redirectStdoutToStderr", ""));
+    }
+
+    @SuppressForbidden(reason = "Redirect stdout to stderr so binary output can use real stdout")
+    private static void setOutToStderr() {
+        System.setOut(new PrintStream(System.err));
     }
 
     // package private for tests

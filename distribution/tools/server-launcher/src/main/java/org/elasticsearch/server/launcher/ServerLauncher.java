@@ -11,8 +11,11 @@ package org.elasticsearch.server.launcher;
 
 import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -40,26 +43,16 @@ public class ServerLauncher {
     private static volatile ServerProcess server;
 
     public static void main(String[] args) throws Exception {
-        if (args.length >= 2 && "--dump".equals(args[0])) {
-            LaunchDescriptor descriptor = LaunchDescriptor.readFrom(Path.of(args[1]));
-            System.out.println(descriptor.toHumanReadable());
-            return;
-        }
-
-        String tempDir = setupTempDir();
-
-        int preparerExit = runPreparer(args, tempDir);
+        Process preparerProcess = startPreparer(args);
+        int preparerExit = preparerProcess.waitFor();
         if (preparerExit != 0) {
             System.exit(preparerExit);
         }
 
-        Path descriptorPath = Path.of(tempDir, LaunchDescriptor.DESCRIPTOR_FILENAME);
-        if (Files.exists(descriptorPath) == false) {
+        LaunchDescriptor descriptor = readDescriptorFromStream(preparerProcess.getInputStream());
+        if (descriptor == null) {
             return;
         }
-
-        LaunchDescriptor descriptor = LaunchDescriptor.readFrom(descriptorPath);
-        Files.deleteIfExists(descriptorPath);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             synchronized (shuttingDown) {
@@ -93,32 +86,7 @@ public class ServerLauncher {
         }
     }
 
-    private static String setupTempDir() throws IOException {
-        String existing = System.getenv("ES_TMPDIR");
-        if (existing != null) {
-            Path p = Path.of(existing);
-            if (Files.exists(p) == false) {
-                System.err.println("Error: ES_TMPDIR does not exist: " + existing);
-                System.exit(1);
-            }
-            if (Files.isDirectory(p) == false) {
-                System.err.println("Error: ES_TMPDIR is not a directory: " + existing);
-                System.exit(1);
-            }
-            return existing;
-        }
-        boolean isWindows = System.getProperty("os.name", "").startsWith("Windows");
-        Path tempDir;
-        if (isWindows) {
-            tempDir = Path.of(System.getProperty("java.io.tmpdir"), "elasticsearch");
-            Files.createDirectories(tempDir);
-        } else {
-            tempDir = Files.createTempDirectory("elasticsearch-");
-        }
-        return tempDir.toString();
-    }
-
-    private static int runPreparer(String[] userArgs, String tempDir) throws IOException, InterruptedException {
+    private static Process startPreparer(String[] userArgs) throws IOException {
         String java = requireEnv("JAVA");
         String esHome = requireEnv("ES_HOME");
         String esPathConf = requireEnv("ES_PATH_CONF");
@@ -164,11 +132,24 @@ public class ServerLauncher {
         command.addAll(Arrays.asList(userArgs));
 
         ProcessBuilder pb = new ProcessBuilder(command);
-        pb.inheritIO();
-        pb.environment().put("ES_TMPDIR", tempDir);
+        pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.environment().put("ES_REDIRECT_STDOUT_TO_STDERR", "true");
 
-        Process process = pb.start();
-        return process.waitFor();
+        return pb.start();
+    }
+
+    /**
+     * Reads a launch descriptor from the preparer's stdout. Returns null if no
+     * bytes were written (e.g. --version or --help was used).
+     */
+    private static LaunchDescriptor readDescriptorFromStream(InputStream in) throws IOException {
+        byte[] bytes = in.readAllBytes();
+        if (bytes.length == 0) {
+            return null;
+        }
+        return LaunchDescriptor.readFrom(new DataInputStream(new ByteArrayInputStream(bytes)));
     }
 
     private static String requireEnv(String name) {

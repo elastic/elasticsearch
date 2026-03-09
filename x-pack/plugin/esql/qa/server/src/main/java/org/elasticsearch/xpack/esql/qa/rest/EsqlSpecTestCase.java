@@ -309,12 +309,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
     }
 
     protected boolean supportsExponentialHistograms() {
@@ -341,6 +345,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
+        query = maybeRandomizeQuery(query);
+
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
@@ -598,7 +604,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return tables;
     }
 
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

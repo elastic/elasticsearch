@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -29,7 +30,7 @@ public interface PlanStreamOutput {
      * @param field The EsField to serialize
      * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
      */
-    boolean writeEsFieldCacheHeader(EsField field) throws IOException;
+    boolean writeEsFieldCacheHeader(EsField field, TransportVersion transportVersion) throws IOException;
 
     void writeCachedString(String field) throws IOException;
 

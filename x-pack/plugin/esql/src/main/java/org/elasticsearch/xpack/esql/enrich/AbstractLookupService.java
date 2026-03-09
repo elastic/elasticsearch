@@ -515,8 +515,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Returns an operator to remove false-positive multivalue matches from
      * BulkKeywordLookup or null when that optimization is not used.
      */
-    private static Operator bulkLookupMvFilterOperator(LookupEnrichQueryGenerator queryList, DriverContext driverContext, Warnings warnings)
-    {
+    private static Operator bulkLookupMvFilterOperator(
+        LookupEnrichQueryGenerator queryList,
+        DriverContext driverContext,
+        Warnings warnings
+    ) {
         final BulkKeywordLookup bulkLookup = queryList.getBulkKeywordLookup();
         if (bulkLookup != null) {
 
@@ -524,13 +527,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             // get the channel ignoreing the DocVector and IntBlock
             //
             final int channelOffset = 2 + bulkLookup.getExtractChannelOffset();
-            return new FilterOperator(
-                new BulkLookupSingleValued(
-                    driverContext,
-                    channelOffset,
-                    warnings
-                )
-            );
+            return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
         }
         return null;
     }

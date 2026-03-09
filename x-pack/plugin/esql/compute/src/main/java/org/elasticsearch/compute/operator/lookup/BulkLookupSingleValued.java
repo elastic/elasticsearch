@@ -20,8 +20,8 @@ import org.elasticsearch.compute.operator.Warnings;
  * Used in AbstractLookupService to filter out false-positive matches when using BulkKeywordLookup optimization.
  */
 public record BulkLookupSingleValued(DriverContext context, int channelOffset, Warnings warnings)
-    implements EvalOperator.ExpressionEvaluator
-{
+    implements
+        EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BulkLookupSingleValued.class);
 
     @Override
@@ -39,9 +39,7 @@ public record BulkLookupSingleValued(DriverContext context, int channelOffset, W
             singles.appendBoolean(valueCount == 1);
         }
         if (encounteredMultiValue) {
-            warnings.registerException(
-                new IllegalArgumentException("LOOKUP JOIN encountered multi-value")
-            );
+            warnings.registerException(new IllegalArgumentException("LOOKUP JOIN encountered multi-value"));
         }
 
         final Block result = singles.build().asBlock();

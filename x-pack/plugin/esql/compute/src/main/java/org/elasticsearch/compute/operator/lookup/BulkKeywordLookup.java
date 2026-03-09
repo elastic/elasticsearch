@@ -55,7 +55,7 @@ public class BulkKeywordLookup {
     ) {
         this.rightFieldType = rightFieldType;
         this.context = context;
-        this.matchChannelOffset = matchChannelOffset; //     offset of field in left  (input)  page
+        this.matchChannelOffset = matchChannelOffset; // offset of field in left (input) page
         this.extractChannelOffset = extractChannelOffset; // offset of field in right (output) page
         this.clusterService = clusterService;
         this.aliasFilter = aliasFilter;
@@ -81,9 +81,7 @@ public class BulkKeywordLookup {
             final BytesRefBlock block = inputPage.getBlock(matchChannelOffset);
             final int valueCount = block.getValueCount(position);
             if (valueCount > 1) {
-                warnings.registerException(
-                    new IllegalArgumentException("LOOKUP JOIN encountered multi-value")
-                );
+                warnings.registerException(new IllegalArgumentException("LOOKUP JOIN encountered multi-value"));
                 return 0; // Skip multi-value positions
             }
             if (valueCount < 1) {

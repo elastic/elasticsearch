@@ -208,7 +208,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
 
                     // BulkLookupMvFilterOperator needs the extractChannelOffset later
                     // when filtering out false-positive multivalue matches
-                    // 
+                    //
                     int extractChannelOffset = -1;
                     for (int i = 0; i < extractFields.size(); i++) {
                         if (extractFields.get(i).name().equals(rightAttribute.name())) {

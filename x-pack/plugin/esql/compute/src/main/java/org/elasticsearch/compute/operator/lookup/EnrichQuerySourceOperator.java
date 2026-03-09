@@ -196,10 +196,11 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         }
     }
 
-    private Page processBulkQueries(Page inputPage,
-                                    IntVector.Builder positionsBuilder,
-                                    IntVector.Builder segmentsBuilder,
-                                    IntVector.Builder docsBuilder
+    private Page processBulkQueries(
+        Page inputPage,
+        IntVector.Builder positionsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder docsBuilder
     ) throws IOException {
         queryPosition++;
         BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
@@ -207,18 +208,18 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         bulkKeywordLookup.initializeCaches(indexReader);
         while (queryPosition < queryList.getPositionCount(inputPage)) {
             int matches = bulkKeywordLookup.processQuery(
-                    inputPage,
-                    queryPosition,
-                    indexReader,
-                    docsBuilder,
-                    segmentsBuilder,
-                    positionsBuilder
+                inputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
             );
             totalMatches += matches;
             queryPosition++;
         }
         final Page result = buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
-	
+
         return result;
     }
 

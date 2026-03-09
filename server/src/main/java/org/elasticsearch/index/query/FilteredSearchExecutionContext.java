@@ -16,7 +16,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -59,8 +58,8 @@ import java.util.function.Predicate;
  *
  * Do NOT use this if you mean to clone the context as you are planning to make modifications
  */
-public class FilteredSearchExecutionContext extends SearchExecutionContext implements Cloneable {
-    private SearchExecutionContext in;
+public class FilteredSearchExecutionContext extends SearchExecutionContext {
+    private final SearchExecutionContext in;
 
     public FilteredSearchExecutionContext(SearchExecutionContext in) {
         super(in);
@@ -399,26 +398,10 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext imple
     }
 
     /**
-     * FilteredSearchExecutionContext is often subclassed in anonymous classes
-     * that override one or more of the methods. Cloning is used here rather than a
-     * copy constructor as a copy would lose the behaviour of the overridden functions.
-     * FilteredSearchExecutionContext may wrap another FilteredSearchExecutionContext
-     * so the copy is recursive
+     * {@inheritDoc}
      */
     @Override
     public FilteredSearchExecutionContext copyForConcurrentUse() {
-        try {
-            var clone = (FilteredSearchExecutionContext) this.clone();
-            clone.in = in.copyForConcurrentUse();
-            return clone;
-        } catch (CloneNotSupportedException e) {
-            // This should never happen as the class implements cloneable
-            throw new ElasticsearchException("failed to clone FilteredSearchExecutionContext", e);
-        }
-    }
-
-    // for testing
-    SearchExecutionContext getInnerContext() {
-        return in;
+        return new FilteredSearchExecutionContext(this);
     }
 }

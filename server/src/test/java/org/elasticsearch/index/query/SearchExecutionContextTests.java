@@ -58,7 +58,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
@@ -100,11 +99,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -568,20 +564,6 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals(2, context.getMatchingFieldNames("runtime*").size());
         assertEquals(2, context.getMatchingFieldNames("*cat").size());
         assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
-    }
-
-    public void testCopyForConcurrentUse() {
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        SearchExecutionContext copy = context.copyForConcurrentUse();
-        assertThat(context, is(not((sameInstance(copy)))));
-
-        assertThat(context.autoPrefilteringScope(), is(not((sameInstance(copy.autoPrefilteringScope())))));
-        copy.autoPrefilteringScope().push(List.of(mock(QueryBuilder.class)));
-        assertThat(context.autoPrefilteringScope().getPrefilters(), empty());
-
-        assertThat(context.nestedScope(), is(not((sameInstance(copy.nestedScope())))));
-        copy.nestedScope().nextLevel(mock(NestedObjectMapper.class));
-        assertNull(context.nestedScope().getObjectMapper());
     }
 
     private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {

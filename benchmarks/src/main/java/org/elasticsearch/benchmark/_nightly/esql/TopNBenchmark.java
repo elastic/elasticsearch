@@ -60,8 +60,6 @@ public class TopNBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
-        // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -80,6 +78,11 @@ public class TopNBenchmark {
     private static final String DESC = "_desc";
 
     private static final String AND = "_and_";
+
+    static {
+        // Smoke test all the expected values and force loading subclasses more like prod
+        selfTest();
+    }
 
     static void selfTest() {
         try {

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
@@ -96,8 +95,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
-                            var withoutFields = withoutFields(dimensionField);
+                        if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesAttribute) {
+                            var withoutFields = timeSeriesAttribute.withoutFields();
                             var sourceField = new FieldAttribute(
                                 dimensionField.source(),
                                 null,
@@ -165,7 +164,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
         if (af instanceof DimensionValues values && values.hasFilter() == false && values.field() instanceof Attribute attr) {
-            if (inputAttributes.contains(attr) == false || MetadataAttribute.isTimeSeriesAttribute(attr)) {
+            if (inputAttributes.contains(attr) == false || attr instanceof TimeSeriesMetadataAttribute) {
                 return attr;
             }
         }
@@ -176,10 +175,4 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         return AggregateMapper.intermediateStateDesc(af, true).size();
     }
 
-    private static Set<String> withoutFields(Attribute attribute) {
-        if (attribute instanceof TimeSeriesMetadataAttribute timeSeriesAttribute) {
-            return timeSeriesAttribute.withoutFields();
-        }
-        return Set.of();
-    }
 }

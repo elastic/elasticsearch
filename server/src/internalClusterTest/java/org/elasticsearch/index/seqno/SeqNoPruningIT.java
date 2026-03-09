@@ -80,23 +80,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         );
 
         // waits for retention leases to advance past all docs
-        assertBusy(() -> {
-            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (var indexService : indicesServices) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (var indexShard : indexService) {
-                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                                assertThat(
-                                    "retention lease [" + lease.id() + "] should have advanced",
-                                    lease.retainingSequenceNumber(),
-                                    equalTo(totalDocs)
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        assertRetentionLeasesAdvanced(indexName, totalDocs);
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -265,5 +249,58 @@ public class SeqNoPruningIT extends ESIntegTestCase {
             }
         }
         assertThat("expected to verify at least one shard", checkedShards, equalTo(1));
+
+        // remove the custom retention lease, index more data and force merge again to verify full pruning
+        client().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)).actionGet();
+
+        var bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int doc = 0; doc < docsPerBatch; doc++) {
+            bulk.add(prepareIndex(indexName).setSource("field", "value-extra-" + doc));
+        }
+        assertNoFailures(bulk.get());
+
+        flushAndRefresh(indexName);
+
+        final long newMaxSeqNo = indicesAdmin().prepareStats(indexName).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
+
+        // wait for all retention leases to advance past all docs
+        assertRetentionLeasesAdvanced(indexName, newMaxSeqNo + 1);
+
+        forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        assertThat(
+            indicesAdmin().prepareStats(indexName).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+            equalTo(1L)
+        );
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs + docsPerBatch);
+        assertShardsHaveSeqNoDocValues(indexName, false, 1);
+    }
+
+    /**
+     * Waits for all retention leases on all copies of the given index to have their retaining sequence number
+     * equal to the expected value.
+     */
+    private static void assertRetentionLeasesAdvanced(String indexName, long expectedRetainingSeqNo) throws Exception {
+        assertBusy(() -> {
+            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                for (var indexService : indicesServices) {
+                    if (indexService.index().getName().equals(indexName)) {
+                        for (var indexShard : indexService) {
+                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
+                                assertThat(
+                                    "retention lease [" + lease.id() + "] should have advanced",
+                                    lease.retainingSequenceNumber(),
+                                    equalTo(expectedRetainingSeqNo)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 }

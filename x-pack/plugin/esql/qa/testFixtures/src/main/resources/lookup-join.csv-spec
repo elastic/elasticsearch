@@ -592,6 +592,41 @@ language_code:integer | language_name:keyword | country:text
 8                     | null                  | null
 ;
 
+mvKeywordJoinWarningsFromLeftSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name
+| KEEP name, country.keyword, language_name
+| LIMIT 1
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword          | country.keyword:keyword | language_name:keyword
+[English, Spanish]    | null                    | null
+;
+
+mvKeywordJoinWarningsFromRightSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword
+| KEEP name, country.keyword, language_name
+| LIMIT 1
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword  | country.keyword:keyword | language_name:keyword
+Germany       | null                    | null
+;
+
+
 ###############################################
 # Filtering tests with languages_lookup index
 ###############################################

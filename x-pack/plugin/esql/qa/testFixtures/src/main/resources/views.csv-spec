@@ -159,8 +159,9 @@ ignoreOrder:true
 count:long | country:keyword
 1          | Atlantis
 1          | Austria
+1          | Belgium
 1          | Canada
-1          | Germany
+2          | Germany
 1          | Switzerland
 1          | United Kingdom
 1          | United States
@@ -176,8 +177,9 @@ ignoreOrder:true
 count:long | country:keyword
 1          | Atlantis
 1          | Austria
+1          | Belgium
 1          | Canada
-1          | Germany
+2          | Germany
 1          | Switzerland
 1          | United Kingdom
 1          | United States

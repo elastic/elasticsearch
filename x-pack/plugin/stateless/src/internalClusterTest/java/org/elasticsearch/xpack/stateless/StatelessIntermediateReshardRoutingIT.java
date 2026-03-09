@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
@@ -33,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -859,7 +859,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
 
         // The target shard forwarding and retries are not implemented yet.
         expectThrows(
-            ElasticsearchStatusException.class,
+            StaleRequestException.class,
             () -> client(coordinatorNode).prepareGet(indexName, shard1docId).setRouting(shard1docId).setRealtime(true).get()
         );
 
@@ -888,7 +888,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         // Document that moves to shard 1 (target) should fail due to stale routing
         MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
         assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), equalTo(true));
-        assertThat(item1.getFailure().getFailure(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
     }
 
     /**

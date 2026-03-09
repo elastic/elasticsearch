@@ -154,6 +154,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private volatile CountDownLatch clientWaitLatch;
+    private volatile CountDownLatch invokerWaitLatch;
     private ClusterService clusterService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
@@ -206,6 +207,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             actions
         );
         clientWaitLatch = null;
+        invokerWaitLatch = null;
         clientDelegate = null;
     }
 
@@ -288,6 +290,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         clientWaitLatch = new CountDownLatch(1);
+        invokerWaitLatch = new CountDownLatch(1);
         AtomicBoolean runCompleted = new AtomicBoolean(false);
         // Should block because of the latch
         Thread t = new Thread(() -> {
@@ -296,11 +299,23 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         });
         t.start();
 
+        // So it's possible for the thread to be started above, but for the
+        // actual `.run` invocation not to have been called by this point.
+        // What we actually need to do is wait for some moment where we know
+        // we're in the middle of the DLM service. In order to do that, we wait
+        // for the "invokerWaitLatch" which is counted down inside of the fake
+        // client. That way we know that the DLM service is running, but is
+        // "paused" because of the `clientWaitLatch`.
+        try {
+            assertTrue("expected the client to count the latch down, but it didn't", invokerWaitLatch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            fail("expected the client to have been invoked, but it never was");
+        }
         // Will return immediately because it's already running
         logger.info("--> second 'run' invocation");
         dataStreamLifecycleService.run(state);
 
-        // Let the first invocation proceed
+        // Let the first invocation proceed by decrementing clientWatchLatch.
         logger.info("--> decrementing latch");
         clientWaitLatch.countDown();
         try {
@@ -309,6 +324,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         } catch (InterruptedException e) {
             throw new ElasticsearchException(e);
         }
+        // Always check that we finished the initial `.run` call that we did
+        // inside the thread.
         assertTrue(runCompleted.get());
     }
 
@@ -1873,6 +1890,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clientSeenRequests.add(request);
                 if (clientDelegate != null) {
                     clientDelegate.doExecute(action, request, listener);
+                }
+                if (invokerWaitLatch != null) {
+                    invokerWaitLatch.countDown();
                 }
                 if (clientWaitLatch != null && clientWaitLatch.getCount() > 0) {
                     try {

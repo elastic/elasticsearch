@@ -596,7 +596,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
             }
             int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
-            searchResponse.updateShardsAndClusters(shards.size(), numSkipped, clusters);
+            searchResponse.updateShardsAndClusters(shards.size() + numSkipped, numSkipped, clusters);
             executeInitListeners();
         }
 

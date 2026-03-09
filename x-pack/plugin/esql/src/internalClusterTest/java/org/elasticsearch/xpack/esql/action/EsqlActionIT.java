@@ -119,15 +119,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // TODO: Allow relocation once we have retry in ESQL (see #103081)
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("cluster.routing.rebalance.enable", "none")
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class)).toList();
     }
@@ -2069,6 +2060,35 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(hashOperator, hasSize(1));
             HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
             assertThat(partialAgg.emitCount(), equalTo(1L));
+        }
+    }
+
+    public void testLookupJoin() {
+        Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("color_names")
+                .setSettings(lookupSettings)
+                .setMapping("color", "type=keyword", "color_name", "type=keyword")
+        );
+        Map<String, String> expectedColorNames = Map.of("red", "Crimson", "blue", "Azure", "green", "Emerald");
+        for (var entry : expectedColorNames.entrySet()) {
+            prepareIndex("color_names").setSource("color", entry.getKey(), "color_name", entry.getValue()).get();
+        }
+        client().admin().indices().prepareRefresh("color_names").get();
+
+        try (EsqlQueryResponse results = run("FROM test | LOOKUP JOIN color_names ON color | KEEP color, color_name")) {
+            assertThat(results.columns(), hasSize(2));
+            List<List<Object>> rows = getValuesList(results);
+            assertThat(rows.size(), equalTo(40));
+            int colorIdx = results.columns().indexOf(new ColumnInfoImpl("color", "keyword", null));
+            int colorNameIdx = results.columns().indexOf(new ColumnInfoImpl("color_name", "keyword", null));
+            for (List<Object> row : rows) {
+                String color = (String) row.get(colorIdx);
+                String colorName = (String) row.get(colorNameIdx);
+                assertThat("wrong color_name for color=" + color, colorName, equalTo(expectedColorNames.get(color)));
+            }
         }
     }
 

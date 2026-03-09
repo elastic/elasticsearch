@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.generator.command;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
 /**
  * Implement this if you want to your command to be tested by the random query generator.
@@ -131,7 +132,7 @@ public interface CommandGenerator {
         List<Column> columns
     ) {
 
-        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands)) {
+        if (isUnmappedFieldsEnabled(previousCommands)) {
             return VALIDATION_OK;
         }
 
@@ -140,7 +141,12 @@ public interface CommandGenerator {
         columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
 
         if (previousColumns.size() != columns.size()) {
-            return new ValidationResult(false, "Expecting [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+            List<String> prevNames = previousColumns.stream().map(Column::name).toList();
+            List<String> newNames = columns.stream().map(Column::name).toList();
+            return new ValidationResult(
+                false,
+                "Expecting " + previousColumns.size() + " columns [" + prevNames + "], got " + columns.size() + " [" + newNames + "]"
+            );
         }
 
         List<String> prevColNames = previousColumns.stream().map(Column::name).toList();

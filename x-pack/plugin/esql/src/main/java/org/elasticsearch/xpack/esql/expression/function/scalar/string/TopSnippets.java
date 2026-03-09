@@ -15,7 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
@@ -80,12 +80,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         preview = true,
         description = "Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.",
         detailedDescription = """
-                `TOP_SNIPPETS` can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                `TOP_SNIPPETS` can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 `TOP_SNIPPETS` will extract the best snippets for a given query string.
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
+            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "rerank", tag = "rerank-top-snippets", applies_to = "stack: preview 9.3.0", explanation = """
+                This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
+                size, we have more control over the number of tokens that are used for semantic reranking.
+                """) }
     )
     public TopSnippets(
         Source source,
@@ -116,7 +120,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
                 ),
                 @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
                     The maximum number of words to return in each snippet.
-                    This allows better control of inference costs by limiting the size of tokens per snippet.
                     """, valueHint = { "300" }) }
         ) Expression options
     ) {
@@ -278,7 +281,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
         if (options != null) {

@@ -633,7 +633,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
-                final var remoteExceptions = Collections.synchronizedMap(new HashMap<String, Exception>());
+                final Map<String, Exception> remoteExceptions = Collections.synchronizedMap(new HashMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         if (resolveCrossProject) {

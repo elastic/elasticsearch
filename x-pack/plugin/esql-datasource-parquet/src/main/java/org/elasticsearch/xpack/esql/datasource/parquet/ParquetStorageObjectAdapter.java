@@ -181,21 +181,42 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (buf.hasRemaining() == false) {
                 return 0;
             }
-            int bytesToRead = buf.remaining();
-            byte[] temp = new byte[bytesToRead];
-            int bytesRead = read(temp, 0, bytesToRead);
-            if (bytesRead > 0) {
-                buf.put(temp, 0, bytesRead);
+            if (buf.hasArray()) {
+                int off = buf.arrayOffset() + buf.position();
+                int bytesRead = read(buf.array(), off, buf.remaining());
+                if (bytesRead > 0) {
+                    buf.position(buf.position() + bytesRead);
+                }
+                return bytesRead;
             }
-            return bytesRead;
+            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            int totalRead = 0;
+            while (buf.hasRemaining()) {
+                int toRead = Math.min(transfer.length, buf.remaining());
+                int n = read(transfer, 0, toRead);
+                if (n < 0) {
+                    break;
+                }
+                buf.put(transfer, 0, n);
+                totalRead += n;
+            }
+            return totalRead == 0 ? -1 : totalRead;
         }
 
         @Override
         public void readFully(java.nio.ByteBuffer buf) throws IOException {
-            int remaining = buf.remaining();
-            byte[] temp = new byte[remaining];
-            readFully(temp, 0, remaining);
-            buf.put(temp);
+            if (buf.hasArray()) {
+                int off = buf.arrayOffset() + buf.position();
+                readFully(buf.array(), off, buf.remaining());
+                buf.position(buf.limit());
+                return;
+            }
+            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            while (buf.hasRemaining()) {
+                int toRead = Math.min(transfer.length, buf.remaining());
+                readFully(transfer, 0, toRead);
+                buf.put(transfer, 0, toRead);
+            }
         }
     }
 }

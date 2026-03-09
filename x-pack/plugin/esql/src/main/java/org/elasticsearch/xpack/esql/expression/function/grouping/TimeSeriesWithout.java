@@ -100,7 +100,7 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
                 }
             } else {
                 return new TypeResolution(
-                    "WITHOUT requires field attributes, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
+                    "WITHOUT requires dimension field names, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
                 );
             }
         }

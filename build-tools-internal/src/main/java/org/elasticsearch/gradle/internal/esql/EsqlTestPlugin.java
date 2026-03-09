@@ -40,8 +40,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class EsqlTestPlugin implements Plugin<Project> {
 
     private static final List<String> DOC_FOLDERS = List.of("esql", "promql");
-    private static final String REPLACEMENT_FONT_FAMILY =
-        """
+    private static final String REPLACEMENT_FONT_FAMILY = """
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;\
         """;
 
@@ -210,16 +209,11 @@ public class EsqlTestPlugin implements Plugin<Project> {
         File imagesDocFolder
     ) {
         int countImages = imagesTree.getFiles().size();
-        Transformer<String, String> replaceFont = line -> line.replaceAll(
-            "font-family:\\s*Roboto Mono[^;]*;",
-            REPLACEMENT_FONT_FAMILY
-        );
+        Transformer<String, String> replaceFont = line -> line.replaceAll("font-family:\\s*Roboto Mono[^;]*;", REPLACEMENT_FONT_FAMILY);
         if (countImages == 0) {
             logger.quiet(folder.toUpperCase(Locale.ROOT) + " Docs: No function signatures created. Skipping sync.");
         } else {
-            logger.quiet(
-                folder.toUpperCase(Locale.ROOT) + " Docs: Found " + countImages + " generated SVG files to patch into docs"
-            );
+            logger.quiet(folder.toUpperCase(Locale.ROOT) + " Docs: Found " + countImages + " generated SVG files to patch into docs");
             injected.getFs().sync(spec -> {
                 spec.from(imagesFolder);
                 spec.into(imagesDocFolder);

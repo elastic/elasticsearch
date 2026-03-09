@@ -248,28 +248,6 @@ public class EsqlCapabilities {
         COUNTER_TYPES,
 
         /**
-         * Support for reversing whole grapheme clusters. This is not supported
-         * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
-         * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
-         */
-        FN_REVERSE_GRAPHEME_CLUSTERS,
-
-        /**
-         * Fix a bug leading to the scratch leaking data to other rows.
-         */
-        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
-
-        /**
-         * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
-         */
-        FN_SUBSTRING_EMPTY_NULL,
-
-        /**
-         * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-         */
-        FN_ROUND_UL_FIXES,
-
-        /**
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
@@ -2169,12 +2147,6 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
-         * Produce a {@code warning} and {@code null} when you run
-         * {@code ABS} on {@code Long.MIN_VALUE}.
-         */
-        FN_ABS_MIN_WARNING,
-
-        /**
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,
@@ -2226,6 +2198,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/140217
          */
         ROW_FIELD_RESOLUTION,
+
+        /**
+         * Support aggregating on integers in FIRST/LAST.
+         */
+        FIRST_LAST_AGG_ON_INTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -17,9 +17,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -394,11 +393,7 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    record ConditionEvaluator(
-        Warnings conditionWarnings,
-        EvalOperator.ExpressionEvaluator condition,
-        EvalOperator.ExpressionEvaluator value
-    ) implements Releasable {
+    record ConditionEvaluator(Warnings conditionWarnings, ExpressionEvaluator condition, ExpressionEvaluator value) implements Releasable {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
 
@@ -454,8 +449,8 @@ public final class Case extends EsqlScalarFunction {
         BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
-        EvalOperator.ExpressionEvaluator elseVal
-    ) implements EvalOperator.ExpressionEvaluator {
+        ExpressionEvaluator elseVal
+    ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
 
@@ -559,8 +554,8 @@ public final class Case extends EsqlScalarFunction {
         ElementType resultType,
         BlockFactory blockFactory,
         ConditionEvaluator condition,
-        EvalOperator.ExpressionEvaluator elseVal
-    ) implements EvalOperator.ExpressionEvaluator {
+        ExpressionEvaluator elseVal
+    ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
 

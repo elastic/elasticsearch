@@ -98,7 +98,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -176,7 +175,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             Transform.class,
             DataStreamsPlugin.class,
             // ESQL and its dependency needed for node features
-            EsqlCorePlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
             TestOnlyMultiProjectPlugin.class,

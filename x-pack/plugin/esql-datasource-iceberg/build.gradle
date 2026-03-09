@@ -31,11 +31,10 @@ base {
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  
+
   // Apache Iceberg with Parquet support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
     exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
@@ -100,9 +99,9 @@ dependencies {
   implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
     exclude group: 'org.checkerframework', module: 'checker-qual'
   }
-  
+
   // Hadoop dependencies - required at both compile time and runtime for Parquet operations.
-  // 
+  //
   // The Hadoop Configuration class is needed because:
   // 1. ParquetFileReader has method overloads that reference Configuration in their signatures
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
@@ -110,7 +109,7 @@ dependencies {
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
   implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
   implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
-  
+
   // Arrow dependencies for compile time - provided at runtime by x-pack-esql's arrow module
   compileOnly("org.apache.arrow:arrow-vector:${versions.arrow}")
   compileOnly("org.apache.arrow:arrow-memory-core:${versions.arrow}")
@@ -118,7 +117,7 @@ dependencies {
   // Checker-qual is needed at compile time for Arrow annotations
   // Use compileOnly to avoid jar hell at runtime - x-pack-esql already provides it
   compileOnly "org.checkerframework:checker-qual:${versions.checker_qual}"
-  
+
   // AWS SDK for S3 access - following repository-s3 pattern
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
@@ -140,10 +139,10 @@ dependencies {
   implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
-  
+
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  
+
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
   runtimeOnly "joda-time:joda-time:${versions.jodatime}"
@@ -167,7 +166,6 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('esql'))
-  testImplementation project(xpackModule('esql-core'))
 }
 
 tasks.named("dependencyLicenses").configure {

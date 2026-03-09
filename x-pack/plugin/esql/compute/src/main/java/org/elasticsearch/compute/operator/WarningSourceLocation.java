@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 /**
  * Interface for providing source location information for warnings.
  * This is implemented by Source in the esql module to provide location
- * information without creating a compile-time dependency from compute to esql-core.
+ * information.
  */
 public interface WarningSourceLocation {
     /**

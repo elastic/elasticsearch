@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.arrow;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 public class ValueConversionsTests extends ESTestCase {
@@ -20,7 +21,8 @@ public class ValueConversionsTests extends ESTestCase {
     public void testIpConversion() throws Exception {
         {
             // ipv6 address
-            BytesRef bytes = StringUtils.parseIP("2a00:1450:4007:818::200e");
+            var inetAddress = InetAddresses.forString("2a00:1450:4007:818::200e");
+            BytesRef bytes = new BytesRef(InetAddressPoint.encode(inetAddress));
             assertArrayEquals(
                 new byte[] { 0x2a, 0x00, 0x14, 0x50, 0x40, 0x07, 0x08, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x0e },
                 bytes.bytes
@@ -32,7 +34,8 @@ public class ValueConversionsTests extends ESTestCase {
         }
         {
             // ipv6 mapped ipv4 address
-            BytesRef bytes = StringUtils.parseIP("216.58.214.174");
+            var inetAddress = InetAddresses.forString("216.58.214.174");
+            BytesRef bytes = new BytesRef(InetAddressPoint.encode(inetAddress));
             assertArrayEquals(
                 new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xFF, (byte) 0xFF, (byte) 216, (byte) 58, (byte) 214, (byte) 174 },
                 bytes.bytes

@@ -9,7 +9,6 @@ dependencies {
   implementation project(':client:rest')
   implementation project(':libs:logging')
   implementation project(':test:framework')
-  api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
   implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

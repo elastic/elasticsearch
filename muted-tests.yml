@@ -372,9 +372,6 @@ tests:
 - class: org.elasticsearch.search.SearchLoggingIT
   method: testSearchLogShardInfoPartialFailure
   issue: https://github.com/elastic/elasticsearch/issues/143638
-- class: org.elasticsearch.reindex.management.ReindexRelocationIT
-  method: testLocalReindexRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/143643
 - class: org.elasticsearch.xpack.eql.action.EqlLoggingIT
   method: testEqlLoggingPartialShardFailure
   issue: https://github.com/elastic/elasticsearch/issues/143659

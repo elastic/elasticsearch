@@ -4395,7 +4395,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithLimitOnly() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
@@ -4408,7 +4408,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithLimitAndLambda() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
@@ -4423,7 +4423,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithConstantQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
@@ -4434,7 +4434,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithByteVectorQuery() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
@@ -4450,7 +4450,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithFieldQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
         var mmrCmd = as(
@@ -4466,7 +4466,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         var mmrCmd = as(
             processingCommand(
@@ -4546,7 +4546,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMMRCommands() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");

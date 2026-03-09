@@ -2063,11 +2063,6 @@ public class EsqlCapabilities {
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
         /**
-         * MMR result diversification command
-         */
-        MMR(Build.current().isSnapshot()),
-
-        /**
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
          */
         METADATA_WILDCARDS,
@@ -2135,12 +2130,10 @@ public class EsqlCapabilities {
         INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
 
         /**
-         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
-         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
-         * however, without the MMRExec to operator code in place, will fail on the snapshot
-         * TODO - remove this once the MMR operator is merged
+         * MMR result diversification command
+         * Using V2 here that replaces the pre-release V1
          */
-        MMR_V2(Build.current().isSnapshot()),
+        MMR_V2,
 
         /**
          * Supports the {@code URI_PARTS}) command.

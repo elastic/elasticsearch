@@ -11,7 +11,6 @@ package org.elasticsearch.index.seqno;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.IndexService;
@@ -26,7 +25,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -183,19 +181,11 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         // add a retention lease holding at a sequence number in the middle of the indexed range
         final long retentionLeaseSeqNo = randomLongBetween(1, totalDocs - 1);
         final var retentionLeaseId = randomIdentifier();
-        final var clusterState = clusterService().state();
-        final var primaryShardNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
-        final var primary = internalCluster().getInstance(IndicesService.class, clusterState.nodes().get(primaryShardNodeId).getName())
-            .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
-
-        final var addLeaseLatch = new CountDownLatch(1);
-        primary.addRetentionLease(
-            retentionLeaseId,
-            retentionLeaseSeqNo,
-            "test",
-            ActionTestUtils.assertNoFailureListener(r -> addLeaseLatch.countDown())
-        );
-        addLeaseLatch.await();
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        client().execute(
+            RetentionLeaseActions.ADD,
+            new RetentionLeaseActions.AddRequest(shardId, retentionLeaseId, retentionLeaseSeqNo, "test")
+        ).actionGet();
 
         // wait for peer recovery retention leases to advance past all docs; the custom lease stays
         assertBusy(() -> {

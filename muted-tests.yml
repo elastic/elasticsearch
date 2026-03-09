@@ -402,18 +402,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlQueryLoggingIT
   method: testLogging
   issue: https://github.com/elastic/elasticsearch/issues/143780
-- class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/143782
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRoutingPathBwcAfterTsidBasedRouting
   issue: https://github.com/elastic/elasticsearch/issues/143787
-- class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/143795
-- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/143799
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800

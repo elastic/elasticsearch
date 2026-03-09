@@ -187,8 +187,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             RateResult baselineRow = baselineRows.get(i);
             RateResult contenderRow = contenderRows.get(i);
             // We need these two assertions to correctly identify the rate
-            // TODO remove comment after https://github.com/elastic/elasticsearch/issues/143464
-            // assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
             assertThat(contenderRow.timestamp, equalTo(baselineRow.timestamp));
             assertEquals(baselineRow.rate, contenderRow.rate, rateEpsilon);
         }

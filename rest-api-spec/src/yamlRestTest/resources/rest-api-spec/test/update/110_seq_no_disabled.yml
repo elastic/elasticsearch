@@ -15,6 +15,7 @@ setup:
         body:
           settings:
             index.disable_sequence_numbers: true
+            index.seq_no.index_options: DOC_VALUES_ONLY
 
   - do:
       index:

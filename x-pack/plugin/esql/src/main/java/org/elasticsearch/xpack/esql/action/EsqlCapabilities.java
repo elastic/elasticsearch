@@ -2130,8 +2130,7 @@ public class EsqlCapabilities {
         INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
 
         /**
-         * MMR result diversification command
-         * Using V2 here that replaces the pre-release V1
+         * Support for the MMR result diversification command
          */
         MMR_V2,
 

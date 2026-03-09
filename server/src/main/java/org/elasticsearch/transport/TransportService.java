@@ -661,6 +661,15 @@ public class TransportService extends AbstractLifecycleComponent
         return connectionManager;
     }
 
+<<<<<<< fix/release-breaker-after-send-response
+=======
+    /**
+     * @return a {@link RecyclerBytesStreamOutput} which allocates its pages with {@code org.elasticsearch.transport.netty4.NettyAllocator},
+     * tracking these allocations using the provided {@link CircuitBreaker} if this is not {@code null}.
+     * <p>
+     * In tests in which Netty is not in use, each page is allocated as a {@code new byte[]}.
+     */
+>>>>>>> main
     public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
         return transport.newNetworkBytesStream(circuitBreaker);
     }

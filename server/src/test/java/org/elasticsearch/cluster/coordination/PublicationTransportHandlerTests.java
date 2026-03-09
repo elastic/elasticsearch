@@ -85,7 +85,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+<<<<<<< fix/release-breaker-after-send-response
         when(transportService.newNetworkBytesStream(any())).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+=======
+        when(transportService.newNetworkBytesStream(any())).then(
+            invocation -> new RecyclerBytesStreamOutput(recycler, invocation.getArgument(0))
+        );
+>>>>>>> main
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);

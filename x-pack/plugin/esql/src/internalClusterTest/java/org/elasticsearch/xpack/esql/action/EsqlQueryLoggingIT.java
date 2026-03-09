@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertTrue;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
@@ -65,7 +67,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     }
 
     @After
-    public void restoreLog() {
+    public void disableLog() {
         ActivityLoggingUtils.disableLoggers();
     }
 
@@ -148,4 +150,5 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
     }
+
 }

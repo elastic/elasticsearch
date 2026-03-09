@@ -141,6 +141,5 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-    record RestHandlersServices(Settings settings, RestController restController, ProjectResolver projectResolver) {
-    }
+    record RestHandlersServices(Settings settings, RestController restController, ProjectResolver projectResolver) {}
 }

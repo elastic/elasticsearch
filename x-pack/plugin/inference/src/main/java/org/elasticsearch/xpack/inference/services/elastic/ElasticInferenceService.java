@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -113,11 +113,6 @@ public class ElasticInferenceService extends SenderService {
         TEXT_EMBEDDING
     );
 
-    /**
-     * The task types that support chunking settings
-     */
-    private static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
-
     private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
@@ -139,7 +134,7 @@ public class ElasticInferenceService extends SenderService {
         ClusterService clusterService,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, Map.of());
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
@@ -412,7 +407,18 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(UnparsedModel unparsedModel) {
+    public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            modelCreators,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    }
+
+    @Override
+    public ElasticInferenceServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
         var config = unparsedModel.settings();
         var secrets = unparsedModel.secrets();
         var taskType = unparsedModel.taskType();
@@ -420,7 +426,9 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         // These aren't used by EIS endpoints so we'll remove them to avoid potential validation issues
         removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
-        removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
+        if (secrets != null) {
+            removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
+        }
 
         ChunkingSettings chunkingSettings = null;
         if (CHUNKING_TASK_TYPES.contains(taskType)) {
@@ -434,36 +442,6 @@ public class ElasticInferenceService extends SenderService {
             chunkingSettings,
             unparsedModel.endpointMetadata()
         );
-    }
-
-    @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
-        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
-        return parsePersistedConfigWithSecrets(new UnparsedModel(inferenceEntityId, taskType, NAME, config, secrets));
-    }
-
-    @Override
-    public ElasticInferenceServiceModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            modelCreators,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
-        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, config, new HashMap<>());
     }
 
     @Override

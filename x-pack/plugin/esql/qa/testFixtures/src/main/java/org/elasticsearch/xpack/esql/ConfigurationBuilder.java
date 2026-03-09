@@ -172,6 +172,7 @@ public class ConfigurationBuilder {
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
             projectRouting,
+            null,
             Map.of()
         );
         return explainOnly ? config.withExplainOnly() : config;

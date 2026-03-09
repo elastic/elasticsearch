@@ -14,14 +14,17 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class StoreMetricsIndexInput extends FilterIndexInput {
+public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAccessInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
@@ -86,6 +89,14 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
     @Override
     public void prefetch(long offset, long length) throws IOException {
         in.prefetch(offset, length);
+    }
+
+    @Override
+    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        if (in instanceof DirectAccessInput dai) {
+            return dai.withByteBufferSlice(offset, length, action);
+        }
+        return false;
     }
 
     @Override

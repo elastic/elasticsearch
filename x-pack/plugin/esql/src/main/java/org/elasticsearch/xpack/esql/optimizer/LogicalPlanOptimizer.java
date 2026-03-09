@@ -154,7 +154,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new RemoveStatsOverride(),
             // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate.
             new TranslatePromqlToEsqlPlan(),
-            // lower semantic time-series groupings before translating time-series aggregations.
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
             new TranslateTimeSeriesWithout(),
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),

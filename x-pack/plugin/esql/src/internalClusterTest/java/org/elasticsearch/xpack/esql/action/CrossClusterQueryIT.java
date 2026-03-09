@@ -1311,10 +1311,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     public void testExplainCCSWithInlineStats() throws Exception {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
         assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
-        assumeTrue(
-            "INLINE STATS with remote requires the capability to be enabled",
-            INLINE_STATS_SUPPORTS_REMOTE.isEnabled()
-        );
+        assumeTrue("INLINE STATS with remote requires the capability to be enabled", INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
 
         // Set up the standard cluster infrastructure
         setupTwoClusters();
@@ -1418,21 +1415,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             // - Aggregate node for the INLINE STATS aggregation
             // - SUM function for the "total = SUM(value)" expression
             // - Grouping by "category"
-            assertThat(
-                "Subplan logical plan should contain Aggregate",
-                explainSubplanLogical,
-                containsString("Aggregate")
-            );
-            assertThat(
-                "Subplan logical plan should contain SUM aggregation",
-                explainSubplanLogical,
-                containsString("SUM")
-            );
-            assertThat(
-                "Subplan logical plan should group by category",
-                explainSubplanLogical,
-                containsString("category")
-            );
+            assertThat("Subplan logical plan should contain Aggregate", explainSubplanLogical, containsString("Aggregate"));
+            assertThat("Subplan logical plan should contain SUM aggregation", explainSubplanLogical, containsString("SUM"));
+            assertThat("Subplan logical plan should group by category", explainSubplanLogical, containsString("category"));
 
             // Verify subplan physical plan contains execution operators
             assertThat(

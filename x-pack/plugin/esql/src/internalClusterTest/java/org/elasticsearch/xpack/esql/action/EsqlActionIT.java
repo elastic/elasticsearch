@@ -83,9 +83,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.stream.IntStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -2470,11 +2470,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     containsString("ExchangeExec")
                 );
                 // Should have FragmentExec for query fragments
-                assertThat(
-                    "Optimized physical plan should contain FragmentExec",
-                    optimizedPhysicalPlan,
-                    containsString("FragmentExec")
-                );
+                assertThat("Optimized physical plan should contain FragmentExec", optimizedPhysicalPlan, containsString("FragmentExec"));
 
                 // === Data Node Plan Assertions ===
                 assertTrue("EXPLAIN with LOOKUP JOIN should include data node plans", dataNodePlanCount > 0);
@@ -2592,17 +2588,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
                 // === Optimized Physical Plan Assertions ===
                 // Physical plan should have aggregation execution operators
-                assertThat(
-                    "Optimized physical plan should contain AggregateExec",
-                    optimizedPhysicalPlan,
-                    containsString("AggregateExec")
-                );
+                assertThat("Optimized physical plan should contain AggregateExec", optimizedPhysicalPlan, containsString("AggregateExec"));
                 // Should have exchange for final aggregation coordination
-                assertThat(
-                    "Optimized physical plan should contain ExchangeExec",
-                    optimizedPhysicalPlan,
-                    containsString("ExchangeExec")
-                );
+                assertThat("Optimized physical plan should contain ExchangeExec", optimizedPhysicalPlan, containsString("ExchangeExec"));
 
                 // === Data Node Plan Assertions ===
                 assertTrue("EXPLAIN with approximation should include data node plans", dataNodePlanCount > 0);

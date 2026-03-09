@@ -49,7 +49,6 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
-    private static final TransportVersion EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );
@@ -66,11 +65,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
-    private final boolean explainOnly;
     private final List<ExternalSplit> externalSplits;
 
     /**
-     * Constructor with all parameters including explainOnly and externalSplits.
+     * Constructor with all parameters including externalSplits.
      */
     DataNodeRequest(
         String sessionId,
@@ -83,7 +81,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
-        boolean explainOnly,
         List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
@@ -96,76 +93,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indicesOptions = indicesOptions;
         this.runNodeLevelReduction = runNodeLevelReduction;
         this.reductionLateMaterialization = reductionLateMaterialization;
-        this.explainOnly = explainOnly;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
     }
 
     /**
-     * Constructor with explainOnly but no externalSplits.
-     */
-    DataNodeRequest(
-        String sessionId,
-        Configuration configuration,
-        String clusterAlias,
-        List<Shard> shards,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan,
-        String[] indices,
-        IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction,
-        boolean reductionLateMaterialization,
-        boolean explainOnly
-    ) {
-        this(
-            sessionId,
-            configuration,
-            clusterAlias,
-            shards,
-            aliasFilters,
-            plan,
-            indices,
-            indicesOptions,
-            runNodeLevelReduction,
-            reductionLateMaterialization,
-            explainOnly,
-            List.of()
-        );
-    }
-
-    /**
-     * Constructor with externalSplits but explainOnly defaults to false.
-     */
-    DataNodeRequest(
-        String sessionId,
-        Configuration configuration,
-        String clusterAlias,
-        List<Shard> shards,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan,
-        String[] indices,
-        IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction,
-        boolean reductionLateMaterialization,
-        List<ExternalSplit> externalSplits
-    ) {
-        this(
-            sessionId,
-            configuration,
-            clusterAlias,
-            shards,
-            aliasFilters,
-            plan,
-            indices,
-            indicesOptions,
-            runNodeLevelReduction,
-            reductionLateMaterialization,
-            false,
-            externalSplits
-        );
-    }
-
-    /**
-     * Constructor that defaults both explainOnly and externalSplits.
+     * Constructor without externalSplits (defaults to empty list).
      */
     DataNodeRequest(
         String sessionId,
@@ -190,7 +122,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            false,
             List.of()
         );
     }
@@ -230,11 +161,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
-        if (in.getTransportVersion().supports(EXPLAIN_ONLY)) {
-            this.explainOnly = in.readBoolean();
-        } else {
-            this.explainOnly = false;
-        }
         if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
@@ -260,9 +186,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeBoolean(runNodeLevelReduction);
         if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
-        }
-        if (out.getTransportVersion().supports(EXPLAIN_ONLY)) {
-            out.writeBoolean(explainOnly);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
@@ -347,10 +270,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return reductionLateMaterialization;
     }
 
-    boolean explainOnly() {
-        return explainOnly;
-    }
-
     List<ExternalSplit> externalSplits() {
         return externalSplits;
     }
@@ -385,7 +304,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && indicesOptions.equals(request.indicesOptions)
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
-            && explainOnly == request.explainOnly
             && externalSplits.equals(request.externalSplits);
     }
 
@@ -402,7 +320,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            explainOnly,
             externalSplits
         );
     }
@@ -419,7 +336,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            explainOnly,
             externalSplits
         );
     }

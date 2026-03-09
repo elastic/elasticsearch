@@ -2319,7 +2319,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(expected.toString(), is(esQuery.query().toString()));
     }
 
-    // TODO Nacho FIXME
     public void testVerifierOnMissingReferences() throws Exception {
 
         PhysicalPlan plan = plannerOptimizer.plan("""

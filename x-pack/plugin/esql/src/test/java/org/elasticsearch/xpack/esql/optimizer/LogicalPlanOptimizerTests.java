@@ -10336,6 +10336,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(registeredDomain.child(), EsRelation.class);
     }
 
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_Limit[1[INTEGER],[emp_no{f}#6],false,false]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
     public void testLimitByPruneIdenticalLimits() {
         var plan = plan("""
             FROM test
@@ -10350,6 +10357,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
     }
 
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_Limit[1[INTEGER],[first_name{f}#6],false,false]
+     *   \_Limit[1[INTEGER],[emp_no{f}#5],false,false]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
     public void testLimitByKeepDifferentGroupings() {
         var plan = plan("""
             FROM test
@@ -10367,7 +10382,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
     }
 
-    public void testLimitByKeepNoGroupings() {
+    /**
+     * <pre>{@code
+     * Limit[2[INTEGER],[],false,false]
+     * \_Limit[2[INTEGER],[emp_no{f}#5],false,false]
+     *   \_Limit[2[INTEGER],[],false,false]
+     *     \_Limit[1[INTEGER],[emp_no{f}#5],false,false]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testLimitByNotCombinedWhenSeparatedByPlainLimit() {
         var plan = plan("""
             FROM test
             | LIMIT 1 BY emp_no

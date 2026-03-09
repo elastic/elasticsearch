@@ -190,7 +190,7 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 // LIMIT BY without SORT
 //
 
-limitByNoSort
+limitBy
 required_capability: limit_by
 
 FROM employees
@@ -208,7 +208,7 @@ emp_no:integer | first_name:keyword | languages:integer
 10006          | Anneke             | 3
 ;
 
-limitByNoSortCounts
+limitByCounts
 required_capability: limit_by
 
 FROM employees
@@ -226,7 +226,7 @@ c:long | languages:integer
 2      | null
 ;
 
-limitByNoSortLimit0
+limitByLimit0
 required_capability: limit_by
 
 FROM employees
@@ -239,7 +239,7 @@ FROM employees
 emp_no:integer | languages:integer
 ;
 
-limitByNoSortMultipleColumns
+limitByMultipleColumns
 required_capability: limit_by
 
 FROM employees
@@ -256,7 +256,7 @@ emp_no:integer | first_name:keyword | languages:integer | gender:keyword
 10007          | Tzvetan            | 4                 | F
 ;
 
-limitByNoSortWithExpression
+limitByWithExpression
 required_capability: limit_by
 
 FROM employees
@@ -274,7 +274,7 @@ emp_no:integer | first_name:keyword | languages:integer
 10005          | Kyoichi            | 1
 ;
 
-limitByNoSortMultivalueGroupKey
+limitByMultivalueGroupKey
 required_capability: limit_by
 
 FROM employees
@@ -289,7 +289,34 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 10008          | Saniya             | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
 ;
 
-limitByNoSortNullGroup
+limitByPrecededByStats
+required_capability: limit_by
+
+FROM employees
+| STATS cnt=COUNT(*) BY job_positions, languages
+| LIMIT 1 BY job_positions
+;
+
+cnt:long | job_positions:keyword      | languages:integer
+5        | Accountant                 | 2
+3        | Senior Python Developer    | 2
+3        | Senior Team Lead           | 5
+3        | null                       | 4
+5        | Head Human Resources       | 5
+4        | Reporting Analyst          | 5
+4        | Support Engineer           | 5
+5        | Tech Lead                  | 5
+4        | Principal Support Engineer | 3
+3        | Internship                 | 2
+3        | Junior Developer           | 2
+4        | Purchase Manager           | 2
+5        | Architect                  | 4
+3        | Data Scientist             | 5
+2        | Python Developer           | 2
+1        | Business Analyst           | 1
+;
+
+limitByNullGroup
 required_capability: limit_by
 
 FROM employees
@@ -302,4 +329,56 @@ FROM employees
 emp_no:integer | first_name:keyword | languages:integer
 10001          | Georgi             | 2
 10020          | Mayuko             | null
+;
+
+limitByConstant
+required_capability: limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| LIMIT 2 BY 5*42
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+;
+
+limitByWithExpressionAndConstant
+required_capability: limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| LIMIT 5 BY languages * 2, 20 - 5 * 2
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
+;
+
+limitByWithAlias
+required_capability: limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL g = languages * 2
+| LIMIT 5 BY g
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
 ;

@@ -337,7 +337,7 @@ public class Verifier {
     private static void checkLimitBy(LogicalPlan plan, Failures failures) {
         if (plan instanceof Limit limit && limit.groupings().isEmpty() == false) {
             if (limit.child() instanceof OrderBy) {
-                failures.add(fail(limit, "When BY is used in LIMIT, the query cannot have a SORT before the LIMIT"));
+                failures.add(fail(limit, "SORT cannot be used before LIMIT BY"));
             }
         }
     }

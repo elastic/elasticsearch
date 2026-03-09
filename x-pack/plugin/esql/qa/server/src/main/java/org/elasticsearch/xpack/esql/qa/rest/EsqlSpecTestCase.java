@@ -334,12 +334,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return Boolean.getBoolean("tests.esql.csv.timeseries_only");
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
     }
 
     /**
@@ -355,6 +359,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
+        query = maybeRandomizeQuery(query);
+
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         boolean checkTook = supportsTook() && rarely();
@@ -527,7 +533,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         });
     }
 
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

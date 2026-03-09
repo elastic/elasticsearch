@@ -61,7 +61,7 @@ public class RestReindexRethrottleAction extends BaseRestHandler {
         internalRequest.setRequestsPerSecond(requestsPerSecond);
         // This ListTasksResponse will only ever contain a single task, so grouping them is not very useful.
         // In stateful, we allow the group_by parameter and default to "nodes", for historical reasons.
-        // In stateless, we don't allow group_by, we never group, and we redact the node IDs: this minimizes the visibility of node IDs.
+        // In stateless, we don't allow group_by, we never group, so that we don't include the unwanted layers and node info.
         final String groupBy = isStateless ? "none" : request.param("group_by", "nodes");
         return channel -> {
             client.execute(

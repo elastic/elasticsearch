@@ -277,7 +277,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";

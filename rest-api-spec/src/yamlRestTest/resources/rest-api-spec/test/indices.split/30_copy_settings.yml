@@ -19,7 +19,6 @@
             index.routing.allocation.include._id: $node_id
             index.number_of_replicas: 0
             index.number_of_shards: 1
-            index.number_of_routing_shards: 4
             index.merge.scheduler.max_merge_count: 4
 
   # make it read-only

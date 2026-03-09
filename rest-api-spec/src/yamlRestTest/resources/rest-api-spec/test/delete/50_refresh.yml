@@ -10,7 +10,6 @@
               settings:
                   refresh_interval: -1
                   number_of_shards: 5
-                  number_of_routing_shards: 5
                   number_of_replicas: 0
                   # make sure that we don't have shard relocations; otherwise search can be executed by a relocated shard
                   routing.rebalance.enable: none

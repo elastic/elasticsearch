@@ -73,17 +73,21 @@ public abstract class IndexRouting {
 
     protected final String indexName;
     private final int numberOfShards;
-    private final int routingNumShards;
-    private final int routingFactor;
     protected final IndexVersion creationVersion;
+
+    // Indices created >= IndexVersions.MOD_ROUTING_FUNCTION use shard count for routing. Prior versions calculate the shard routing using
+    // the configured number of routing shards.
+    private final int legacyRoutingNumShards;
+    private final int legacyRoutingFactor;
+
     @Nullable
     private final IndexReshardingMetadata indexReshardingMetadata;
 
     private IndexRouting(IndexMetadata metadata) {
         this.indexName = metadata.getIndex().getName();
         this.numberOfShards = metadata.getNumberOfShards();
-        this.routingNumShards = metadata.getRoutingNumShards();
-        this.routingFactor = metadata.getRoutingFactor();
+        this.legacyRoutingNumShards = metadata.getRoutingNumShards();
+        this.legacyRoutingFactor = metadata.getRoutingFactor();
         this.creationVersion = metadata.getCreationVersion();
         this.indexReshardingMetadata = metadata.getReshardingMetadata();
     }
@@ -164,7 +168,7 @@ public abstract class IndexRouting {
      * shard id using the old routingNumShards mechanism.
      */
     protected final int hashToShardIdOld(int hash) {
-        return Math.floorMod(hash, routingNumShards) / routingFactor;
+        return Math.floorMod(hash, legacyRoutingNumShards) / legacyRoutingFactor;
     }
 
     /**

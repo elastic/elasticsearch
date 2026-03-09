@@ -27,6 +27,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -91,6 +93,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public void createComponents() {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
+        ensureGreen(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
     }
 
     @After

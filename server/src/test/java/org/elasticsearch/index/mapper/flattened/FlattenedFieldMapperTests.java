@@ -63,7 +63,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "flattened");
+        b.field("type", "flattened").field("store_root", true);
     }
 
     @Override
@@ -124,6 +124,33 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals("field", fields.get(1).name());
         assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
         assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
+
+        // Check the keyed fields.
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+
+        assertEquals("field._keyed", keyedFields.get(0).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(0).binaryValue());
+        assertFalse(keyedFields.get(0).fieldType().stored());
+        assertTrue(keyedFields.get(0).fieldType().omitNorms());
+        assertEquals(DocValuesType.NONE, keyedFields.get(0).fieldType().docValuesType());
+
+        assertEquals("field._keyed", keyedFields.get(1).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(1).fieldType().docValuesType());
+
+        // Check that there is no 'field names' field.
+        List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(0, fieldNamesFields.size());
+    }
+
+    public void testDefaults2() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flattened")));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        // Check the root fields.
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
 
         // Check the keyed fields.
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
@@ -258,6 +285,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");
             b.field("index", false);
+            b.field("store_root", true);
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
@@ -276,6 +304,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> {
                 b.field("type", "flattened");
                 b.field("index", false);
+                b.field("store_root", true);
             })
         ).documentMapper();
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
@@ -294,6 +323,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");
             b.field("doc_values", false);
+            b.field("store_root", true);
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
@@ -359,6 +389,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     .startObject("properties")
                     .startObject("field")
                     .field("type", "flattened")
+                    .field("store_root", true)
                     .endObject()
                     .startObject("a")
                     .field("type", "object")
@@ -471,6 +502,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // Set a lower value for depth_limit and check that the field is rejected.
         merge(mapperService, fieldMapping(b -> {
             b.field("type", "flattened");
+            b.field("store_root", true);
             b.field("depth_limit", 2);
         }));
 
@@ -668,11 +700,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     public void testNullValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("field").field("type", "flattened").endObject();
+            b.startObject("field").field("type", "flattened").field("store_root", true).endObject();
             b.startObject("other_field");
             {
                 b.field("type", "flattened");
                 b.field("null_value", "placeholder");
+                b.field("store_root", true);
             }
             b.endObject();
         }));
@@ -732,6 +765,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("match_mapping_type", "object");
             b.startObject("mapping");
             b.field("type", "flattened");
+            b.field("store_root", true);
             b.endObject();
             b.endObject();
             b.endObject();

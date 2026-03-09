@@ -18,11 +18,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
@@ -42,6 +44,9 @@ class FlattenedFieldParser {
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
+    private final boolean storeRoot;
+
+    private final Map<String, KeywordFieldMapper> mappedFields;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -51,7 +56,9 @@ class FlattenedFieldParser {
         int depthLimit,
         int ignoreAbove,
         String nullValue,
-        boolean usesBinaryDocValues
+        boolean usesBinaryDocValues,
+        boolean storeRoot,
+        Map<String, KeywordFieldMapper> mappedFields
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -61,6 +68,8 @@ class FlattenedFieldParser {
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.storeRoot = storeRoot;
+        this.mappedFields = mappedFields;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -133,10 +142,17 @@ class FlattenedFieldParser {
             );
         }
 
+        KeywordFieldMapper keywordFieldMapper = mappedFields.get(key);
+        if (keywordFieldMapper != null) {
+            keywordFieldMapper.indexValue(context.documentParserContext(), value);
+            return;
+        }
+
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
-        if (value.length() > ignoreAbove) {
+        boolean ignoreRelevant = usesBinaryDocValues == false || fieldType.indexType().hasDenseIndex();
+        if (ignoreRelevant && value.length() > ignoreAbove) {
             if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
                 context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
             }
@@ -145,7 +161,7 @@ class FlattenedFieldParser {
 
         // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
         // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+        if (ignoreRelevant && bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
             String msg = "Flattened field ["
                 + rootFieldFullPath
                 + "] contains one immense field"
@@ -162,24 +178,30 @@ class FlattenedFieldParser {
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {
-            context.documentParserContext.doc().add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
+            if (storeRoot) {
+                context.documentParserContext.doc().add(new StringField(rootFieldFullPath, bytesValue, Field.Store.NO));
+            }
             context.documentParserContext.doc().add(new StringField(keyedFieldFullPath, bytesKeyedValue, Field.Store.NO));
         }
 
         if (fieldType.hasDocValues()) {
             if (usesBinaryDocValues) {
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
-                    context.documentParserContext.doc(),
-                    rootFieldFullPath,
-                    bytesValue
-                );
+                if (storeRoot) {
+                    MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        rootFieldFullPath,
+                        bytesValue
+                    );
+                }
                 MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
                     bytesKeyedValue
                 );
             } else {
-                context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                if (storeRoot) {
+                    context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                }
                 context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
             }
 

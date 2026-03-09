@@ -991,6 +991,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return new RecyclerBytesStreamOutput(recycler);
     }
 
+    @Override
+    public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+        return new RecyclerBytesStreamOutput(recycler, circuitBreaker);
+    }
+
     /**
      * Ensures this transport is still started / open
      *

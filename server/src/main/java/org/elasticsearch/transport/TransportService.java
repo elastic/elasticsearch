@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -662,6 +663,10 @@ public class TransportService extends AbstractLifecycleComponent
 
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
         return transport.newNetworkBytesStream();
+    }
+
+    public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+        return transport.newNetworkBytesStream(circuitBreaker);
     }
 
     static class HandshakeRequest extends AbstractTransportRequest {

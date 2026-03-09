@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -469,7 +470,7 @@ public class SearchTransportService {
                         return qfr.fetchResult().detachCircuitBreakerReservation(searchService.getCircuitBreaker());
                     }
                     return () -> {};
-                })
+                }, searchService.getCircuitBreaker())
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -528,7 +529,8 @@ public class SearchTransportService {
                 asBytesResponse(
                     transportService,
                     channel,
-                    response -> response.result().fetchResult().detachCircuitBreakerReservation(searchService.getCircuitBreaker())
+                    response -> response.result().fetchResult().detachCircuitBreakerReservation(searchService.getCircuitBreaker()),
+                    searchService.getCircuitBreaker()
                 )
             )
         );
@@ -563,7 +565,8 @@ public class SearchTransportService {
                 asBytesResponse(
                     transportService,
                     channel,
-                    response -> response.detachCircuitBreakerReservation(searchService.getCircuitBreaker())
+                    response -> response.detachCircuitBreakerReservation(searchService.getCircuitBreaker()),
+                    searchService.getCircuitBreaker()
                 )
             );
         transportService.registerRequestHandler(
@@ -711,12 +714,13 @@ public class SearchTransportService {
     static <T extends TransportResponse> ActionListener<T> asBytesResponse(
         TransportService transportService,
         TransportChannel channel,
-        Function<T, Releasable> detachRelease
+        Function<T, Releasable> detachRelease,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         if (isDirectResponseChannel(channel)) {
             return new DirectPathListener<>(channel, detachRelease);
         }
-        return new NetworkPathListener<>(transportService, channel, detachRelease);
+        return new NetworkPathListener<>(transportService, channel, detachRelease, circuitBreaker);
     }
 
     private static boolean isDirectResponseChannel(TransportChannel channel) {
@@ -766,17 +770,25 @@ public class SearchTransportService {
         private final TransportChannel channel;
         private final Function<T, Releasable> detachRelease;
         private final ChannelActionListener<BytesTransportResponse> channelListener;
+        @Nullable
+        private final CircuitBreaker circuitBreaker;
 
-        NetworkPathListener(TransportService transportService, TransportChannel channel, Function<T, Releasable> detachRelease) {
+        NetworkPathListener(
+            TransportService transportService,
+            TransportChannel channel,
+            Function<T, Releasable> detachRelease,
+            @Nullable CircuitBreaker circuitBreaker
+        ) {
             this.transportService = transportService;
             this.channel = channel;
             this.detachRelease = detachRelease;
             this.channelListener = new ChannelActionListener<>(channel);
+            this.circuitBreaker = circuitBreaker;
         }
 
         @Override
         public void onResponse(T response) {
-            RecyclerBytesStreamOutput out = transportService.newNetworkBytesStream();
+            RecyclerBytesStreamOutput out = transportService.newNetworkBytesStream(circuitBreaker);
             try {
                 out.setTransportVersion(channel.getVersion());
                 response.writeTo(out);

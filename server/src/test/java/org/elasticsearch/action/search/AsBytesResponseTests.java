@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -85,7 +86,8 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             channel,
-            response -> () -> {}
+            response -> () -> {},
+            null
         );
 
         listener.onResponse(original);
@@ -113,7 +115,7 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
             detachCalled.set(true);
             return () -> releasableClosed.set(true);
-        });
+        }, null);
 
         listener.onResponse(new SimpleTestResponse("hello"));
 
@@ -137,7 +139,8 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<FailingTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             channel,
-            response -> () -> releasableClosed.set(true)
+            response -> () -> releasableClosed.set(true),
+            null
         );
 
         listener.onResponse(new FailingTestResponse());
@@ -148,7 +151,9 @@ public class AsBytesResponseTests extends ESTestCase {
     }
 
     public void testNetworkPathDefersCircuitBreakerReleaseUntilBytesReleased() {
-        var breakerUsed = new AtomicLong(5000);
+        long responseBytes = 5000L;
+        long pageBytes = PageCacheRecycler.BYTE_PAGE_SIZE;
+        var breakerUsed = new AtomicLong(responseBytes);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
 
         var sentResponse = new AtomicReference<TransportResponse>();
@@ -163,18 +168,23 @@ public class AsBytesResponseTests extends ESTestCase {
         try {
             var hits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
             fetchResult.shardResult(hits, null);
-            fetchResult.setSearchHitsSizeBytes(5000L);
+            fetchResult.setSearchHitsSizeBytes(responseBytes);
 
             ActionListener<FetchSearchResult> listener = SearchTransportService.asBytesResponse(
                 transportService,
                 channel,
-                response -> response.detachCircuitBreakerReservation(breaker)
+                response -> response.detachCircuitBreakerReservation(breaker),
+                breaker
             );
 
             listener.onResponse(fetchResult);
 
             assertThat("detach must zero out the field on the result", fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
-            assertThat("breaker must still be reserved while bytes are in flight", breakerUsed.get(), equalTo(5000L));
+            assertThat(
+                "breaker must account for both the detached response reservation and the serialized page bytes",
+                breakerUsed.get(),
+                equalTo(responseBytes + pageBytes)
+            );
             assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
 
             sentResponse.get().decRef();
@@ -199,7 +209,7 @@ public class AsBytesResponseTests extends ESTestCase {
                     breakerUsed.addAndGet(-bytes);
                 }
             };
-        });
+        }, null);
 
         listener.onResponse(new FailingTestResponse());
 
@@ -217,7 +227,7 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
             detachCalled.set(true);
             return () -> {};
-        });
+        }, null);
 
         listener.onFailure(new RuntimeException("upstream failure"));
 
@@ -234,7 +244,8 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             channel,
-            response -> () -> releasableClosed.set(true)
+            response -> () -> releasableClosed.set(true),
+            null
         );
 
         var original = new SimpleTestResponse("direct-test");
@@ -253,7 +264,7 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, channel, response -> {
             detachCalled.set(true);
             return () -> {};
-        });
+        }, null);
 
         listener.onFailure(new RuntimeException("upstream failure"));
 
@@ -279,7 +290,8 @@ public class AsBytesResponseTests extends ESTestCase {
             ActionListener<FetchSearchResult> listener = SearchTransportService.asBytesResponse(
                 transportService,
                 channel,
-                response -> response.detachCircuitBreakerReservation(breaker)
+                response -> response.detachCircuitBreakerReservation(breaker),
+                breaker
             );
 
             listener.onResponse(fetchResult);
@@ -302,7 +314,8 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
             transportService,
             taskChannel,
-            response -> () -> releasableClosed.set(true)
+            response -> () -> releasableClosed.set(true),
+            null
         );
 
         var original = new SimpleTestResponse("task-wrapped-test");
@@ -327,7 +340,7 @@ public class AsBytesResponseTests extends ESTestCase {
         ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(transportService, taskChannel, response -> {
             detachCalled.set(true);
             return () -> releasableClosed.set(true);
-        });
+        }, null);
 
         listener.onResponse(new SimpleTestResponse("task-network-test"));
 

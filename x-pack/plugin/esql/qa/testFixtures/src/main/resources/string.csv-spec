@@ -1082,6 +1082,7 @@ FROM employees
 | KEEP jpl
 | LIMIT 2
 ;
+# Needs a warningRegex because the warning is slightly different if pushed vs not.
 warningRegex:Line 2:14:.+evaluation of \[LENGTH\(job_positions\)\].+Only first 20 failures recorded.
 warningRegex:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
 

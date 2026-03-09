@@ -113,6 +113,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
+                    searchTemplateRequest.setResolvesCrossProject(crossProjectEnabled);
                     multiRequest.add(searchTemplateRequest);
                 } else {
                     throw new IllegalArgumentException("Malformed search template");

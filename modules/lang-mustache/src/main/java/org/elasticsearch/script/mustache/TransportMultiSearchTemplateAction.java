@@ -81,6 +81,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         List<Integer> originalSlots = new ArrayList<>();
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.indicesOptions(request.indicesOptions());
+        multiSearchRequest.setResolvesCrossProject(request.resolvesCrossProject());
         if (request.maxConcurrentSearchRequests() != 0) {
             multiSearchRequest.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
         }

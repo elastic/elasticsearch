@@ -11,8 +11,8 @@ package org.elasticsearch.useragent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
 

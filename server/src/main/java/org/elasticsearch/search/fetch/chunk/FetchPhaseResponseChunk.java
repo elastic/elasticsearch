@@ -47,7 +47,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     private static final int INITIAL_CHUNK_SERIALIZATION_CAPACITY = 128;
 
     private final long timestampMillis;
-    private final Type type;
     private final ShardId shardId;
     private final int hitCount;
     private final int from;
@@ -59,18 +58,10 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     private NamedWriteableRegistry namedWriteableRegistry;
 
     /**
-     * The type of chunk being sent.
-     */
-    public enum Type {
-        HITS
-    }
-
-    /**
      * Creates a chunk with pre-serialized hits.
      * Takes ownership of serializedHits - caller must not release it.
      *
      * @param timestampMillis  creation timestamp
-     * @param type             chunk type
      * @param shardId          source shard
      * @param serializedHits   pre-serialized hit bytes
      * @param hitCount         number of hits in the serialized bytes
@@ -80,7 +71,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
      */
     public FetchPhaseResponseChunk(
         long timestampMillis,
-        Type type,
         ShardId shardId,
         BytesReference serializedHits,
         int hitCount,
@@ -92,7 +82,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             throw new IllegalArgumentException("invalid shardId: " + shardId);
         }
         this.timestampMillis = timestampMillis;
-        this.type = type;
         this.shardId = shardId;
         this.serializedHits = serializedHits;
         this.hitCount = hitCount;
@@ -106,7 +95,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
         this.timestampMillis = in.readVLong();
-        this.type = in.readEnum(Type.class);
         this.shardId = new ShardId(in);
         this.hitCount = in.readVInt();
         this.from = in.readVInt();
@@ -119,7 +107,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestampMillis);
-        out.writeEnum(type);
         shardId.writeTo(out);
         out.writeVInt(hitCount);
         out.writeVInt(from);
@@ -173,10 +160,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
         }
         return in;
-    }
-
-    public Type type() {
-        return type;
     }
 
     public ShardId shardId() {

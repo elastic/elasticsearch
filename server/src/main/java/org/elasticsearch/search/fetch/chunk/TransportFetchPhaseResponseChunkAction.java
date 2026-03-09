@@ -143,9 +143,7 @@ public class TransportFetchPhaseResponseChunkAction {
 
             final var responseStream = activeFetchPhaseTasks.acquireResponseStream(coordinatingTaskId, shardId);
             try {
-                if (chunk.type() == FetchPhaseResponseChunk.Type.HITS) {
-                    responseStream.writeChunk(chunk, () -> l.onResponse(ActionResponse.Empty.INSTANCE));
-                }
+                responseStream.writeChunk(chunk, () -> l.onResponse(ActionResponse.Empty.INSTANCE));
             } finally {
                 responseStream.decRef();
             }

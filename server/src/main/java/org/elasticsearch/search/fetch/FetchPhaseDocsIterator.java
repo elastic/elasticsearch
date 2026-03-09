@@ -530,7 +530,6 @@ abstract class FetchPhaseDocsIterator {
         try {
             responseChunk = new FetchPhaseResponseChunk(
                 System.nanoTime(),
-                FetchPhaseResponseChunk.Type.HITS,
                 shardId,
                 chunk.bytes,
                 chunk.hitCount,

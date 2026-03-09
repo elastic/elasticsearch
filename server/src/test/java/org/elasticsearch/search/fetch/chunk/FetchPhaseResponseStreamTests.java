@@ -530,7 +530,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
                 timestamp,
-                FetchPhaseResponseChunk.Type.HITS,
                 TEST_SHARD_ID,
                 serializeHits(hit),
                 1,
@@ -539,7 +538,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
                 0
             );
 
-            assertThat(chunk.type(), equalTo(FetchPhaseResponseChunk.Type.HITS));
             assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
             assertThat(chunk.hitCount(), equalTo(1));
             assertThat(chunk.from(), equalTo(0));
@@ -560,7 +558,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
                 invalidShardId,
                 BytesArray.EMPTY,
                 0,
@@ -596,7 +593,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             return new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
                 TEST_SHARD_ID,
                 serializeHits(hits),
                 hitCount,
@@ -619,7 +615,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             return new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
                 TEST_SHARD_ID,
                 serializeHits(hits),
                 hitCount,
@@ -643,7 +638,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             return new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
                 TEST_SHARD_ID,
                 serializeHits(hits),
                 hitCount,
@@ -666,7 +660,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         try {
             return new FetchPhaseResponseChunk(
                 System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.HITS,
                 TEST_SHARD_ID,
                 serializeHits(hits),
                 scores.length,

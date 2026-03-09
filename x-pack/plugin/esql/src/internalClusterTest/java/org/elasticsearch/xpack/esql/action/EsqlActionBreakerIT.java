@@ -55,7 +55,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
-        assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
+        assertTrue(plugins.removeIf(p -> p.isAssignableFrom(EsqlPlugin.class)));
         plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }
@@ -86,14 +86,15 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
-    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPluginAbstract {
-        public EsqlTestPluginWithMockBlockFactory() {
-            super(true);
-        }
-
+    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
         @Override
         protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
             return new BlockFactoryProvider(new MockBlockFactory(builder));
+        }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
         }
     }
 

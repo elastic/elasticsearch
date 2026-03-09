@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.transport.TransportService;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
-import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -31,7 +32,17 @@ public class LocalStateView extends LocalStateCompositeXPackPlugin {
     public LocalStateView(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new EsqlPluginWithEnterpriseOrTrialLicense());
+        plugins.add(new EsqlPlugin() {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return LocalStateView.this.getLicenseState();
+            }
+
+            @Override
+            public void loadExtensions(ExtensionLoader loader) {
+                // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+            }
+        });
     }
 
     public static class ViewTransportXPackInfoAction extends TransportXPackInfoAction {

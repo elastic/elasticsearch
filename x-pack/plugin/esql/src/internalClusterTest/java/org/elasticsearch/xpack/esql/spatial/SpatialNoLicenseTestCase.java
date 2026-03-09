@@ -11,7 +11,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlPluginAbstract;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 /**
@@ -48,9 +48,14 @@ public abstract class SpatialNoLicenseTestCase extends ESIntegTestCase {
      * Test plugin that provides a license state that does not allow spatial features.
      * This is used to test the behavior of spatial functions when no valid license is present.
      */
-    public static class TestEsqlPlugin extends EsqlPluginAbstract {
-        protected TestEsqlPlugin(XPackLicenseState licenseState) {
-            super(SpatialNoLicenseTestCase.getLicenseState());
+    public static class TestEsqlPlugin extends EsqlPlugin {
+        protected XPackLicenseState getLicenseState() {
+            return SpatialNoLicenseTestCase.getLicenseState();
+        }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
         }
     }
 

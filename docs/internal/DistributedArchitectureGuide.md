@@ -1262,7 +1262,7 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 ### Lucene Locking
 
-# Engine
+# Engine & Store
 
 [Engine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java
 
@@ -1281,8 +1281,12 @@ An `IndexShard` holds references to:
 
 - The shard's [Store], which provides access to the shard's Lucene index files on disk, by wrapping a Lucene
   `Directory`.
-- The shard's [Engine], which coordinates indexing and searching operations for this shard across the [Translog]
-  and Lucene files (via the `Store`).
+- The shard's [Engine], which manages all indexing and search operations for this shard, writing to both the
+  [Translog] and the Lucene files managed by the `Store`.
+
+The lifecycle of these objects (creation, recovery, and teardown) is controlled by the [IndicesClusterStateService],
+which reacts to cluster state changes and updates local state accordingly (see
+the [IndicesClusterStateService](#indicesclusterstateservice) section).
 
 ### Store
 
@@ -1302,11 +1306,11 @@ Lucene's `Directory` is a pure I/O abstraction: callers open
 an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
 and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
 write one. The `Store` builds on the Lucene `Directory` capabilities by tracking committed file metadata and enforcing
-integrity invariants. It also adds reference counting, file integrity verification and corruption detection.
+integrity invariants. It also adds reference counting and corruption detection.
 
 #### Reference Counting and Lifecycle
 
-The `Store` implements [RefCounted]. Processes call `store.incRef()` before using it and `store.decRef()` in
+The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
 a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
 directory is cleaned up. This allows the `Store` to outlive the higher-level [IndexShard] instance that owns it (for
 example, during shard relocation).
@@ -1343,9 +1347,9 @@ map from filename to [StoreFileMetadata] for the committed (flushed) files belon
 Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
 Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
 
-`MetadataSnapshot`s are used by several Elasticsearch workflows, including peer recovery, and replica shard allocation (
-via `TransportNodesListShardStoreMetadata`), always as one half of a diff: two distinct snapshots are compared to decide
-how much work is needed to get them in sync.
+`MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including peer recovery and replica shard
+allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on disk state of two distinct
+shards and calculate how much data needs to be transferred to bring them into sync.
 
 During peer recovery, the recovering shard (target) calls `indexShard.snapshotStoreMetadata()` to capture its
 local `MetadataSnapshot`
@@ -1393,7 +1397,7 @@ directory's file listing and segment metadata. Operations that only read metadat
 existing
 commit) [take the read lock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L300),
 allowing concurrent readers. Operations that structurally modify the
-directory, (eg renaming temporary recovery files via `renameTempFilesSafe`, cleaning up stale files
+directory (e.g. renaming temporary recovery files via `renameTempFilesSafe`, cleaning up stale files
 via `cleanupAndVerify`, or running `CheckIndex`) take the write lock, which excludes all readers and other
 writers until the operation completes.
 
@@ -1406,7 +1410,7 @@ during `getMetadata(commit=null, lockDirectory=true)`), it acquires the Lucene w
 already holds this
 lock [through its IndexWriter](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L149).
 
-To summarize, `ShardLock` operates at the node level across the JVM, `metadataLock`
+To summarize, `ShardLock` is a JVM-level lock enforced across the entire node, `metadataLock`
 coordinates in-process readers and writers within the `Store`, and the Lucene write lock guards the raw
 directory at the file-system level.
 
@@ -1424,9 +1428,141 @@ primary or a snapshot).
 
 ### Engine
 
+The [Engine] abstract class is the Elasticsearch abstraction for the live shard index. Where the `Store`
+manages files on disk, the `Engine` manages and coordinates operations on the running shard index: it owns the write
+path (indexing, deletion, no-ops), the read path (searcher acquisition, real-time GET), and Lucene lifecycle
+operations (refresh, flush, merge). It also controls the translog, ensuring that every acknowledged write is
+durably recorded before a response is sent.
+
+The main implementation is [InternalEngine], used for all read-write shards (primary and replica). Other
+implementations serve more specialized roles. For example,
+the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
+gives read-only access to a frozen or relocating shard, and
+the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
+acts as a placeholder for shards that have been closed but whose store has not yet been released.
+
 #### Lucene Concepts
 
+Lucene organizes index data on disk into immutable files called *segments*. They are created whenever the in-memory
+write buffer is flushed or when merges combine existing segments into larger ones.
+The [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html)
+accumulates writes in memory and periodically flushes new segments. The `InternalEngine` wraps an `IndexWriter` (for
+writes) and a pair of internal and
+external [reader managers](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L151)
+that wrap
+Lucene [DirectoryReader](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/DirectoryReader.html)s and
+map Elasticsearch concepts onto Lucene's:
+
+- An Elasticsearch `refresh` triggers a Lucene NRT reader reopen (via `DirectoryReader.openIfChanged()`), making
+  recently indexed documents searchable without writing a full commit to disk. Refreshes do not call
+  `IndexWriter.commit()` and do not persist data durably.
+- An Elasticsearch `flush` calls `IndexWriter.commit()`, writing a durable commit point to disk. A flush is
+  what allows the translog to be safely truncated up to that commit.
+
+This distinction is a core piece of Elasticsearch's durability model: documents are searchable after a refresh but
+only durably stored after a flush. In between, the translog bridges the gap. Every write is appended to the
+translog on disk before being acknowledged, so that it can be replayed in the event of a crash.
+
 ### IndicesClusterStateService
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ShardStateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/action/shard/ShardStateAction.java
+
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+The [IndicesClusterStateService] is a high-priority [ClusterStateApplier] of the [ClusterApplierService] (
+see [Cluster State Application](#cluster-state-application)).
+Any time a new cluster state is published, [IndicesClusterStateService] checks whether the state of indices
+and shards has changed and updates the local node's shards to match accordingly.
+
+Its `doApplyClusterState` method goes through the following operations in order each time a new cluster state
+is applied:
+
+1. [Delete indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L353)
+   that no longer exist in the new cluster state: closes each `IndexShard` (which closes its
+   `Engine`, flushing first), releases the `Store` reference, and deletes the on-disk shard directory.
+2. [Remove shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L355)
+   that are no longer assigned to this node: closes the `Engine` (without flushing, unflushed data is already in the
+   translog and safe), releases the `Store` reference, but leaves the on-disk files intact for later cleanup by
+   `IndicesStore`.
+3. [Update index metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L357):
+   if index settings changed, propagates them in-memory to each `IndexShard` and then to its `Engine` (e.g. merge
+   scheduler config, GC deletes policy, soft-delete retention). If mappings changed, updates the `MapperService`. No
+   disk writes happen here.
+4. [Create or update shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L359):
+   for each [ShardRouting] targeting this node in `INITIALIZING` state, creates a new `Store` and `IndexShard` and kicks
+   off recovery. For already-active shards, updates their routing metadata in-place.
+
+The following diagram illustrates the complete flow from a master publishing a new cluster state containing a
+newly assigned shard down to the `Engine` becoming active:
+
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant CA as ClusterApplierService
+    participant ICSS as IndicesClusterStateService
+    participant IS as IndexShard
+    participant S as Store
+    participant E as InternalEngine
+
+    rect rgb(255, 248, 240)
+    Note over M,CA: Cluster State Committed
+    M->>CA: ApplyCommitRequest (new ClusterState)
+    CA->>ICSS: applyClusterState(ClusterChangedEvent)
+    end
+
+    rect rgb(240, 248, 255)
+    Note over ICSS,S: Shard Creation
+    ICSS->>ICSS: doApplyClusterState()<br/>deleteIndices()<br/>removeIndicesAndShards()<br/>updateIndices()
+    ICSS->>S: new Store(shardDirectory)
+    ICSS->>IS: new IndexShard(store, shardRouting, ...)
+    ICSS->>IS: startRecovery(recoverySource)
+    end
+
+    rect rgb(240, 255, 240)
+    Note over IS,E: Recovery and Engine Start
+    IS->>S: validate / prepare directory
+    IS->>E: new InternalEngine(store.directory, translog)
+    E->>S: IndexWriter.open(store.directory)
+    Note right of E: Engine open, shard STARTED
+    end
+
+    rect rgb(255, 240, 240)
+    Note over IS,M: Report Back to Master
+    IS->>M: ShardStateAction.shardStarted()
+    Note left of M: Master updates ClusterState<br/>marks shard as STARTED
+    end
+```
+
+For a newly assigned shard, `createShard`
+first [acquires](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L754)
+a `ShardLock` (preventing concurrent access to the same shard directory from a concurrent request) or throws a
+`ShardLockObtainFailedException` if it fails to do so. It
+then [creates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L560)
+a `Store` referencing the shard's on-disk directory,
+and [instantiates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L569)
+an `IndexShard`. Recovery is
+then [triggered](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/IndicesService.java#L993)
+based on the [RecoverySource] in the [ShardRouting]:
+
+- `EMPTY_STORE`: creates a
+  new [empty Lucene index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java#L483)
+  and bootstraps an empty translog, then opens the engine. No translog replay is needed.
+- `EXISTING_STORE`: opens the engine against the existing Lucene commit on disk, then replays the translog.
+- `PEER`: first synchronizes Lucene segment files from the primary over the network (engine not open yet) via the
+  `RecoverySourceHandler`/`PeerRecoveryTargetService` classes, then opens the engine
+  and [skips](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L2270)
+  local translog replay (the primary streams any remaining operations directly during the recovery protocol instead).
+- `SNAPSHOT`: downloads segment files from a remote snapshot repository into the local store directory (`StoreRecovery`
+  class), then proceeds as `EXISTING_STORE`.
+
+Recovery also creates the `Engine` via `IndexShard.innerOpenEngineAndTranslog()`. Once
+recovery completes, `IndexShard` sends a `shardStarted` notification to the master via the
+[ShardStateAction]. The master processes this as a cluster state update, marking the shard as `STARTED` in
+the routing table and making it available to serve index and search requests.
 
 ### Translog
 

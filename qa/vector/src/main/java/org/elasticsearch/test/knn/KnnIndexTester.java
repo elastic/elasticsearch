@@ -328,7 +328,11 @@ public class KnnIndexTester {
             System.out.println("--warmUp is the number of warm up iterations");
             System.out.println();
             System.out.println("Available datasets:");
-            System.out.println(TestConfiguration.listDatasets());
+            try {
+                System.out.println(TestConfiguration.listDatasets());
+            } catch (Exception e) {
+                System.out.println("Failed to list datasets: " + e.getMessage());
+            }
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");

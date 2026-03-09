@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -244,22 +245,21 @@ record TestConfiguration(
             )
         );
 
-        int nameWidth = "parameter".length();
-        int typeWidth = "type".length();
+        int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
         for (ParameterHelp param : params) {
-            nameWidth = Math.max(nameWidth, param.name.length());
-            typeWidth = Math.max(typeWidth, param.type.length());
+            lengths[0] = Math.max(lengths[0], param.name.length());
+            lengths[1] = Math.max(lengths[1], param.type.length());
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Configuration parameters:");
         sb.append("\n");
-        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append(formatParamRow(lengths, "parameter", "type", "description"));
         sb.append("\n");
-        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
         sb.append("\n");
         for (ParameterHelp param : params) {
-            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append(formatParamRow(lengths, param.name, param.type, param.description));
             sb.append("\n");
         }
         sb.append("\n");
@@ -270,41 +270,42 @@ record TestConfiguration(
         return sb.toString();
     }
 
-    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
-        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    private static String formatParamRow(int[] entryLengths, String... entries) {
+        assert entries.length == entryLengths.length;
+        return Strings.format(
+            Arrays.stream(entryLengths).mapToObj(l -> "%-" + l + "s").collect(Collectors.joining("  ")),
+            (Object[]) entries
+        );
     }
 
     private record ParameterHelp(String name, String type, String description) {}
 
-    record DatasetInfo(Object docVectors, Object queryVectors, Object vectorSpace, Object dimensions) {}
-
     public static String listDatasets() throws IOException {
         var datasets = datasets();
-        int datasetLength = datasets.keySet().stream().mapToInt(String::length).max().orElseThrow() + 2;
 
-        System.out.printf("Dataset%s\tdocs\tqueries\tdims\tspace%n", " ".repeat(datasetLength - "Dataset".length()));
+        int[] lengths = new int[] { "dataset".length(), "docs".length(), "queries".length(), "dims".length(), "space".length() };
+        for (Map.Entry<String, String[]> entry : datasets.entrySet()) {
+            lengths[0] = Math.max(lengths[0], entry.getKey().length());
+            lengths[1] = Math.max(lengths[1], entry.getValue()[0].length());
+            lengths[2] = Math.max(lengths[2], entry.getValue()[1].length());
+            lengths[3] = Math.max(lengths[3], entry.getValue()[2].length());
+            lengths[4] = Math.max(lengths[4], entry.getValue()[3].length());
+        }
+
+        System.out.println(formatParamRow(lengths, "Dataset", "docs", "queries", "dims", "space"));
+        System.out.println(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
         return datasets.entrySet()
             .stream()
-            .map(
-                e -> String.format(
-                    "%s%s\t%s\t%s\t%s\t%s",
-                    e.getKey(),
-                    " ".repeat(datasetLength - e.getKey().length()),
-                    e.getValue().docVectors(),
-                    e.getValue().queryVectors(),
-                    e.getValue().dimensions(),
-                    e.getValue().vectorSpace()
-                )
-            )
+            .map(e -> formatParamRow(lengths, e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
             .collect(Collectors.joining("\n"));
     }
 
-    private static Map<String, DatasetInfo> datasets() throws IOException {
+    private static Map<String, String[]> datasets() throws IOException {
         final String cloudProjectId = "benchmarking";
         final String datasetBucket = "knnindextester";
 
         try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
-            Map<String, DatasetInfo> datasets = new TreeMap<>();
+            Map<String, String[]> datasets = new TreeMap<>();
             var page = storage.list(datasetBucket);
 
             while (true) {
@@ -325,12 +326,11 @@ record TestConfiguration(
 
                         datasets.put(
                             dataset,
-                            new DatasetInfo(
-                                dsData.get("num_doc_vectors"),
-                                dsData.get("num_query_vectors"),
-                                dsData.get("vector_space"),
-                                dsData.get("dimensions")
-                            )
+                            new String[] {
+                                String.valueOf(dsData.get("num_doc_vectors")),
+                                String.valueOf(dsData.get("num_query_vectors")),
+                                String.valueOf(dsData.get("dimensions")),
+                                String.valueOf(dsData.get("vector_space")) }
                         );
                     }
                 }

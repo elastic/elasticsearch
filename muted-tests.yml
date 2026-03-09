@@ -450,9 +450,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/143860
-- class: org.elasticsearch.action.bulk.OperationsOnSeqNoDisabledIndicesIT
-  method: testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices
-  issue: https://github.com/elastic/elasticsearch/issues/143887
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849

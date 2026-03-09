@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -65,8 +67,10 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -213,11 +218,35 @@ public class ComputeService {
         return plannerSettings;
     }
 
+    FilterPushdownRegistry filterPushdownRegistry() {
+        return filterPushdownRegistry;
+    }
+
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
-        return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+        try {
+            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            return coalesceSplits(discovered);
+        } catch (Exception e) {
+            LOGGER.warn("split discovery failed for external source", e);
+            throw e;
+        }
+    }
+
+    static PhysicalPlan coalesceSplits(PhysicalPlan plan) {
+        return plan.transformUp(ExternalSourceExec.class, exec -> {
+            List<ExternalSplit> splits = exec.splits();
+            if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
+                return exec;
+            }
+            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+            if (coalesced == splits) {
+                return exec;
+            }
+            return exec.withSplits(coalesced);
+        });
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
@@ -226,6 +255,7 @@ public class ComputeService {
             case "", "adaptive" -> new AdaptiveStrategy();
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
                 yield new AdaptiveStrategy();
@@ -236,7 +266,7 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(plan, null);
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -255,30 +285,64 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan);
+            return new ExternalDistributionResult(plan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
     }
 
-    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan) {
+    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
             return distributionPlan != null && distributionPlan.distributed();
         }
     }
 
-    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        if (splits.isEmpty()) {
+            discoverSplitsFromFragments(plan, splits);
+            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                if (coalesced != splits) {
+                    splits.clear();
+                    splits.addAll(coalesced);
+                }
+            }
+        }
         return splits;
     }
 
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+        if (operatorFactoryRegistry == null) {
+            return;
+        }
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    splits.addAll(withSplits.splits());
+                }
+            });
+        });
+    }
+
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
-        return plan.transformUp(ExchangeExec.class, exchange -> {
+        PhysicalPlan collapsed = plan.transformUp(ExchangeExec.class, exchange -> {
             if (exchange.child() instanceof ExternalSourceExec) {
                 return exchange.child();
             }
+            if (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)) {
+                return exchange.child();
+            }
             return exchange;
+        });
+        return collapsed.transformUp(TopNExec.class, topN -> {
+            if (topN.inputOrdering() != InputOrdering.NOT_SORTED && topN.child() instanceof FragmentExec) {
+                return topN.withNonSortedInput();
+            }
+            return topN;
         });
     }
 
@@ -499,6 +563,7 @@ public class ComputeService {
                     coordinatorPlan,
                     plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
+                    distributionResult.coordinatorSplits(),
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -858,6 +923,19 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        runCompute(task, context, plan, plannerSettings, localPhysicalOptimization, List.of(), planTimeProfile, listener);
+    }
+
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
+        List<ExternalSplit> coordinatorExternalSplits,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -888,7 +966,10 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            boolean hasExternalSource = plan.anyMatch(p -> p instanceof ExternalSourceExec);
+            boolean hasExternalSource = plan.anyMatch(
+                p -> p instanceof ExternalSourceExec
+                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+            );
             var localPlan = switch (localPhysicalOptimization) {
                 case ENABLED -> hasExternalSource
                     ? PlannerUtils.localPlan(
@@ -912,6 +993,12 @@ public class ComputeService {
                     );
                 case DISABLED -> plan;
             };
+            if (coordinatorExternalSplits.isEmpty() == false) {
+                localPlan = localPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
+                );
+            }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
@@ -1058,10 +1145,11 @@ public class ComputeService {
         // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
         // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
         return fragment instanceof Aggregate
-            // MetricsInfo does not serialize its output attributes (they are generated automatically and do not depend on the input).
-            // After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of the
-            // data node plan.
-            || fragment instanceof MetricsInfo;
+            // MetricsInfo/TsInfo do not serialize their output attributes (they are generated automatically and do not depend on the
+            // input). After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of
+            // the data node plan.
+            || fragment instanceof MetricsInfo
+            || fragment instanceof TsInfo;
     }
 
     String newChildSession(String session) {

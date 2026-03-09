@@ -224,6 +224,7 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_94 = def(9_071_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3 = def(9_072_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES = def(9_073_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISABLE_SEQUENCE_NUMBERS = def(9_074_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

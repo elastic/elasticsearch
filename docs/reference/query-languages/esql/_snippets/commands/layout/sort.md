@@ -3,22 +3,26 @@ serverless: ga
 stack: ga
 ```
 
-The `SORT` processing command sorts a table on one or more columns.
+The `SORT` processing command sorts a table on one or more expressions.
 
 ## Syntax
 
 ```esql
-SORT column1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., columnN [ASC/DESC][NULLS FIRST/NULLS LAST]]
+SORT expression1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., expressionN [ASC/DESC][NULLS FIRST/NULLS LAST]]
 ```
 
 ## Parameters
 
-`columnX`
-:   The column to sort on.
+`expressionX`
+:   The expression to sort on. Can be a column name, a
+    [function](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) (for example,
+    `length(field)`, `DATE_EXTRACT("year", date)`), or an arithmetic expression (for example, `salary * 2`).
+    The expression is evaluated per row and the result is used for ordering.
 
 ## Description
 
-The `SORT` processing command sorts a table on one or more columns.
+The `SORT` processing command sorts a table on one or more expressions. You can sort by any
+expression, not only column names—for example, `length(first_name)` or `DATE_EXTRACT("year", hire_date)`.
 
 The default sort order is ascending. Use `ASC` or `DESC` to specify an explicit
 sort order.
@@ -36,7 +40,7 @@ sort order, `null` values are sorted first. You can change that by providing
 
 ## Examples
 
-The following examples show how to control sort order, tie-breaking, and null placement.
+The following examples show how to control sort order, tie-breaking, null placement, and sorting by expressions.
 
 ### Sort in default ascending order
 
@@ -57,3 +61,15 @@ The following examples show how to control sort order, tie-breaking, and null pl
 
 :::{include} ../examples/docs.csv-spec/sortNullsFirst.md
 :::
+
+### Sort by expression
+
+You can sort by any expression, not just column names. The following example sorts rows by the
+length of the `first_name` field in descending order:
+
+```esql
+FROM employees
+| KEEP first_name, last_name
+| SORT length(first_name) DESC
+| LIMIT 5
+```

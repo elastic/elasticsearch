@@ -70,7 +70,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
         if (dv != null) {
             if (dv.singleton() != null) {
@@ -86,7 +86,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
@@ -156,15 +156,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.docValues().advanceExact(docId)) {
-                ((IntBuilder) builder).appendInt(codePointsAtOrd(ordinals.docValues().ordValue()));
-            } else {
-                builder.appendNull();
-            }
-        }
-
-        @Override
         public int docId() {
             return ordinals.docValues().docID();
         }
@@ -192,10 +183,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (ordinals.docValues().advanceExact(doc) == false) {
-                        ords[i] = -1;
+                        ords[i - offset] = -1;
                         continue;
                     }
-                    ords[i] = ordinals.docValues().ordValue();
+                    ords[i - offset] = ordinals.docValues().ordValue();
                 }
                 int[] result = ords;
                 ords = null;
@@ -315,20 +306,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             } finally {
                 factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(ords));
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.docValues().advanceExact(docId) == false) {
-                builder.appendNull();
-                return;
-            }
-            if (ordinals.docValues().docValueCount() != 1) {
-                registerSingleValueWarning(warnings);
-                builder.appendNull();
-                return;
-            }
-            ((IntBuilder) builder).appendInt(codePointsAtOrd(Math.toIntExact(ordinals.docValues().nextOrd())));
         }
 
         @Override
@@ -479,11 +456,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
-        }
-
         private void read(int docId, IntBuilder builder) throws IOException {
             if (ordinals.docValues().advanceExact(docId) == false) {
                 builder.appendNull();
@@ -606,15 +578,15 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             for (int i = offset; i < docs.count(); i++) {
                 int doc = docs.get(i);
                 if (ordinals.advanceExact(doc) == false) {
-                    ords[i] = -1;
+                    ords[i - offset] = -1;
                     continue;
                 }
                 if (ordinals.docValueCount() != 1) {
                     registerSingleValueWarning(warnings);
-                    ords[i] = -1;
+                    ords[i - offset] = -1;
                     continue;
                 }
-                ords[i] = Math.toIntExact(ordinals.nextOrd());
+                ords[i - offset] = Math.toIntExact(ordinals.nextOrd());
             }
             int[] result = ords;
             ords = null;

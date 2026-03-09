@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -134,7 +135,6 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
@@ -198,11 +198,11 @@ import static org.mockito.Mockito.mock;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
-    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
-        .map(EsqlCapabilities.Cap::capabilityName)
-        .collect(toSet());
-
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+
+    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, true);
 
     private final String fileName;
     private final String groupName;
@@ -218,7 +218,6 @@ public class CsvTests extends ESTestCase {
      * </p>
      */
     private Configuration configuration;
-    private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -284,9 +283,6 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            for (String capability : testCase.requiredCapabilities) {
-                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
-            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -327,6 +323,10 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "METRICS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
+                "TS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
             );
             assumeFalseLogging(
                 "can't use QSTR function in csv tests",
@@ -393,11 +393,11 @@ public class CsvTests extends ESTestCase {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.capabilities(true)))
+                    everyItem(in(ALL_CAPS.capabilities()))
                 );
                 assumeTrueLogging(
                     "Capability not supported in this build",
-                    EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
+                    ENABLED_CAPS.capabilities().containsAll(testCase.requiredCapabilities)
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
@@ -626,7 +626,7 @@ public class CsvTests extends ESTestCase {
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                functionRegistry,
+                FUNCTION_REGISTRY,
                 indexResolution,
                 Map.of(),
                 enrichPolicies,
@@ -651,16 +651,19 @@ public class CsvTests extends ESTestCase {
         if (shouldLoadViews() == false) {
             return parsed;
         }
+
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             for (var viewConfig : VIEW_CONFIGS.values()) {
                 loadView(viewService, viewConfig);
             }
-            return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
+            PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+            viewService.getViewResolver().replaceViews(parsed, this::parseView, future);
+            return future.actionGet().plan();
         }
     }
 
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        ProjectId projectId = ProjectId.fromId("dummy");
+        ProjectId projectId = ProjectId.DEFAULT;
         PutViewAction.Request request = new PutViewAction.Request(
             TimeValue.ONE_MINUTE,
             TimeValue.ONE_MINUTE,
@@ -674,7 +677,7 @@ public class CsvTests extends ESTestCase {
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(functionRegistry),
+            new PlanTelemetry(FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -768,11 +771,11 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             new PreAnalyzer(),
-            functionRegistry,
+            FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(functionRegistry),
+            new PlanTelemetry(FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,
@@ -880,11 +883,9 @@ public class CsvTests extends ESTestCase {
             LOGGER.trace("DataNode plan\n" + dataNodePlan);
         }
 
-        BlockFactory blockFactory = new BlockFactory(
-            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
-            bigArrays,
-            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
-        );
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays)
+            .maxPrimitiveArraySize(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+            .build();
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 

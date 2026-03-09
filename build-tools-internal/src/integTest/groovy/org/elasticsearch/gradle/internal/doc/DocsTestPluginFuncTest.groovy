@@ -10,18 +10,18 @@
 package org.elasticsearch.gradle.internal.doc
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
+import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
 class DocsTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
-    Class<? extends PrecommitPlugin> pluginClassUnderTest = DocsTestPlugin.class
+    Class<? extends Plugin> pluginClassUnderTest = DocsTestPlugin.class
 
     def setup() {
-        File docDir = new File(projectDir, 'doc');
+        File docDir = new File(projectDir, 'doc')
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-    configurationCacheCompatible = false;
+        configurationCacheCompatible = false
         buildFile << """
 tasks.named('listSnippets') {
    docs = fileTree('doc')

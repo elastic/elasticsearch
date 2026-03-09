@@ -8,7 +8,7 @@
 - **Cursor/Copilot rules**: None provided in repo; follow this guide plus CONTRIBUTING.md.
 
 ## Build & Run Commands
-- Refer to CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
+- Refer to BUILDING.md, CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
@@ -23,7 +23,7 @@ The repository is organized into several key directories:
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
 *   `x-pack`: Additional code modules and plugins under Elastic License.
-*   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic.
+*   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
@@ -38,7 +38,7 @@ The repository is organized into several key directories:
 - Yaml REST tests: `./gradlew ":rest-api-spec:yamlRestTest" --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=<relative_test_file_path>}"`
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
-- Ensure mocks or stubs are well-documented and clearly indicate why they were necessary. 
+- Ensure mocks or stubs are well-documented and clearly indicate why they were necessary.
 
 ### Test Types
 - Unit Tests: Preferred. Extend `ESTestCase`.

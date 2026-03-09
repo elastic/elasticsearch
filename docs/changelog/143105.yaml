@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141550
+pr: 143105
+summary: Better estimation on loading large text field from `_source`
+type: bug

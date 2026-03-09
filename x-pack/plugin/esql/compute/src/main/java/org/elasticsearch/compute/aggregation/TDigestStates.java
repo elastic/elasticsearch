@@ -10,16 +10,17 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BreakingTDigestHolder;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.TDigest;
 
 import java.util.function.DoubleBinaryOperator;
 
@@ -44,16 +45,17 @@ public final class TDigestStates {
     static final class SingleState implements AggregatorState {
 
         private final CircuitBreaker breaker;
+        private final MemoryTrackingTDigestArrays tdigestArrays;
         // initialize lazily
-        private TDigestState merger;
+        private TDigest merger;
 
         double sum = Double.NaN;
         double min = Double.NaN;
         double max = Double.NaN;
-        long count = 0;
 
         SingleState(CircuitBreaker breaker) {
             this.breaker = breaker;
+            this.tdigestArrays = new MemoryTrackingTDigestArrays(breaker);
         }
 
         public void add(TDigestHolder histogram) {
@@ -61,11 +63,10 @@ public final class TDigestStates {
                 return;
             }
             if (merger == null) {
-                merger = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
+                merger = TDigest.createMergingDigest(tdigestArrays, COMPRESSION);
             }
-            histogram.addTo(merger);
+            merger.add(histogram);
             sum = nanAwareAgg(histogram.getSum(), sum, Double::sum);
-            count += histogram.getValueCount();
             min = nanAwareAgg(histogram.getMin(), min, Double::min);
             max = nanAwareAgg(histogram.getMax(), max, Double::max);
         }
@@ -79,9 +80,11 @@ public final class TDigestStates {
                 blocks[offset] = blockFactory.newConstantTDigestBlock(TDigestHolder.empty(), 1);
                 blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
-                TDigestHolder resultHolder = new TDigestHolder(merger, min, max, sum, count);
-                blocks[offset] = blockFactory.newConstantTDigestBlock(resultHolder, 1);
-                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+                try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
+                    tempHolder.set(merger, sum, min, max);
+                    blocks[offset] = blockFactory.newConstantTDigestBlock(tempHolder.accessor(), 1);
+                    blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+                }
             }
         }
 
@@ -96,52 +99,52 @@ public final class TDigestStates {
             if (merger == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                TDigestHolder resultHolder = new TDigestHolder(merger, min, max, sum, count);
-                return blockFactory.newConstantTDigestBlock(resultHolder, 1);
+                try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
+                    tempHolder.set(merger, sum, min, max);
+                    return blockFactory.newConstantTDigestBlock(tempHolder.accessor(), 1);
+                }
             }
         }
     }
 
     static final class GroupingState implements GroupingAggregatorState {
 
-        private ObjectArray<TDigestState> states;
+        private ObjectArray<TDigest> states;
         private DoubleArray minima;
         private DoubleArray maxima;
         private DoubleArray sums;
-        private LongArray counts;
 
         private final CircuitBreaker breaker;
         private final BigArrays bigArrays;
+        private final MemoryTrackingTDigestArrays tdigestArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
-            ObjectArray<TDigestState> states = null;
+            this.tdigestArrays = new MemoryTrackingTDigestArrays(breaker);
+            ObjectArray<TDigest> states = null;
             DoubleArray minima = null;
             DoubleArray maxima = null;
             DoubleArray sums = null;
-            LongArray counts = null;
             boolean success = false;
             try {
                 states = bigArrays.newObjectArray(1);
                 minima = bigArrays.newDoubleArray(1);
                 maxima = bigArrays.newDoubleArray(1);
                 sums = bigArrays.newDoubleArray(1);
-                counts = bigArrays.newLongArray(1);
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(states, minima, maxima, sums, counts);
+                    Releasables.close(states, minima, maxima, sums);
                 }
             }
             this.states = states;
             this.minima = minima;
             this.maxima = maxima;
             this.sums = sums;
-            this.counts = counts;
         }
 
-        TDigestState getOrNull(int position) {
+        TDigest getOrNull(int position) {
             if (position < states.size()) {
                 return states.get(position);
             } else {
@@ -158,25 +161,21 @@ public final class TDigestStates {
             double min;
             double max;
             double sum;
-            long count;
             if (state == null) {
-                state = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, COMPRESSION);
+                state = TDigest.createMergingDigest(tdigestArrays, COMPRESSION);
                 states.set(groupId, state);
                 min = Double.NaN;
                 max = Double.NaN;
                 sum = Double.NaN;
-                count = 0L;
             } else {
                 min = minima.get(groupId);
                 max = maxima.get(groupId);
                 sum = sums.get(groupId);
-                count = counts.get(groupId);
             }
-            histogram.addTo(state);
+            state.add(histogram);
             minima.set(groupId, nanAwareAgg(min, histogram.getMin(), Double::min));
             maxima.set(groupId, nanAwareAgg(max, histogram.getMax(), Double::max));
             sums.set(groupId, nanAwareAgg(sum, histogram.getSum(), Double::sum));
-            counts.set(groupId, count + histogram.getValueCount());
         }
 
         private void ensureCapacity(int groupId) {
@@ -184,7 +183,6 @@ public final class TDigestStates {
             minima = bigArrays.grow(minima, groupId + 1);
             maxima = bigArrays.grow(maxima, groupId + 1);
             sums = bigArrays.grow(sums, groupId + 1);
-            counts = bigArrays.grow(counts, groupId + 1);
         }
 
         @Override
@@ -193,15 +191,15 @@ public final class TDigestStates {
             try (
                 var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
                 var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+                var tempHolder = BreakingTDigestHolder.create(breaker);
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    TDigestState state = getOrNull(groupId);
+                    TDigest state = getOrNull(groupId);
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
-                        histoBuilder.appendTDigest(
-                            new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
-                        );
+                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
+                        histoBuilder.appendTDigest(tempHolder.accessor());
                     } else {
                         seenBuilder.appendBoolean(false);
                         histoBuilder.appendTDigest(TDigestHolder.empty());
@@ -213,14 +211,16 @@ public final class TDigestStates {
         }
 
         public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
-            try (var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());) {
+            try (
+                var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
+                var tempHolder = BreakingTDigestHolder.create(breaker);
+            ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    TDigestState state = getOrNull(groupId);
+                    TDigest state = getOrNull(groupId);
                     if (state != null) {
-                        histoBuilder.appendTDigest(
-                            new TDigestHolder(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId), counts.get(groupId))
-                        );
+                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
+                        histoBuilder.appendTDigest(tempHolder.accessor());
                     } else {
                         histoBuilder.appendNull();
                     }
@@ -234,7 +234,7 @@ public final class TDigestStates {
             for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
-            Releasables.close(states, minima, maxima, sums, counts);
+            Releasables.close(states, minima, maxima, sums);
             states = null;
         }
 

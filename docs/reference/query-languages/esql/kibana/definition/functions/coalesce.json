@@ -110,6 +110,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "dense_vector",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "exponential_histogram",
           "optional" : false,
           "description" : "Expression to evaluate."

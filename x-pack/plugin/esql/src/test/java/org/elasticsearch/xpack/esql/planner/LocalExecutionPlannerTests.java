@@ -287,7 +287,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             between(0, 1000),
             MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
             MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE,
-            10
+            10,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -389,6 +392,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             randomBoolean(),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            null,
             null,
             Map.of()
         );

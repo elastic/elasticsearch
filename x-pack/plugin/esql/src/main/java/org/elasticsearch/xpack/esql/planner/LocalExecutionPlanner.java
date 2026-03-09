@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
@@ -35,7 +36,6 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -410,11 +410,7 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
-        EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
-            context.foldCtx(),
-            completion.prompt(),
-            source.layout
-        );
+        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
@@ -718,7 +714,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+        List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
             .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
             .toList();
@@ -1015,7 +1011,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
             ),
             true
         );
@@ -1112,7 +1108,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
             ),
             true
         );
@@ -1239,13 +1235,29 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
+        int pushedLimit = externalSource.pushedLimit();
+
+        // Shrink buffer for small limits
+        int effectiveBufferSize = 10;
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
+        }
+
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
         if (splitCount > 1) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
-            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
+            int maxParallelism = context.queryPragmas().taskConcurrency();
+            if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
+                instanceCount = 1;
+            } else if (pushedLimit != FormatReader.NO_LIMIT) {
+                int pagesNeeded = Math.max(1, (pushedLimit + pageSize - 1) / pageSize);
+                instanceCount = Math.min(pagesNeeded, Math.min(splitCount, maxParallelism));
+            } else {
+                instanceCount = Math.min(splitCount, maxParallelism);
+            }
         }
 
         FileSet fileSet = externalSource.fileSet();
@@ -1263,7 +1275,8 @@ public class LocalExecutionPlanner {
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
             .batchSize(pageSize)
-            .maxBufferSize(10)
+            .maxBufferSize(effectiveBufferSize)
+            .rowLimit(pushedLimit)
             .executor(operatorFactoryRegistry.executor())
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -1307,13 +1320,14 @@ public class LocalExecutionPlanner {
         // Parse the storage path
         StoragePath path = StoragePath.of(externalSource.sourcePath());
 
-        // Create the operator factory using the generic abstraction
         SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
             formatReader,
             path,
             externalSource.output(),
-            pageSize
+            pageSize,
+            externalSource.pushedLimit(),
+            null
         );
 
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)

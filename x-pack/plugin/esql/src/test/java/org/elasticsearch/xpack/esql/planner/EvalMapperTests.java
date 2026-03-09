@@ -12,8 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -155,8 +155,8 @@ public class EvalMapperTests extends ESTestCase {
         Layout layout = lb.build();
 
         var supplier = EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
+        ExpressionEvaluator evaluator1 = supplier.get(driverContext());
+        ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);

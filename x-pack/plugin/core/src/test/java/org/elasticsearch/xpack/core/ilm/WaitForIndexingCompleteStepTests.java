@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -168,7 +170,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         );
     }
 
-    public void testConditionMetWhenAllShardFollowTasksFailed() {
+    public void testConditionMetWhenAllShardFollowTasksFailedWithIndexNotFound() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()))
             .putCustom(CCR_METADATA_KEY, Map.of())
@@ -176,7 +178,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .numberOfReplicas(0)
             .build();
 
-        ElasticsearchException fatalException = new ElasticsearchException("index [leader-index] not found");
+        ElasticsearchException fatalException = new IndexNotFoundException("leader-index");
         List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, fatalException))
@@ -213,7 +215,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .numberOfReplicas(0)
             .build();
 
-        ElasticsearchException fatalException = new ElasticsearchException("index [leader-index] not found");
+        ElasticsearchException fatalException = new IndexNotFoundException("leader-index");
         List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, null))
@@ -346,7 +348,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .numberOfReplicas(0)
             .build();
 
-        ElasticsearchException fatalException = new ElasticsearchException("index [leader-index] not found");
+        ElasticsearchException fatalException = new IndexNotFoundException("leader-index");
         List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException))
         );
@@ -383,7 +385,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .numberOfReplicas(0)
             .build();
 
-        ElasticsearchException fatalException = new ElasticsearchException("index [leader-index] not found");
+        ElasticsearchException fatalException = new IndexNotFoundException("leader-index");
         List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException))
         );
@@ -412,23 +414,125 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         assertThat(informationContextHolder[0], notNullValue());
     }
 
-    public void testAllShardFollowTasksFailed() {
-        ElasticsearchException fatalException = new ElasticsearchException("index not found");
-        List<FollowStatsAction.StatsResponse> allFailed = List.of(
+    public void testConditionNotMetWhenAllTasksFailedWithNonIndexNotFoundException() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+            .settings(settings(IndexVersion.current()))
+            .putCustom(CCR_METADATA_KEY, Map.of())
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .build();
+
+        ElasticsearchException fatalException = new ElasticsearchException("some unrelated fatal error");
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, fatalException))
         );
+        mockFollowStatsCall(indexMetadata.getIndex().getName(), statsResponses);
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
+
+        WaitForIndexingCompleteStep step = createRandomInstance();
+        boolean[] conditionMetHolder = new boolean[1];
+        ToXContentObject[] informationContextHolder = new ToXContentObject[1];
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure: " + e.getMessage());
+            }
+        }, MASTER_TIMEOUT);
+
+        assertThat(conditionMetHolder[0], is(false));
+        assertThat(informationContextHolder[0], notNullValue());
+    }
+
+    public void testConditionMetWhenIndexNotFoundWrappedInRemoteTransportException() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+            .settings(settings(IndexVersion.current()))
+            .putCustom(CCR_METADATA_KEY, Map.of())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ElasticsearchException fatalException = new RemoteTransportException("error on remote", new IndexNotFoundException("leader-index"));
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException))
+        );
+        mockFollowStatsCall(indexMetadata.getIndex().getName(), statsResponses);
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
+
+        WaitForIndexingCompleteStep step = createRandomInstance();
+        boolean[] conditionMetHolder = new boolean[1];
+        ToXContentObject[] informationContextHolder = new ToXContentObject[1];
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure: " + e.getMessage());
+            }
+        }, MASTER_TIMEOUT);
+
+        assertThat(conditionMetHolder[0], is(true));
+        assertThat(informationContextHolder[0], nullValue());
+    }
+
+    public void testAllFollowTasksFailedWithIndexNotFound() {
+        IndexNotFoundException indexNotFound = new IndexNotFoundException("leader-index");
+
+        List<FollowStatsAction.StatsResponse> allFailedWithIndexNotFound = List.of(
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, indexNotFound)),
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, indexNotFound))
+        );
         assertThat(
-            WaitForIndexingCompleteStep.allShardFollowTasksFailed(new FollowStatsAction.StatsResponses(List.of(), List.of(), allFailed)),
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), allFailedWithIndexNotFound)
+            ),
             is(true)
         );
 
-        List<FollowStatsAction.StatsResponse> someFailed = List.of(
-            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, fatalException)),
+        ElasticsearchException wrappedIndexNotFound = new RemoteTransportException("error", indexNotFound);
+        List<FollowStatsAction.StatsResponse> allFailedWrapped = List.of(
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, wrappedIndexNotFound)),
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, wrappedIndexNotFound))
+        );
+        assertThat(
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), allFailedWrapped)
+            ),
+            is(true)
+        );
+
+        ElasticsearchException otherException = new ElasticsearchException("some other error");
+        List<FollowStatsAction.StatsResponse> allFailedOther = List.of(
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, otherException)),
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, otherException))
+        );
+        assertThat(
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), allFailedOther)
+            ),
+            is(false)
+        );
+
+        List<FollowStatsAction.StatsResponse> someFailedIndexNotFound = List.of(
+            new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, indexNotFound)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, null))
         );
         assertThat(
-            WaitForIndexingCompleteStep.allShardFollowTasksFailed(new FollowStatsAction.StatsResponses(List.of(), List.of(), someFailed)),
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), someFailedIndexNotFound)
+            ),
             is(false)
         );
 
@@ -437,12 +541,16 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, null))
         );
         assertThat(
-            WaitForIndexingCompleteStep.allShardFollowTasksFailed(new FollowStatsAction.StatsResponses(List.of(), List.of(), noneFailed)),
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), noneFailed)
+            ),
             is(false)
         );
 
         assertThat(
-            WaitForIndexingCompleteStep.allShardFollowTasksFailed(new FollowStatsAction.StatsResponses(List.of(), List.of(), List.of())),
+            WaitForIndexingCompleteStep.allFollowTasksFailedWithIndexNotFound(
+                new FollowStatsAction.StatsResponses(List.of(), List.of(), List.of())
+            ),
             is(false)
         );
     }

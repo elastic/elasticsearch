@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,8 +29,9 @@ import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 
 /**
  * Waits for the {@link LifecycleSettings#LIFECYCLE_INDEXING_COMPLETE} setting to be set to {@code true} on the leader index,
- * which is then propagated to the follower via CCR. If all shard follow tasks have fatally failed (e.g. because the leader
- * index was deleted), the condition is also considered met so that ILM can proceed with the unfollow process.
+ * which is then propagated to the follower via CCR. If all shard follow tasks have fatally failed with an
+ * {@link IndexNotFoundException} (indicating the leader index was deleted), the condition is also considered met so that
+ * ILM can proceed with the unfollow process rather than waiting indefinitely.
  */
 final class WaitForIndexingCompleteStep extends AsyncWaitStep {
     private static final Logger logger = LogManager.getLogger(WaitForIndexingCompleteStep.class);
@@ -68,10 +71,10 @@ final class WaitForIndexingCompleteStep extends AsyncWaitStep {
                     indexMetadata.getIndex().getName()
                 );
                 listener.onResponse(false, new IndexingNotCompleteInfo());
-            } else if (allShardFollowTasksFailed(response)) {
+            } else if (allFollowTasksFailedWithIndexNotFound(response)) {
                 logger.info(
-                    "[{}] proceeding with unfollow for index [{}] because all shard follow tasks have fatally failed,"
-                        + " the leader index may have been deleted",
+                    "[{}] proceeding with unfollow for index [{}] because all shard follow tasks have fatally failed"
+                        + " with IndexNotFoundException, the leader index has been deleted",
                     getKey().action(),
                     indexMetadata.getIndex().getName()
                 );
@@ -94,9 +97,17 @@ final class WaitForIndexingCompleteStep extends AsyncWaitStep {
         }));
     }
 
-    static boolean allShardFollowTasksFailed(FollowStatsAction.StatsResponses responses) {
-        return responses.getStatsResponses().isEmpty() == false
-            && responses.getStatsResponses().stream().allMatch(r -> r.status().getFatalException() != null);
+    /**
+     * Returns {@code true} if every shard follow task has a fatal {@link IndexNotFoundException}, indicating the leader index
+     * was deleted. The fatal exception may be wrapped in a {@code RemoteTransportException}, so we unwrap before checking.
+     * Other fatal exception types are intentionally not treated as "leader deleted" to avoid automatically unfollowing
+     * when the issue might be resolvable by the user.
+     */
+    static boolean allFollowTasksFailedWithIndexNotFound(FollowStatsAction.StatsResponses responses) {
+        return responses.getStatsResponses().isEmpty() == false && responses.getStatsResponses().stream().allMatch(r -> {
+            var fatalException = r.status().getFatalException();
+            return fatalException != null && ExceptionsHelper.unwrapCause(fatalException) instanceof IndexNotFoundException;
+        });
     }
 
     static final class IndexingNotCompleteInfo implements ToXContentObject {

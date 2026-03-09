@@ -17,6 +17,8 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -63,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 
 /**
@@ -76,6 +79,8 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
  * SearchDirectory read path for benchmarking purposes.
  */
 public final class ServerlessDirectoryFactory {
+
+    private static final Logger logger = LogManager.getLogger(ServerlessDirectoryFactory.class);
 
     private ServerlessDirectoryFactory() {}
 
@@ -111,7 +116,7 @@ public final class ServerlessDirectoryFactory {
     private static class ServerlessDirectory extends FilterDirectory {
 
         static ServerlessDirectory create(Path dataPath, Path workPath) throws IOException {
-            var cacheSize = ByteSizeValue.ofBytes(roundUpTo16MB(computeIndexSize(dataPath)));
+            var cacheSize = ByteSizeValue.ofBytes(computeRegionAlignedCacheSize(dataPath));
             var nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), workPath)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), workPath.toString())
@@ -133,6 +138,8 @@ public final class ServerlessDirectoryFactory {
                 new BlobCacheMetrics(MeterRegistry.NOOP),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
+
+            logInitialCacheStats(dataPath, nodeSettings, cacheSize, cacheService);
             var fakeBlobStoreDirectory = new NIOFSDirectory(dataPath);
             var blobNameToFileName = new ConcurrentHashMap<String, String>();
 
@@ -297,21 +304,74 @@ public final class ServerlessDirectoryFactory {
             nodeEnvironment.close();
         }
 
-        private static long computeIndexSize(Path dataPath) throws IOException {
-            long totalSize = 0;
+        /**
+         * Computes the cache size needed to hold all index files without eviction.
+         * Each file occupies {@code ceil(fileSize / regionSize)} regions, so the
+         * total is the sum of per-file region counts times the region size.
+         */
+        private static long computeRegionAlignedCacheSize(Path dataPath) throws IOException {
+            long regionSize = SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes();
+            long totalRegions = 0;
             try (var dir = new NIOFSDirectory(dataPath)) {
                 for (String file : dir.listAll()) {
                     if (file.equals("write.lock") == false) {
-                        totalSize += dir.fileLength(file);
+                        totalRegions += (dir.fileLength(file) + regionSize - 1) / regionSize;
                     }
                 }
             }
-            return totalSize;
+            return totalRegions * regionSize;
         }
 
-        private static long roundUpTo16MB(long value) {
-            long block = 16L * 1024 * 1024;
-            return ((value + block - 1) / block) * block;
+        private static void logInitialCacheStats(
+            Path dataPath,
+            Settings nodeSettings,
+            ByteSizeValue cacheSize,
+            StatelessSharedBlobCacheService cacheService
+        ) throws IOException {
+            int regionSize = Math.toIntExact(SHARED_CACHE_REGION_SIZE_SETTING.get(nodeSettings).getBytes());
+            int regionsAvailable = cacheService.getStats().numberOfRegions();
+            int regionsNeeded = 0;
+            try (var tmpDir = new NIOFSDirectory(dataPath)) {
+                for (String file : tmpDir.listAll()) {
+                    if (file.equals("write.lock") == false) {
+                        long fileLen = tmpDir.fileLength(file);
+                        int fileRegions = Math.toIntExact((fileLen + regionSize - 1) / regionSize);
+                        regionsNeeded += fileRegions;
+                        logger.info("  file={}, size={}, regions={}", file, ByteSizeValue.ofBytes(fileLen), fileRegions);
+                    }
+                }
+            }
+            int deficit = regionsNeeded - regionsAvailable;
+            logger.info(
+                "Cache capacity: cacheSize={}, regionSize={}, regionsAvailable={}, regionsNeeded={}, deficit={}{}",
+                cacheSize,
+                ByteSizeValue.ofBytes(regionSize),
+                regionsAvailable,
+                regionsNeeded,
+                deficit,
+                deficit > 0 ? " *** CACHE TOO SMALL - eviction will occur ***" : " (OK)"
+            );
+        }
+    }
+
+    /**
+     * Logs cache stats (regions, evictions, writes, reads) for a directory
+     * created by this factory. No-op if the directory is not a ServerlessDirectory.
+     *
+     * @param dir   the directory to inspect
+     * @param label a label to identify the logging context (e.g. "Before prewarm")
+     */
+    public static void logCacheStats(Directory dir, String label) {
+        if (dir instanceof ServerlessDirectory sd) {
+            var stats = sd.cacheService.getStats();
+            logger.info(
+                "[{}] Cache stats: regions={}, evictions={}, writes={}, readBytes={}",
+                label,
+                stats.numberOfRegions(),
+                stats.evictCount(),
+                stats.writeCount(),
+                stats.readBytes()
+            );
         }
     }
 }

@@ -638,7 +638,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      */
     static SearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
         assert source.getClass().isAnonymousClass() == false
-            : "source must not be an anonymous class as overridden methods " + "will be lost when a new SearchExecutionContext is created";
+            : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
         var wrapped = new SearchExecutionContext(source) {
 
             @Override

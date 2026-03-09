@@ -528,15 +528,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         long timestamp = System.currentTimeMillis();
         SearchHit hit = createHit(0);
         try {
-            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
-                timestamp,
-                TEST_SHARD_ID,
-                serializeHits(hit),
-                1,
-                0,
-                10,
-                0
-            );
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(timestamp, TEST_SHARD_ID, serializeHits(hit), 1, 0, 10, 0);
 
             assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
             assertThat(chunk.hitCount(), equalTo(1));
@@ -556,15 +548,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new FetchPhaseResponseChunk(
-                System.currentTimeMillis(),
-                invalidShardId,
-                BytesArray.EMPTY,
-                0,
-                0,
-                0,
-                0
-            )
+            () -> new FetchPhaseResponseChunk(System.currentTimeMillis(), invalidShardId, BytesArray.EMPTY, 0, 0, 0, 0)
         );
     }
 

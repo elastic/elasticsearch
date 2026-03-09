@@ -1279,8 +1279,7 @@ refresh, flush, recovery, and snapshot. There is exactly one `IndexShard` object
 
 An `IndexShard` holds references to:
 
-- The shard's [Store], which provides access to the shard's Lucene index files on disk, by wrapping a Lucene
-  `Directory`.
+- The shard's [Store], which wraps a Lucene `Directory` and provides access to the shard's Lucene index files on disk.
 - The shard's [Engine], which manages all indexing and search operations for this shard, writing to both the
   [Translog] and the Lucene files managed by the `Store`.
 
@@ -1343,13 +1342,13 @@ selectable via the
 The `Store`
 exposes [MetadataSnapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L820)
 for each index commit, read and constructed from the Lucene `segments_N` files. A `MetadataSnapshot` is a point-in-time
-map from filename to [StoreFileMetadata] for the committed files belonging to a Lucene index commit (what
-Elasticsearch calls a flush).
+map from filename to [StoreFileMetadata] for the committed files belonging to a Lucene index commit, produced by an
+Elasticsearch flush.
 Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
 Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
 
 `MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including peer recovery and replica shard
-allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on disk state of two distinct
+allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two distinct
 shards and calculate how much data needs to be transferred to bring them into sync.
 
 During peer recovery, the recovering shard (target) calls `indexShard.snapshotStoreMetadata()` to capture its
@@ -1430,7 +1429,7 @@ primary or a snapshot).
 ### Engine
 
 The [Engine] abstract class is the Elasticsearch abstraction for the live shard index. Where the `Store`
-manages files on disk, the `Engine` manages and coordinates operations on the running shard index: it owns the write
+manages files on disk, the `Engine` manages and coordinates operations on the running shard index. It owns the write
 path (indexing, deletion, no-ops), the read path (searcher acquisition, real-time GET), and Lucene lifecycle
 operations (refresh, flush, merge). It also controls the translog, ensuring that every acknowledged write is
 durably recorded before a response is sent.
@@ -1438,7 +1437,7 @@ durably recorded before a response is sent.
 The main implementation is [InternalEngine], used for all read-write shards (primary and replica). Other
 implementations serve more specialized roles. For example,
 the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
-gives read-only access to a frozen or relocating shard, and
+gives read-only access to a frozen shard, and
 the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
 acts as a do-nothing placeholder for shards belonging to a closed index, where an engine object must exist but
 all read and write operations throw `UnsupportedOperationException`.
@@ -1450,7 +1449,7 @@ write buffer is flushed or when merges combine existing segments into larger one
 The [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html)
 accumulates writes in memory and periodically flushes new segments. The `InternalEngine` wraps an `IndexWriter` (for
 writes) and a pair of internal and
-external [reader managers](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L151)
+external [reader manager](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L151)
 that wrap
 Lucene [DirectoryReader](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/DirectoryReader.html)s and
 map Elasticsearch concepts onto Lucene's:
@@ -1461,7 +1460,7 @@ map Elasticsearch concepts onto Lucene's:
 - An Elasticsearch `flush` calls `IndexWriter.commit()`, writing a durable commit point to disk. A flush is
   what allows the translog to be safely truncated up to that commit.
 
-This distinction is a core piece of Elasticsearch's durability model: documents are searchable after a refresh but
+This distinction is a core piece of Elasticsearch's durability model. Documents are searchable after a refresh but
 only durably stored after a flush. In between, the translog bridges the gap. Every write is appended to the
 translog on disk before being acknowledged, so that it can be replayed in the event of a crash.
 

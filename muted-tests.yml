@@ -159,9 +159,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
-  issue: https://github.com/elastic/elasticsearch/issues/137457
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
@@ -456,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845
+- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/143860
 
 # Examples:
 #

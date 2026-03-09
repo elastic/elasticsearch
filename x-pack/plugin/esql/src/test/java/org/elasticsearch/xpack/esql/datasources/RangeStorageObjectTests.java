@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
@@ -75,6 +76,42 @@ public class RangeStorageObjectTests extends ESTestCase {
             byte[] result = stream.readAllBytes();
             assertArrayEquals(FILE_BYTES, result);
         }
+    }
+
+    public void testReadBytesAddsOffset() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(6);
+        int bytesRead = range.readBytes(0, buf);
+        assertEquals(6, bytesRead);
+        buf.flip();
+        byte[] result = new byte[6];
+        buf.get(result);
+        assertEquals("World!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesWithDirectBuffer() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocateDirect(6);
+        int bytesRead = range.readBytes(0, buf);
+        assertEquals(6, bytesRead);
+        buf.flip();
+        byte[] result = new byte[6];
+        buf.get(result);
+        assertEquals("World!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesPastRangeReturnsMinusOne() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        int bytesRead = range.readBytes(6, buf);
+        assertEquals(-1, bytesRead);
+        assertEquals(0, buf.position());
     }
 
     public void testNegativeOffsetThrows() {

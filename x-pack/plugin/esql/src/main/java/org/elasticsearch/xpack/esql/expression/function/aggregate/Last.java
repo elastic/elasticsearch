@@ -10,11 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBooleanByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBooleanByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBytesRefByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBytesRefByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastDoubleByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastFloatByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastIntByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastLongByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
@@ -82,7 +88,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "The search field"
         ) Expression field,
-        @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
+        @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
@@ -155,10 +161,10 @@ public class Last extends AggregateFunction implements ToAggregator {
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "long or date_nanos or datetime"
+                "int or long or date_nanos or datetime"
             )
         );
     }
@@ -181,15 +187,31 @@ public class Last extends AggregateFunction implements ToAggregator {
             };
         }
 
-        return switch (searchFieldType) {
-            case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
-            case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
-            case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
-            case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
-            default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
-        };
+        if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
+                case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
+                case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
+                case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        if (sortFieldType == DataType.INTEGER) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS -> new AllLastLongByIntAggregatorFunctionSupplier();
+                case INTEGER -> new AllLastIntByIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AllLastDoubleByIntAggregatorFunctionSupplier();
+                case FLOAT -> new AllLastFloatByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AllLastBytesRefByIntAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllLastBooleanByIntAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        throw EsqlIllegalArgumentException.illegalDataType(sortFieldType);
     }
 
     @Override

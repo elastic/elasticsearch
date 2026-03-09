@@ -195,47 +195,52 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
-        SubscribableListener<Void> sliceBlocked = null;
-        while (currentScorer == null || currentScorer.isDone()) {
-            if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
-                sliceIndex = 0;
-                currentSlice = sliceQueue.nextSlice(currentSlice);
-                if (currentSlice == null) {
-                    doneCollecting = true;
-                    return null;
+        for (;;) {
+            SubscribableListener<Void> sliceBlocked = null;
+            while (currentScorer == null || currentScorer.isDone()) {
+                if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
+                    sliceIndex = 0;
+                    currentSlice = sliceQueue.nextSlice(currentSlice);
+                    if (currentSlice == null) {
+                        doneCollecting = true;
+                        return null;
+                    }
+                    processedSlices++;
+                    processedShards.add(currentSlice.shardContext().shardIdentifier());
                 }
-                processedSlices++;
-                processedShards.add(currentSlice.shardContext().shardIdentifier());
+                final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
+                logger.trace("Starting {}", partialLeaf);
+                final LeafReaderContext leaf = partialLeaf.leafReaderContext();
+                if (currentScorer == null // First time
+                    || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
+                    || currentScorer.weight != currentSlice.weight() // Moved to a new query
+                ) {
+                    final Weight weight = currentSlice.weight();
+                    processedQueries.add(Status.queryString(weight.getQuery()));
+                    currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+                    sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
+                    if (sliceBlocked == null || sliceBlocked.isDone()) {
+                        currentScorer.reinitialize();
+                    }
+                }
+                assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
+                currentScorer.maxPosition = partialLeaf.maxDoc();
+                currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
             }
-            final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
-            logger.trace("Starting {}", partialLeaf);
-            final LeafReaderContext leaf = partialLeaf.leafReaderContext();
-            if (currentScorer == null // First time
-                || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
-                || currentScorer.weight != currentSlice.weight() // Moved to a new query
-            ) {
-                final Weight weight = currentSlice.weight();
-                processedQueries.add(Status.queryString(weight.getQuery()));
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
-                sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
-                if (sliceBlocked == null || sliceBlocked.isDone()) {
-                    currentScorer.reinitialize();
+            if (sliceBlocked != null && sliceBlocked.isDone() == false) {
+                blocked = new IsBlockedResult(sliceBlocked, "segment is being cached");
+                currentScorer.executingThread = null; // force to use the cached iterator next time
+                return null;
+            }
+            if (Thread.currentThread() != currentScorer.executingThread) {
+                currentScorer.reinitialize();
+                if (currentScorer.isDone()) {
+                    continue; // bulk scorer can become null after reinitialize
                 }
             }
-            assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
-            currentScorer.maxPosition = partialLeaf.maxDoc();
-            currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
+            maybeStartShardClock(currentScorer);
+            return currentScorer;
         }
-        if (sliceBlocked != null && sliceBlocked.isDone() == false) {
-            blocked = new IsBlockedResult(sliceBlocked, "segment is being cached");
-            currentScorer.executingThread = null; // force to use the cached iterator next time
-            return null;
-        }
-        if (Thread.currentThread() != currentScorer.executingThread) {
-            currentScorer.reinitialize();
-        }
-        maybeStartShardClock(currentScorer);
-        return currentScorer;
     }
 
     protected LuceneSliceQueue getSliceQueue() {

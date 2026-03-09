@@ -28,6 +28,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public class Types {
     private static final String PACKAGE = "org.elasticsearch.compute";
     private static final String AGGREGATION_PACKAGE = PACKAGE + ".aggregation";
+    private static final String EXPRESSION_PACKAGE = PACKAGE + ".expression";
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
@@ -110,13 +111,8 @@ public class Types {
         "GroupingAggregatorEvaluationContext"
     );
 
-    public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
-    public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(
-        OPERATOR_PACKAGE,
-        "EvalOperator",
-        "ExpressionEvaluator",
-        "Factory"
-    );
+    public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator");
+    public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator", "Factory");
     public static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",

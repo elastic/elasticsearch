@@ -22,25 +22,22 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
-import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Vector scorer over binarized vector values */
 public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     private final FlatVectorsScorer nonQuantizedDelegate;
-    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     public ES818BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate) {
         this.nonQuantizedDelegate = nonQuantizedDelegate;
@@ -65,7 +62,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues,
         float[] target
     ) throws IOException {
-        if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
+        if (vectorValues instanceof OffHeapBinarizedVectorValues binarizedVectors) {
             assert binarizedVectors.getQuantizer() != null
                 : "BinarizedByteVectorValues must have a quantizer for ES816BinaryFlatVectorsScorer";
             assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
@@ -83,21 +80,46 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 centroid
             );
             ESVectorUtil.transposeHalfByte(initial, quantized);
+            var scorer = ESVectorUtil.getES93BinaryQuantizedVectorScorer(
+                binarizedVectors.slice,
+                binarizedVectors.dimension(),
+                binarizedVectors.getVectorByteLength()
+            );
             return new RandomVectorScorer.AbstractRandomVectorScorer(vectorValues) {
                 @Override
                 public float score(int i) throws IOException {
-                    return quantizedScore(
-                        binarizedVectors.dimension(),
+                    return scorer.score(
+                        quantized,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
                         similarityFunction,
                         binarizedVectors.getCentroidDP(),
+                        i
+                    );
+                }
+
+                @Override
+                public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+                    scorer.scoreBulk(
                         quantized,
-                        queryCorrections,
-                        binarizedVectors.vectorValue(i),
-                        binarizedVectors.getCorrectiveTerms(i)
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        similarityFunction,
+                        binarizedVectors.getCentroidDP(),
+                        nodes,
+                        scores,
+                        numNodes
                     );
                 }
             };
         }
+        assert vectorValues instanceof BinarizedByteVectorValues == false
+            : "BinarizedByteVectorValues must be off-heap (implement OffHeapBinarizedVectorValues)";
+
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
@@ -113,7 +135,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
-        BinarizedByteVectorValues targetVectors
+        OffHeapBinarizedVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
     }
@@ -126,12 +148,12 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer supplier over binarized vector values */
     static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
         private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final BinarizedByteVectorValues targetVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         BinarizedRandomVectorScorerSupplier(
             ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             this.queryVectors = queryVectors;
@@ -153,22 +175,29 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer over binarized vector values */
     public static class BinarizedRandomVectorScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
         private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final BinarizedByteVectorValues targetVectors;
+        private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
         private final byte[] quantizedQuery;
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections = null;
         private int currentOrdinal = -1;
 
+        private final ES93BinaryQuantizedVectorScorer scorer;
+
         BinarizedRandomVectorScorer(
             ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            BinarizedByteVectorValues targetVectors,
+            OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
-        ) {
+        ) throws IOException {
             super(targetVectors);
             this.queryVectors = queryVectors;
             this.quantizedQuery = new byte[queryVectors.quantizedDimension()];
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
+            this.scorer = ESVectorUtil.getES93BinaryQuantizedVectorScorer(
+                targetVectors.slice,
+                targetVectors.dimension(),
+                targetVectors.getVectorByteLength()
+            );
         }
 
         @Override
@@ -176,14 +205,34 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             if (queryCorrections == null) {
                 throw new IllegalStateException("score() called before setScoringOrdinal()");
             }
-            return quantizedScore(
-                targetVectors.dimension(),
+            return scorer.score(
+                quantizedQuery,
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
                 similarityFunction,
                 targetVectors.getCentroidDP(),
+                targetOrd
+            );
+        }
+
+        @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            if (queryCorrections == null) {
+                throw new IllegalStateException("bulkScore() called before setScoringOrdinal()");
+            }
+            scorer.scoreBulk(
                 quantizedQuery,
-                queryCorrections,
-                targetVectors.vectorValue(targetOrd),
-                targetVectors.getCorrectiveTerms(targetOrd)
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                targetVectors.getCentroidDP(),
+                nodes,
+                scores,
+                numNodes
             );
         }
 
@@ -195,40 +244,6 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             System.arraycopy(queryVectors.vectorValue(i), 0, quantizedQuery, 0, quantizedQuery.length);
             queryCorrections = queryVectors.getCorrectiveTerms(i);
             currentOrdinal = i;
-        }
-    }
-
-    private static float quantizedScore(
-        int dims,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        byte[] q,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-        byte[] d,
-        OptimizedScalarQuantizer.QuantizationResult indexCorrections
-    ) {
-        float qcDist = ESVectorUtil.ipByteBinByte(q, d);
-        float x1 = indexCorrections.quantizedComponentSum();
-        float ax = indexCorrections.lowerInterval();
-        // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = indexCorrections.upperInterval() - ax;
-        float ay = queryCorrections.lowerInterval();
-        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-        float y1 = queryCorrections.quantizedComponentSum();
-        float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * qcDist;
-        // For euclidean, we need to invert the score and apply the additional correction, which is
-        // assumed to be the squared l2norm of the centroid centered vectors.
-        if (similarityFunction == EUCLIDEAN) {
-            score = queryCorrections.additionalCorrection() + indexCorrections.additionalCorrection() - 2 * score;
-            return Math.max(1 / (1f + score), 0);
-        } else {
-            // For cosine and max inner product, we need to apply the additional correction, which is
-            // assumed to be the non-centered dot-product between the vector and the centroid
-            score += queryCorrections.additionalCorrection() + indexCorrections.additionalCorrection() - centroidDp;
-            if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                return VectorUtil.scaleMaxInnerProductScore(score);
-            }
-            return Math.max((1f + score) / 2f, 0);
         }
     }
 }

@@ -91,7 +91,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
      */
     static String getTemplate(Boolean useSyntheticId, Boolean disableSeqNo) {
         StringBuilder replacement = new StringBuilder();
-        if(useSyntheticId != null) {
+        if (useSyntheticId != null) {
             replacement.append(", \"mapping\": { \"synthetic_id\": ").append(useSyntheticId).append(" }");
         }
         if (disableSeqNo) {

@@ -533,6 +533,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<DesiredTopologyContext> desiredTopologyContext = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
+    private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
@@ -1109,6 +1110,12 @@ public class StatelessPlugin extends Plugin
             );
             replicationUpdaterService.init();
             components.add(replicationUpdaterService);
+        }
+
+        if (statelessServicesConsumerProviders.get() != null) {
+            for (var provider : statelessServicesConsumerProviders.get()) {
+                provider.onServicesCreated(closedShardService, hollowShardsService);
+            }
         }
 
         return components;
@@ -1863,6 +1870,8 @@ public class StatelessPlugin extends Plugin
         } else if (factories.size() == 1) {
             codecProviderFactory.set(factories.get(0));
         }
+
+        this.statelessServicesConsumerProviders.set(loader.loadExtensions(StatelessExtensionProvider.class));
 
         var refreshManagerServiceFactories = loader.loadExtensions(RefreshManagerServiceFactory.class);
         if (refreshManagerServiceFactories.size() > 1) {

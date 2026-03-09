@@ -63,12 +63,17 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+        // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
+        // that carries the excluded dimension names.
         Map<NameId, TimeSeriesMetadataAttribute> replacements = new LinkedHashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings().size());
         boolean changed = false;
 
         for (Expression grouping : aggregate.groupings()) {
             if (timeSeriesWithout(grouping) instanceof TimeSeriesWithout without) {
+                // Replace the semantic WITHOUT node with a concrete _timeseries attribute
+                // preserving the original attribute's identity (name id) so downstream
+                // references resolve correctly.
                 Attribute groupingAttribute = Expressions.attribute(grouping);
                 assert groupingAttribute != null : "time-series grouping must be a named expression";
                 TimeSeriesMetadataAttribute lowered = TimeSeriesMetadataAttribute.from(groupingAttribute, without.excludedFieldNames());
@@ -84,7 +89,9 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
             return aggregate;
         }
 
+        // Propagate the lowered attributes into aggregate expressions that reference the old grouping ids.
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> replaceReferences(agg, replacements)).toList();
+        // Add the new _timeseries attribute to the EsRelation so field extraction can find it.
         LogicalPlan newChild = aggregate.child()
             .transformDown(EsRelation.class, relation -> addLoweredAttributes(relation, replacements.values()));
 

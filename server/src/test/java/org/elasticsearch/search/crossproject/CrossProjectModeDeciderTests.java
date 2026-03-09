@@ -41,7 +41,7 @@ public class CrossProjectModeDeciderTests extends ESTestCase {
         assertThat(crossProjectModeDecider.resolvesCrossProject(withCpsOption), is(expected));
     }
 
-    private static class IndicesRequestImpl implements IndicesRequest {
+    private static class IndicesRequestImpl implements IndicesRequest, IndicesRequest.CrossProjectCandidate {
 
         private final boolean allowsCrossProject;
         private final IndicesOptions indicesOptions;

@@ -44,22 +44,28 @@ public interface IndicesRequest {
     }
 
     /**
-     * Determines whether the request type can support cross-project processing. Cross-project processing entails
-     * 1. UIAM authentication and authorization projects resolution.
-     * 2. Cross-project flat-world index resolution and error handling
-     * Note: this method only determines if the request <em>supports</em> cross-project. Whether cross-project processing
-     * is actually performed depends on other factors such as:
-     * <ul>
-     *   <li>Whether CPS is enabled which impacts both 1 and 2.</li>
-     *   <li>Whether {@link IndicesOptions} supports it. This only impacts 2.</li>
-     * </ul>
-     * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+     * Interface for indicating potential work related to cross-project authentication and authorization.
      */
-    default boolean allowsCrossProject() {
-        return false;
+    interface CrossProjectCandidate {
+
+        /**
+         * Determines whether the request type can support cross-project processing. Cross-project processing entails
+         * 1. UIAM authentication and authorization projects resolution.
+         * 2. If applicable, cross-project flat-world index resolution and error handling
+         * Note: this method only determines if the request <em>supports</em> cross-project. Whether cross-project processing
+         * is actually performed depends on other factors such as:
+         * <ul>
+         *   <li>Whether CPS is enabled which impacts both 1 and 2.</li>
+         *   <li>Whether {@link IndicesOptions} supports it when the request is an {@link IndicesRequest}. This only impacts 2.</li>
+         * </ul>
+         * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
+         */
+        default boolean allowsCrossProject() {
+            return false;
+        }
     }
 
-    interface Replaceable extends IndicesRequest {
+    interface Replaceable extends IndicesRequest, CrossProjectCandidate {
         /**
          * Sets the indices that the action relates to.
          */
@@ -110,7 +116,7 @@ public interface IndicesRequest {
      *
      * This may change with https://github.com/elastic/elasticsearch/issues/105598
      */
-    interface SingleIndexNoWildcards extends IndicesRequest {
+    interface SingleIndexNoWildcards extends IndicesRequest, CrossProjectCandidate {
         default boolean allowsRemoteIndices() {
             return true;
         }

@@ -142,8 +142,5 @@ public interface ActionPlugin {
     }
 
     record RestHandlersServices(Settings settings, RestController restController, ProjectResolver projectResolver) {
-        public static RestHandlersServices empty() {
-            return new RestHandlersServices(Settings.EMPTY, null, null);
-        }
     }
 }

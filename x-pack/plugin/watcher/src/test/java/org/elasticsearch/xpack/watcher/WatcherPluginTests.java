@@ -21,8 +21,8 @@ import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -51,7 +51,7 @@ public class WatcherPluginTests extends ESTestCase {
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
         assertThat(executorBuilders, hasSize(0));
         assertThat(watcher.getActions(), hasSize(2));
-        assertThat(watcher.getRestHandlers(ActionPlugin.RestHandlersServices.empty(), null, null), hasSize(0));
+        assertThat(watcher.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null), hasSize(0));
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);

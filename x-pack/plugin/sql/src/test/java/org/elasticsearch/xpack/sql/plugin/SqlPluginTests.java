@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -33,6 +33,6 @@ public class SqlPluginTests extends ESTestCase {
             hasSize(3)
         );
         assertThat(plugin.getActions(), hasSize(8));
-        assertThat(plugin.getRestHandlers(ActionPlugin.RestHandlersServices.empty(), null, null), hasSize(7));
+        assertThat(plugin.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null), hasSize(7));
     }
 }

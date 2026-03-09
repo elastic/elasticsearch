@@ -51,10 +51,10 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         // only have support after the upgrade is finished, the
         // last iteration in clusterRollingUpgrade.
 
-        String index_0 = indexName(0);
-        assertIndexCanBeCreated(index_0, oldClusterHasSyntheticId);
-        assertCanAddDocuments(index_0);
-        assertIndexRead(index_0, isServerless, 1, oldClusterHasSyntheticId);
+        String indexZero = indexName(0);
+        assertIndexCanBeCreated(indexZero, oldClusterHasSyntheticId);
+        assertCanAddDocuments(indexZero);
+        assertIndexRead(indexZero, isServerless, 1, oldClusterHasSyntheticId);
 
         clusterRollingUpgrade(i -> {
             int nextIndexId = i + 1;
@@ -76,7 +76,10 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
         Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
-        assertThat("true".equals(indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey())), Matchers.equalTo(expectSyntheticId));
+        assertThat(
+            Boolean.parseBoolean((String) indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey())),
+            Matchers.equalTo(expectSyntheticId)
+        );
         assertDocCount(client(), indexName, (long) nbrOfBatches * DOC_COUNT);
         if (!isServerless) {
             if (expectSyntheticId) {

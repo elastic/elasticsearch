@@ -94,9 +94,8 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  * The context is not designed to be thread-safe and is not expected to be
  * shared between multiple threads. The exception is the Percolator that
  * runs multiple queries simultaneously with the same context and will mutate
- * elements of the context that are not threadsafe. {@link #copyForConcurrentUse()}
- * addresses the Percolator use by creating a shallow copy with new instances of the
- * mutable elements.
+ * elements of the context that are not threadsafe. Percolator makes copies of
+ * the context before executing each query.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 
@@ -288,19 +287,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.autoPrefilteringScope = new AutoPrefilteringScope();
-    }
-
-    /**
-     * Creates a shallow copy of the context with new instances of the fields
-     * that are mutable - notably {@code AutoPrefilteringScope} and {@code NestedScope}.
-     * The mutable elements cannot be shared safely between threads, this function
-     * returns a copy that is safe to use in a concurrent environment without the
-     * overhead of a full copy.
-     *
-     * @return The shallow copy of the context.
-     */
-    public SearchExecutionContext copyForConcurrentUse() {
-        return new SearchExecutionContext(this);
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)

@@ -23,7 +23,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -89,20 +88,6 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         RootFlattenedFieldType ft = new RootFlattenedFieldType(
             "field",
-            IndexType.terms(true, false),
-            Collections.emptyMap(),
-            false,
-            false,
-            IGNORE_ABOVE,
-            false,
-            true,
-            null,
-            false
-        );
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
-
-        RootFlattenedFieldType withDv = new RootFlattenedFieldType(
-            "field",
             IndexType.terms(true, true),
             Collections.emptyMap(),
             false,
@@ -110,22 +95,6 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             false,
             true,
-            null,
-            false
-        );
-        assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
-    }
-
-    public void testExistsQueryNoRootDocValues() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
-            "field",
-            IndexType.terms(true, true),
-            Collections.emptyMap(),
-            false,
-            false,
-            IGNORE_ABOVE,
-            false,
-            false,
             null,
             false
         );

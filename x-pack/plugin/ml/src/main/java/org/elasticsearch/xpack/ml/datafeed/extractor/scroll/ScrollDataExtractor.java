@@ -267,6 +267,9 @@ class ScrollDataExtractor implements DataExtractor {
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         SearchScrollRequest request = new SearchScrollRequest(scrollId) {
+
+            // This is a workaround to avoid the search scroll request from being routed to a different project.
+            // TODO: Remove this once we have a proper solution to handle cross-project search scroll requests.
             @Override
             public boolean allowsCrossProject() {
                 return false;
@@ -301,6 +304,9 @@ class ScrollDataExtractor implements DataExtractor {
     private void innerClearScroll(String scrollId) {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest() {
+
+                // This is a workaround to avoid the clear scroll request from being routed to a different project.
+                // TODO: Remove this once we have a proper solution to handle cross-project clear scroll requests.
                 @Override
                 public boolean allowsCrossProject() {
                     return false;

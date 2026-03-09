@@ -61,7 +61,7 @@ public final class UnfollowAction implements LifecycleAction {
             // if the index has no CCR metadata we'll skip the unfollow action completely
             return customIndexMetadata == null;
         });
-        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitUntilTimeSeriesEndTimePassesStep);
+        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitUntilTimeSeriesEndTimePassesStep, client);
 
         WaitUntilTimeSeriesEndTimePassesStep step2 = new WaitUntilTimeSeriesEndTimePassesStep(
             waitUntilTimeSeriesEndTimePassesStep,

@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,13 +25,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 
-final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
+/**
+ * Waits for the {@link LifecycleSettings#LIFECYCLE_INDEXING_COMPLETE} setting to be set to {@code true} on the leader index,
+ * which is then propagated to the follower via CCR. If all shard follow tasks have fatally failed (e.g. because the leader
+ * index was deleted), the condition is also considered met so that ILM can proceed with the unfollow process.
+ */
+final class WaitForIndexingCompleteStep extends AsyncWaitStep {
     private static final Logger logger = LogManager.getLogger(WaitForIndexingCompleteStep.class);
 
     static final String NAME = "wait-for-indexing-complete";
 
-    WaitForIndexingCompleteStep(StepKey key, StepKey nextStepKey) {
-        super(key, nextStepKey);
+    WaitForIndexingCompleteStep(StepKey key, StepKey nextStepKey, Client client) {
+        super(key, nextStepKey, client);
     }
 
     @Override
@@ -36,24 +45,58 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ProjectState currentState) {
-        IndexMetadata followerIndex = currentState.metadata().index(index);
-        if (followerIndex == null) {
-            // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
-            return new Result(false, null);
-        }
-        Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
+    public void evaluateCondition(ProjectState currentState, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
-            return new Result(true, null);
+            listener.onResponse(true, null);
+            return;
         }
 
-        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(followerIndex.getSettings());
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            return new Result(true, null);
-        } else {
-            return new Result(false, new IndexingNotCompleteInfo());
+            listener.onResponse(true, null);
+            return;
         }
+
+        FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
+        request.setIndices(new String[] { indexMetadata.getIndex().getName() });
+        getClient(currentState.projectId()).execute(FollowStatsAction.INSTANCE, request, ActionListener.wrap(response -> {
+            if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                logger.debug(
+                    "[{}] follow stats request for index [{}] returned partial results due to task/node failures, will retry",
+                    getKey().action(),
+                    indexMetadata.getIndex().getName()
+                );
+                listener.onResponse(false, new IndexingNotCompleteInfo());
+            } else if (allShardFollowTasksFailed(response)) {
+                logger.info(
+                    "[{}] proceeding with unfollow for index [{}] because all shard follow tasks have fatally failed,"
+                        + " the leader index may have been deleted",
+                    getKey().action(),
+                    indexMetadata.getIndex().getName()
+                );
+                listener.onResponse(true, null);
+            } else {
+                listener.onResponse(false, new IndexingNotCompleteInfo());
+            }
+        }, e -> {
+            if (e instanceof ResourceNotFoundException) {
+                logger.info(
+                    "[{}] proceeding with unfollow for index [{}] because no shard follow tasks were found,"
+                        + " the leader index may have been deleted",
+                    getKey().action(),
+                    indexMetadata.getIndex().getName()
+                );
+                listener.onResponse(true, null);
+            } else {
+                listener.onResponse(false, new IndexingNotCompleteInfo());
+            }
+        }));
+    }
+
+    static boolean allShardFollowTasksFailed(FollowStatsAction.StatsResponses responses) {
+        return responses.getStatsResponses().isEmpty() == false
+            && responses.getStatsResponses().stream().allMatch(r -> r.status().getFatalException() != null);
     }
 
     static final class IndexingNotCompleteInfo implements ToXContentObject {

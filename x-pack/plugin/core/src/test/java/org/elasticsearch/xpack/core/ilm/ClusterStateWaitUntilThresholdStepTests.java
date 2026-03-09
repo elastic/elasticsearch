@@ -24,7 +24,6 @@ import java.util.UUID;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep.waitedMoreThanThresholdLevel;
-import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -62,7 +61,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
     }
 
     public void testIndexIsMissingReturnsIncompleteResult() {
-        WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
+        ClusterStateWaitStep stepToExecute = createConditionStep(randomStepKey(), randomStepKey(), true);
         ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
         ClusterStateWaitStep.Result result = underTest.isConditionMet(
             new Index("testName", UUID.randomUUID().toString()),
@@ -75,19 +74,15 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
     public void testIsConditionMetForUnderlyingStep() {
         {
             // threshold is not breached and the underlying step condition is met
-            IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-                .settings(
-                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
-                )
+            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h"))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
             ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
-            WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
+            ClusterStateWaitStep stepToExecute = createConditionStep(randomStepKey(), randomStepKey(), true);
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
@@ -97,51 +92,34 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
         {
             // threshold is not breached and the underlying step condition is NOT met
-            IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-                .settings(
-                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
-                )
+            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h"))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
 
             ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
-            WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
+            ClusterStateWaitStep stepToExecute = createConditionStep(randomStepKey(), randomStepKey(), false);
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
 
             assertThat(result.complete(), is(false));
             assertThat(result.informationContext(), notNullValue());
-            WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-                .informationContext();
-            assertThat(
-                info.getMessage(),
-                equalTo(
-                    "waiting for the [index.lifecycle.indexing_complete] setting to be set to "
-                        + "true on the leader index, it is currently [false]"
-                )
-            );
         }
 
         {
             // underlying step is executed once even if the threshold is breached and the underlying complete result is returned
-            IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-                .settings(
-                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
-                )
-                .putCustom(CCR_METADATA_KEY, Map.of())
+            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s"))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
             ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
-            WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(randomStepKey(), randomStepKey());
+            ClusterStateWaitStep stepToExecute = createConditionStep(randomStepKey(), randomStepKey(), true);
             StepKey nextKeyOnThresholdBreach = randomStepKey();
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
 
@@ -154,13 +132,9 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
         {
             // underlying step is executed once even if the threshold is breached, but because the underlying step result is false the
-            // step under test will return `complete` (becuase the threshold is breached and we don't want to wait anymore)
-            IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-                .settings(
-                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
-                        .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
-                )
-                .putCustom(CCR_METADATA_KEY, Map.of())
+            // step under test will return `complete` (because the threshold is breached and we don't want to wait anymore)
+            IndexMetadata indexMetadata = IndexMetadata.builder("test-index")
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h"))
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -169,7 +143,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
             StepKey currentStepKey = randomStepKey();
-            WaitForIndexingCompleteStep stepToExecute = new WaitForIndexingCompleteStep(currentStepKey, randomStepKey());
+            ClusterStateWaitStep stepToExecute = createConditionStep(currentStepKey, randomStepKey(), false);
             StepKey nextKeyOnThresholdBreach = randomStepKey();
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), state);
@@ -185,7 +159,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         + "] lifecycle step, as part of ["
                         + currentStepKey.action()
                         + "] "
-                        + "action, for index [follower-index] executed for more than [1h]. Abandoning execution and moving to the next "
+                        + "action, for index [test-index] executed for more than [1h]. Abandoning execution and moving to the next "
                         + "fallback step ["
                         + nextKeyOnThresholdBreach
                         + "]"
@@ -195,6 +169,24 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // the next step must change to the provided one when the threshold is breached
             assertThat(underTest.getNextStepKey(), is(nextKeyOnThresholdBreach));
         }
+    }
+
+    private static ClusterStateWaitStep createConditionStep(StepKey key, StepKey nextKey, boolean conditionMet) {
+        return new ClusterStateWaitStep(key, nextKey) {
+            @Override
+            public Result isConditionMet(Index index, ProjectState currentState) {
+                if (conditionMet) {
+                    return new Result(true, null);
+                } else {
+                    return new Result(false, new SingleMessageFieldInfo("condition not met"));
+                }
+            }
+
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+        };
     }
 
     public void testWaitedMoreThanThresholdLevelMath() {

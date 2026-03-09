@@ -55,13 +55,20 @@ public record Reasoning(
 
     public static final ConstructingObjectParser<Reasoning, Void> PARSER = new ConstructingObjectParser<>(
         Reasoning.class.getSimpleName(),
-        args -> new Reasoning(
-            args[0] == null ? null : ReasoningEffort.fromString((String) args[0]),
-            (Long) args[1],
-            args[2] == null ? null : ReasoningSummary.fromString((String) args[2]),
-            (Boolean) args[3],
-            (Boolean) args[4]
-        )
+        args -> {
+            // Extract the fields from the parsed arguments, handling nullability and type conversion as needed
+            final var effort = args[0] == null ? null : ReasoningEffort.fromString((String) args[0]);
+            final var maxTokens = (Long) args[1];
+            final var summary = args[2] == null ? null : ReasoningSummary.fromString((String) args[2]);
+            final var exclude = (Boolean) args[3];
+            final var enabled = (Boolean) args[4];
+
+            // Validate the effort, maxTokens, and enabled fields according to the defined rules
+            validateFields(effort, maxTokens, enabled);
+
+            // If validation passes, construct and return the Reasoning object
+            return new Reasoning(effort, maxTokens, summary, exclude, enabled);
+        }
     );
 
     static {
@@ -79,32 +86,23 @@ public record Reasoning(
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ENABLED_FIELD));
     }
 
-    public Reasoning {
-        validateFields(effort, maxTokens, enabled);
-    }
-
     /**
      * Method to validate the reasoning configuration.
      * It ensures that:
      * <ul>
-     *     <li>Either [effort] is not null, [max_tokens] is not null, or [enabled] is true.
-     *     If none of these conditions are met, an exception is thrown.</li>
-     *     <li>Both [effort] and [max_tokens] cannot be specified together. If both are non-null, an exception is thrown.</li>
+     *     <li>If [effort] and [max_tokens] are null and [enabled] is false, an exception is thrown.</li>
      *     <li>[max_tokens] must be greater than or equal to 0. If [max_tokens] is negative, an exception is thrown.</li>
      * </ul>
      * @param effort The reasoning effort level to validate.
      * @param maxTokens The maximum number of tokens for reasoning to validate.
      * @param enabled `enabled` field to validate.
      */
-    private static void validateFields(ReasoningEffort effort, Long maxTokens, Boolean enabled) {
+    private static void validateFields(@Nullable ReasoningEffort effort, @Nullable Long maxTokens, @Nullable Boolean enabled) {
         if (Boolean.FALSE.equals(enabled) && effort == null && maxTokens == null) {
             throw new ElasticsearchStatusException(
                 "When [enabled] is false, either [effort] or [max_tokens] must be specified.",
                 RestStatus.BAD_REQUEST
             );
-        }
-        if (effort != null && maxTokens != null) {
-            throw new ElasticsearchStatusException("[effort] and [max_tokens] cannot be specified together.", RestStatus.BAD_REQUEST);
         }
         validateNonNegativeLong(maxTokens, MAX_TOKENS_FIELD);
     }

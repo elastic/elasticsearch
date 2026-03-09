@@ -75,16 +75,36 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         ConstructingObjectParser<ReasoningDetail, Void> parser = new ConstructingObjectParser<>(
             ReasoningDetail.class.getSimpleName(),
             ignoreUnknownFields,
-            args -> switch (ReasoningDetailType.fromString((String) args[0])) {
-                case ENCRYPTED -> new EncryptedReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[4]);
-                case SUMMARY -> new SummaryReasoningDetail((String) args[1], (String) args[2], (Long) args[3], (String) args[5]);
-                case TEXT -> new TextReasoningDetail(
-                    (String) args[1],
-                    (String) args[2],
-                    (Long) args[3],
-                    (String) args[6],
-                    (String) args[7]
-                );
+            args -> {
+                // Extract the common fields from the parsed arguments, handling nullability and type conversion as needed
+                final var reasoningDetailType = ReasoningDetailType.fromString((String) args[0]);
+                final var format = (String) args[1];
+                final var id = (String) args[2];
+                final var index = (Long) args[3];
+
+                // Validate the index field if it is present, as it must be a non-negative long if provided
+                validateNonNegativeLong(index, INDEX_FIELD);
+
+                // Depending on the type of the reasoning detail, validate the presence of the required fields
+                // and construct the appropriate ReasoningDetail subclass if validation passes
+                return switch (reasoningDetailType) {
+                    case ENCRYPTED -> {
+                        final var data = (String) args[4];
+                        validateRequiredField(data, DATA_FIELD, ReasoningDetailType.ENCRYPTED.value);
+                        yield new EncryptedReasoningDetail(format, id, index, data);
+                    }
+                    case SUMMARY -> {
+                        final var summary = (String) args[5];
+                        validateRequiredField(summary, SUMMARY_FIELD, ReasoningDetailType.SUMMARY.value);
+                        yield new SummaryReasoningDetail(format, id, index, summary);
+                    }
+                    case TEXT -> {
+                        final var text = (String) args[6];
+                        final var signature = (String) args[7];
+                        validateTextOrSignaturePresent(text, signature);
+                        yield new TextReasoningDetail(format, id, index, text, signature);
+                    }
+                };
             }
         );
         declareParsedFields(parser);
@@ -160,7 +180,6 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
     private final Long index;
 
     protected ReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index) {
-        validateNonNegativeLong(index, INDEX_FIELD);
         this.format = format;
         this.id = id;
         this.index = index;
@@ -236,8 +255,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         public EncryptedReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String data) {
             super(format, id, index);
-            ReasoningDetail.validateRequiredField(data, DATA_FIELD, ReasoningDetailType.ENCRYPTED.value);
-            this.data = data;
+            this.data = Objects.requireNonNull(data, "data field is required for encrypted reasoning details");
         }
 
         public EncryptedReasoningDetail(StreamInput in) throws IOException {
@@ -311,8 +329,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         public SummaryReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String summary) {
             super(format, id, index);
-            validateRequiredField(summary, SUMMARY_FIELD, ReasoningDetailType.SUMMARY.value);
-            this.summary = summary;
+            this.summary = Objects.requireNonNull(summary, "summary field is required for summary reasoning details");
         }
 
         public SummaryReasoningDetail(StreamInput in) throws IOException {
@@ -396,20 +413,6 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
             super(format, id, index);
             this.text = text;
             this.signature = signature;
-            validate();
-        }
-
-        /**
-         * Validates that at least one of text or signature is provided for a {@link TextReasoningDetail}.
-         * This is because a {@link TextReasoningDetail} must contain at least one of the two fields to be meaningful.
-         */
-        private void validate() {
-            if (text == null && signature == null) {
-                throw new ElasticsearchStatusException(
-                    "At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]",
-                    RestStatus.BAD_REQUEST
-                );
-            }
         }
 
         public TextReasoningDetail(StreamInput in) throws IOException {
@@ -491,10 +494,25 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         }
     }
 
-    private static void validateRequiredField(Object value, String fieldName, String reasoningDetailType) {
+    private static void validateRequiredField(@Nullable Object value, String fieldName, String reasoningDetailType) {
         if (value == null) {
             throw new ElasticsearchStatusException(
                 Strings.format("Required field [%s] is missing for reasoning details of type [%s]", fieldName, reasoningDetailType),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Validates that at least one of text or signature is provided for a {@link TextReasoningDetail}.
+     * This is because a {@link TextReasoningDetail} must contain at least one of the two fields to be meaningful.
+     * @param text the validated text
+     * @param signature the validated signature
+     */
+    private static void validateTextOrSignaturePresent(@Nullable String text, @Nullable String signature) {
+        if (text == null && signature == null) {
+            throw new ElasticsearchStatusException(
+                "At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]",
                 RestStatus.BAD_REQUEST
             );
         }

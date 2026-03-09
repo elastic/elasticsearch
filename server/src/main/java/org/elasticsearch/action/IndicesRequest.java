@@ -81,7 +81,7 @@ public interface IndicesRequest {
 
         @Override
         default boolean resolvesCrossProject() {
-            return indicesOptions().resolveCrossProjectIndexExpression();
+            return indicesOptions() != null && indicesOptions().resolveCrossProjectIndexExpression();
         }
 
         /**
@@ -145,7 +145,7 @@ public interface IndicesRequest {
 
         @Override
         default boolean resolvesCrossProject() {
-            return indicesOptions().resolveCrossProjectIndexExpression();
+            return indicesOptions() != null && indicesOptions().resolveCrossProjectIndexExpression();
         }
 
         /**

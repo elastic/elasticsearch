@@ -218,12 +218,7 @@ public class Querier {
      * callback runs (the transport releases its ref when the search listener returns, but we consume
      * the response in the close callback).
      */
-    public static void closePointInTimeWithLastPage(
-        Client client,
-        SearchResponse response,
-        Page lastPage,
-        ActionListener<Page> listener
-    ) {
+    public static void closePointInTimeWithLastPage(Client client, SearchResponse response, Page lastPage, ActionListener<Page> listener) {
         response.incRef();
         closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
             @Override

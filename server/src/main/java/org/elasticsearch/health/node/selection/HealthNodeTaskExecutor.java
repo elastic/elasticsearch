@@ -63,7 +63,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final PersistentTasksService persistentTasksService;
     private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
-    private final ClusterStateListener shutdownListener;
     private volatile boolean enabled;
 
     private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
@@ -71,7 +70,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
-        this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
     }
 
@@ -94,7 +92,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private void registerListeners(ClusterSettings clusterSettings) {
         if (this.enabled) {
             clusterService.addListener(taskStarter);
-            clusterService.addListener(shutdownListener);
         }
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
     }
@@ -103,17 +100,10 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         this.enabled = enabled;
         if (enabled) {
             clusterService.addListener(taskStarter);
-            clusterService.addListener(shutdownListener);
         } else {
             clusterService.removeListener(taskStarter);
-            clusterService.removeListener(shutdownListener);
             abortTaskIfApplicable("disabling health node via '" + ENABLED_SETTING.getKey() + "'");
         }
-    }
-
-    @Override
-    public boolean automaticReassignmentOnShutdown() {
-        return false;
     }
 
     @Override
@@ -181,35 +171,13 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     // visible for testing
-    void shuttingDown(ClusterChangedEvent event) {
-        if (isNodeShuttingDown(event)) {
-            var node = event.state().getNodes().getLocalNode();
-            abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
-        }
-    }
-
-    // visible for testing
     void abortTaskIfApplicable(String reason) {
         HealthNode task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
-            logger.info("Aborting health node task due to {}.", reason);
-            task.markAsLocallyAborted(reason);
+            logger.info("Stopping health node task due to {}.", reason);
+            task.markAsCompleted();
             currentTask.set(null);
         }
-    }
-
-    private static boolean isNodeShuttingDown(ClusterChangedEvent event) {
-        if (event.metadataChanged() == false) {
-            return false;
-        }
-        var shutdownsOld = event.previousState().metadata().nodeShutdowns();
-        var shutdownsNew = event.state().metadata().nodeShutdowns();
-        if (shutdownsNew == shutdownsOld) {
-            return false;
-        }
-        String nodeId = event.state().nodes().getLocalNodeId();
-        return shutdownsOld.contains(nodeId) == false && shutdownsNew.contains(nodeId);
-
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

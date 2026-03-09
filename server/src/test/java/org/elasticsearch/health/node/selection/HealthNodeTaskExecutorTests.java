@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -34,7 +33,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -55,16 +53,9 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
 
     private ClusterService clusterService;
     private PersistentTasksService persistentTasksService;
-    private FeatureService featureService;
     private String localNodeId;
     private ClusterSettings clusterSettings;
     private Settings settings;
-
-    private static final List<SingleNodeShutdownMetadata.Type> REMOVE_SHUTDOWN_TYPES = List.of(
-        SingleNodeShutdownMetadata.Type.RESTART,
-        SingleNodeShutdownMetadata.Type.REMOVE,
-        SingleNodeShutdownMetadata.Type.SIGTERM
-    );
 
     @BeforeClass
     public static void setUpThreadPool() {
@@ -78,7 +69,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
         settings = Settings.builder().build();
-        featureService = new FeatureService(List.of());
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
@@ -121,48 +111,39 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         );
     }
 
-    public void testDoNothingIfAlreadyShutdown() {
-        for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
-            HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-                clusterService,
-                persistentTasksService,
-                settings,
-                clusterSettings
-            );
-            HealthNode task = mock(HealthNode.class);
-            PersistentTaskState state = mock(PersistentTaskState.class);
-            executor.nodeOperation(task, new HealthNodeTaskParams(), state);
-            ClusterState withShutdown = stateWithNodeShuttingDown(initialState(), type);
-            executor.shuttingDown(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
-            verify(task, never()).markAsLocallyAborted(anyString());
-        }
-    }
-
-    public void testAbortOnShutdown() {
-        for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
-            HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-                clusterService,
-                persistentTasksService,
-                settings,
-                clusterSettings
-            );
-            HealthNode task = mock(HealthNode.class);
-            PersistentTaskState state = mock(PersistentTaskState.class);
-            executor.nodeOperation(task, new HealthNodeTaskParams(), state);
-            ClusterState initialState = initialState();
-            ClusterState withShutdown = stateWithNodeShuttingDown(initialState, type);
-            executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
-            verify(task, times(1)).markAsLocallyAborted(anyString());
-        }
-    }
-
-    public void testAbortOnDisable() {
+    public void testStopTaskOnDisable() {
         HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);
         clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build());
-        verify(task, times(1)).markAsLocallyAborted(anyString());
+        verify(task, times(1)).markAsCompleted();
+        verify(task, never()).markAsLocallyAborted(anyString());
+    }
+
+    public void testDoNothingIfNodeShuttingDownButNotYetReassigned() {
+        final HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
+            clusterService,
+            persistentTasksService,
+            settings,
+            clusterSettings
+        );
+        final HealthNode task = mock(HealthNode.class);
+        executor.nodeOperation(task, new HealthNodeTaskParams(), mock(PersistentTaskState.class));
+
+        // Local node is now marked for shutdown but the health task is still assigned to it.
+        final SingleNodeShutdownMetadata.Type shutdownType = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SIGTERM
+        );
+        final ClusterState shutdownState = stateWithNodeShuttingDown(stateWithHealthNodeSelectorTask(initialState()), shutdownType);
+        HealthNodeTaskExecutorTests.<Void>safeAwait(
+            listener -> clusterService.getClusterApplierService().onNewClusterState("node shutdown applied", () -> shutdownState, listener)
+        );
+        // The executor must not abort the task on its own.
+        verify(task, never()).markAsLocallyAborted(anyString());
+        verify(task, never()).markAsCompleted();
     }
 
     private ClusterState initialState() {

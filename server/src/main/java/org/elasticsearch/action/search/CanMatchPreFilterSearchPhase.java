@@ -61,6 +61,15 @@ final class CanMatchPreFilterSearchPhase {
 
     private static final String PHASE_NAME = "can_match";
 
+    /**
+     * Result of the can_match pre-filter phase: the shard iterators that may match the query,
+     * and per-cluster counts of shards that were skipped because they cannot match.
+     *
+     * @param iterators Shard iterators that passed the can_match check, in execution order
+     *                  (possibly sorted by primary sort min/max when applicable).
+     * @param skippedByClusterAlias Map from cluster alias (or {@link RemoteClusterAware#LOCAL_CLUSTER_GROUP_KEY}
+     *                              for the local cluster) to the number of shards skipped for that cluster.
+     */
     public record CanMatchResult(List<SearchShardIterator> iterators, Map<String, Integer> skippedByClusterAlias) {}
 
     private final Logger logger;

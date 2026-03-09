@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -128,6 +130,8 @@ public class EvalBenchmark {
             "coalesce_2_lazy",
             "date_trunc",
             "equal_to_const",
+            "json_extract",
+            "json_extract_object",
             "long_equal_to_long",
             "long_equal_to_int",
             "mv_min",
@@ -148,7 +152,7 @@ public class EvalBenchmark {
         return new EvalOperator(driverContext, evaluator(operation));
     }
 
-    private static EvalOperator.ExpressionEvaluator evaluator(String operation) {
+    private static ExpressionEvaluator evaluator(String operation) {
         return switch (operation) {
             case "abs" -> {
                 FieldAttribute longField = longField();
@@ -180,7 +184,7 @@ public class EvalBenchmark {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                     rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Case(Source.EMPTY, condition, List.of(lhs, rhs)),
                     layout(f1, f2)
@@ -198,7 +202,7 @@ public class EvalBenchmark {
                 if (operation.endsWith("lazy")) {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration());
                 }
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Coalesce(Source.EMPTY, lhs, List.of(f2)),
                     layout(f1, f2)
@@ -234,6 +238,22 @@ public class EvalBenchmark {
                     layout(longField)
                 ).get(driverContext);
             }
+            case "json_extract" -> {
+                FieldAttribute keywordField = keywordField();
+                yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)),
+                    layout(keywordField)
+                ).get(driverContext);
+            }
+            case "json_extract_object" -> {
+                FieldAttribute keywordField = keywordField();
+                yield EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
+                    layout(keywordField)
+                ).get(driverContext);
+            }
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = longField();
@@ -259,7 +279,7 @@ public class EvalBenchmark {
                 Expression ltkb = new LessThan(Source.EMPTY, f, kb());
                 Expression ltmb = new LessThan(Source.EMPTY, f, mb());
                 Expression ltgb = new LessThan(Source.EMPTY, f, gb());
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new Case(Source.EMPTY, ltkb, List.of(b(), ltmb, kb(), ltgb, mb(), gb())),
                     layout(f)
@@ -273,7 +293,7 @@ public class EvalBenchmark {
             case "round_to_2" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb())),
                     layout(f)
@@ -287,7 +307,7 @@ public class EvalBenchmark {
             case "round_to_3" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb())),
                     layout(f)
@@ -301,7 +321,7 @@ public class EvalBenchmark {
             case "round_to_4" -> {
                 FieldAttribute f = longField();
 
-                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
                     new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb(), gb())),
                     layout(f)
@@ -575,6 +595,14 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "json_extract" -> {
+                BytesRef expected = new BytesRef("John");
+                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
+            }
+            case "json_extract_object" -> {
+                BytesRef expected = new BytesRef("{\"name\":\"John\",\"age\":30}");
+                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
+            }
             case "to_lower" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
             case "to_lower_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
             case "to_upper" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
@@ -641,6 +669,14 @@ public class EvalBenchmark {
                     f2.appendLong(-i);
                 }
                 yield new Page(f1.build(), f2.build());
+            }
+            case "json_extract", "json_extract_object" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(json);
+                }
+                yield new Page(builder.build().asBlock());
             }
             case "long_equal_to_long" -> {
                 var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);

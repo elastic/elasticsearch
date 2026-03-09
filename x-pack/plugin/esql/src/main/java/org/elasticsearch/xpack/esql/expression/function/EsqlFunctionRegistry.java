@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -241,10 +242,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -317,6 +320,7 @@ public class EsqlFunctionRegistry {
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
+        // TODO build this one time in plugin construction and pass it in
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
@@ -391,7 +395,7 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"), },
             // math
             new FunctionDefinition[] {
-                def(Abs.class, Abs::new, "abs"),
+                Abs.DEFINITION,
                 def(Acos.class, Acos::new, "acos"),
                 def(Asin.class, Asin::new, "asin"),
                 def(Atan.class, Atan::new, "atan"),
@@ -416,7 +420,7 @@ public class EsqlFunctionRegistry {
                 def(ClampMin.class, ClampMin::new, "clamp_min"),
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
-                def(Round.class, Round::new, "round"),
+                Round.DEFINITION,
                 def(RoundTo.class, RoundTo::new, "round_to"),
                 def(Scalb.class, Scalb::new, "scalb"),
                 def(Signum.class, Signum::new, "signum"),
@@ -444,13 +448,13 @@ public class EsqlFunctionRegistry {
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Replace.class, Replace::new, "replace"),
-                def(Reverse.class, Reverse::new, "reverse"),
+                Reverse.DEFINITION,
                 def(Right.class, Right::new, "right"),
                 def(Sha1.class, Sha1::new, "sha1"),
                 def(Sha256.class, Sha256::new, "sha256"),
                 def(Space.class, Space::new, "space"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
-                def(Substring.class, Substring::new, "substring"),
+                Substring.DEFINITION,
                 def(ToLower.class, ToLower::new, "to_lower"),
                 def(ToUpper.class, ToUpper::new, "to_upper"),
                 def(Trim.class, Trim::new, "trim"),
@@ -495,9 +499,10 @@ public class EsqlFunctionRegistry {
             // null
             new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
             // IP
-            new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
-            new FunctionDefinition[] { def(IpPrefix.class, IpPrefix::new, "ip_prefix") },
-            new FunctionDefinition[] { def(NetworkDirection.class, NetworkDirection::new, "network_direction", "netdir") },
+            new FunctionDefinition[] {
+                def(CIDRMatch.class, CIDRMatch::new, "cidr_match"),
+                IpPrefix.DEFINITION,
+                def(NetworkDirection.class, NetworkDirection::new, "network_direction", "netdir") },
             // conversion functions
             new FunctionDefinition[] {
                 def(FromBase64.class, FromBase64::new, "from_base64"),
@@ -1018,6 +1023,35 @@ public class EsqlFunctionRegistry {
     }
 
     /**
+     * Add capabilities for registered functions to the set of capabilities.
+     */
+    public void addCapabilities(EsqlCapabilities.Builder capabilities) {
+        Set<String> filterAliases = new HashSet<>();
+        EsqlFunctionRegistry snapshots = snapshotRegistry();
+        if (snapshots != null) {
+            snapshots.addCapabilities(filterAliases, capabilities, true);
+        } else {
+            addCapabilities(filterAliases, capabilities, true);
+            if (capabilities.all()) {
+                new SnapshotFunctionRegistry().addCapabilities(filterAliases, capabilities, false);
+            }
+        }
+    }
+
+    protected final void addCapabilities(Set<String> filterAliases, EsqlCapabilities.Builder capabilities, boolean enabled) {
+        for (FunctionDefinition def : defs.values()) {
+            if (false == filterAliases.add(def.name())) {
+                continue;
+            }
+            String name = "fn_" + def.name();
+            capabilities.add(name, enabled);
+            for (String sub : def.capabilities()) {
+                capabilities.add(name + "_" + sub, enabled);
+            }
+        }
+    }
+
+    /**
      * Main method to register a function.
      *
      * @param names Must always have at least one entry which is the method's primary name
@@ -1071,6 +1105,14 @@ public class EsqlFunctionRegistry {
         BiFunction<Source, Expression, T> ctorRef,
         String... names
     ) {
+        return unary(function, ctorRef, names);
+    }
+
+    public static <T extends Function> FunctionDefinition unary(
+        Class<T> function,
+        BiFunction<Source, Expression, T> ctorRef,
+        String... names
+    ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsUniFunction(children.size());
             return ctorRef.apply(source, children.get(0));
@@ -1096,6 +1138,10 @@ public class EsqlFunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
+        return binary(function, ctorRef, names);
+    }
+
+    public static <T extends Function> FunctionDefinition binary(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
@@ -1120,7 +1166,11 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for a ternary function.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
+        return ternary(function, ctorRef, names);
+    }
+
+    public static <T extends Function> FunctionDefinition ternary(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
             return ctorRef.build(
@@ -1133,7 +1183,7 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
-    protected interface TernaryBuilder<T> {
+    public interface TernaryBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three);
     }
 

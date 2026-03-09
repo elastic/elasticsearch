@@ -99,7 +99,7 @@ public class Reconfigurator {
                 this,
                 currentConfig,
                 liveNodes,
-                retiredNodeIds.stream().sorted().collect(Collectors.joining(", ")),
+                retiredNodeIds,
                 currentMaster
             )
         );

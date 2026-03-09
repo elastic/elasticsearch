@@ -1259,6 +1259,22 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testWithConfigMultiValueSyntaxNone() {
+        String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "none"));
+
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+    }
+
     // --- Multi-value bracket syntax tests ---
 
     public void testMultiValueBracketsInteger() throws IOException {
@@ -1509,10 +1525,37 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testMultiValueDisabledByDefault() {
+    public void testMultiValueEnabledByDefault() throws IOException {
         String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock valuesBlock = (IntBlock) page.getBlock(1);
+            assertEquals(2, valuesBlock.getValueCount(0));
+            assertEquals(1, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0)));
+            assertEquals(2, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0) + 1));
+        }
+    }
+
+    public void testMultiValueExplicitlyDisabled() {
+        String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatOptions options = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize(),
+            CsvFormatOptions.MultiValueSyntax.NONE
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {

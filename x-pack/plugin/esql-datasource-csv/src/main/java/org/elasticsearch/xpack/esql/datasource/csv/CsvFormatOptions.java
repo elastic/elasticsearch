@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter;
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
  *                           (default: 10MB). Maps to DuckDB's max_line_size and provides
  *                           OOM protection against malformed files.
- * @param multiValueSyntax   syntax for multi-value fields: NONE (default) or BRACKETS ([a,b,c])
+ * @param multiValueSyntax   syntax for multi-value fields: BRACKETS (default, [a,b,c]) or NONE
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -56,7 +56,7 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.NONE
+        MultiValueSyntax.BRACKETS
     );
 
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
@@ -68,7 +68,7 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.NONE
+        MultiValueSyntax.BRACKETS
     );
 
     public CsvFormatOptions {

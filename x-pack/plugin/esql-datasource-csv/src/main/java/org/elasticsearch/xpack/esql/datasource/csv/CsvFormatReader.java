@@ -96,7 +96,7 @@ import java.util.regex.Pattern;
  *       <td>{@code timestampformat}</td><td>{@code date_time_input_format}</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>{@code maxCharsPerColumn}</td>
  *       <td>{@code max_line_size}</td><td>—</td></tr>
- *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td><td>—</td>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>—</td>
  *       <td>—</td><td>{@code Array()} type notation</td></tr>
  * </table>
  *
@@ -184,7 +184,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             && StandardCharsets.UTF_8.equals(encoding)
             && datetimeFormatter == null
             && maxFieldSize == CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE
-            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.NONE) {
+            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return null;
         }
         return new CsvFormatOptions(
@@ -202,7 +202,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value) {
         if (value == null || value.toString().isEmpty()) {
-            return CsvFormatOptions.MultiValueSyntax.NONE;
+            return CsvFormatOptions.MultiValueSyntax.BRACKETS;
         }
         String s = value.toString().trim().toLowerCase(Locale.ROOT);
         if ("none".equals(s)) {

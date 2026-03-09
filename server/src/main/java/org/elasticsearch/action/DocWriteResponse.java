@@ -190,6 +190,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
+     * Returns an equivalent response with the sequence number and primary term set to
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} and {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}.
+     * Used to strip internal sequence numbers from user-facing responses when
+     * {@code index.disable_sequence_numbers} is enabled.
+     */
+    public abstract DocWriteResponse withoutSequenceNumber();
+
+    protected void copyMutableFieldsTo(DocWriteResponse target) {
+        target.setShardInfo(getShardInfo());
+        target.setForcedRefresh(forcedRefresh());
+    }
+
+    /**
      * Did this request force a refresh? Requests that set {@link WriteRequest#setRefreshPolicy(RefreshPolicy)} to
      * {@link RefreshPolicy#IMMEDIATE} will always return true for this. Requests that set it to {@link RefreshPolicy#WAIT_UNTIL} will
      * only return true here if they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).

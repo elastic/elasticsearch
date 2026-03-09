@@ -51,6 +51,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -436,9 +437,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void completeBulkOperation() {
+        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[responses.length()]);
+        redactSeqNoFromDisabledIndices(bulkItemResponses);
         listener.onResponse(
             new BulkResponse(
-                responses.toArray(new BulkItemResponse[responses.length()]),
+                bulkItemResponses,
                 buildTookInMillis(startTimeNanos),
                 BulkResponse.NO_INGEST_TOOK,
                 new BulkRequest.IncrementalState(shortCircuitShardFailures, bulkRequest.incrementalState().indexingPressureAccounted())
@@ -446,6 +449,27 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         );
         // Allow memory for bulk shard request items to be reclaimed before all items have been completed
         bulkRequest = null;
+    }
+
+    private void redactSeqNoFromDisabledIndices(BulkItemResponse[] bulkItemResponses) {
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
+            return;
+        }
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        for (int i = 0; i < bulkItemResponses.length; i++) {
+            BulkItemResponse item = bulkItemResponses[i];
+            if (item == null || item.isFailed()) {
+                continue;
+            }
+            IndexMetadata indexMetadata = project.index(item.getIndex());
+            if (indexMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings())) {
+                bulkItemResponses[i] = BulkItemResponse.success(
+                    item.getItemId(),
+                    item.getOpType(),
+                    item.getResponse().withoutSequenceNumber()
+                );
+            }
+        }
     }
 
     /**

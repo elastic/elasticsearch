@@ -18,9 +18,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
@@ -147,9 +148,9 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
     /**
      * Verifies that bulk index, update, and delete operations replicate correctly when sequence numbers are disabled,
-     * and that the responses do not expose seqNo or primaryTerm to the caller.
+     * and that the responses do not expose seqNo or primaryTerm in XContent output.
      */
-    public void testBulkReplicationWithSequenceNumbersDisabled() {
+    public void testBulkReplicationWithSequenceNumbersDisabled() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         int numReplicas = Math.min(between(1, 2), cluster().numDataNodes() - 1);
@@ -175,8 +176,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             assertThat(item.getResponse().getResult(), equalTo(CREATED));
-            assertThat(item.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-            assertThat(item.getResponse().getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+            assertSeqNoRedactedFromXContent(item);
         }
 
         // verify all docs are visible on all copies
@@ -193,8 +193,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
-            assertThat(item.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-            assertThat(item.getResponse().getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+            assertSeqNoRedactedFromXContent(item);
         }
 
         // verify updates replicated
@@ -211,14 +210,19 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
-            assertThat(item.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-            assertThat(item.getResponse().getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+            assertSeqNoRedactedFromXContent(item);
         }
 
         // verify deletes replicated
         for (int i = 0; i < numDocs; i++) {
             assertThat(client().prepareGet("test-repl", Integer.toString(i)).get().isExists(), is(false));
         }
+    }
+
+    private static void assertSeqNoRedactedFromXContent(BulkItemResponse item) throws IOException {
+        String xcontent = Strings.toString(item);
+        assertThat(xcontent, not(containsString("_seq_no")));
+        assertThat(xcontent, not(containsString("_primary_term")));
     }
 
     /** This test ensures that index deletion makes indexing fail quickly, not wait on the index that has disappeared */

@@ -384,7 +384,7 @@ public class IndexResolver {
             if (crossProjectEnabled) {
                 Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
                 ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
-                    iOpts,
+                    indicesOptions,
                     projectRouting,
                     resolvedIndexExpressions,
                     resolvedRemotely

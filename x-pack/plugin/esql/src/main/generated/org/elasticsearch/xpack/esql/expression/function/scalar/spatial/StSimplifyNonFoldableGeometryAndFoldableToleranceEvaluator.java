@@ -11,22 +11,22 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
+ * {@link ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator geometry;
+  private final ExpressionEvaluator geometry;
 
   private final double tolerance;
 
@@ -35,7 +35,7 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
   private Warnings warnings;
 
   public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator geometry, double tolerance, DriverContext driverContext) {
+      ExpressionEvaluator geometry, double tolerance, DriverContext driverContext) {
     this.source = source;
     this.geometry = geometry;
     this.tolerance = tolerance;
@@ -95,15 +95,14 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory geometry;
+    private final ExpressionEvaluator.Factory geometry;
 
     private final double tolerance;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory geometry,
-        double tolerance) {
+    public Factory(Source source, ExpressionEvaluator.Factory geometry, double tolerance) {
       this.source = source;
       this.geometry = geometry;
       this.tolerance = tolerance;

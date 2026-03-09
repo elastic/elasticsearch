@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService);
+        super(clusterService, new EsqlFunctionRegistry());
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }

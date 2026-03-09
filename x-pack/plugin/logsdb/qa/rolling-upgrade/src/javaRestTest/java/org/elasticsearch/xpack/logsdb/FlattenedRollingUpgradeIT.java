@@ -31,11 +31,15 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -238,6 +242,79 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
         }
     }
 
+    private void verifyExistsQuery(int expectedCount) throws IOException {
+        Request request = new Request("GET", "/" + INDEX_NAME + "/_search");
+        request.setJsonEntity("""
+            {
+                "query": { "exists": { "field": "data" } },
+                "size": 0
+            }""");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = entityAsMap(response);
+        Integer totalCount = ObjectPath.evaluate(responseMap, "hits.total.value");
+        assertThat("exists query on 'data' field", totalCount, equalTo(expectedCount));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void verifyTermsAggregation(List<FlattenedData> indexedData) throws IOException {
+        Map<String, Integer> expectedBuckets = computeExpectedTermBuckets(indexedData);
+
+        Request request = new Request("GET", "/" + INDEX_NAME + "/_search");
+        request.setJsonEntity("""
+            {
+                "size": 0,
+                "aggs": {
+                    "data_terms": {
+                        "terms": { "field": "data", "size": 10000 }
+                    }
+                }
+            }""");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = entityAsMap(response);
+
+        List<Map<String, Object>> buckets = ObjectPath.evaluate(responseMap, "aggregations.data_terms.buckets");
+        assertNotNull("terms aggregation returned null buckets", buckets);
+
+        Map<String, Integer> actualBuckets = new HashMap<>();
+        for (Map<String, Object> bucket : buckets) {
+            actualBuckets.put((String) bucket.get("key"), (int) bucket.get("doc_count"));
+        }
+
+        assertThat("terms aggregation bucket count", actualBuckets.size(), equalTo(expectedBuckets.size()));
+        for (var entry : expectedBuckets.entrySet()) {
+            assertThat("doc_count for term [" + entry.getKey() + "]", actualBuckets.get(entry.getKey()), equalTo(entry.getValue()));
+        }
+    }
+
+    private static Map<String, Integer> computeExpectedTermBuckets(List<FlattenedData> indexedData) {
+        Map<String, Integer> buckets = new HashMap<>();
+        for (FlattenedData data : indexedData) {
+            Set<String> leafValues = new HashSet<>();
+            collectLeafValues(data.document(), leafValues);
+            for (String value : leafValues) {
+                buckets.merge(value, 1, Integer::sum);
+            }
+        }
+        return buckets;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectLeafValues(Object value, Set<String> result) {
+        if (value instanceof Map<?, ?> map) {
+            for (Object v : map.values()) {
+                collectLeafValues(v, result);
+            }
+        } else if (value instanceof Collection<?> list) {
+            for (Object item : list) {
+                collectLeafValues(item, result);
+            }
+        } else if (value != null) {
+            result.add(value.toString());
+        }
+    }
+
     private void indexDocumentsAndVerifyResults(DataGeneratorSpecification spec, Settings.Builder settings, List<FlattenedData> indexedData)
         throws IOException {
         var newDocs = generateFlattenedData(spec, 8);
@@ -246,6 +323,9 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
 
         var actualDocs = search(indexedData.size());
         compareDocuments(settings, indexedData, actualDocs);
+
+        verifyExistsQuery(indexedData.size());
+        verifyTermsAggregation(indexedData);
     }
 
     public void testIndexing() throws IOException {

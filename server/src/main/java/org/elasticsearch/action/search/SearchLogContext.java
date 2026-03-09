@@ -47,7 +47,13 @@ public class SearchLogContext extends ActivityLoggerContext {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, SearchResponse response) {
+    SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        long tookInNanos,
+        SearchResponse response
+    ) {
         this(task, namedWriteableRegistry, request, response, tookInNanos, null);
     }
 

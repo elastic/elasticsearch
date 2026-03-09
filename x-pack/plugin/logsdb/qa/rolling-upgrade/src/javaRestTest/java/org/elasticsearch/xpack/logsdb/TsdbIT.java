@@ -94,7 +94,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         if (useSyntheticId != null) {
             replacement.append(", \"mapping\": { \"synthetic_id\": ").append(useSyntheticId).append(" }");
         }
-        if (disableSeqNo) {
+        if (disableSeqNo != null) {
             replacement.append(", \"disable_sequence_numbers\": ").append(disableSeqNo);
         }
         return TEMPLATE.replace(EXTRA_INDEX_SETTINGS_PLACEHOLDER, replacement);

@@ -12,29 +12,24 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for comparing dense_vector equality.
+ * {@link ExpressionEvaluator} implementation for comparing dense_vector equality.
  * Two dense vectors are considered equal if they have the same dimensions and all elements are equal.
  */
-public final class EqualsDenseVectorEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class EqualsDenseVectorEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(EqualsDenseVectorEvaluator.class);
 
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator lhs;
-    private final EvalOperator.ExpressionEvaluator rhs;
+    private final ExpressionEvaluator lhs;
+    private final ExpressionEvaluator rhs;
     private final DriverContext driverContext;
 
-    public EqualsDenseVectorEvaluator(
-        Source source,
-        EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator rhs,
-        DriverContext driverContext
-    ) {
+    public EqualsDenseVectorEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs, DriverContext driverContext) {
         this.source = source;
         this.lhs = lhs;
         this.rhs = rhs;
@@ -94,12 +89,12 @@ public final class EqualsDenseVectorEvaluator implements EvalOperator.Expression
         Releasables.closeExpectNoException(lhs, rhs);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory lhs;
-        private final EvalOperator.ExpressionEvaluator.Factory rhs;
+        private final ExpressionEvaluator.Factory lhs;
+        private final ExpressionEvaluator.Factory rhs;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, EvalOperator.ExpressionEvaluator.Factory rhs) {
+        public Factory(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;

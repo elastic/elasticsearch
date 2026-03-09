@@ -99,12 +99,12 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {
-        if (lit == null || lit.from == null || lit.to == null) {
+        if (lit == null) {
             appendNull();
             return this;
         }
-        fromBuilder.appendLong(lit.from);
-        toBuilder.appendLong(lit.to);
+        fromBuilder.appendLong(lit.from());
+        toBuilder.appendLong(lit.to());
         return this;
     }
 
@@ -149,7 +149,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return toBuilder;
     }
 
-    public record LongRange(Long from, Long to) implements GenericNamedWriteable {
+    public record LongRange(long from, long to) implements GenericNamedWriteable {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
             "LongRange",
@@ -157,8 +157,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         );
 
         public LongRange(StreamInput in) throws IOException {
-            // Box to Long for record fields (from/to are Long for nullability elsewhere).
-            this(Long.valueOf(in.readLong()), Long.valueOf(in.readLong()));
+            this(in.readLong(), in.readLong());
         }
 
         @Override
@@ -173,9 +172,6 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (from == null || to == null) {
-                throw new IllegalArgumentException("LongRange with null bounds cannot be serialized");
-            }
             out.writeLong(from);
             out.writeLong(to);
         }

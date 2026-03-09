@@ -95,9 +95,6 @@ public class RangeMin extends UnaryScalarFunction {
             return null;
         }
         LongRangeBlockBuilder.LongRange range = (LongRangeBlockBuilder.LongRange) rangeValue;
-        if (range.from() == null) {
-            return null;
-        }
         return range.from();
     }
 

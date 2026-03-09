@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTimeWithLastPage;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
@@ -157,28 +158,7 @@ public class SearchHitCursor implements Cursor {
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
-            // Retain a reference so the response stays alive until the closePointInTime callback runs;
-            // the transport releases its ref when this listener returns, but we consume in the callback.
-            response.incRef();
-            closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean r) {
-                    try {
-                        listener.onResponse(Page.last(rowSet));
-                    } finally {
-                        response.decRef();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        listener.onFailure(e);
-                    } finally {
-                        response.decRef();
-                    }
-                }
-            });
+            closePointInTimeWithLastPage(client, response, Page.last(rowSet), listener);
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
             // Refresh the PIT ID with the new value returned in the response

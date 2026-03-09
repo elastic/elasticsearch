@@ -27,7 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -225,7 +225,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return actions;
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         return List.of(new ReservedSnapshotAction());
     }
 

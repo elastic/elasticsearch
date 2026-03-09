@@ -389,6 +389,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
                 testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
             );
+            assumeFalseLogging(
+                "CSV tests cannot handle replace approximate total field count by exact (requires ES pushdown)",
+                groupName.equals("approximation") && testName.equals("Exact total single-valued field count")
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

@@ -33,7 +33,18 @@ count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 ;
 
 
-approximate total count field
+Exact total single-valued field count
+required_capability: approximation_v2
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS count=COUNT(sv)
+;
+
+count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
+125250     | [125250,125250]                 | {any}
+;
+
+
 Approximate total count field
 required_capability: approximation_v2
 

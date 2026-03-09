@@ -232,7 +232,7 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 36 }
+  - length: { esql.features: 35 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -262,7 +262,6 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
-  - set: { esql.features.views: views_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - length: { esql.queries: 3 }

@@ -9,9 +9,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,7 +18,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -63,6 +59,10 @@ public class RestReindexRethrottleAction extends BaseRestHandler {
         // In stateful, we allow the group_by parameter and default to "nodes", for historical reasons.
         // In stateless, we don't allow group_by, we never group, so that we don't include the unwanted layers and node info.
         final String groupBy = isStateless ? "none" : request.param("group_by", "nodes");
-        return channel -> client.execute(ReindexPlugin.RETHROTTLE_ACTION, internalRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> client.execute(
+            ReindexPlugin.RETHROTTLE_ACTION,
+            internalRequest,
+            listTasksResponseListener(nodesInCluster, groupBy, channel)
+        );
     }
 }

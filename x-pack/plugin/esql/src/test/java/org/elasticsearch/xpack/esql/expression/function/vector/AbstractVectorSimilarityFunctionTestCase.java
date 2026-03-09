@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -80,7 +80,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
             + "],"
             + " right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]]]";
 
-        try (EvalOperator.ExpressionEvaluator ev = factory.get(driverContext())) {
+        try (ExpressionEvaluator ev = factory.get(driverContext())) {
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }

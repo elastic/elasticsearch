@@ -55,6 +55,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             true,
             null
         );
@@ -90,6 +91,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             true,
             null
         );

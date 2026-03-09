@@ -409,6 +409,37 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testTermsAggregationWithDuplicateValues() throws IOException {
+        prepareIndex("test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "foo")
+                    .field("key2", "foo")
+                    .field("key3", "bar")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        TermsAggregationBuilder builder = terms("terms").field("labels");
+        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(builder), response -> {
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getBuckets().size(), equalTo(2));
+
+            Terms.Bucket barBucket = terms.getBuckets().get(0);
+            assertEquals("bar", barBucket.getKey());
+            assertEquals(1, barBucket.getDocCount());
+
+            Terms.Bucket fooBucket = terms.getBuckets().get(1);
+            assertEquals("foo", fooBucket.getKey());
+            assertEquals(1, fooBucket.getDocCount());
+        });
+    }
+
     public void testSourceFiltering() {
         Map<String, Object> headers = new HashMap<>();
         headers.put("content-type", "application/json");

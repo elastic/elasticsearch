@@ -14,6 +14,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,6 +57,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -98,6 +102,13 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        assertThat(query, instanceOf(FieldExistsQuery.class));
+        FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
+        assertEquals("field._keyed", fieldExistsQuery.getField());
+    }
+
+    @Override
     protected boolean supportsStoredFields() {
         return false;
     }
@@ -111,19 +122,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
-        // Check the root fields.
+        // Check the root fields — new indices do not write root doc values.
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
 
         assertEquals("field", fields.get(0).name());
         assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
         assertFalse(fields.get(0).fieldType().stored());
         assertTrue(fields.get(0).fieldType().omitNorms());
         assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
-
-        assertEquals("field", fields.get(1).name());
-        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
 
         // Check the keyed fields.
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
@@ -151,16 +158,13 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ).documentMapper();
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
+        // Root field: only StringField (no root doc values on new indices).
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
 
         // Check the keyed fields.
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(2, keyedFields.size());
-
-        assertEquals("field", fields.get(1).name());
-        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
-        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
 
         assertEquals("field._keyed", keyedFields.get(1).name());
         assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
@@ -261,9 +265,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
+        // No root fields: index=false and no root doc values on new indices.
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+        assertEquals(0, fields.size());
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
@@ -280,9 +284,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ).documentMapper();
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
+        // No root fields: index=false and no root doc values on new indices.
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+        assertEquals(0, fields.size());
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
@@ -340,7 +344,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("", "value").endObject()));
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
     }
 
     public void testDotOnlyFieldName() throws Exception {
@@ -349,7 +353,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
         );
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        assertEquals(3, fields.size());
     }
 
     public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
@@ -401,7 +405,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
         assertNull(parsedDoc.dynamicMappingsUpdate());
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        assertEquals(3, fields.size());
         fields = parsedDoc.rootDoc().getFields("a.b");
         assertEquals(0, fields.size());
         fields = parsedDoc.rootDoc().getFields("a.b.c");
@@ -440,10 +444,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
 
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.size());
+        assertEquals(3, fields.size());
         assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
-        assertEquals(new BytesRef("true"), fields.get(2).binaryValue());
-        assertEquals(new BytesRef("false"), fields.get(4).binaryValue());
+        assertEquals(new BytesRef("true"), fields.get(1).binaryValue());
+        assertEquals(new BytesRef("false"), fields.get(2).binaryValue());
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(6, keyedFields.size());
@@ -596,7 +600,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
 
         // Set a lower value for ignore_above and check that the field is skipped.
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> {
@@ -623,7 +627,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         newFields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, newFields.size());
     }
 
     /**
@@ -686,9 +690,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
 
         List<IndexableField> otherFields = parsedDoc.rootDoc().getFields("other_field");
-        assertEquals(2, otherFields.size());
+        assertEquals(1, otherFields.size());
         assertEquals(new BytesRef("placeholder"), otherFields.get(0).binaryValue());
-        assertEquals(new BytesRef("placeholder"), otherFields.get(1).binaryValue());
 
         List<IndexableField> prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._keyed");
         assertEquals(2, prefixedOtherFields.size());
@@ -1061,7 +1064,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+        // Root field no longer has its own doc values on new indices, so sort shortcuts are unavailable.
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, false));
     }
 
     @Override

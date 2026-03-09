@@ -46,6 +46,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             new Mapper.IgnoreAbove(ignoreAbove),
+            false,
             true,
             null,
             false
@@ -76,6 +77,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
+            false,
             true,
             null,
             false
@@ -92,6 +94,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
+            false,
             true,
             null,
             false
@@ -105,11 +108,28 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
+            false,
             true,
             null,
             false
         );
         assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
+    }
+
+    public void testExistsQueryNoRootDocValues() {
+        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            false
+        );
+        assertEquals(new FieldExistsQuery("field._keyed"), ft.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

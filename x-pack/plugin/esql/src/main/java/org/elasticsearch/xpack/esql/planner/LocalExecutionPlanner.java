@@ -1078,7 +1078,7 @@ public class LocalExecutionPlanner {
         if (tsInfoExec.mode() == TsInfoExec.Mode.FINAL || tsInfoExec.mode() == TsInfoExec.Mode.INTERMEDIATE) {
             return planTsInfoFinal(tsInfoExec, context);
         }
-        // INITIAL mode: extraction on data nodes — identical field extraction pipeline as MetricsInfo.
+        // INITIAL mode: extraction on data nodes.
         if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
             return emptySourceForAttributes(tsInfoExec.output());
         }

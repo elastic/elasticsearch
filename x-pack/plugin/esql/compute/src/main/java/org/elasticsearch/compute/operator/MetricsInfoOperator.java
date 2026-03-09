@@ -405,6 +405,8 @@ public class MetricsInfoOperator implements Operator {
      */
     private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
 
+    private static final char REMOTE_INDEX_SEPARATOR = ':';
+
     /**
      * Resolves the data-stream name from a concrete backing-index name.
      * <p>
@@ -419,7 +421,7 @@ public class MetricsInfoOperator implements Operator {
     static String resolveDataStreamName(String indexName) {
         String prefix = "";
         String localName = indexName;
-        int sep = indexName.indexOf(':');
+        int sep = indexName.indexOf(REMOTE_INDEX_SEPARATOR);
         if (sep > 0) {
             prefix = indexName.substring(0, sep + 1);
             localName = indexName.substring(sep + 1);

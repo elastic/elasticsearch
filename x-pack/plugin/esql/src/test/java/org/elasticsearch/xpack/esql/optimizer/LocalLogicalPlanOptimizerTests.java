@@ -2492,7 +2492,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),

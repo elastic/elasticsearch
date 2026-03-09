@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -21,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -139,7 +140,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.skippedCount = skippedByClusterAlias.values().stream().mapToInt(Integer::intValue).sum();
+        this.skippedCount = CollectionUtils.sumIntValues(skippedByClusterAlias);
         this.shardsIts = shardsIts;
         outstandingShards = new AtomicInteger(shardsIts.size());
         successfulOps = new AtomicInteger(this.skippedCount);

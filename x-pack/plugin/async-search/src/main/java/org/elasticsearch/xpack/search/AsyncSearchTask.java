@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -594,7 +595,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
             }
-            int numSkipped = skippedByClusterAlias.values().stream().mapToInt(Integer::intValue).sum();
+            int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
             searchResponse.updateShardsAndClusters(shards.size(), numSkipped, clusters);
             executeInitListeners();
         }

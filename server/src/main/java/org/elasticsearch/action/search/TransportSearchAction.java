@@ -1810,7 +1810,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices);
         final int numShardIterators = localShardIterators.size() + remoteShardIterators.size();
-        final int numSkippedTotal = numSkippedShards.values().stream().mapToInt(Integer::intValue).sum();
+        final int numSkippedTotal = CollectionUtils.sumIntValues(numSkippedShards);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
             projectState,
             searchRequest,

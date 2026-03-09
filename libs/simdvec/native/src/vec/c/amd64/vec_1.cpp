@@ -627,7 +627,7 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     }
 
     // Combine all partial sums
-    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sums[0], sums[1]), _mm256_add_ps(sums[2], sums[3]));
+    __m256 total_sum = tree_reduce<batches, __m256, _mm256_add_ps>(sums);
     f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
 
     for (; i < elementCount; ++i) {
@@ -679,7 +679,7 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     }
 
     // reduce all partial sums
-    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sums[0], sums[1]), _mm256_add_ps(sums[2], sums[3]));
+    __m256 total_sum = tree_reduce<batches, __m256, _mm256_add_ps>(sums);
     f32_t result = mm256_reduce_ps<_mm_add_ps>(total_sum);
 
     for (; i < elementCount; ++i) {

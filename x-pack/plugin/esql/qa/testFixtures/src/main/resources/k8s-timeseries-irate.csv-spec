@@ -105,7 +105,7 @@ null               | 2024-05-10T00:01:00.000Z
 2.670833           | 2024-05-10T00:02:00.000Z
 2.291667           | 2024-05-10T00:08:00.000Z
 2.265625           | 2024-05-10T00:11:00.000Z
-2.248161           | 2024-05-10T00:22:00.000Z
+2.248162           | 2024-05-10T00:22:00.000Z
 2.020833           | 2024-05-10T00:00:00.000Z
 1.951471           | 2024-05-10T00:14:00.000Z
 1.868056           | 2024-05-10T00:13:00.000Z
@@ -185,6 +185,7 @@ TS k8s
 | STATS irate_bytes = avg(irate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL irate_kb = irate_bytes / 1024.0
 | EVAL irate_bytes = round(irate_bytes, 6), irate_kb = round(irate_kb, 6)
+| KEEP irate_bytes, cluster, time_bucket, irate_kb
 | LIMIT 10 | SORT time_bucket, cluster ;
 
 irate_bytes:double | cluster:keyword | time_bucket:datetime     | irate_kb:double
@@ -206,6 +207,7 @@ required_capability: promql_command_v0
 PROMQL index=k8s step=10m irate_bytes=(avg by (cluster) (irate(network.total_bytes_in[10m])))
 | EVAL irate_kb = irate_bytes / 1024.0
 | EVAL irate_bytes = round(irate_bytes, 6), irate_kb = round(irate_kb, 6)
+| KEEP irate_bytes, step, cluster, irate_kb
 | SORT step, cluster | LIMIT 10;
 
 irate_bytes:double | step:datetime            | cluster:keyword | irate_kb:double

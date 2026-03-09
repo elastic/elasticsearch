@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.action.bulk.OperationsOnSeqNoDisabledIndicesIT
   method: testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices
   issue: https://github.com/elastic/elasticsearch/issues/143887
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/140849
 
 # Examples:
 #

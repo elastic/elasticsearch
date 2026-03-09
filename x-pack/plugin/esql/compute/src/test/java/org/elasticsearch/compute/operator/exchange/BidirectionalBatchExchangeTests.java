@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -1335,7 +1336,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * Helper method to create an EvalOperator that adds 1 to int values.
      */
     private EvalOperator createAddOneOperator(DriverContext driverContext) {
-        return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
+        return new EvalOperator(driverContext, new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 if (page.getBlockCount() == 0) {

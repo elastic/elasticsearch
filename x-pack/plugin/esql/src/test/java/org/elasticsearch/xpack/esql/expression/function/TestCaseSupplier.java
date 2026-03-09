@@ -995,6 +995,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
+    /**
+     * Make a helper for building tests for unary functions.
+     */
+    public static UnaryTestCaseHelper unary() {
+        return new UnaryTestCaseHelper();
+    }
+
     public static void unary(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1010,7 +1017,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 var expectedValue = expectedValueMapper.apply(value);
                 logger.info("Value is " + value + " of type " + value.getClass());
                 logger.info("expectedValue is " + expectedValue);
-                var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
+                Matcher<?> matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
                 TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, matcher);
                 for (String warning : expectedWarnings.apply(value)) {
                     testCase = testCase.withWarning(warning);
@@ -1018,7 +1025,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return testCase;
             }));
         }
-
     }
 
     public static void unary(

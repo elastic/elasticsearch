@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -86,8 +87,10 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
-        // ExternalRelation is handled by MapperUtils.mapLeaf()
-        // which calls toPhysicalExec() to create coordinator-only source operators
+        if (leaf instanceof ExternalRelation external) {
+            return new FragmentExec(external);
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 

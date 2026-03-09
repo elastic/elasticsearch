@@ -328,7 +328,7 @@ setup:
   - length: { hits.hits: 7 }
 
   # Downsampled doc
-  - match:  { hits.hits.0._source._doc_count: 2 }
+  - match:  { hits.hits.0._source._doc_count: 1 }
   - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
   # Dimensions
   - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
@@ -368,7 +368,7 @@ setup:
   - is_false: hits.hits.1._source.k8s\.pod\.multi-gauge
 
   # Next downsampled doc
-  - match:  { hits.hits.2._source._doc_count: 2 }
+  - match:  { hits.hits.2._source._doc_count: 1 }
   - match:  { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
   # Dimensions
   - match:  { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
@@ -914,8 +914,7 @@ setup:
           sort: [ "_tsid", "@timestamp" ]
 
   - length: { hits.hits: 7 }
-  # Unfortunately, the doc count counts the reset documents as separate docs
-  - match: { hits.hits.0._source._doc_count: 6 }
+  - match: { hits.hits.0._source._doc_count: 1 }
   - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
@@ -951,7 +950,7 @@ setup:
   - match: { hits.hits.4._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.4._source.metricset: pod }
   - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.4._source._doc_count: 3 } # 2 + 1 reset doc
+  - match: { hits.hits.4._source._doc_count: 1 }
 
   - match: { hits.hits.5._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.5._source.metricset: pod }

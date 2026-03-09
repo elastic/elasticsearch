@@ -612,6 +612,7 @@ class DownsampleShardIndexer {
 
         private void flushIfNotEmpty() throws IOException {
             if (downsampleBucketBuilder.isEmpty() == false) {
+                downsampleBucketBuilder.updateResetDataPoints();
                 XContentBuilder downsampleDocument = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(downsampleDocument);
 
@@ -743,6 +744,14 @@ class DownsampleShardIndexer {
             }
         }
 
+        public void updateResetDataPoints() {
+            if (counterResetDataPoints != null) {
+                for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
+                    aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
+                }
+            }
+        }
+
         public XContentBuilder buildDownsampleDocument() throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
@@ -751,7 +760,12 @@ class DownsampleShardIndexer {
                 return builder;
             }
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
-            builder.field(DocCountFieldMapper.NAME, docCount);
+            // We remove the reset documents from the doc count otherwise in every downsample round
+            // the doc count will re-count the reset documents.
+            int resetDocCount = counterResetDataPoints == null ? 0 : counterResetDataPoints.countResetDocuments();
+            int downsampledDocumentDocCount = docCount - resetDocCount;
+            assert downsampledDocumentDocCount > 0 : "Reset documents should already be included in the processed document count";
+            builder.field(DocCountFieldMapper.NAME, downsampledDocumentDocCount);
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldDownsampler : fieldSerializers) {
@@ -784,27 +798,21 @@ class DownsampleShardIndexer {
         }
 
         void flushResetDocumentsIfNeeded(Consumer<XContentBuilder> indexResetDoc) throws IOException {
-            if (counterResetDataPoints != null) {
-                for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                    aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
-                }
+            if (counterResetDataPoints == null || counterResetDataPoints.isEmpty()) {
+                return;
+            }
 
-                if (counterResetDataPoints.isEmpty()) {
-                    return;
+            AtomicReference<IOException> error = new AtomicReference<>();
+            counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
+                try {
+                    XContentBuilder resetDoc = buildExtraCounterDocument(timestamp, counterValues);
+                    indexResetDoc.accept(resetDoc);
+                } catch (IOException e) {
+                    error.set(e);
                 }
-
-                AtomicReference<IOException> error = new AtomicReference<>();
-                counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
-                    try {
-                        XContentBuilder resetDoc = buildExtraCounterDocument(timestamp, counterValues);
-                        indexResetDoc.accept(resetDoc);
-                    } catch (IOException e) {
-                        error.set(e);
-                    }
-                });
-                if (error.get() != null) {
-                    throw error.get();
-                }
+            });
+            if (error.get() != null) {
+                throw error.get();
             }
         }
 

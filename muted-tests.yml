@@ -369,9 +369,6 @@ tests:
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548
-- class: org.elasticsearch.search.SearchLoggingIT
-  method: testSearchLogShardInfoPartialFailure
-  issue: https://github.com/elastic/elasticsearch/issues/143638
 - class: org.elasticsearch.xpack.eql.action.EqlLoggingIT
   method: testEqlLoggingPartialShardFailure
   issue: https://github.com/elastic/elasticsearch/issues/143659

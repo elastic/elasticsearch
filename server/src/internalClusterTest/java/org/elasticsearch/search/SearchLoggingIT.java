@@ -195,16 +195,21 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     /**
      * Verifies that when the request succeeds with partial results (some shards fail), the activity log
      * records shards.successful and shards.failed correctly from SearchLogContext.shardInfo().
-     * Uses the same index and data as setupIndex(), with 2 shards so one can fail.
+     * Uses more shards than data nodes so that stopping one node guarantees unassigned shards.
      */
     public void testSearchLogShardInfoPartialFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        setupIndex(2);
+        int numberOfShards = cluster().numDataNodes() + 2;
+        setupIndex(numberOfShards);
         internalCluster().stopRandomDataNode();
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
-        awaitClusterState(
-            state -> RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty() == false
-        );
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertFalse(
+                "expected some unassigned shards",
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+            );
+        });
 
         assertResponse(prepareSearch(INDEX_NAME).setSize(0).setAllowPartialSearchResults(true), response -> {
             assertThat(response.getFailedShards(), greaterThan(0));

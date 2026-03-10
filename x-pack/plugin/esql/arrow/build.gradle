@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   compileOnly project(':server')
   compileOnly project(':x-pack:plugin:esql:compute')
-  compileOnly project(':x-pack:plugin:mapper-version')
+  api project(path: xpackModule('mapper-version'))
   implementation('org.apache.arrow:arrow-vector:18.3.0')
   implementation('org.apache.arrow:arrow-format:18.3.0')
   implementation('org.apache.arrow:arrow-memory-core:18.3.0')

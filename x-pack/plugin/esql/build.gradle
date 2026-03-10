@@ -24,7 +24,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['lang-painless', 'x-pack-core', 'x-pack-ml']
+  extendedPlugins = ['x-pack-ml']
 }
 
 base {
@@ -47,7 +47,7 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
-  compileOnly project(path: xpackModule('mapper-version'))
+  api project(path: xpackModule('mapper-version'))
   api "org.locationtech.jts:jts-core:${versions.jts}"
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"

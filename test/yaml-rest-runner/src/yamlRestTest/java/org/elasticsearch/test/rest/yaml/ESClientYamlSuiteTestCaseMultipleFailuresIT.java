@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ESClientYamlSuiteTestCaseMultipleFailuresIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").build();
 
     public ESClientYamlSuiteTestCaseMultipleFailuresIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

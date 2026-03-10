@@ -220,8 +220,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
-         * capability until we enable the LOAD option mentioned above.
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -230,6 +230,11 @@ public class EsqlCapabilities {
          * match fields already present in the children's output.
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
@@ -1922,6 +1927,12 @@ public class EsqlCapabilities {
          * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
          */
         PROMQL_IMPLICIT_RANGE_SELECTOR,
+
+        /**
+         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
+         * grouping function that excludes specific dimensions from time-series grouping.
+         */
+        TIME_SERIES_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options

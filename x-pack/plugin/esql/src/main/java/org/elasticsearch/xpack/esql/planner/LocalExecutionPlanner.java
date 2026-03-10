@@ -988,6 +988,9 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            return emptySourceForAttributes(metricsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -1084,7 +1087,10 @@ public class LocalExecutionPlanner {
         if (tsInfoExec.mode() == TsInfoExec.Mode.FINAL || tsInfoExec.mode() == TsInfoExec.Mode.INTERMEDIATE) {
             return planTsInfoFinal(tsInfoExec, context);
         }
-        // INITIAL mode: extraction on data nodes — identical field extraction pipeline as MetricsInfo.
+        // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            return emptySourceForAttributes(tsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             tsInfoExec.source(),
@@ -1174,7 +1180,14 @@ public class LocalExecutionPlanner {
         return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
-    private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+    private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(attributes);
+        LocalSourceOperator.PageSupplier empty = () -> null;
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(empty)), layout.build());
+    }
+
+    private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
             if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
@@ -1183,7 +1196,8 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            MappingLookup mappingLookup = mappingsByIndex.get(indexName);
+            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;
             }

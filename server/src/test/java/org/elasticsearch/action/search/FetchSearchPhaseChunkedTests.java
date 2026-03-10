@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -608,6 +609,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         @Override
         public RequestHandlers getRequestHandlers() {
             return requestHandlers;
+        }
+
+        @Override
+        public RecyclerBytesStreamOutput newNetworkBytesStream(CircuitBreaker circuitBreaker) {
+            return null;
         }
     }
 }

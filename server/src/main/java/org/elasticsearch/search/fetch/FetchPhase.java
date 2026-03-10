@@ -531,15 +531,8 @@ public final class FetchPhase {
                         buildListener.onFailure(e);
                     }
 
-                    if (mainBuildListener != null) {
-                        mainBuildListener.onFailure(e);
-                    } else {
-                        listener.onFailure(e);
-                    }
-
-                    if (chunkCompletionRefs != null) {
-                        chunkCompletionRefs.close();
-                    }
+                    mainBuildListener.onFailure(e);
+                    chunkCompletionRefs.close();
                 }
             }
         );

@@ -87,21 +87,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (plan.childrenResolved() == false) {
             return plan;
         }
-        var unresolved = collectUnresolved(plan);
-        if (unresolved.isEmpty()) {
-            return plan;
-        }
 
-        // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
-        // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
-        // ResolveRefs will wire them up in the next iteration of the resolution batch.
-        Set<String> childOutputNames = new java.util.HashSet<>();
-        for (LogicalPlan child : plan.children()) {
-            for (Attribute attr : child.output()) {
-                childOutputNames.add(attr.name());
-            }
-        }
-        unresolved.removeIf(ua -> childOutputNames.contains(ua.name()));
+        var unresolved = collectUnresolved(plan);
         if (unresolved.isEmpty()) {
             return plan;
         }
@@ -348,11 +335,22 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * {@link UnresolvedTimestamp} subtypes.
      */
     public static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
+        Set<String> childOutputNames = new java.util.HashSet<>();
+        for (LogicalPlan child : plan.children()) {
+            for (Attribute attr : child.output()) {
+                childOutputNames.add(attr.name());
+            }
+        }
+
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
-            // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
             if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false
-                && MetadataAttribute.isSupported(ua.name()) == false) {
+                // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
+                && MetadataAttribute.isSupported(ua.name()) == false
+            // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
+            // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
+            // ResolveRefs will wire them up in the next iteration of the resolution batch.
+                && childOutputNames.contains(ua.name()) == false) {
                 unresolved.add(ua);
             }
         };

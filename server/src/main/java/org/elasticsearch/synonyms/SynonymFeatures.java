@@ -16,9 +16,10 @@ import java.util.Set;
 
 public class SynonymFeatures implements FeatureSpecification {
     private static final NodeFeature RETURN_EMPTY_SYNONYM_SETS = new NodeFeature("synonyms_set.get.return_empty_synonym_sets");
+    private static final NodeFeature SYNONYM_SETS_TOKEN_COUNT = new NodeFeature("synonyms_set.get.token_count");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETURN_EMPTY_SYNONYM_SETS);
+        return Set.of(RETURN_EMPTY_SYNONYM_SETS, SYNONYM_SETS_TOKEN_COUNT);
     }
 }

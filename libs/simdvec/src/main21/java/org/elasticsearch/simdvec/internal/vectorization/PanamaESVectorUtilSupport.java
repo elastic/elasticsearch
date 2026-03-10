@@ -1222,24 +1222,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     /** Checks bytes between first and last (exclusive) since those were already verified by the SIMD masks. */
     private static boolean middleBytesMatch(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
-        int middleLen = termLength - 2;
-        if (middleLen <= 0) {
-            return true;
-        }
-        int vStart = valuePos + 1;
-        int tStart = termOffset + 1;
-        int vectorSize = PREFERRED_BYTE_SPECIES.length();
-        int k = 0;
-        int loopBound = PREFERRED_BYTE_SPECIES.loopBound(middleLen);
-        for (; k < loopBound; k += vectorSize) {
-            ByteVector vVec = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, vStart + k);
-            ByteVector tVec = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, term, tStart + k);
-            if (vVec.eq(tVec).allTrue() == false) {
-                return false;
-            }
-        }
-        for (; k < middleLen; k++) {
-            if (value[vStart + k] != term[tStart + k]) {
+        for (int k = 1; k < termLength - 1; k++) {
+            if (value[valuePos + k] != term[termOffset + k]) {
                 return false;
             }
         }

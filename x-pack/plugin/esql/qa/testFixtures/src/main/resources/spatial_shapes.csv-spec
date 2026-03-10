@@ -412,7 +412,7 @@ FROM countries_bbox
 ;
 
 centroid:geo_point
-POINT (19.306472392149942 63.98699665426565)
+POINT (19.306472334781816 63.98699664597038)
 ;
 
 centroidFromCountriesBboxGrouped
@@ -426,11 +426,11 @@ FROM countries_bbox
 ;
 
 centroid:geo_point                              | count:long | id:keyword
-POINT (11.6210405 56.1539545)                   | 1          | DNK
-POINT (25.546677 64.9477045)                    | 1          | FIN
-POINT (-19.018923 64.96305000000001)            | 1          | ISL
-POINT (17.931088039753522 64.5674534269385)     | 2          | NOR
-POINT (17.6401725 62.199732)                    | 1          | SWE
+POINT (11.621040450409053 56.15395449567586)    | 1          | DNK
+POINT (25.546676963567734 64.94770449120551)    | 1          | FIN
+POINT (-19.01892302557826 64.96304999571294)    | 1          | ISL
+POINT (17.931087967274884 64.56745342175476)    | 2          | NOR
+POINT (17.64017245732248 62.19973198603839)     | 1          | SWE
 ;
 
 centroidFromLiteralGeoShape
@@ -485,7 +485,7 @@ FROM airport_city_boundaries
 ;
 
 centroid:geo_point                            | count:long
-POINT (12.973735060997761 59.48035329632207)  | 3
+POINT (12.973734999368485 59.48035328065746)  | 3
 ;
 
 ###############################################
@@ -503,7 +503,7 @@ FROM countries_bbox
 ;
 
 count:long | centroid:geo_point                           | extent:geo_shape
-4          | POINT (19.306472392149942 63.98699665426565) | BBOX (3.342362930998206, 31.581962993368506, 71.15470897872001, -54.462782023474574)
+4          | POINT (19.306472334781816 63.98699664597038) | BBOX (3.342362930998206, 31.581962993368506, 71.15470897872001, -54.462782023474574)
 ;
 
 centroidAndExtentFromCountriesBboxGrouped
@@ -517,10 +517,10 @@ FROM countries_bbox
 | SORT id
 ;
 
-count:long | centroid:geo_point                          | extent:geo_shape                                                                     | id:keyword
-1          | POINT (25.546677 64.9477045)                | BBOX (19.51139093376696, 31.581962993368506, 70.08860897272825, 59.80679996777326)   | FIN
-2          | POINT (17.931088039753522 64.5674534269385) | BBOX (3.342362930998206, 31.073535941541195, 71.15470897872001, -54.462782023474574) | NOR
-1          | POINT (17.6401725 62.199732)                | BBOX (11.11333591863513, 24.167008996009827, 69.06029999256134, 55.33916397951543)   | SWE
+count:long | centroid:geo_point                           | extent:geo_shape                                                                     | id:keyword
+1          | POINT (25.546676963567734 64.94770449120551) | BBOX (19.51139093376696, 31.581962993368506, 70.08860897272825, 59.80679996777326)   | FIN
+2          | POINT (17.931087967274884 64.56745342175476) | BBOX (3.342362930998206, 31.073535941541195, 71.15470897872001, -54.462782023474574) | NOR
+1          | POINT (17.64017245732248 62.19973198603839)  | BBOX (11.11333591863513, 24.167008996009827, 69.06029999256134, 55.33916397951543)   | SWE
 ;
 
 centroidAndExtentFromCityBoundaries
@@ -534,7 +534,7 @@ FROM airport_city_boundaries
 ;
 
 centroid:geo_point                            | extent:geo_shape                                                                   | count:long
-POINT (12.973735060997761 59.48035329632207)  | BBOX (10.489199962466955, 18.20009993389249, 60.13389996718615, 55.63179998192936) | 3
+POINT (12.973734999368485 59.48035328065746)  | BBOX (10.489199962466955, 18.20009993389249, 60.13389996718615, 55.63179998192936) | 3
 ;
 
 extentFromCityBoundaries
@@ -857,7 +857,7 @@ FROM countries_bbox_web
 ;
 
 centroid:cartesian_point
-POINT (2154196.250000 9554933.000000)
+POINT (2154196.351135084 9554932.832065823)
 ;
 
 centroidFromCountriesBboxWebGrouped
@@ -871,11 +871,11 @@ FROM countries_bbox_web
 ;
 
 centroid:cartesian_point                         | count:long | id:keyword
-POINT (1293648.310767932 7595724.7317548925)     | 1          | DNK
-POINT (2843843.0747043677 9727233.166956387)     | 1          | FIN
-POINT (-2117176.8235017657 9610830.84487306)     | 1          | ISL
-POINT (1996094.1775590854 9709682.55992701)      | 2          | NOR
-POINT (1963695.0199321592 9098757.16364795)      | 1          | SWE
+POINT (1293648.25 7595724.5)                     | 1          | DNK
+POINT (2843843.0 9727233.0)                      | 1          | FIN
+POINT (-2117176.75 9610831.0)                    | 1          | ISL
+POINT (1996094.1608275285 9709682.898908146)     | 2          | NOR
+POINT (1963695.0000000002 9098757.0)             | 1          | SWE
 ;
 
 centroidFromCartesianMultipolygons
@@ -1147,8 +1147,8 @@ FROM countries_bbox_web
 | STATS centroid=ST_CENTROID_AGG(shape), extent=ST_EXTENT_AGG(shape)
 ;
 
-centroid:cartesian_point              | extent:cartesian_shape
-POINT (2154196.250000 9554933.000000) | BBOX (372070.15625, 3515688.0, 1.1455379E7, -7258293.5)
+centroid:cartesian_point                    | extent:cartesian_shape
+POINT (2154196.351135084 9554932.832065823) | BBOX (372070.15625, 3515688.0, 1.1455379E7, -7258293.5)
 ;
 
 centroidAndExtentFromCartesianMultipolygons

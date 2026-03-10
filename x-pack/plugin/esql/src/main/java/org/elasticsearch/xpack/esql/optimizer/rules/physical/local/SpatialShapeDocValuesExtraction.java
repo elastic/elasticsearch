@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.ParameterizedOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -121,8 +123,9 @@ public class SpatialShapeDocValuesExtraction extends ParameterizedOptimizerRule<
                     boundsAttributes.removeAll(evalExec.references());
                 }
                 case FilterExec filterExec -> {
-                    centroidAttributes.removeAll(filterExec.condition().references());
-                    boundsAttributes.removeAll(filterExec.condition().references());
+                    var refsToRemove = referencesExcludingIsNotNull(filterExec.condition());
+                    centroidAttributes.removeAll(refsToRemove);
+                    boundsAttributes.removeAll(refsToRemove);
                 }
                 default -> { // Do nothing
                 }
@@ -210,6 +213,30 @@ public class SpatialShapeDocValuesExtraction extends ParameterizedOptimizerRule<
         }
 
         return result;
+    }
+
+    /**
+     * Collect references from an expression tree, but skip {@link IsNotNull} sub-expressions.
+     * {@link IsNotNull} checks on spatial fields don't require full-precision data and can be
+     * answered from doc values, so they shouldn't prevent doc-values extraction.
+     */
+    private static Set<Attribute> referencesExcludingIsNotNull(Expression expr) {
+        var refs = new HashSet<Attribute>();
+        collectRefsExcludingIsNotNull(expr, refs);
+        return refs;
+    }
+
+    private static void collectRefsExcludingIsNotNull(Expression expr, Set<Attribute> refs) {
+        if (expr instanceof IsNotNull) {
+            return;
+        }
+        if (expr instanceof Attribute attr) {
+            refs.add(attr);
+            return;
+        }
+        for (Expression child : expr.children()) {
+            collectRefsExcludingIsNotNull(child, refs);
+        }
     }
 
     private static boolean isShape(DataType dataType) {

@@ -44,12 +44,23 @@ public class ServerLauncher {
 
     public static void main(String[] args) throws Exception {
         Process preparerProcess = startPreparer(args);
+        LaunchDescriptor descriptor = null;
+        Exception readException = null;
+        try {
+            descriptor = readDescriptorFromStream(preparerProcess.getInputStream());
+        } catch (Exception e) {
+            readException = e;
+        }
         int preparerExit = preparerProcess.waitFor();
         if (preparerExit != 0) {
             System.exit(preparerExit);
         }
-
-        LaunchDescriptor descriptor = readDescriptorFromStream(preparerProcess.getInputStream());
+        if (readException != null) {
+            if (readException instanceof IOException io) {
+                throw new UncheckedIOException(io);
+            }
+            throw new RuntimeException(readException);
+        }
         if (descriptor == null) {
             return;
         }

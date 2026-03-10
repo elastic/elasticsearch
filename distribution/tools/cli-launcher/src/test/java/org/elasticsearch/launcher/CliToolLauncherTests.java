@@ -10,6 +10,7 @@
 package org.elasticsearch.launcher;
 
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -29,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertArrayEquals;
 
+@SuppressForbidden(reason = "uses System.out and System.err")
 public class CliToolLauncherTests extends ESTestCase {
 
     public void testCliNameSysprop() {

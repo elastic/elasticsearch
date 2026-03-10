@@ -51,6 +51,7 @@ class CliToolLauncher {
      * @param args args to the tool
      * @throws Exception if the tool fails with an unknown error
      */
+    @SuppressForbidden(reason = "uses System.out and System.err")
     public static void main(String[] args) throws Exception {
         OutputStream originalStdOut = null;
         if (isRedirectStdoutToStderr()) {

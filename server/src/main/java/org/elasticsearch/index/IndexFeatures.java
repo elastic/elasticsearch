@@ -13,7 +13,10 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 
+import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.index.IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;
 
 public class IndexFeatures implements FeatureSpecification {
 
@@ -46,9 +49,8 @@ public class IndexFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        var testFeatures = Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
-            TIME_SERIES_SYNTHETIC_ID,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
             THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
@@ -56,5 +58,12 @@ public class IndexFeatures implements FeatureSpecification {
             InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
             CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT
         );
+        if (TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            testFeatures = new HashSet<>(testFeatures);
+            testFeatures.add(TIME_SERIES_SYNTHETIC_ID);
+            return Set.copyOf(testFeatures);
+        } else {
+            return testFeatures;
+        }
     }
 }

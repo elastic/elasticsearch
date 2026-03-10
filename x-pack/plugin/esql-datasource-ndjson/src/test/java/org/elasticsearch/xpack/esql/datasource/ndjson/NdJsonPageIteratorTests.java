@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.apache.commons.io.IOUtils;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -180,6 +182,34 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 checkBlockSizes(page);
                 assertEquals(3, page.getPositionCount());
             }
+        }
+    }
+
+    public void testTypeDifferentFromSchema() throws IOException {
+
+        String ndjson = """
+            {"x": "2024-01-01T00:00:00Z", "y": 1}
+            {"x": true, "y": 2}
+            """;
+
+        // Infer schema from the first line only
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertEquals(ElementType.LONG, page.getBlock(0).elementType()); // DATETIME
+
+            assertEquals(2, page.getBlock(0).getPositionCount());
+            assertEquals(2, page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+
+            assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
         }
     }
 

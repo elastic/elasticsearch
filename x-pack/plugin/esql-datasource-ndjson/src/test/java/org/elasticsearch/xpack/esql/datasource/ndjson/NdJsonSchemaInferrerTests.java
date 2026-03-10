@@ -139,7 +139,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100);
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

@@ -263,32 +263,32 @@ public class NdJsonPageDecoder implements Closeable {
                     } else if (token == JsonToken.VALUE_FALSE) {
                         ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 case NULL -> {
                     // NULL handled above
-                    unexpectedValue(parser);
+                    unexpectedValue(blockBuilder, parser);
                 }
                 case INTEGER -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 case DOUBLE -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 case DATETIME -> {
@@ -296,7 +296,7 @@ public class NdJsonPageDecoder implements Closeable {
                         var millis = Instant.parse(parser.getValueAsString()).toEpochMilli();
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 case KEYWORD -> {
@@ -305,14 +305,17 @@ public class NdJsonPageDecoder implements Closeable {
                     if (str != null) {
                         ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser);
                     }
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
             }
         }
 
-        private void unexpectedValue(JsonParser parser) throws IOException {
+        private void unexpectedValue(Block.Builder builder, JsonParser parser) throws IOException {
+            // Append a null and log the problem
+            builder.appendNull();
+
             LOGGER.warn(
                 "Unexpected token type: {} for attribute: {} at {}",
                 parser.currentToken(),

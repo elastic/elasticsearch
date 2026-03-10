@@ -47,14 +47,9 @@ import java.util.Map;
 public class NdJsonSchemaInferrer {
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-    private static final int DEFAULT_SAMPLE_SIZE = 100;
 
-    /**
-     * Infers schema from an NDJSON input stream.
-     */
-    public static List<Attribute> inferSchema(InputStream inputStream) throws IOException {
-        return inferSchema(inputStream, DEFAULT_SAMPLE_SIZE);
-    }
+    private static final EnumSet<DataType> ALL_TYPES = EnumSet.allOf(DataType.class);
+    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
@@ -203,27 +198,44 @@ public class NdJsonSchemaInferrer {
                 // Can happen with parent and always-empty array
                 return DataType.UNSUPPORTED;
             }
+
+            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
             if (types.size() == 1) {
                 return types.iterator().next();
             }
-            // Multiple types - for now, use the widest type
-            // TODO: Create MultiTypeEsField for proper union type support
-            if (types.contains(DataType.DATETIME)) {
-                return DataType.DATETIME;
-            }
+
+            // Multiple types - use the widest type
+            // Nullability is handled separately and not part of type resolution
+            var types = EnumSet.copyOf(this.types);
+            types.remove(DataType.NULL);
+
             if (types.contains(DataType.KEYWORD)) {
                 return DataType.KEYWORD;
             }
-            if (types.contains(DataType.DOUBLE)) {
-                return DataType.DOUBLE;
+
+            if (hasOnly(types, NUMBER_TYPES)) {
+                if (types.contains(DataType.DOUBLE)) {
+                    return DataType.DOUBLE;
+                }
+                if (types.contains(DataType.LONG)) {
+                    return DataType.LONG;
+                }
+                if (types.contains(DataType.INTEGER)) {
+                    return DataType.INTEGER;
+                }
             }
-            if (types.contains(DataType.LONG)) {
-                return DataType.LONG;
-            }
-            if (types.contains(DataType.INTEGER)) {
-                return DataType.INTEGER;
-            }
-            return types.iterator().next();
+
+            // Widest type
+            return DataType.KEYWORD;
         }
+    }
+
+    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
+        if (values.isEmpty()) {
+            return false;
+        }
+        var copy = EnumSet.copyOf(values);
+        copy.removeAll(from);
+        return copy.isEmpty();
     }
 }

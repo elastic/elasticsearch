@@ -1834,7 +1834,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(leftDoesNotExistFields, hasSize(1));
         assertThat(leftDoesNotExistFields.get(0).name(), is("does_not_exist2"));
 
-
         // Right branch: Project + Eval many nulls, Subquery -> Filter -> EsRelation[languages]
         var rightProject = as(union.children().get(1), Project.class);
         var rightProject_does_not_exist2 = as(rightProject.output().get(14), FieldAttribute.class);

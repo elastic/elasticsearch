@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
@@ -155,19 +156,17 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     static class BlobStoreFileReader implements SnapshotShardContext.FileReader {
         private final BlobContainer blobContainer;
         private final BlobLocation blobLocation;
-        private final Checksum digest = new BufferedChecksum(new CRC32());
+        private final FileChecksum fileChecksum;
         private long nextPositionInBlobFile; // relative to the start of the entire blob
         private long readPosition; // relative to the start of the file
-        private final long checksumPosition; // relative to the start of the file
-        private final byte[] checksum = new byte[Long.BYTES];
         private InputStream currentStream; // closed when openInput is called to create a new InputStream and on close()
 
         BlobStoreFileReader(BlobContainer blobContainer, BlobLocation blobLocation) {
             this.blobContainer = blobContainer;
             this.blobLocation = blobLocation;
+            this.fileChecksum = new FileChecksum(blobLocation.fileLength());
             this.nextPositionInBlobFile = blobLocation.offset();
             this.readPosition = 0;
-            this.checksumPosition = blobLocation.fileLength() - Long.BYTES;
         }
 
         @Override
@@ -182,64 +181,101 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
                     + ", file length: "
                     + blobLocation.fileLength();
 
-            if (currentStream != null) {
-                currentStream.close();
-            }
-
+            closeCurrentStream();
             assert assertPositionConsistency();
 
-            currentStream = new FilterInputStream(
-                blobContainer.readBlob(OperationPurpose.SNAPSHOT_DATA, blobLocation.blobName(), nextPositionInBlobFile, limit)
-            ) {
-                @Override
-                public int read() throws IOException {
-                    final int b = super.read();
-                    if (b != -1) {
-                        if (readPosition < checksumPosition) {
-                            digest.update(b);
-                        } else {
-                            checksum[(int) (readPosition - checksumPosition)] = (byte) b;
-                        }
-                        readPosition += 1;
-                    }
-                    return b;
-                }
-
-                @Override
-                public int read(byte[] b, int off, int len) throws IOException {
-                    final int n = super.read(b, off, len);
-                    if (n != -1) {
-                        if (readPosition < checksumPosition) {
-                            final int bytesToChecksum = Math.toIntExact(Math.min(n, checksumPosition - readPosition));
-                            digest.update(b, off, bytesToChecksum);
-                            if (bytesToChecksum != n) {
-                                System.arraycopy(b, off + bytesToChecksum, checksum, 0, n - bytesToChecksum);
-                            }
-                        } else {
-                            assert readPosition - checksumPosition < Long.BYTES
-                                : readPosition + " >= " + checksumPosition + " + " + Long.BYTES;
-                            assert n <= Long.BYTES : "Read length exceeds checksum length: " + n;
-                            System.arraycopy(b, off, checksum, (int) (readPosition - checksumPosition), n);
-                        }
-                        readPosition += n;
-                    }
-                    return n;
-                }
-
-                @Override
-                public long skip(long n) throws IOException {
-                    assert false : "snapshot read does not skip bytes";
-                    throw new UnsupportedOperationException("blob store input stream for snapshot does not support skip()");
-                }
-
-                @Override
-                public boolean markSupported() {
-                    return false; // Underlying input stream from the blob store does not support mark/reset
-                }
-            };
-
-            nextPositionInBlobFile += limit;
+            currentStream = new ResettableBlobStoreInputStream(readPosition, limit);
             return currentStream;
+        }
+
+        private InputStream openInputStreamForBlob(long bytesFromStreamStart, long limit) throws IOException {
+            return blobContainer.readBlob(
+                OperationPurpose.SNAPSHOT_DATA,
+                blobLocation.blobName(),
+                nextPositionInBlobFile + bytesFromStreamStart,
+                limit - bytesFromStreamStart
+            );
+        }
+
+        private class ResettableBlobStoreInputStream extends FilterInputStream {
+            private final long streamStartPosition; // relative to the start of the file
+            private final long limit;
+            private long markPosition; // relative to the start of the file
+            private boolean closed;
+
+            ResettableBlobStoreInputStream(long streamStartPosition, long limit) throws IOException {
+                super(openInputStreamForBlob(0, limit));
+                this.streamStartPosition = streamStartPosition;
+                this.limit = limit;
+                this.markPosition = streamStartPosition;
+            }
+
+            @Override
+            public int read() throws IOException {
+                ensureOpen();
+                final int b = super.read();
+                if (b != -1) {
+                    fileChecksum.update(b, readPosition);
+                    readPosition += 1;
+                }
+                return b;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                ensureOpen();
+                final int n = super.read(b, off, len);
+                if (n != -1) {
+                    fileChecksum.update(b, off, n, readPosition);
+                    readPosition += n;
+                }
+                return n;
+            }
+
+            @Override
+            public long skip(long n) throws IOException {
+                assert false : "snapshot read does not skip bytes";
+                throw new UnsupportedOperationException("blob store input stream for snapshot does not support skip()");
+            }
+
+            @Override
+            public boolean markSupported() {
+                return true;
+            }
+
+            @Override
+            public void mark(int readlimit) {
+                markPosition = readPosition;
+            }
+
+            /**
+             * Reset closes the current input stream and reopens a new one at the marked position
+             */
+            @Override
+            public void reset() throws IOException {
+                ensureOpen();
+                final var oldIn = in;
+                final long bytesFromStreamStart = markPosition - streamStartPosition;
+                in = openInputStreamForBlob(bytesFromStreamStart, limit);
+                readPosition = markPosition;
+                IOUtils.closeWhileHandlingException(oldIn);
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (closed == false) {
+                    super.close();
+                    closed = true;
+                    nextPositionInBlobFile += limit;
+                }
+            }
+
+            private void ensureOpen() throws IOException {
+                if (closed) {
+                    assert false : "stream is closed";
+                    throw new IOException("stream is closed");
+                }
+            }
         }
 
         private boolean assertPositionConsistency() {
@@ -250,13 +286,89 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
                     + blobLocation.offset()
                     + " vs nextPositionInBlobFile: "
                     + nextPositionInBlobFile;
+            assert fileChecksum.position() == readPosition
+                : "digest has not caught up with read position, digestPosition: "
+                    + fileChecksum.position()
+                    + " vs readPosition: "
+                    + readPosition;
             return true;
         }
 
         @Override
         public void verify() throws IOException {
+            closeCurrentStream();
             assert assertPositionConsistency();
+            fileChecksum.verify(this.toString());
+        }
 
+        private void closeCurrentStream() throws IOException {
+            if (currentStream != null) {
+                currentStream.close();
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeCurrentStream();
+        }
+    }
+
+    /**
+     * Tracks the running CRC32 digest and stored checksum for a file being read from the blob store.
+     * Bytes are fed via {@link #update} at their file positions. On mark/reset, the same positions
+     * may be fed again; already-digested bytes are silently skipped.
+     */
+    static class FileChecksum {
+        private final Checksum digest = new BufferedChecksum(new CRC32());
+        private final long checksumPosition;
+        private final byte[] checksum = new byte[Long.BYTES];
+        private long position;
+
+        FileChecksum(long fileLength) {
+            this.checksumPosition = fileLength - Long.BYTES;
+        }
+
+        void update(int b, long readPosition) {
+            assert readPosition <= position : "gap in checksum: readPosition=" + readPosition + " > position=" + position;
+            if (readPosition >= position) {
+                if (readPosition < checksumPosition) {
+                    digest.update(b);
+                } else {
+                    checksum[(int) (readPosition - checksumPosition)] = (byte) b;
+                }
+                position = readPosition + 1;
+            }
+        }
+
+        void update(byte[] b, int off, int n, long readPosition) {
+            assert readPosition <= position : "gap in checksum: readPosition=" + readPosition + " > position=" + position;
+            if (readPosition + n <= position) {
+                return;
+            }
+            final int skip = (int) Math.max(0, position - readPosition);
+            int bufPos = off + skip;
+            long filePos = readPosition + skip;
+            int remaining = n - skip;
+
+            if (filePos < checksumPosition) {
+                final int bytesToDigest = Math.toIntExact(Math.min(remaining, checksumPosition - filePos));
+                digest.update(b, bufPos, bytesToDigest);
+                bufPos += bytesToDigest;
+                remaining -= bytesToDigest;
+                filePos += bytesToDigest;
+            }
+            if (remaining > 0) {
+                assert filePos >= checksumPosition && filePos - checksumPosition + remaining <= Long.BYTES;
+                System.arraycopy(b, bufPos, checksum, (int) (filePos - checksumPosition), remaining);
+            }
+            position = readPosition + n;
+        }
+
+        long position() {
+            return position;
+        }
+
+        void verify(String description) throws IOException {
             final var computedChecksum = digest.getValue();
             final var storedChecksum = CodecUtil.readBELong(new ByteArrayDataInput(checksum));
             if (computedChecksum != storedChecksum) {
@@ -265,15 +377,8 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
                         + Store.digestToString(computedChecksum)
                         + " stored="
                         + Store.digestToString(storedChecksum),
-                    this.toString()
+                    description
                 );
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (currentStream != null) {
-                currentStream.close();
             }
         }
     }

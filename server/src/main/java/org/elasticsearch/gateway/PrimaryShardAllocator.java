@@ -366,7 +366,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     private record NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {}
 
-    private record NodesToAllocate(
+    record NodesToAllocate(
         List<DecidedNode> yesNodeShards,
         List<DecidedNode> throttleNodeShards,
         List<DecidedNode> notPreferredNodeShards,
@@ -473,8 +473,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     /**
-     * This class encapsulates the shard state retrieved from a node and the decision that was made
+     * Encapsulates the shard state retrieved from a node and the decision that was made
      * by the allocator for allocating to the node that holds the shard copy.
+     * Package-visible for testing.
      */
-    private record DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {}
+    record DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {}
 }

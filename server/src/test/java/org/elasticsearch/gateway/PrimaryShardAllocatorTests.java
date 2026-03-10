@@ -46,11 +46,13 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
@@ -390,6 +392,57 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         );
         assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(0));
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    public void testNodesToAllocateIteratorOrder() {
+        int yesCount = randomIntBetween(0, 3);
+        int throttleCount = randomIntBetween(0, 3);
+        int notPreferredCount = randomIntBetween(0, 3);
+        int noCount = randomIntBetween(0, 3);
+        final PrimaryShardAllocator.NodesToAllocate nodesToAllocate = new PrimaryShardAllocator.NodesToAllocate(
+            decidedNodes(yesCount, Decision.YES, "yes"),
+            decidedNodes(throttleCount, Decision.THROTTLE, "throttle"),
+            decidedNodes(notPreferredCount, Decision.NOT_PREFERRED, "not-pref"),
+            decidedNodes(noCount, Decision.NO, "no")
+        );
+        final List<Decision.Type> order = new ArrayList<>();
+        for (PrimaryShardAllocator.DecidedNode node : nodesToAllocate) {
+            order.add(node.decision().type());
+        }
+        assertThat(order, equalTo(expectedNodesToAllocateOrder(yesCount, throttleCount, notPreferredCount, noCount)));
+    }
+
+    private List<PrimaryShardAllocator.DecidedNode> decidedNodes(int count, Decision decision, String allocIdPrefix) {
+        return IntStream.range(0, count)
+            .mapToObj(
+                i -> new PrimaryShardAllocator.DecidedNode(
+                    new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(
+                        randomFrom(node1, node2, node3),
+                        allocIdPrefix + "-" + i,
+                        randomBoolean(),
+                        null
+                    ),
+                    decision
+                )
+            )
+            .toList();
+    }
+
+    private static List<Decision.Type> expectedNodesToAllocateOrder(int yesCount, int throttleCount, int notPreferredCount, int noCount) {
+        final List<Decision.Type> expected = new ArrayList<>();
+        for (int i = 0; i < yesCount; i++) {
+            expected.add(Decision.Type.YES);
+        }
+        for (int i = 0; i < throttleCount; i++) {
+            expected.add(Decision.Type.THROTTLE);
+        }
+        for (int i = 0; i < notPreferredCount; i++) {
+            expected.add(Decision.Type.NOT_PREFERRED);
+        }
+        for (int i = 0; i < noCount; i++) {
+            expected.add(Decision.Type.NO);
+        }
+        return expected;
     }
 
     /**

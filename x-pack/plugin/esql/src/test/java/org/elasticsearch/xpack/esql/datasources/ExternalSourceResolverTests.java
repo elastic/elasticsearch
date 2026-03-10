@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -522,13 +523,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> supportedFormats() {
-                return Set.of("parquet");
-            }
-
-            @Override
-            public Set<String> supportedExtensions() {
-                return Set.of(".parquet");
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
             }
 
             @Override

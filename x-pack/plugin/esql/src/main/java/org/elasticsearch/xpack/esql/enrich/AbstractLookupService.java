@@ -501,6 +501,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE,
                 null,
+                null,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -509,7 +510,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     fieldName,
                     PlannerUtils.toElementType(extractField.dataType()),
                     false,
-                    shardIdx -> {
+                    (ctx, shardIdx) -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }

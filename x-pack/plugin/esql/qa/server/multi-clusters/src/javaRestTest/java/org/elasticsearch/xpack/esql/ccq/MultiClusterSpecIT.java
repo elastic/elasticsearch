@@ -409,7 +409,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
     }
 
@@ -419,7 +419,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         // We don't read took properly in multi-cluster tests.
         return false;
     }

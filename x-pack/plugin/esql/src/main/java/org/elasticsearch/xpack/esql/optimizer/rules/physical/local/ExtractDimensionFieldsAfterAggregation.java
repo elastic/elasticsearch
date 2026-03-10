@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
@@ -63,10 +62,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        if (plan instanceof TimeSeriesAggregateExec oldAgg) {
-            if (oldAgg.getMode() == AggregatorMode.INITIAL) {
-                return rule(oldAgg, context);
-            }
+        if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode() == AggregatorMode.INITIAL) {
+            return rule(oldAgg, context);
         }
         return plan;
     }
@@ -95,9 +92,9 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesAttribute) {
-                            var withoutFields = timeSeriesAttribute.withoutFields();
-                            var sourceField = new FieldAttribute(
+                        if (dimensionField instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+                            var withoutFields = timeSeriesMetadataAttribute.withoutFields();
+                            var sourceField = new TimeSeriesMetadataAttribute(
                                 dimensionField.source(),
                                 null,
                                 dimensionField.qualifier(),
@@ -113,7 +110,10 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                     DataType.KEYWORD,
                                     new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)
                                 ),
-                                true
+                                dimensionField.nullable(),
+                                null,
+                                true,
+                                withoutFields
                             );
                             aliases.add(new Alias(agg.source(), agg.name(), sourceField, oldAttr.id()));
                         } else {

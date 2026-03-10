@@ -64,7 +64,9 @@ public class FieldAttribute extends TypedAttribute {
 
     // Only public for testing
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
-    public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName("time_series_aggregate_without");
+    public static final TransportVersion ESQL_TIMESERIES_METADATA_ATTRIBUTE = TransportVersion.fromName(
+        "esql_timeseries_metadata_attribute"
+    );
 
     private final String parentName;
     private final EsField field;
@@ -131,22 +133,32 @@ public class FieldAttribute extends TypedAttribute {
         Nullability nullability = in.readEnum(Nullability.class);
         NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
-        if (in.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE) && MetadataAttribute.TIMESERIES.equals(name)) {
-            boolean hasTimeSeriesMetadata = in.readBoolean();
-            if (hasTimeSeriesMetadata) {
-                var withoutFields = in.readCollectionAsSet(StreamInput::readString);
-                return new TimeSeriesMetadataAttribute(
-                    source,
-                    parentName,
-                    qualifier,
-                    name,
-                    field,
-                    nullability,
-                    nameId,
-                    synthetic,
-                    withoutFields
-                );
+
+        // Attributes serialize their type name through NamedWriteable#getWriteableName()
+        // (see StreamOutput#writeNamedWriteable), which is not transport-version-aware.
+        // This differs from EsField, which has getWriteableName(TransportVersion).
+        // Sending a dedicated TimeSeriesMetadataAttribute type tag would therefore break old readers
+        // before they could reach the payload. Instead, newer versions carry the extra
+        // metadata here and then normalize to TimeSeriesMetadataAttribute locally.
+        if (MetadataAttribute.isTimeSeriesAttributeName(name)) {
+            Set<String> withoutFields = Set.of();
+            if (in.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE)) {
+                boolean hasTimeSeriesMetadata = in.readBoolean();
+                if (hasTimeSeriesMetadata) {
+                    withoutFields = in.readCollectionAsSet(StreamInput::readString);
+                }
             }
+            return new TimeSeriesMetadataAttribute(
+                source,
+                parentName,
+                qualifier,
+                name,
+                field,
+                nullability,
+                nameId,
+                synthetic,
+                withoutFields
+            );
         }
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
@@ -169,7 +181,10 @@ public class FieldAttribute extends TypedAttribute {
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
-            if (out.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE) && MetadataAttribute.TIMESERIES.equals(name())) {
+            // Keep writing `_timeseries` as `FieldAttribute` and append the extra metadata only
+            // when the recipient supports it; see the matching read-side note above.
+            if (out.getTransportVersion().supports(ESQL_TIMESERIES_METADATA_ATTRIBUTE)
+                && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
                     out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());

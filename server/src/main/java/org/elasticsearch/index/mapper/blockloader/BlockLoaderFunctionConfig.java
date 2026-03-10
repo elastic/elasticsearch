@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Objects;
 import java.util.Set;
+
 /**
  * Configuration needed to transform loaded values into blocks.
  * {@link MappedFieldType}s will find me in

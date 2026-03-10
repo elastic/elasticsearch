@@ -37,10 +37,6 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
         super(OptimizerRules.TransformDirection.UP);
     }
 
-    private static Expression timeSeriesWithout(Expression grouping) {
-        return grouping instanceof Alias alias ? alias.child() : grouping;
-    }
-
     private static NamedExpression replaceReferences(NamedExpression expression, Map<NameId, TimeSeriesMetadataAttribute> replacements) {
         return (NamedExpression) expression.transformDown(Attribute.class, attribute -> {
             Attribute replacement = replacements.get(attribute.id());
@@ -70,7 +66,7 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
         boolean changed = false;
 
         for (Expression grouping : aggregate.groupings()) {
-            if (timeSeriesWithout(grouping) instanceof TimeSeriesWithout without) {
+            if (Alias.unwrap(grouping) instanceof TimeSeriesWithout without) {
                 // Replace the semantic WITHOUT node with a concrete _timeseries attribute
                 // preserving the original attribute's identity (name id) so downstream
                 // references resolve correctly.

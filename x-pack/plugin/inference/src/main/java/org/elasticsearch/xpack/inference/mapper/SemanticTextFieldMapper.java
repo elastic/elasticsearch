@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -1445,7 +1446,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";
         denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
-        denseVectorMapperBuilder.elementType(modelSettings.elementType());
+        denseVectorMapperBuilder.elementType(denseVectorElementType(indexVersionCreated, modelSettings.elementType()));
         // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
         // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
         // and the field will use the defaults for the dense_vector field.
@@ -1489,6 +1490,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     static boolean indexVersionDefaultsToBbqHnsw(IndexVersion indexVersion) {
         return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
             || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
+    private static DenseVectorFieldMapper.ElementType denseVectorElementType(
+        IndexVersion indexVersionCreated,
+        DenseVectorFieldMapper.ElementType modelElementType
+    ) {
+        DenseVectorFieldMapper.ElementType denseVectorElementType = modelElementType;
+        if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+            && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+            denseVectorElementType = DenseVectorFieldMapper.ElementType.BFLOAT16;
+        }
+
+        return denseVectorElementType;
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {

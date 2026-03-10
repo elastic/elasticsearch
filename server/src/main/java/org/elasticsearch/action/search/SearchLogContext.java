@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class SearchLogContext extends ActivityLoggerContext {
@@ -46,8 +47,14 @@ public class SearchLogContext extends ActivityLoggerContext {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, SearchResponse response) {
-        this(task, namedWriteableRegistry, request, response, response.getTook().nanos(), null);
+    SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        long tookInNanos,
+        SearchResponse response
+    ) {
+        this(task, namedWriteableRegistry, request, response, tookInNanos, null);
     }
 
     SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, Exception error) {
@@ -112,5 +119,12 @@ public class SearchLogContext extends ActivityLoggerContext {
 
     public boolean hasAggregations() {
         return response != null && response.hasAggregations();
+    }
+
+    public Optional<ShardInfo> shardInfo() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
     }
 }

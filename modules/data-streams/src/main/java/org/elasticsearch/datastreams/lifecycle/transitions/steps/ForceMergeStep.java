@@ -9,19 +9,29 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.ForceMergeRequestWrapper;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * A DLM step responsible for force merging the index.
@@ -41,6 +51,8 @@ public class ForceMergeStep implements DlmStep {
     private static final Settings FORCE_MERGE_COMPLETE_SETTINGS = Settings.builder()
         .put(DLM_FORCE_MERGE_COMPLETE_SETTING.getKey(), true)
         .build();
+    private static final int SINGLE_SEGMENT = 1;
+    private static final Logger logger = LogManager.getLogger(ForceMergeStep.class);
 
     /**
      * Determines if the step has been completed for the given index and project state.
@@ -58,11 +70,11 @@ public class ForceMergeStep implements DlmStep {
      * This method determines how to execute the step and performs the necessary operations to update the index
      * so that {@link #stepCompleted(Index, ProjectState)} will return true after successful execution.
      *
-     * @param dlmStepContext The context and resources for executing the step.
+     * @param stepContext The context and resources for executing the step.
      */
     @Override
-    public void execute(DlmStepContext dlmStepContext) {
-        // Todo: Implement the force merge logic here.
+    public void execute(DlmStepContext stepContext) {
+        maybeForceMerge(stepContext);
     }
 
     /**
@@ -120,6 +132,92 @@ public class ForceMergeStep implements DlmStep {
                     }
                 }, listener::onFailure))
         );
+    }
+
+    /**
+     * Helper method to execute the force merge request for the given index. This method forms the request and uses the
+     * step context to execute it in a deduplicated manner. The actual execution of the force merge request is
+     * delegated to the {@link #forceMerge} method. Checks if the force merge has already been completed for the
+     * index before executing and skips execution if so. Also skips if the index does not exist in the project metadata.
+     */
+    void maybeForceMerge(DlmStepContext stepContext) {
+        Index index = stepContext.index();
+        boolean indexMissing = Optional.ofNullable(stepContext.projectState())
+            .map(ProjectState::metadata)
+            .map(metadata -> metadata.index(index))
+            .isEmpty();
+
+        if (indexMissing) {
+            logger.warn("Index [{}] not found in project metadata, skipping force merge step", index);
+            return;
+        }
+
+        if (isDLMForceMergeComplete(stepContext.index(), stepContext.projectState())) {
+            logger.info("DLM force merge step is already completed for index [{}], skipping execution", stepContext.indexName());
+            return;
+        }
+
+        ForceMergeRequest forceMergeRequest = formForceMergeRequest(index.getName());
+        stepContext.executeDeduplicatedRequest(
+            ForceMergeAction.NAME,
+            new ForceMergeRequestWrapper(forceMergeRequest),
+            Strings.format("DLM service encountered an error trying to force merge index [%s]", index),
+            (req, l) -> forceMerge(stepContext.projectId(), forceMergeRequest, l, stepContext)
+        );
+    }
+
+    /**
+     * This method executes the given force merge request. Once the request has completed successfully it updates
+     * the {@link #DLM_FORCE_MERGE_COMPLETE_SETTING} in the cluster state indicating that the force merge has completed.
+     * The listener is notified after the cluster state update has been made, or when the force merge fails or the
+     * update to the cluster state fails.
+     */
+    protected void forceMerge(
+        ProjectId projectId,
+        ForceMergeRequest forceMergeRequest,
+        ActionListener<Void> listener,
+        DlmStepContext stepContext
+    ) {
+        assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
+
+        final String targetIndex = forceMergeRequest.indices()[0];
+        logger.info("DLM is issuing a request to force merge index [{}] to a single segment", targetIndex);
+        stepContext.client()
+            .projectClient(projectId)
+            .admin()
+            .indices()
+            .forceMerge(forceMergeRequest, listener.delegateFailureAndWrap((l, forceMergeResponse) -> {
+                if (forceMergeResponse.getFailedShards() > 0) {
+                    DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                    String message = Strings.format(
+                        "DLM failed to force merge %d shards for index [%s] due to failures [%s]",
+                        forceMergeResponse.getFailedShards(),
+                        targetIndex,
+                        failures == null
+                            ? "unknown"
+                            : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                    );
+                    l.onFailure(new ElasticsearchException(message));
+                } else if (forceMergeResponse.getUnavailableShards() > 0) {
+                    String message = Strings.format(
+                        "DLM could not complete force merge for index [%s] because [%d] shards were unavailable."
+                            + "This will be retried in the next cycle.",
+                        targetIndex,
+                        forceMergeResponse.getUnavailableShards()
+                    );
+                    l.onFailure(new ElasticsearchException(message));
+                } else {
+                    logger.info("DLM successfully force merged index [{}]", targetIndex);
+                    markDLMForceMergeComplete(stepContext, listener);
+                }
+            }));
+    }
+
+    private ForceMergeRequest formForceMergeRequest(String index) {
+        ForceMergeRequest req = new ForceMergeRequest(index);
+        req.maxNumSegments(SINGLE_SEGMENT);
+        req.timeout(TimeValue.MAX_VALUE);
+        return req;
     }
 
     /**

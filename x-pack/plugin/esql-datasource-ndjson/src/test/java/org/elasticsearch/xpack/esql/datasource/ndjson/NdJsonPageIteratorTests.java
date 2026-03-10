@@ -62,6 +62,53 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertEquals(List.of(42, 42, 16), sizes); // Total 100
     }
 
+    public void testJsonExtensionRecognized() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
+    }
+
+    public void testJsonExtensionReadsData() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///data.json", IOUtils.resourceToByteArray("/employees.ndjson"));
+
+        try (var iterator = reader.read(object, List.of("emp_no"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertTrue(page.getPositionCount() > 0);
+        }
+    }
+
+    public void testSkipFirstLineForSplit() throws IOException {
+        // Simulate a split that starts mid-line: "partial_first_line\n{\"id\":1}\n{\"id\":2}\n"
+        String data = "partial_first_line\n{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (var iterator = reader.readSplit(object, List.of("id"), 100, true, null)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            // Should have skipped "partial_first_line" and read 2 records
+            assertEquals(2, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            IntBlock idBlock = page.getBlock(0);
+            assertEquals(1, idBlock.getInt(0));
+            assertEquals(2, idBlock.getInt(1));
+        }
+    }
+
+    public void testSkipFirstLineNoSkip() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (var iterator = reader.readSplit(object, List.of("id"), 100, false, null)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
     public void testSampleData() throws Exception {
         var reader = new NdJsonFormatReader(blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
@@ -93,6 +140,43 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(10010, empNo.getInt(9));
             assertFalse(stillHired.getBoolean(9));
             assertEquals(1.70, height.getDouble(9), 0.0001);
+        }
+    }
+
+    public void testMalformedLineDoesNotCrash() throws IOException {
+        // A completely invalid JSON line should not crash the parser; it should be skipped
+        String ndjson = "{\"name\":\"alice\",\"age\":30}\n" + "NOT-JSON-AT-ALL\n" + "{\"name\":\"charlie\",\"age\":40}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        List<Page> pages = new ArrayList<>();
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                pages.add(iterator.next());
+            }
+        }
+
+        // Should produce at least 2 rows (alice + charlie); the invalid line is handled gracefully
+        int totalRows = 0;
+        for (var page : pages) {
+            totalRows += page.getPositionCount();
+            checkBlockSizes(page);
+        }
+        assertTrue("Should produce at least the valid rows", totalRows >= 2);
+    }
+
+    public void testConsistentBlockPositionCounts() throws IOException {
+        // Ensures all blocks in a page have the same position count even with malformed data
+        String ndjson = "{\"x\":1,\"y\":\"a\"}\n" + "{\"x\":2}\n" + "{\"x\":3,\"y\":\"c\"}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                checkBlockSizes(page);
+                assertEquals(3, page.getPositionCount());
+            }
         }
     }
 

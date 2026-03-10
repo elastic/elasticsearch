@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
     public void testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices() {
         assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);

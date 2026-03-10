@@ -216,9 +216,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
-  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/137911
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
@@ -363,12 +360,6 @@ tests:
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548
-- class: org.elasticsearch.search.SearchLoggingIT
-  method: testSearchLogShardInfoPartialFailure
-  issue: https://github.com/elastic/elasticsearch/issues/143638
-- class: org.elasticsearch.reindex.management.ReindexRelocationIT
-  method: testLocalReindexRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/143643
 - class: org.elasticsearch.xpack.eql.action.EqlLoggingIT
   method: testEqlLoggingPartialShardFailure
   issue: https://github.com/elastic/elasticsearch/issues/143659

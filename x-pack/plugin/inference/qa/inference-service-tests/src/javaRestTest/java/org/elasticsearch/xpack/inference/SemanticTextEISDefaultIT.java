@@ -13,11 +13,12 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_JINA_V5_INFERENCE_ID;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end test that verifies semantic_text fields automatically default to ELSER on EIS
+ * End-to-end test that verifies semantic_text fields automatically default to jina-embeddings-v5-text-small on EIS
  * when available and no inference_id is explicitly provided.
  */
 public class SemanticTextEISDefaultIT extends BaseMockEISAuthServerTest {
@@ -44,6 +45,11 @@ public class SemanticTextEISDefaultIT extends BaseMockEISAuthServerTest {
         mockEISServer.enqueueAuthorizeAllModelsResponse();
     }
 
+    @Before
+    public void ensureJinaV5EndpointExists() throws Exception {
+        assertBusy(() -> getModel(DEFAULT_EIS_JINA_V5_INFERENCE_ID));
+    }
+
     public void testDefaultInferenceIdForSemanticText() throws IOException {
         String indexName = "semantic-index";
         String mapping = """
@@ -62,9 +68,9 @@ public class SemanticTextEISDefaultIT extends BaseMockEISAuthServerTest {
         String populatedInferenceId = (String) XContentMapValues.extractValue("properties.semantic_text_field.inference_id", mappingAsMap);
 
         assertThat(
-            "semantic_text field should default to ELSER on EIS when available",
+            "semantic_text field should default to jina-embeddings-v5-text-small on EIS when available",
             populatedInferenceId,
-            equalTo(DEFAULT_EIS_ELSER_INFERENCE_ID)
+            equalTo(DEFAULT_EIS_JINA_V5_INFERENCE_ID)
         );
     }
 

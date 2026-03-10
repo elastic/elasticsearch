@@ -66,7 +66,10 @@ public class CleanupStep implements DlmStep {
     }
 
     /**
-     * Executes the cleanup step. Swaps the old backing index with the frozen index and deletes it atomically.
+     * Executes the cleanup step. If the old backing index is still part of a data stream, swaps it with the
+     * frozen index and then deletes the old backing index. If the old backing index is no longer in a data stream
+     * but the frozen index is (indicating the swap already succeeded, e.g. after a process/node restart), skips
+     * the swap and proceeds directly to deleting the old backing index to preserve idempotency.
      * @param stepContext The context and resources for executing the step.
      */
     @Override
@@ -77,8 +80,21 @@ public class CleanupStep implements DlmStep {
         String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
 
         if (dataStreamName == null) {
-            // If the old backing index is not part of a data stream, there's no need to swap for the searchable snapshot
-            logger.warn("Index [{}] is not part of a data stream, skipping DLM Cleanup Step", indexName);
+            // The old backing index is not part of a data stream. Check if the frozen index is already in a data stream,
+            // which indicates the swap completed but the old index was not deleted (e.g. due to a process/node restart).
+            String frozenDataStreamName = resolveDataStreamName(frozenIndexName, projectMetadata);
+            if (frozenDataStreamName != null) {
+                logger.info(
+                    "Index [{}] is no longer part of a data stream but frozen index [{}] is already in data stream [{}]. "
+                        + "Skipping swap and proceeding to delete the old backing index.",
+                    indexName,
+                    frozenIndexName,
+                    frozenDataStreamName
+                );
+                maybeDeleteIndices(indexName, stepContext);
+            } else {
+                logger.warn("Index [{}] is not part of a data stream, skipping DLM Cleanup Step", indexName);
+            }
             return;
         }
 
@@ -129,8 +145,8 @@ public class CleanupStep implements DlmStep {
     /**
      * Swaps a backing index in a data stream by issuing a {@link ModifyDataStreamsAction} request
      * with a remove action for the old index and an add action for the new frozen index. This is
-     * collapsed into a single cluster state update, making the operation atomic.
-     *
+     * collapsed into a single cluster state update, making the operation atomic. On success, proceeds
+     * to delete the old backing index and its clone.
      * @param dataStreamName the name of the data stream
      * @param oldIndex       the old backing index to remove
      * @param newIndex       the new frozen index to add
@@ -206,10 +222,14 @@ public class CleanupStep implements DlmStep {
         stepContext.executeDeduplicatedRequest(
             TransportDeleteIndexAction.TYPE.name(),
             deleteIndexRequest,
-            Strings.format("DLM service encountered an error during cleanup for original index [%s]", indexName),
+            Strings.format(
+                "DLM service encountered an error during cleanup for backing index [%s] and/or clone index [%s]",
+                indexName,
+                cloneIndexName
+            ),
             (req, reqListener) -> {
                 logger.debug(
-                    "DLM issuing request to delete backing index [{}] and clone index [{}] for cleanup",
+                    "DLM issuing request to delete backing index [{}] and/or clone index [{}] for cleanup",
                     indexName,
                     cloneIndexName
                 );
@@ -220,7 +240,7 @@ public class CleanupStep implements DlmStep {
                     .delete(deleteIndexRequest, ActionListener.wrap(resp -> {
                         if (resp.isAcknowledged()) {
                             logger.debug(
-                                "DLM Cleanup Step successfully completed cleanup for backing index [{}] & clone index [{}]",
+                                "DLM Cleanup Step successfully completed cleanup for backing index [{}] and/or clone index [{}]",
                                 indexName,
                                 cloneIndexName
                             );
@@ -228,7 +248,11 @@ public class CleanupStep implements DlmStep {
                         } else {
                             reqListener.onFailure(
                                 new ElasticsearchException(
-                                    Strings.format("DLM Cleanup Step failed to acknowledge delete of backing index [%s]", indexName)
+                                    Strings.format(
+                                        "DLM Cleanup Step failed to acknowledge delete of backing index [%s] and/or clone index",
+                                        indexName,
+                                        cloneIndexName
+                                    )
                                 )
                             );
                         }

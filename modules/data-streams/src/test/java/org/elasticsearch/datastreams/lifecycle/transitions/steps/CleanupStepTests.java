@@ -266,6 +266,29 @@ public class CleanupStepTests extends ESTestCase {
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
+    public void testExecuteDeletesOldIndexWhenSwapAlreadyCompletedButDeleteDidNot() {
+        // Simulate the state after a process/node restart between the swap and delete:
+        // the old backing index still exists but is no longer in the data stream,
+        // while the frozen index is already in the data stream.
+        ProjectState projectState = projectStateBuilder().withOldIndex().withFrozenIndexInDataStream().build();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        cleanupStep.execute(stepContext);
+
+        // Swap should NOT have been issued since it already completed
+        assertThat(capturedSwapRequest.get(), is(nullValue()));
+
+        // Delete should have been issued for the old backing index and clone index
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), arrayContainingInAnyOrder(indexName, cloneIndexName));
+
+        // Simulate acknowledged delete
+        capturedDeleteListener.get().onResponse(AcknowledgedResponse.of(true));
+
+        // No errors should be recorded
+        assertThat(errorStore.getError(projectId, indexName), is(nullValue()));
+    }
+
     /**
      * Creates a new {@link ProjectStateBuilder} for constructing test {@link ProjectState} instances.
      */

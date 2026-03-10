@@ -21,6 +21,7 @@ import org.elasticsearch.test.NodeShutdownTestUtils;
 
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -66,15 +67,20 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
                     SingleNodeShutdownMetadata.Type.RESTART
                 )
             );
+            final var unassigned = new AtomicBoolean();
             try {
                 awaitClusterState(state -> {
                     final var healthNode = HealthNode.findHealthNode(state);
-                    assertNotNull("health task must never become unassigned", healthNode);
+                    if (healthNode == null) {
+                        unassigned.set(true);
+                        return true;
+                    }
                     return healthNode.getId().equals(shutdownNodeId) == false;
                 });
+                assertFalse("health task must never be unassigned", unassigned.get());
 
                 final var newHealthNode = HealthNode.findHealthNode(internalCluster().clusterService().state());
-                assertNotNull("health task must never be unassigned", newHealthNode);
+                assertNotNull("health task must not be unassigned", newHealthNode);
                 assertNotEquals(
                     "health task must be reassigned after [" + currentHealthNodeName + "] is marked for shutdown",
                     newHealthNode.getId(),

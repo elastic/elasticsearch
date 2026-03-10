@@ -376,42 +376,20 @@ public class HashAggregationOperator implements Operator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        Block[] blocks = null;
+        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
         IntVector selected = null;
         long startInNanos = System.nanoTime();
-        boolean success = false;
         try {
             selected = blockHash.nonEmpty();
-            Block[] keys = blockHash.getKeys();
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-
-            // if (selected.getPositionCount() <= maxPageSize) {
-            // output = ReleasableIterator.single(addAggResults(blockHash.getKeys(), selected, aggBlockCounts));
-            // } else {
-            // output = new MultiPageResult(blockHash.getKeys(), selected, aggBlockCounts);
-            // selected = null; // Selected has moved into the output
-            // }
-            // } finally {
-            // Releasables.close(selected);
-            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            int offset = keys.length;
-            try (var evaluationContext = evaluationContext(blockHash, keys)) {
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
-                    evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
-                    offset += aggBlockCounts[i];
-                }
-                output = ReleasableIterator.single(new Page(blocks));
-                success = true;
+            if (selected.getPositionCount() <= maxPageSize) {
+                output = ReleasableIterator.single(addAggResults(blockHash.getKeys(), selected, aggBlockCounts));
+            } else {
+                output = new MultiPageResult(blockHash.getKeys(), selected, aggBlockCounts);
+                selected = null; // Selected has moved into the output
             }
         } finally {
             rowsAddedInCurrentBatch = 0;
-            // selected should always be closed
             Releasables.close(selected);
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }

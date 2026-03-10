@@ -70,6 +70,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         maxPageSize = randomPageSize();
         return randomBuilder().mode(mode)
+            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
             .aggregators(
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),

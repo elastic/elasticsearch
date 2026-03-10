@@ -104,7 +104,9 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
     }
 
     public String getBaseUrl() {
-        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        InetSocketAddress address = server.getAddress();
+        // Use "localhost" for the hostname to match SSL certificate SANs (works for both IPv4 and IPv6)
+        return "https://localhost:" + address.getPort();
     }
 
     private void registerGetAccessTokenHandler() {

@@ -174,7 +174,16 @@ public class SynonymTokenLimitBenchmarkIT extends ESIntegTestCase {
                 long heapUsedMb = memoryBean.getHeapMemoryUsage().getUsed() / (1024 * 1024);
                 status = rootCauseMessage(e);
                 long tokensPerMs = reloadMs > 0 ? tokenCount / reloadMs : 0;
-                logger.info("{} | {} | {} | {} | {} | {} MB | ? | {}", tier, tokenCount, writeMs, reloadMs, tokensPerMs, heapUsedMb, status);
+                logger.info(
+                    "{} | {} | {} | {} | {} | {} MB | ? | {}",
+                    tier,
+                    tokenCount,
+                    writeMs,
+                    reloadMs,
+                    tokensPerMs,
+                    heapUsedMb,
+                    status
+                );
                 logger.info("Exception at {} tokens — stopping", tokenCount);
                 break;
             }

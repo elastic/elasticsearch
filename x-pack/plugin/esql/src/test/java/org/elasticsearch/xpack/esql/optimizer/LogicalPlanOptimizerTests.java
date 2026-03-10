@@ -10467,4 +10467,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
         as(defaultLimit.child(), LocalRelation.class);
     }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[languages{f}#12,ASC,LAST]],10000[INTEGER],false]
+     * \_Aggregate[[languages{f}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c, languages{f}#12]]
+     *   \_Limit[2[INTEGER],[languages{f}#12],false,false]
+     *     \_TopN[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
+     */
+    public void testLimitByNotCombinedWithTopN() {
+        var plan = plan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 1000
+            | LIMIT 2 BY languages
+            | STATS c = COUNT(*) BY languages
+            | SORT languages ASC NULLS LAST
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
+        assertThat(orderNames(topN), contains("languages"));
+        var agg = as(topN.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("languages"));
+        var limit = as(agg.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(Expressions.names(limit.groupings()), contains("languages"));
+        var innerTopN = as(limit.child(), TopN.class);
+        assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(orderNames(innerTopN), contains("emp_no"));
+        as(innerTopN.child(), EsRelation.class);
+    }
 }

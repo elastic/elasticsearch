@@ -209,24 +209,6 @@ emp_no:integer | first_name:keyword | languages:integer
 10006          | Anneke             | 3
 ;
 
-limitByCounts
-required_capability: limit_by
-
-FROM employees
-| LIMIT 2 BY languages
-| STATS c = COUNT(*) BY languages
-| SORT languages ASC NULLS LAST
-;
-
-c:long | languages:integer
-2      | 1
-2      | 2
-2      | 3
-2      | 4
-2      | 5
-2      | null
-;
-
 limitByLimit0
 required_capability: limit_by
 
@@ -286,31 +268,12 @@ FROM employees
 | SORT emp_no
 | LIMIT 1000
 | LIMIT 5 BY job_positions
-| SORT emp_no, job_positions ASC
 | KEEP emp_no, first_name, job_positions
 ;
 
 emp_no:integer | first_name:keyword | job_positions:keyword
 10001          | Georgi             | [Accountant, Senior Python Developer]
 10008          | Saniya             | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
-;
-
-limitByPrecededByStats
-required_capability: limit_by
-
-FROM employees
-| STATS cnt=COUNT(*) BY job_positions, languages
-| LIMIT 1 BY job_positions
-| SORT job_positions, cnt
-| LIMIT 5
-;
-
-cnt:long | job_positions:keyword | languages:integer
-5        | Accountant            | 2
-5        | Architect             | 4
-1        | Business Analyst      | 1
-3        | Data Scientist        | 5
-5        | Head Human Resources  | 5
 ;
 
 limitByNullGroup
@@ -382,4 +345,40 @@ emp_no:integer | first_name:keyword | languages:integer
 10003          | Parto              | 4
 10004          | Chirstian          | 5
 10005          | Kyoichi            | 1
+;
+
+limitByThenStats
+required_capability: limit_by
+
+FROM employees
+| LIMIT 2 BY languages
+| STATS c = COUNT(*) BY languages
+| SORT languages ASC NULLS LAST
+;
+
+c:long | languages:integer
+2      | 1
+2      | 2
+2      | 3
+2      | 4
+2      | 5
+2      | null
+;
+
+limitByPrecededByStats
+required_capability: limit_by
+
+FROM employees
+| STATS cnt=COUNT(*) BY job_positions, languages
+| LIMIT 1 BY job_positions
+| SORT job_positions, cnt
+| LIMIT 5
+;
+
+cnt:long | job_positions:keyword | languages:integer
+5        | Accountant            | 2
+5        | Architect             | 4
+1        | Business Analyst      | 1
+3        | Data Scientist        | 5
+5        | Head Human Resources  | 5
 ;

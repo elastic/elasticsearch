@@ -295,25 +295,16 @@ required_capability: limit_by
 FROM employees
 | STATS cnt=COUNT(*) BY job_positions, languages
 | LIMIT 1 BY job_positions
+| SORT job_positions, cnt
+| LIMIT 5
 ;
 
 cnt:long | job_positions:keyword      | languages:integer
-5        | Accountant                 | 2
-3        | Senior Python Developer    | 2
-3        | Senior Team Lead           | 5
-3        | null                       | 4
-5        | Head Human Resources       | 5
-4        | Reporting Analyst          | 5
-4        | Support Engineer           | 5
-5        | Tech Lead                  | 5
-4        | Principal Support Engineer | 3
-3        | Internship                 | 2
-3        | Junior Developer           | 2
-4        | Purchase Manager           | 2
-5        | Architect                  | 4
-3        | Data Scientist             | 5
-2        | Python Developer           | 2
-1        | Business Analyst           | 1
+5        | Accountant            | 2
+5        | Architect             | 4
+1        | Business Analyst      | 1
+3        | Data Scientist        | 5
+5        | Head Human Resources  | 5
 ;
 
 limitByNullGroup

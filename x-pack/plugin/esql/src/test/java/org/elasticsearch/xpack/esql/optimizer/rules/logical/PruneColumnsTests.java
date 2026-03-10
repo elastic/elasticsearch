@@ -13,14 +13,19 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -37,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -2420,6 +2426,110 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         );
         var limit = as(dissect.child(), Limit.class);
         as(limit.child(), LocalRelation.class);
+    }
+
+    // === ExternalRelation pruning tests ===
+
+    public void testPruneColumnsInExternalRelation() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC));
+
+        // Project only col_a — col_b and col_c should be pruned
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
+    public void testNoPruningWhenAllColumnsUsedInExternalRelation() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        ExternalRelation ext = externalRelation(List.of(colA, colB));
+
+        // Project all columns — nothing should be pruned
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA, colB));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(2));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    public void testPruneColumnsInExternalRelationThroughEval() {
+        Attribute colA = extAttr("col_a", LONG);
+        Attribute colB = extAttr("col_b", LONG);
+        ExternalRelation ext = externalRelation(List.of(colA, colB));
+
+        // Eval references col_a, Project keeps only the computed field — col_b should be pruned
+        Alias computed = new Alias(EMPTY, "computed", colA);
+        Eval eval = new Eval(EMPTY, ext, List.of(computed));
+        LogicalPlan plan = new Project(EMPTY, eval, List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var resultEval = as(project.child(), Eval.class);
+        var prunedExt = as(resultEval.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
+    public void testPruneColumnsInExternalRelationWithFilter() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC));
+
+        // Filter references col_b, Project keeps col_a — both col_a and col_b should be retained, col_c pruned
+        var condition = new GreaterThan(EMPTY, colB, new Literal(EMPTY, 10L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, condition);
+        LogicalPlan plan = new Project(EMPTY, filter, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(2));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    private static Attribute extAttr(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static ExternalRelation externalRelation(List<Attribute> attributes) {
+        SourceMetadata metadata = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return attributes;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/data.parquet";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof SourceMetadata;
+            }
+
+            @Override
+            public int hashCode() {
+                return 1;
+            }
+        };
+        return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes);
     }
 
 }

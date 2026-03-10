@@ -105,12 +105,14 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int DEFAULT_MAX_SYNONYM_TOKENS = 100_000;
+    private static final int MAX_SYNONYM_TOKENS_UPPER_BOUND = 10_000_000;
     private static final int MAX_SCROLL_SYNONYM_RULES = 100_000;
 
     public static final Setting<Integer> MAX_SYNONYMS_SET_TOKENS_SETTING = Setting.intSetting(
         "synonyms.set.max_token_count",
         DEFAULT_MAX_SYNONYM_TOKENS,
         1,
+        MAX_SYNONYM_TOKENS_UPPER_BOUND,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

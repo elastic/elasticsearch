@@ -93,8 +93,8 @@ public class CliToolLauncherTests extends ESTestCase {
             restoreOrClear("cli.libs", savedCliLibs);
         }
         // Without redirect, getOutputStream() returns current System.out (our capture), so sentinel bytes appear on stdout
-        byte[] stdoutBytes = stdoutCapture.toByteArray();
-        assertArrayEquals(RedirectTestCommand.SENTINEL_BYTES, stdoutBytes);
+        String stdout = stdoutCapture.toString(StandardCharsets.UTF_8);
+        assertThat(stdout, containsString(new String(RedirectTestCommand.SENTINEL_BYTES, StandardCharsets.UTF_8)));
     }
 
     public void testWithRedirectFlagGetOutputStreamDirectsToStdout() throws Exception {

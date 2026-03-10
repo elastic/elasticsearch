@@ -15,7 +15,7 @@ null
 keepMapped
 required_capability: optional_fields_fix_unmapped_field_detection
 
-SET unmapped_fields="nullify";
+SET unmapped_fields="nullify"\;
 FROM date_nanos
 | SORT millis ASC
 | WHERE millis < "2000-01-01"

@@ -39,6 +39,6 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected String maybeRandomizeQuery(String query) {
-        randomlyNullify(query);
+        return randomlyNullify(query);
     }
 }

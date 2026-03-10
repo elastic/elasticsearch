@@ -905,13 +905,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *   \_ExchangeExec[[languages{f}#22, $$c$count{r}#33, $$c$seen{r}#34],true]
      *     \_AggregateExec[[languages{r}#22],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, languages{r}#22 AS language_c
      * ode#8],INITIAL,[languages{r}#22, $$c$count{r}#35, $$c$seen{r}#36],12]
-     *       \_GrokExec[first_name{f}#20,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@1f6c7c53],[foo{r}#13]]
-     *         \_FieldExtractExec[first_name{f}#20]<[],[]>
-     *           \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
-     *             \_FieldExtractExec[emp_no{f}#19]<[],[]>
-     *               \_EvalExec[[null[INTEGER] AS languages#22]]
-     *                 \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[112] queryBuilderAndTags
-     *                 [[QueryBuilderAndTags[query=null, tags=[]]]]
+     *       \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *         \_FieldExtractExec[emp_no{f}#19]<[],[]>
+     *           \_EvalExec[[null[INTEGER] AS languages#22]]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
+     *             [[QueryBuilderAndTags[query=null, tags=[]]]]
      * }</pre>
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
@@ -933,11 +931,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        var grok = as(agg.child(), GrokExec.class);
-        var extract1 = as(grok.child(), FieldExtractExec.class);
-        var mvExpand = as(extract1.child(), MvExpandExec.class);
-        var extract2 = as(mvExpand.child(), FieldExtractExec.class);
-        var eval = as(extract2.child(), EvalExec.class);
+        var mvExpand = as(agg.child(), MvExpandExec.class);
+        var fieldExtract = as(mvExpand.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
     }
 

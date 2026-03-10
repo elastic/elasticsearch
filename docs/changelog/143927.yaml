@@ -1,0 +1,5 @@
+pr: 143927
+summary: Add reasoning capability checks for unified completion requests
+area: Inference
+type: bug
+issues: []

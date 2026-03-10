@@ -80,7 +80,7 @@ Which returns
 To use a custom regex file for parsing the user agents, that file has to be put into the `config/user-agent` directory and has to have a `.yml` filename extension. The file has to be present at node startup, any changes to it or any new files added while the node is running will not have any effect.
 
 ::::{note}
-Prior to 9.4, this directory was named `config/ingest-user-agent`. The old directory name is still supported as a fallback but is deprecated.
+Before version 9.4, this directory was named `config/ingest-user-agent`. The old directory name is still supported as a fallback but is deprecated.
 ::::
 
 In practice, it will make most sense for any custom regex file to be a variant of the default file, either a more recent version or a customised version.

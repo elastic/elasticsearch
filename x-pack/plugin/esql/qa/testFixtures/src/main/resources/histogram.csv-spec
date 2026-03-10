@@ -489,6 +489,24 @@ time:datetime            | count:long
 
 // -------------------------------------------------------------------------------
 
+Histogram converted to tdigest in first_over_time and last_over_time
+required_capability: ts_command_v0
+required_capability: tdigest_first_last_over_time
+
+TS histogram_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS first_count = COUNT(first_over_time(to_tdigest(responseTime))),
+         last_count = COUNT(last_over_time(to_tdigest(responseTime)))
+         BY time = TBUCKET(1d)
+ | KEEP time, first_count, last_count
+;
+
+time:datetime            | first_count:long | last_count:long
+2025-09-25T00:00:00.000Z | 135              | 142
+;
+
+// -------------------------------------------------------------------------------
+
 // this specifically tests the interaction with PushCountQueryAndTagsToSource rule
 Top level date group with no other groups (timeseries index)
 required_capability: ts_command_v0

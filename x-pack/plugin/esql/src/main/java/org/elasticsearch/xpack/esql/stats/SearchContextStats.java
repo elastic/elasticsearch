@@ -18,7 +18,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -305,12 +304,12 @@ public class SearchContextStats implements SearchStats {
 
     // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
     private static Long docValuesSkipperMinValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMinValue(new IndexSearcher(leafContext.reader()), field);
+        long value = DocValuesSkipper.globalMinValue(leafContext.reader(), field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 
     private static Long docValuesSkipperMaxValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMaxValue(new IndexSearcher(leafContext.reader()), field);
+        long value = DocValuesSkipper.globalMaxValue(leafContext.reader(), field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 

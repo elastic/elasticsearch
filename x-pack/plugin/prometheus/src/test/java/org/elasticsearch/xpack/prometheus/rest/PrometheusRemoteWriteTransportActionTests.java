@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -76,15 +77,11 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testSuccess() {
-        RemoteWriteResponse response = executeRequest(createWriteRequest("test_metric", 42.0, System.currentTimeMillis()));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createWriteRequest("test_metric", 42.0, System.currentTimeMillis()));
     }
 
     public void testSuccessEmptyRequest() {
-        RemoteWriteResponse response = executeRequest(createEmptyWriteRequest());
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createEmptyWriteRequest());
     }
 
     public void testSuccessWithMultipleTimeseries() {
@@ -95,9 +92,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .addTimeseries(createTimeSeries("metric_three_total", 3.0, now))
             .build();
 
-        RemoteWriteResponse response = executeRequest(createWriteRequest(writeRequest, "generic", "default"));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createWriteRequest(writeRequest, "generic", "default"));
     }
 
     public void testSuccessWithMultipleSamples() {
@@ -114,9 +109,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(createWriteRequest(writeRequest, "generic", "default"));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createWriteRequest(writeRequest, "generic", "default"));
     }
 
     public void test429() {
@@ -124,12 +117,12 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             failureResponse("metrics-generic.prometheus-default", RestStatus.TOO_MANY_REQUESTS, "too many requests"),
             successResponse() };
 
-        RemoteWriteResponse response = executeRequest(
+        Exception e = executeRequestExpectingFailure(
             createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
             new BulkResponse(bulkItemResponses, 0)
         );
 
-        assertThat(response.getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testPartialSuccess() {
@@ -137,42 +130,37 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             failureResponse("metrics-generic.prometheus-default", RestStatus.BAD_REQUEST, "bad request"),
             successResponse() };
 
-        RemoteWriteResponse response = executeRequest(
+        Exception e = executeRequestExpectingFailure(
             createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
             new BulkResponse(bulkItemResponses, 0)
         );
 
-        // Per remote write spec: MUST return 400 for requests containing invalid samples
-        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
-        assertNotNull(response.getMessage());
-        assertThat(response.getMessage(), containsString("bad request"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("bad request"));
     }
 
     public void testBulkFailure() {
-        RemoteWriteResponse response = executeRequest(
+        Exception e = executeRequestExpectingFailure(
             createWriteRequest("test_metric", 42.0, System.currentTimeMillis()),
             new IllegalStateException("bulk failure")
         );
 
-        assertThat(response.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testInvalidProtobufReturns400() {
-        // Invalid protobuf bytes should return 400 Bad Request (not 500)
-        // per Prometheus remote write spec: 4xx for invalid requests that should not be retried
         RemoteWriteRequest request = createWriteRequest(new byte[] { 0x00, 0x01, 0x02, 0x03 }, "generic", "default");
 
         @SuppressWarnings("unchecked")
         ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
         action.doExecute(null, request, responseListener);
 
-        ArgumentCaptor<RemoteWriteResponse> response = ArgumentCaptor.forClass(RemoteWriteResponse.class);
-        verify(responseListener).onResponse(response.capture());
-        assertThat(response.getValue().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exception.capture());
+        assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testTimeseriesWithoutNameLabelReturns400() {
-        // Timeseries without __name__ label are invalid samples
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
                 RemoteWrite.TimeSeries.newBuilder()
@@ -182,16 +170,13 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(createWriteRequest(writeRequest, "generic", "default"));
+        Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"));
 
-        // Per remote write spec: MUST return 400 for requests containing invalid samples
-        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
-        assertNotNull(response.getMessage());
-        assertThat(response.getMessage(), containsString("missing __name__ label"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("missing __name__ label"));
     }
 
     public void testPartialSuccessWithDroppedSamples() {
-        // Mix of valid timeseries and timeseries without __name__ label, bulk succeeds for valid ones
         long now = System.currentTimeMillis();
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(createTimeSeries("valid_metric", 1.0, now))
@@ -203,12 +188,10 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(createWriteRequest(writeRequest, "generic", "default"));
+        Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"));
 
-        // Per remote write spec: MUST return 400 for requests containing invalid samples
-        assertThat(response.getStatus(), equalTo(RestStatus.BAD_REQUEST));
-        assertNotNull(response.getMessage());
-        assertThat(response.getMessage(), containsString("missing __name__ label"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("missing __name__ label"));
     }
 
     public void testReleasesIndexingPressureAfterBulkExecute() {
@@ -268,40 +251,57 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     }
 
     public void testCustomDatasetAndNamespace() {
-        RemoteWriteResponse response = executeRequest(
-            createWriteRequest("test_metric", 42.0, System.currentTimeMillis(), "myapp", "production")
-        );
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createWriteRequest("test_metric", 42.0, System.currentTimeMillis(), "myapp", "production"));
     }
 
-    private RemoteWriteResponse executeRequest(RemoteWriteRequest request) {
-        return executeRequest(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
+    private void executeRequest(RemoteWriteRequest request) {
+        executeRequest(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
     }
 
-    private RemoteWriteResponse executeRequest(RemoteWriteRequest request, BulkResponse bulkResponse) {
-        return executeRequest(request, listener -> listener.onResponse(bulkResponse));
+    private void executeRequest(RemoteWriteRequest request, Consumer<ActionListener<BulkResponse>> bulkResponseConsumer) {
+        @SuppressWarnings("unchecked")
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        doExecuteRequest(request, bulkResponseConsumer, responseListener);
+        verify(responseListener).onResponse(any());
     }
 
-    private RemoteWriteResponse executeRequest(RemoteWriteRequest request, Exception bulkFailure) {
-        return executeRequest(request, listener -> listener.onFailure(bulkFailure));
+    private Exception executeRequestExpectingFailure(RemoteWriteRequest request) {
+        return executeRequestExpectingFailure(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
     }
 
-    private RemoteWriteResponse executeRequest(RemoteWriteRequest request, Consumer<ActionListener<BulkResponse>> bulkResponseConsumer) {
+    private Exception executeRequestExpectingFailure(RemoteWriteRequest request, BulkResponse bulkResponse) {
+        return executeRequestExpectingFailure(request, listener -> listener.onResponse(bulkResponse));
+    }
+
+    private Exception executeRequestExpectingFailure(RemoteWriteRequest request, Exception bulkFailure) {
+        return executeRequestExpectingFailure(request, listener -> listener.onFailure(bulkFailure));
+    }
+
+    private Exception executeRequestExpectingFailure(
+        RemoteWriteRequest request,
+        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer
+    ) {
+        @SuppressWarnings("unchecked")
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        doExecuteRequest(request, bulkResponseConsumer, responseListener);
+        ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exception.capture());
+        return exception.getValue();
+    }
+
+    private void doExecuteRequest(
+        RemoteWriteRequest request,
+        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer,
+        ActionListener<RemoteWriteResponse> responseListener
+    ) {
         ArgumentCaptor<ActionListener<BulkResponse>> bulkResponseListener = ArgumentCaptor.captor();
         doNothing().when(client).execute(any(), any(), bulkResponseListener.capture());
 
-        @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
         action.doExecute(null, request, responseListener);
 
         if (bulkResponseListener.getAllValues().isEmpty() == false) {
             bulkResponseConsumer.accept(bulkResponseListener.getValue());
         }
-
-        ArgumentCaptor<RemoteWriteResponse> response = ArgumentCaptor.forClass(RemoteWriteResponse.class);
-        verify(responseListener).onResponse(response.capture());
-        return response.getValue();
     }
 
     private RemoteWriteRequest createEmptyWriteRequest() {

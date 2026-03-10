@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -2650,22 +2651,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testResourcesNotClearedWhenShardClosedWithoutDelete() throws Exception {
-        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected StatelessCommitCleaner createCommitCleaner(
-                StatelessClusterConsistencyService consistencyService,
-                ThreadPool threadPool,
-                ObjectStoreService objectStoreService
-            ) {
-                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
-                    @Override
-                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
-                        deletedCommits.add(staleCompoundCommit);
-                    }
-                };
-            }
-        }) {
+        final Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        final Map<Long, SubscribableListener<Void>> notifiedUploadedGenerations = ConcurrentCollections.newConcurrentMap();
+        try (var testHarness = createNodeWithCommitDeletionAndNotificationTrackings(deletedCommits, notifiedUploadedGenerations)) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
 
@@ -2679,6 +2667,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
                 waitUntilBCCIsUploaded(commitService, shardId, commitRef.getGeneration());
             }
+            // Wait for the notification for the last commit to ensure searchNodesRef won't change anymore
+            safeAwait(
+                notifiedUploadedGenerations.computeIfAbsent(commits.getLast().getGeneration(), ignore -> new SubscribableListener<>())
+            );
 
             // Inc-ref on each blob reference, but otherwise release all other references so that we can focus on dec-ref after close
             final var shardCommitState = (StatelessCommitService.ShardCommitState) commitService.getCommitBCCResolverForShard(shardId);
@@ -2700,22 +2692,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testResourcesClearedWhenShardDeletedAndClosed() throws Exception {
-        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
-            @Override
-            protected StatelessCommitCleaner createCommitCleaner(
-                StatelessClusterConsistencyService consistencyService,
-                ThreadPool threadPool,
-                ObjectStoreService objectStoreService
-            ) {
-                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
-                    @Override
-                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
-                        deletedCommits.add(staleCompoundCommit);
-                    }
-                };
-            }
-        }) {
+        final Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        final Map<Long, SubscribableListener<Void>> notifiedUploadedGenerations = ConcurrentCollections.newConcurrentMap();
+        try (var testHarness = createNodeWithCommitDeletionAndNotificationTrackings(deletedCommits, notifiedUploadedGenerations)) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
 
@@ -2729,7 +2708,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
                 waitUntilBCCIsUploaded(commitService, shardId, commitRef.getGeneration());
             }
-
+            // Wait for the notification for the last commit to ensure searchNodesRef won't change anymore
+            safeAwait(
+                notifiedUploadedGenerations.computeIfAbsent(commits.getLast().getGeneration(), ignore -> new SubscribableListener<>())
+            );
             // Inc-ref on each blob reference, but otherwise release all other references so that we can focus on dec-ref after close
             final var shardCommitState = (StatelessCommitService.ShardCommitState) commitService.getCommitBCCResolverForShard(shardId);
             final var releasables = commits.stream()
@@ -2757,6 +2739,50 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.unregister(shardId);
 
         }
+    }
+
+    private FakeStatelessNode createNodeWithCommitDeletionAndNotificationTrackings(
+        Set<StaleCompoundCommit> deletedCommits,
+        Map<Long, SubscribableListener<Void>> notifiedUploadedGenerations
+    ) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedCommits.add(staleCompoundCommit);
+                    }
+                };
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                final NodeClient delegate = super.createClient(nodeSettings, threadPool);
+                return new NoOpNodeClient(threadPool) {
+                    @Override
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        if (request instanceof NewCommitNotificationRequest newCommitNotificationRequest) {
+                            if (newCommitNotificationRequest.isUploaded()) {
+                                notifiedUploadedGenerations.computeIfAbsent(
+                                    newCommitNotificationRequest.getCompoundCommit().primaryTermAndGeneration().generation(),
+                                    ignore -> new SubscribableListener<>()
+                                ).onResponse(null);
+                            }
+                        }
+                        delegate.doExecute(action, request, listener);
+                    }
+                };
+            }
+        };
     }
 
     private Set<StaleCompoundCommit> staleCommits(List<StatelessCommitRef> commits, ShardId shardId) {

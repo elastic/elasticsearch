@@ -58,8 +58,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
-    // ==================== Synchronous iterate() tests ====================
-
     public void testInOrderIteration() throws IOException {
         int docCount = random().nextInt(300) + 100;
         Directory directory = newDirectory();
@@ -159,15 +157,13 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         directory.close();
     }
 
-    // ==================== Asynchronous iterateAsync() tests ====================
-
     public void testIterateAsyncNullOrEmptyDocIds() throws Exception {
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         TestChunkWriter chunkWriter = new TestChunkWriter();
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
-        FetchPhaseDocsIterator it = createIterator();
+        StreamingFetchPhaseDocsIterator it = createStreamingIterator();
 
         PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
         CountDownLatch refsComplete = new CountDownLatch(1);
@@ -209,7 +205,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             new int[] { 0 },
@@ -257,7 +253,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -298,7 +294,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -355,7 +351,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -394,7 +390,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -432,7 +428,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         // Iterator that cancels after processing some docs
         AtomicInteger processedDocs = new AtomicInteger(0);
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 
@@ -486,7 +482,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
         // Iterator that throws after processing some docs
-        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator it = new StreamingFetchPhaseDocsIterator() {
             private int count = 0;
 
             @Override
@@ -542,7 +538,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -592,7 +588,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        createIterator().iterateAsync(
+        createStreamingIterator().iterateAsync(
             createShardTarget(),
             docs.reader,
             docs.docIds,
@@ -637,8 +633,8 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         return new SearchShardTarget("node1", new ShardId(new Index("test", "uuid"), 0), null);
     }
 
-    private static FetchPhaseDocsIterator createIterator() {
-        return new FetchPhaseDocsIterator() {
+    private static StreamingFetchPhaseDocsIterator createStreamingIterator() {
+        return new StreamingFetchPhaseDocsIterator() {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
 

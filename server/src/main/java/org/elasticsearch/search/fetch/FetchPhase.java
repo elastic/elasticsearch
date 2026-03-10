@@ -221,7 +221,7 @@ public final class FetchPhase {
      * Creates the docs iterator that handles per-document fetching and sub-phase processing.
      * Shared between sync and streaming modes; the memoryChecker parameter controls per-hit memory accounting.
      */
-    private FetchPhaseDocsIterator createDocsIterator(
+    private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,
         Profiler profiler,
         RankDocShardInfo rankDocs,
@@ -282,7 +282,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        return new FetchPhaseDocsIterator() {
+        return new StreamingFetchPhaseDocsIterator() {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -430,7 +430,7 @@ public final class FetchPhase {
     private void buildSearchHitsStreaming(
         SearchContext context,
         int[] docIdsToLoad,
-        FetchPhaseDocsIterator docsIterator,
+        StreamingFetchPhaseDocsIterator docsIterator,
         FetchPhaseResponseChunk.Writer writer,
         @Nullable ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
@@ -441,7 +441,7 @@ public final class FetchPhase {
         final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
         final AtomicLong lastChunkByteSizeRef = new AtomicLong(0);
 
-        final int targetChunkBytes = FetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
+        final int targetChunkBytes = StreamingFetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
         // RefCountingListener tracks chunk ACKs in streaming mode.
         // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives.

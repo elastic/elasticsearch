@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 143949
+summary: "[Draft] Reproducer for TSDB issue with sequence numbers disabled and ES819TSDBDocValuesConsumer"
+type: bug

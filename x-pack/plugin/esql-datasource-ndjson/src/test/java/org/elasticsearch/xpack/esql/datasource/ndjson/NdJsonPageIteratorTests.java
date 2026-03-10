@@ -23,9 +23,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class NdJsonPageIteratorTests extends ESTestCase {
@@ -178,6 +181,50 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 assertEquals(3, page.getPositionCount());
             }
         }
+    }
+
+    // --- findNextRecordBoundary tests ---
+
+    public void testFindNextRecordBoundaryNewline() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLF() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCROnly() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
+        int expected = "{\"key\":\"value\"}\r".length();
+        assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] padding = new byte[8191];
+        Arrays.fill(padding, (byte) 'x');
+        byte[] suffix = "\r\nmore\n".getBytes(StandardCharsets.UTF_8);
+        byte[] data = new byte[padding.length + suffix.length];
+        System.arraycopy(padding, 0, data, 0, padding.length);
+        System.arraycopy(suffix, 0, data, padding.length, suffix.length);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals(8193, boundary);
+    }
+
+    public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryEmptyStream() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {

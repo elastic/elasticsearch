@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -64,5 +65,26 @@ public class EsqlLogContext extends ActivityLoggerContext {
 
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
+    }
+
+    // CCS stuff
+
+    /**
+     * Does this search refer to other clusters?
+     */
+    public boolean isCrossClusterSearch() {
+        // TODO: this does not account for CCS failures.
+        return response != null && response.getExecutionInfo().isCrossClusterSearch();
+    }
+
+    public long remoteClusterCount() {
+        return response != null
+            ? response.getExecutionInfo()
+                .getClusters()
+                .entrySet()
+                .stream()
+                .filter(alias -> alias.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
+                .count()
+            : 0;
     }
 }

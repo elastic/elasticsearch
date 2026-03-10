@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -37,10 +38,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,9 +109,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return plan;
         }
 
-        var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
-        var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
-        return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
+        var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
+        return transformed == plan ? plan : refreshPlan(transformed, unresolved);
     }
 
     /**
@@ -120,7 +122,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * <p>
      * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UnionAll).
      */
-    private static LogicalPlan nullify(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
+    private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
         var transformed = plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
@@ -200,50 +202,46 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * Update the Fork's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
      */
     private static Fork patchFork(Fork fork) {
-        List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-        boolean childrenChanged = false;
-        for (var child : fork.children()) {
-            Holder<Boolean> patched = new Holder<>(false);
-            var transformed = child.transformDown(
-                // TODO add a suitable forEachDownMayReturnEarly equivalent
-                n -> patched.get() == false && n instanceof Project, // process top Project only (Fork-injected)
-                n -> {
-                    patched.set(true);
-                    return patchForkProject((Project) n);
+        Holder<Boolean> changed = new Holder<>(false);
+        Fork transformed = (Fork) fork.transformDownSkipBranch((plan, skip) -> {
+            if (plan instanceof Project project) {
+                skip.set(true); // process top Project only (Fork-injected)
+                plan = patchForkProject(project);
+                if (plan != project) {
+                    changed.set(Boolean.TRUE);
                 }
-            );
-            childrenChanged |= transformed != child;
-            newChildren.add(transformed);
-        }
-        return childrenChanged ? fork.withSubPlans(newChildren) : fork;
+            }
+            return plan;
+        });
+
+        return changed.get() ? transformed.refreshOutput() : fork;
     }
 
     /**
      * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
      * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
      */
+    // Maybe using ResolvingProjects at the top of the Fork branches would be a more simple solution; adding the `*` pattern
+    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the fork output.
     private static Project patchForkProject(Project project) {
-        var projectOutput = project.output();
-        var childOutput = project.child().output();
+        List<Attribute> projectOutput = project.output();
+        List<Attribute> childOutput = project.child().output();
         if (projectOutput.equals(childOutput) == false) {
             List<Attribute> delta = new ArrayList<>(childOutput);
             delta.removeAll(projectOutput);
-            project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
+            if (delta.isEmpty() == false) {
+                project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
+            }
         }
         return project;
-    }
-
-    private static LogicalPlan refreshPlan(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        var refreshed = refreshUnresolved(plan, unresolved);
-        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 
     /**
      * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
      * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
      */
-    private static LogicalPlan refreshUnresolved(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
             if (unresolved.contains(ua)) {
                 unresolved.remove(ua);
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
@@ -252,19 +250,25 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             }
             return ua;
         });
+        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 
     /**
      * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
      */
-    private static LogicalPlan evalUnresolvedAtopNary(LogicalPlan nAry, List<Alias> nullAliases) {
+    private static LogicalPlan evalUnresolvedBelowNary(LogicalPlan nAry, LinkedHashSet<UnresolvedAttribute> unresolved) {
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
-            if (child instanceof LeafPlan source) {
+            if (child instanceof LeafPlan source
+                // skip right-sides of the Joins
+                && (nAry instanceof Join == false || child == ((Join) nAry).left())) {
                 assertSourceType(source);
-                child = new Eval(source.source(), source, nullAliases);
-                changed = true;
+                var nullAliases = removeShadowing(nullAliases(unresolved), source.output());
+                if (nullAliases.isEmpty() == false) {
+                    child = new Eval(source.source(), source, nullAliases);
+                    changed = true;
+                }
             }
             newChildren.add(child);
         }
@@ -310,13 +314,30 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             }
             return new Eval(eval.source(), eval.child(), combine(pre, eval.fields(), post));
         } else {
-            return unaryAtopSource.replaceChild(new Eval(unaryAtopSource.source(), unaryAtopSource.child(), nullAliases));
+            List<Alias> filteredNullAliases = removeShadowing(nullAliases, unaryAtopSource.child().output());
+            var newChild = filteredNullAliases.isEmpty()
+                ? unaryAtopSource.child()
+                : new Eval(unaryAtopSource.source(), unaryAtopSource.child(), filteredNullAliases);
+            return unaryAtopSource.replaceChild(newChild);
         }
+    }
+
+    private static List<Alias> removeShadowing(List<Alias> aliases, List<Attribute> exclude) {
+        Set<String> excludeNames = new HashSet<>(Expressions.names(exclude));
+        aliases.removeIf(a -> excludeNames.contains(a.name()));
+        return aliases;
     }
 
     private static void assertSourceType(LogicalPlan source) {
         switch (source) {
-            case EsRelation unused -> {
+            case EsRelation esRelation -> {
+                IndexMode mode = esRelation.indexMode();
+                if ((mode == IndexMode.STANDARD || mode == IndexMode.TIME_SERIES) == false) {
+                    throw new EsqlIllegalArgumentException(
+                        "invalid source type [{}] for unmapped field resolution",
+                        esRelation.indexMode()
+                    );
+                }
             }
             case Row unused -> {
             }
@@ -326,7 +347,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
     }
 
-    private static List<Alias> nullAliases(Set<UnresolvedAttribute> unresolved) {
+    private static List<Alias> nullAliases(LinkedHashSet<UnresolvedAttribute> unresolved) {
         List<Alias> aliases = new ArrayList<>(unresolved.size());
         unresolved.forEach(u -> aliases.add(nullAlias(u)));
         return aliases;
@@ -336,24 +357,19 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return new Alias(attribute.source(), attribute.name(), NULLIFIED);
     }
 
-    // Some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval): dedupe
-    private static LinkedHashSet<UnresolvedAttribute> unresolvedLinkedSet(List<UnresolvedAttribute> unresolved) {
-        Map<String, UnresolvedAttribute> aliasesMap = new LinkedHashMap<>(unresolved.size());
-        unresolved.forEach(u -> aliasesMap.putIfAbsent(u.name(), u));
-        return new LinkedHashSet<>(aliasesMap.values());
-    }
-
     /**
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, but excluding the {@link UnresolvedPattern} and
      * {@link UnresolvedTimestamp} subtypes.
      */
-    public static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
-        List<UnresolvedAttribute> unresolved = new ArrayList<>();
+    private static LinkedHashSet<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
+        Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
+        LinkedHashMap<String, UnresolvedAttribute> unresolved = new LinkedHashMap<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
-            // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
-            if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false
-                && MetadataAttribute.isSupported(ua.name()) == false) {
-                unresolved.add(ua);
+            if (leaveUnresolved(ua) == false
+                // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
+                // as they'll be resolved as refs once the aliased expression is resolved.
+                && aliasedGroupings.contains(ua.name()) == false) {
+                unresolved.putIfAbsent(ua.name(), ua);
             }
         };
         if (plan instanceof PromqlCommand promqlCommand) {
@@ -363,6 +379,27 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         } else {
             plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
         }
-        return unresolved;
+        return new LinkedHashSet<>(unresolved.values());
+    }
+
+    private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
+        return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
+        // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
+            || MetadataAttribute.isSupported(attribute.name());
+    }
+
+    /**
+     * @return the names of the aliases used in the grouping expressions of any Aggregate found in the plan.
+     */
+    private static Set<String> aliasNamesInAggregateGroupings(LogicalPlan plan) {
+        Set<String> aliasNames = new HashSet<>();
+        plan.forEachUp(Aggregate.class, agg -> {
+            for (var grouping : agg.groupings()) {
+                if (grouping instanceof Alias alias) {
+                    aliasNames.add(alias.name());
+                }
+            }
+        });
+        return aliasNames;
     }
 }

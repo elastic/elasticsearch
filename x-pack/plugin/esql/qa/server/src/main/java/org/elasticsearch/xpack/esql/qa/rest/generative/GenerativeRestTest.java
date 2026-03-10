@@ -217,8 +217,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema)
-                            .success() == false) {
+                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
@@ -477,9 +476,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Captures both the source and target of a RENAME clause, e.g. {@code old_field AS new_field}.
      * Group 1 is the source (possibly back-tick quoted), group 2 is the target.
      */
-    private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile(
-        "\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*"
-    );
+    private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile("\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*");
 
     /**
      * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
@@ -540,9 +537,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
             case "stats", "inline stats" -> {
-                return newSchema.stream()
-                    .map(col -> new Column(col.name(), col.type(), col.originalTypes(), false))
-                    .toList();
+                return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
             }
             case "rename" -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());

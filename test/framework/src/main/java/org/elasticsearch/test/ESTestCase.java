@@ -94,6 +94,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -128,6 +129,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -621,9 +623,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        CircuitBreaker breaker = new LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
+    }
+
+    protected static CircuitBreakerService newLimitedBreakerService(ByteSizeValue max) {
+        CircuitBreakerService service = LimitedBreaker.service("<es-test-case>", max);
+        breakers.add(service.getBreaker(CircuitBreaker.REQUEST));
+        return service;
     }
 
     @After

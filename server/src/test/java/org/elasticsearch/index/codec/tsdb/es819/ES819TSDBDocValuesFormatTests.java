@@ -71,8 +71,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -143,7 +143,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         boolean sparse = randomBoolean();
         int numBlocksBound = 10;
         // Since average size is 25b will hit count threshold rather than size threshold, so use count threshold compute needed docs.
-        int numNonNullValues = randomIntBetween(0, numBlocksBound * BLOCK_COUNT_THRESHOLD);
+        int numNonNullValues = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
 
         List<String> binaryValues = new ArrayList<>();
         int numNonNull = 0;
@@ -164,7 +164,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public void testBlockWiseBinarySmallValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;
-        int numNonNullValues = randomIntBetween(0, numBlocksBound * BLOCK_COUNT_THRESHOLD);
+        int numNonNullValues = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
 
         List<String> binaryValues = new ArrayList<>();
         int numNonNull = 0;
@@ -186,7 +186,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         List<String> binaryValues = new ArrayList<>();
         int numSequences = 10;
         for (int i = 0; i < numSequences; i++) {
-            int numInSequence = randomIntBetween(0, 3 * BLOCK_COUNT_THRESHOLD);
+            int numInSequence = randomIntBetween(0, 3 * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
             boolean emptySequence = randomBoolean();
             for (int j = 0; j < numInSequence; j++) {
                 binaryValues.add(emptySequence ? "" : randomAlphaOfLengthBetween(0, 5));
@@ -198,14 +198,17 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public void testBlockWiseBinaryLargeValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;
-        int binaryDataSize = randomIntBetween(0, numBlocksBound * BLOCK_BYTES_THRESHOLD);
+        int binaryDataSize = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT);
         List<String> binaryValues = new ArrayList<>();
         int totalSize = 0;
         while (totalSize < binaryDataSize) {
             if (sparse && randomBoolean()) {
                 binaryValues.add(null);
             } else {
-                final String value = randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD);
+                final String value = randomAlphaOfLengthBetween(
+                    BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT / 2,
+                    2 * BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT
+                );
                 binaryValues.add(value);
                 totalSize += value.length();
             }

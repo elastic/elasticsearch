@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
@@ -92,8 +93,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature, restHandlersServices.settings()),
+            new RestReindexAction(clusterSupportsFeature, settings),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),

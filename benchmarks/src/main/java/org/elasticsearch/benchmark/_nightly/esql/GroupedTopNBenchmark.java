@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
@@ -139,7 +141,7 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            groupKeys,
+            new GroupKeyEncoder(groupKeys, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
             8 * 1024,
             Long.MAX_VALUE
         );

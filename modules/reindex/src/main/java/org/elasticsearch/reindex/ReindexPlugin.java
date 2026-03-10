@@ -109,7 +109,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
-            new RestReindexRethrottleAction(nodesInCluster)
+            new RestReindexRethrottleAction(nodesInCluster, settings)
         );
     }
 

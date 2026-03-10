@@ -141,10 +141,13 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
         } catch (InvalidProtocolBufferException e) {
             // Invalid protobuf is a client error - return 400 so clients don't retry
-            listener.onResponse(new RemoteWriteResponse(RestStatus.BAD_REQUEST));
+            listener.onResponse(
+                new RemoteWriteResponse(RestStatus.BAD_REQUEST, "Invalid Prometheus remote write payload: " + e.getMessage())
+            );
         } catch (Exception e) {
-            logger.error("Failed to process Prometheus remote write request", e);
-            listener.onResponse(new RemoteWriteResponse(ExceptionsHelper.status(e)));
+            listener.onResponse(
+                new RemoteWriteResponse(ExceptionsHelper.status(e), "Failed to process Prometheus remote write request: " + e.getMessage())
+            );
         }
     }
 

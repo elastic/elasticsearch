@@ -15,6 +15,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.IndexingPressureAwareContentAggregator;
 import org.elasticsearch.rest.RestChannel;
@@ -35,6 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(PrometheusRemoteWriteRestAction.class);
 
     private final IndexingPressure indexingPressure;
     private final long maxRequestSizeBytes;
@@ -98,6 +102,11 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                             @Override
                             public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
                                 if (r.getMessage() != null) {
+                                    logger.debug(
+                                        "Remote write request failed with status [{}] and message [{}]",
+                                        r.getStatus(),
+                                        r.getMessage()
+                                    );
                                     return new RestResponse(r.getStatus(), r.getMessage());
                                 }
                                 return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
@@ -108,6 +117,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
                 @Override
                 public void onFailure(RestChannel channel, Exception e) {
+                    logger.debug("Remote write request failed during content aggregation", e);
                     channel.sendResponse(
                         new RestResponse(ExceptionsHelper.status(e), RestResponse.TEXT_CONTENT_TYPE, new BytesArray(e.getMessage()))
                     );

@@ -346,22 +346,7 @@ tests:
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
   # START TSDB synthetic ID / feature flag removal - PR 142366
-# TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(TsidExtractingIdFieldMapper.java:179) assert id.length > Long.BYTES + Integer.BYTES;
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-  # ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.index.mapper.SourceFieldMapperTests
-  methods:
-    - testRecoverySourceWithTimeSeriesCustom
-    - testRecoverySourceWithTimeSeries
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-  # TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
-- class: org.elasticsearch.datastreams.TSDBIndexingIT
-  method: testTrimId
-  issue: https://github.com/elastic/elasticsearch/pull/142366
+  # Any remaning tests here...
   # END TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResults

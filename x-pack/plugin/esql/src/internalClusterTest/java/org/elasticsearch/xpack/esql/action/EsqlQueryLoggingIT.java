@@ -131,10 +131,14 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         setupIndex("esql_partial_test", "1.1.1.1");
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
-        awaitClusterState(
-            state -> RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty() == false
-        );
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertFalse(
+                "expected some unassigned shards",
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+            );
+        });
 
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM esql_partial_test | LIMIT 100").allowPartialResults(true);
         try (var resp = run(request)) {

@@ -22,13 +22,19 @@ import java.util.List;
 public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryProvider {
 
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
-    private final Setting<Long> deprecatedCacheSizeSetting;
-    private final Setting<Long> cacheSizeSetting;
+    static final Setting<Long> DEPRECATED_CACHE_SIZE_SETTING = Setting.longSetting(
+        "ingest.user_agent.cache_size",
+        1000,
+        0,
+        Setting.Property.NodeScope
+    );
 
-    public UserAgentPlugin() {
-        deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
-        cacheSizeSetting = Setting.longSetting("user_agent.cache_size", deprecatedCacheSizeSetting, 0, Setting.Property.NodeScope);
-    }
+    static final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting(
+        "user_agent.cache_size",
+        DEPRECATED_CACHE_SIZE_SETTING,
+        0,
+        Setting.Property.NodeScope
+    );
 
     @Override
     public org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentParserRegistry(Environment env) {
@@ -37,7 +43,7 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(cacheSizeSetting, deprecatedCacheSizeSetting);
+        return List.of(CACHE_SIZE_SETTING, DEPRECATED_CACHE_SIZE_SETTING);
     }
 
     /**
@@ -45,18 +51,10 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
      * Used by the logstash-bridge to create a registry without the plugin system.
      */
     public static UserAgentParserRegistry createRegistry(Environment env, Settings settings) {
-        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
-        Setting<Long> deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
-        Setting<Long> cacheSizeSetting = Setting.longSetting(
-            "user_agent.cache_size",
-            deprecatedCacheSizeSetting,
-            0,
-            Setting.Property.NodeScope
-        );
         Path userAgentConfigDirectory = env.configDir().resolve("user-agent");
         @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
-        long cacheSize = cacheSizeSetting.get(settings);
+        long cacheSize = CACHE_SIZE_SETTING.get(settings);
         UserAgentCache cache = new UserAgentCache(cacheSize);
         return new UserAgentParserRegistry(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
     }

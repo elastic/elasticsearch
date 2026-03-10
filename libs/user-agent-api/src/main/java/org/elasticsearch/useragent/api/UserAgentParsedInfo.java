@@ -26,7 +26,6 @@ public final class UserAgentParsedInfo {
     public static final String OS_VERSION = "os.version";
     public static final String OS_FULL = "os.full";
     public static final String DEVICE_NAME = "device.name";
-    public static final String DEVICE_VERSION = "device.version";
     public static final String DEVICE_TYPE = "device.type";
 
     private static final SequencedMap<String, Class<?>> USER_AGENT_INFO_FIELDS;
@@ -39,7 +38,6 @@ public final class UserAgentParsedInfo {
         fields.putLast(OS_VERSION, String.class);
         fields.putLast(OS_FULL, String.class);
         fields.putLast(DEVICE_NAME, String.class);
-        fields.putLast(DEVICE_VERSION, String.class);
         fields.putLast(DEVICE_TYPE, String.class);
         USER_AGENT_INFO_FIELDS = Collections.unmodifiableSequencedMap(fields);
     }

@@ -1729,6 +1729,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rq.fieldName(), equalTo("emp_no"));
     }
 
+    public void testLimitByZero() {
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """));
+
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(((Literal) limitExec.limit()).value(), equalTo(10000));
+        as(limitExec.child(), LocalSourceExec.class);
+    }
+
     /**
      * Expected
      * EvalExec[[emp_no{f}#5 * 10[INTEGER] AS emp_no_10]]

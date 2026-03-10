@@ -10442,4 +10442,40 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(right.value(), equalTo(5));
         as(eval.child(), EsRelation.class);
     }
+
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_LocalRelation[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],EMPTY]
+     * }</pre>
+     */
+    public void testLimitByZero() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        as(defaultLimit.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_LocalRelation[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],EMPTY]
+     * }</pre>
+     */
+    public void testLimitByNegative() {
+        var plan = plan("""
+            FROM test
+            | LIMIT -42 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        as(defaultLimit.child(), LocalRelation.class);
+    }
 }

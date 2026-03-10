@@ -29,13 +29,25 @@ import static org.hamcrest.Matchers.equalTo;
  * feature enable/disable cycles.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class HealthNodeAssignmentIT extends ESIntegTestCase {
+public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
+
     private static final DiskHealthInfo GREEN_DISK_HEALTH = new DiskHealthInfo(HealthStatus.GREEN, null);
+
+    @Override
+    public void tearDown() throws Exception {
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey())
+                .putNull(HealthNodeTaskExecutor.ENABLED_SETTING.getKey())
+        );
+        super.tearDown();
+    }
 
     /**
      * Verifies that the health node task is always assigned and succeeds as expected during rolling node shutdowns.
      */
     public void testHealthNodeReassignedOnShutdown() throws Exception {
+        decreasePollingInterval();
         final var initialHealthNode = waitAndGetHealthNode(internalCluster());
         assertNotNull("health task must be assigned after cluster starts", initialHealthNode);
 
@@ -95,7 +107,6 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
                 NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
             }
         }
-
     }
 
     /**
@@ -103,6 +114,7 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
      * and that re-enabling it recreates and reassigns the task
      */
     public void testHealthNodeTaskEnabledAndDisabled() throws Exception {
+        decreasePollingInterval();
         final var initialHealthNode = waitAndGetHealthNode(internalCluster());
         assertNotNull("health task must be assigned on startup", initialHealthNode);
         waitForAllNodesToReportHealthy(initialHealthNode.getName());
@@ -121,7 +133,16 @@ public class HealthNodeAssignmentIT extends ESIntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull(HealthNodeTaskExecutor.ENABLED_SETTING.getKey()));
         }
+    }
 
+    private void decreasePollingInterval() {
+        updateClusterSettings(
+            Settings.builder().put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), LocalHealthMonitor.MIN_POLL_INTERVAL)
+        );
+    }
+
+    private void resetPollingInterval() {
+        updateClusterSettings(Settings.builder().putNull(HealthNodeTaskExecutor.ENABLED_SETTING.getKey()));
     }
 
     private String resolveNodeId(String nodeName) {

@@ -16,7 +16,10 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ViewUnionAllTests extends ESTestCase {
@@ -41,22 +44,24 @@ public class ViewUnionAllTests extends ESTestCase {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
         ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
-        UnionAll replaced = original.replaceSubPlans(List.of(child2));
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        ViewUnionAll replaced = original.replaceSubPlans(List.of(child2));
         assertEquals(List.of(child2), replaced.children());
+        assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
     }
 
     public void testReplaceSubPlansAndOutputPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        List<Attribute> newOutput = List.of(new ReferenceAttribute(Source.EMPTY, "col", DataType.KEYWORD));
         ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
-        Fork replaced = original.replaceSubPlansAndOutput(List.of(child2), newOutput);
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        Attribute col1 = new ReferenceAttribute(Source.EMPTY, null, "col", DataType.KEYWORD);
+        ViewUnionAll replaced = original.replaceSubPlansAndOutput(List.of(child2), List.of(col1));
         assertEquals(List.of(child2), replaced.children());
-        assertEquals(newOutput, replaced.output());
+        assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
+        assertThat(replaced.output(), contains(col1));
     }
 
     public void testEqualsAndHashCode() {
@@ -66,10 +71,24 @@ public class ViewUnionAllTests extends ESTestCase {
         ViewUnionAll a = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
         ViewUnionAll b = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
         ViewUnionAll c = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+        ViewUnionAll d = new ViewUnionAll(Source.EMPTY, viewMap(child2, child1), List.of());
 
+        // a and b are identical
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
+
+        // a and c are different
         assertNotEquals(a, c);
+        assertNotEquals(a.hashCode(), c.hashCode());
+
+        // a and d are different
+        assertNotEquals(a, d);
+        assertNotEquals(a.hashCode(), d.hashCode());
+
+        // If we replace subplans we can make d match a
+        d = d.replaceSubPlans(List.of(child1, child2));
+        assertEquals(a, d);
+        assertEquals(a.hashCode(), d.hashCode());
     }
 
     public void testNotEqualToPlainUnionAll() {

@@ -27,6 +27,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -203,10 +205,14 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         int totalDocs = docIds.length;
         RecyclerBytesStreamOutput chunkBuffer = null;
 
+        List<LeafReaderContext> leaves = indexReader.leaves();
+        int[][] docsPerLeaf = precomputeLeafDocArrays(docIds, leaves);
+
         try {
             chunkBuffer = chunkWriter.newNetworkBytesStream();
             int chunkStartIndex = 0;
             int hitsInChunk = 0;
+            int currentLeafOrd = -1;
 
             for (int scoreIndex = 0; scoreIndex < totalDocs; scoreIndex++) {
                 if (scoreIndex % 32 == 0) {
@@ -221,10 +227,12 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
                 int docId = docIds[scoreIndex];
 
-                int leafOrd = ReaderUtil.subIndex(docId, indexReader.leaves());
-                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-                int leafDocId = docId - ctx.docBase;
-                setNextReader(ctx, new int[] { leafDocId });
+                int leafOrd = ReaderUtil.subIndex(docId, leaves);
+                if (leafOrd != currentLeafOrd) {
+                    LeafReaderContext ctx = leaves.get(leafOrd);
+                    setNextReader(ctx, docsPerLeaf[leafOrd]);
+                    currentLeafOrd = leafOrd;
+                }
 
                 SearchHit hit = nextDoc(docId);
                 try {
@@ -461,6 +469,33 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 circuitBreaker.addWithoutBreaking(-lastChunk.byteSize);
             }
         }
+    }
+
+    /**
+     * Pre-computes per-leaf doc ID arrays so that {@link #setNextReader} receives all docs
+     * belonging to a leaf, Each leaf's array contains sorted leaf-relative doc IDs, enabling
+     * optimizations such as sequential stored field access.
+     */
+    private static int[][] precomputeLeafDocArrays(int[] docIds, List<LeafReaderContext> leaves) {
+        int[][] docsPerLeaf = new int[leaves.size()][];
+        int[] counts = new int[leaves.size()];
+        for (int docId : docIds) {
+            counts[ReaderUtil.subIndex(docId, leaves)]++;
+        }
+        int[] offsets = new int[leaves.size()];
+        for (int i = 0; i < leaves.size(); i++) {
+            docsPerLeaf[i] = counts[i] > 0 ? new int[counts[i]] : new int[0];
+        }
+        for (int docId : docIds) {
+            int leafOrd = ReaderUtil.subIndex(docId, leaves);
+            docsPerLeaf[leafOrd][offsets[leafOrd]++] = docId - leaves.get(leafOrd).docBase;
+        }
+        for (int[] docs : docsPerLeaf) {
+            if (docs.length > 1) {
+                Arrays.sort(docs);
+            }
+        }
+        return docsPerLeaf;
     }
 
     /**

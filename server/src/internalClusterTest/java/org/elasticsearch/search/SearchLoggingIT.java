@@ -199,30 +199,37 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
      */
     public void testSearchLogShardInfoPartialFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        int numberOfShards = cluster().numDataNodes() + 2;
-        setupIndex(numberOfShards);
-        internalCluster().stopRandomDataNode();
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
-        assertBusy(() -> {
-            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            assertFalse(
-                "expected some unassigned shards",
-                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
-            );
-        });
+        try {
+            int numberOfShards = cluster().numDataNodes() + 2;
+            setupIndex(numberOfShards);
+            internalCluster().stopRandomDataNode();
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+            assertBusy(() -> {
+                var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+                assertFalse(
+                    "expected some unassigned shards",
+                    RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+                );
+            });
 
-        assertResponse(prepareSearch(INDEX_NAME).setSize(0).setAllowPartialSearchResults(true), response -> {
-            assertThat(response.getFailedShards(), greaterThan(0));
-            assertThat(response.getSuccessfulShards(), greaterThan(0));
-        });
-        var event = appender.getLastEventAndReset();
-        assertNotNull(event);
-        Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, SearchLogContext.TYPE, "size");
-        assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
-        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
-        assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
-        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThan(0));
+            assertResponse(prepareSearch(INDEX_NAME).setSize(0).setAllowPartialSearchResults(true), response -> {
+                assertThat(response.getFailedShards(), greaterThan(0));
+                assertThat(response.getSuccessfulShards(), greaterThan(0));
+            });
+            var event = appender.getLastEventAndReset();
+            assertNotNull(event);
+            Map<String, String> message = getMessageData(event);
+            assertMessageSuccess(message, SearchLogContext.TYPE, "size");
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThan(0));
+        } finally {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            if (indexExists(INDEX_NAME)) {
+                ensureGreen(INDEX_NAME);
+            }
+        }
     }
 
     public void testIndicesFieldIsArray() {

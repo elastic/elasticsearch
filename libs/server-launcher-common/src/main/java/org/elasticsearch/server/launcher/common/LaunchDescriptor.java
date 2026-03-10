@@ -17,40 +17,103 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Holds all the information needed by the launcher to spawn the Elasticsearch server process.
  * <p>
- * This record is serialized to a binary file by the preparer (server-cli) and deserialized
+ * This class is serialized to a binary format by the preparer (server-cli) and deserialized
  * by the launcher (server-launcher). It uses only JDK classes so that the launcher has no
  * Elasticsearch dependencies.
- *
- * @param command        path to the java binary
- * @param jvmOptions     JVM flags (e.g. -Xms4g, -XX:+UseG1GC)
- * @param jvmArgs        module-path, -m, and other JVM arguments
- * @param environment    environment variables for the server process
- * @param workingDir     working directory for the server process (logs directory)
- * @param tempDir        path to the temp directory
- * @param daemonize      whether the server should be daemonized
- * @param serverArgsBytes opaque blob of serialized ServerArgs (piped to the server's stdin)
+ * <p>
+ * Subclasses (e.g. {@code ServerlessLaunchDescriptor}) can extend this class and use
+ * {@link #writeFieldsTo(DataOutputStream)} / {@link #readFieldsFrom(DataInputStream)}
+ * to serialize/deserialize base fields without the magic number prefix.
  */
-public record LaunchDescriptor(
-    String command,
-    List<String> jvmOptions,
-    List<String> jvmArgs,
-    Map<String, String> environment,
-    String workingDir,
-    String tempDir,
-    boolean daemonize,
-    byte[] serverArgsBytes
-) {
+public class LaunchDescriptor {
 
     public static final String DESCRIPTOR_FILENAME = "launch-descriptor.bin";
 
     private static final int MAGIC = 0x45534C44; // "ESLD" - ElasticSearch Launch Descriptor
+
+    private final String command;
+    private final List<String> jvmOptions;
+    private final List<String> jvmArgs;
+    private final Map<String, String> environment;
+    private final String workingDir;
+    private final String tempDir;
+    private final boolean daemonize;
+    private final byte[] serverArgsBytes;
+
+    public LaunchDescriptor(
+        String command,
+        List<String> jvmOptions,
+        List<String> jvmArgs,
+        Map<String, String> environment,
+        String workingDir,
+        String tempDir,
+        boolean daemonize,
+        byte[] serverArgsBytes
+    ) {
+        this.command = command;
+        this.jvmOptions = List.copyOf(jvmOptions);
+        this.jvmArgs = List.copyOf(jvmArgs);
+        this.environment = Map.copyOf(environment);
+        this.workingDir = workingDir;
+        this.tempDir = tempDir;
+        this.daemonize = daemonize;
+        this.serverArgsBytes = serverArgsBytes.clone();
+    }
+
+    /**
+     * Copy constructor for use by subclasses.
+     */
+    protected LaunchDescriptor(LaunchDescriptor other) {
+        this.command = other.command;
+        this.jvmOptions = other.jvmOptions;
+        this.jvmArgs = other.jvmArgs;
+        this.environment = other.environment;
+        this.workingDir = other.workingDir;
+        this.tempDir = other.tempDir;
+        this.daemonize = other.daemonize;
+        this.serverArgsBytes = other.serverArgsBytes;
+    }
+
+    public String command() {
+        return command;
+    }
+
+    public List<String> jvmOptions() {
+        return jvmOptions;
+    }
+
+    public List<String> jvmArgs() {
+        return jvmArgs;
+    }
+
+    public Map<String, String> environment() {
+        return environment;
+    }
+
+    public String workingDir() {
+        return workingDir;
+    }
+
+    public String tempDir() {
+        return tempDir;
+    }
+
+    public boolean daemonize() {
+        return daemonize;
+    }
+
+    public byte[] serverArgsBytes() {
+        return serverArgsBytes;
+    }
 
     /**
      * Writes this descriptor to a binary file.
@@ -62,11 +125,19 @@ public record LaunchDescriptor(
     }
 
     /**
-     * Writes this descriptor to a DataOutputStream.
+     * Writes this descriptor to a DataOutputStream, including the magic number prefix.
      */
     public void writeTo(DataOutputStream out) throws IOException {
         out.writeInt(MAGIC);
+        writeFieldsTo(out);
+        out.flush();
+    }
 
+    /**
+     * Writes the fields of this descriptor without the magic number prefix.
+     * Subclasses can call this to embed base fields in their own wire format.
+     */
+    protected void writeFieldsTo(DataOutputStream out) throws IOException {
         out.writeUTF(command);
         writeStringList(out, jvmOptions);
         writeStringList(out, jvmArgs);
@@ -76,8 +147,6 @@ public record LaunchDescriptor(
         out.writeBoolean(daemonize);
         out.writeInt(serverArgsBytes.length);
         out.write(serverArgsBytes);
-
-        out.flush();
     }
 
     /**
@@ -90,14 +159,18 @@ public record LaunchDescriptor(
     }
 
     /**
-     * Reads a descriptor from a DataInputStream.
+     * Reads a descriptor from a DataInputStream, checking the magic number prefix.
      */
     public static LaunchDescriptor readFrom(DataInputStream in) throws IOException {
-        int magic = in.readInt();
-        if (magic != MAGIC) {
-            throw new IOException("Invalid launch descriptor: bad magic number");
-        }
+        checkMagic(in, MAGIC);
+        return readFieldsFrom(in);
+    }
 
+    /**
+     * Reads descriptor fields without the magic number prefix.
+     * Subclasses can call this to read base fields from their own wire format.
+     */
+    protected static LaunchDescriptor readFieldsFrom(DataInputStream in) throws IOException {
         String command = in.readUTF();
         List<String> jvmOptions = readStringList(in);
         List<String> jvmArgs = readStringList(in);
@@ -112,6 +185,16 @@ public record LaunchDescriptor(
         }
 
         return new LaunchDescriptor(command, jvmOptions, jvmArgs, environment, workingDir, tempDir, daemonize, serverArgsBytes);
+    }
+
+    /**
+     * Checks the magic number from the stream and throws if it doesn't match.
+     */
+    protected static void checkMagic(DataInputStream in, int expectedMagic) throws IOException {
+        int magic = in.readInt();
+        if (magic != expectedMagic) {
+            throw new IOException("Invalid launch descriptor: bad magic number");
+        }
     }
 
     /**
@@ -145,6 +228,45 @@ public record LaunchDescriptor(
         }
 
         return sb.toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LaunchDescriptor that = (LaunchDescriptor) o;
+        return daemonize == that.daemonize
+            && Objects.equals(command, that.command)
+            && Objects.equals(jvmOptions, that.jvmOptions)
+            && Objects.equals(jvmArgs, that.jvmArgs)
+            && Objects.equals(environment, that.environment)
+            && Objects.equals(workingDir, that.workingDir)
+            && Objects.equals(tempDir, that.tempDir)
+            && Arrays.equals(serverArgsBytes, that.serverArgsBytes);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(command, jvmOptions, jvmArgs, environment, workingDir, tempDir, daemonize);
+        result = 31 * result + Arrays.hashCode(serverArgsBytes);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "LaunchDescriptor{command='" + command + "', workingDir='" + workingDir + "', daemonize=" + daemonize + "}";
+    }
+
+    protected static void writeNullableString(DataOutputStream out, String value) throws IOException {
+        out.writeBoolean(value != null);
+        if (value != null) {
+            out.writeUTF(value);
+        }
+    }
+
+    protected static String readNullableString(DataInputStream in) throws IOException {
+        boolean present = in.readBoolean();
+        return present ? in.readUTF() : null;
     }
 
     private static void appendSection(StringBuilder sb, String name, String value) {

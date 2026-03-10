@@ -36,68 +36,126 @@ import java.util.function.Function;
  * and waits for the server to exit.
  *
  * <p> This program has zero Elasticsearch dependencies beyond the shared launcher-common library.
+ *
+ * <p> Subclasses (e.g. {@code ServerlessServerLauncher}) can override lifecycle hooks to customize
+ * behavior without duplicating shared logic.
+ *
+ * @param <D> the descriptor type, must extend {@link LaunchDescriptor}
  */
-public class ServerLauncher {
+public class ServerLauncher<D extends LaunchDescriptor> {
 
-    private static final AtomicBoolean shuttingDown = new AtomicBoolean(false);
-    private static volatile ServerProcess server;
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
+    private volatile ServerProcess server;
 
     public static void main(String[] args) throws Exception {
+        new ServerLauncher<LaunchDescriptor>().run(args);
+    }
+
+    protected void run(String[] args) throws Exception {
         Process preparerProcess = startPreparer(args);
-        LaunchDescriptor descriptor = null;
-        Exception readException = null;
-        try {
-            descriptor = readDescriptorFromStream(preparerProcess.getInputStream());
-        } catch (Exception e) {
-            readException = e;
-        }
-        int preparerExit = preparerProcess.waitFor();
-        if (preparerExit != 0) {
-            System.exit(preparerExit);
-        }
-        if (readException != null) {
-            if (readException instanceof IOException io) {
-                throw new UncheckedIOException(io);
-            }
-            throw new RuntimeException(readException);
-        }
+        D descriptor = readDescriptorFromPreparer(preparerProcess);
         if (descriptor == null) {
             return;
         }
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            synchronized (shuttingDown) {
-                shuttingDown.set(true);
-                if (server != null) {
-                    try {
-                        server.stop();
-                    } catch (IOException e) {
-                        System.err.println("Error stopping server: " + e.getMessage());
-                    }
-                }
-            }
-        }, "server-launcher-shutdown"));
+        installShutdownHook();
 
+        Process[] rawProcessHolder = new Process[1];
         server = startServer(descriptor, pb -> {
             try {
-                return pb.start();
+                Process p = startProcess(pb);
+                rawProcessHolder[0] = p;
+                return p;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
 
+        onServerStarted(descriptor, server, rawProcessHolder[0]);
+
         if (descriptor.daemonize()) {
             server.detach();
+            onDaemonize(descriptor);
             return;
         }
 
         int exitCode = server.waitFor();
+        onServerExit(descriptor, exitCode);
         if (exitCode != 0) {
             System.exit(exitCode);
         }
     }
 
-    private static Process startPreparer(String[] userArgs) throws IOException {
+    // ---- Overridable lifecycle hooks ----
+
+    /**
+     * Returns the CLI name passed as {@code -Dcli.name} to the preparer process.
+     */
+    protected String cliName() {
+        return "server";
+    }
+
+    /**
+     * Returns the CLI libs path passed as {@code -Dcli.libs} to the preparer process.
+     */
+    protected String cliLibs() {
+        return "lib/tools/server-cli";
+    }
+
+    /**
+     * Returns the name for the JVM shutdown hook thread.
+     */
+    protected String shutdownHookName() {
+        return "server-launcher-shutdown";
+    }
+
+    /**
+     * Returns extra system property names to forward from the launcher to the preparer process.
+     */
+    protected List<String> extraPreparerSystemProperties() {
+        return List.of();
+    }
+
+    /**
+     * Reads a launch descriptor from the preparer's stdout stream.
+     * Returns null if no bytes were written (e.g. --version or --help was used).
+     * <p>
+     * Subclasses override this to read their specific descriptor type.
+     */
+    @SuppressWarnings("unchecked")
+    protected D readDescriptorFromStream(InputStream in) throws IOException {
+        byte[] bytes = in.readAllBytes();
+        if (bytes.length == 0) {
+            return null;
+        }
+        return (D) LaunchDescriptor.readFrom(new DataInputStream(new ByteArrayInputStream(bytes)));
+    }
+
+    /**
+     * Starts a process from the given builder. Subclasses can override to capture the raw process.
+     */
+    protected Process startProcess(ProcessBuilder pb) throws IOException {
+        return pb.start();
+    }
+
+    /**
+     * Called after the server process has started and the ready marker has been received.
+     */
+    protected void onServerStarted(D descriptor, ServerProcess server, Process rawProcess) throws IOException {}
+
+    /**
+     * Called before returning in daemon mode, after the server has been detached.
+     */
+    protected void onDaemonize(D descriptor) {}
+
+    /**
+     * Called after the server process exits (non-daemon mode).
+     */
+    protected void onServerExit(D descriptor, int exitCode) {}
+
+    // ---- Shared logic (private) ----
+
+    private Process startPreparer(String[] userArgs) throws IOException {
         String java = requireEnv("JAVA");
         String esHome = requireEnv("ES_HOME");
         String esPathConf = requireEnv("ES_PATH_CONF");
@@ -126,8 +184,8 @@ public class ServerLauncher {
             Collections.addAll(command, cliJavaOpts.trim().split("\\s+"));
         }
 
-        command.add("-Dcli.name=server");
-        command.add("-Dcli.libs=lib/tools/server-cli");
+        command.add("-Dcli.name=" + cliName());
+        command.add("-Dcli.libs=" + cliLibs());
         command.add("-Des.path.home=" + esHome);
         command.add("-Des.path.conf=" + esPathConf);
         if (esDistType != null) {
@@ -136,6 +194,14 @@ public class ServerLauncher {
         if (javaType != null) {
             command.add("-Des.java.type=" + javaType);
         }
+
+        for (String prop : extraPreparerSystemProperties()) {
+            String value = System.getProperty(prop);
+            if (value != null) {
+                command.add("-D" + prop + "=" + value);
+            }
+        }
+
         command.add("-cp");
         command.add(classpath);
         command.add("org.elasticsearch.launcher.CliToolLauncher");
@@ -151,28 +217,47 @@ public class ServerLauncher {
         return pb.start();
     }
 
+    private D readDescriptorFromPreparer(Process preparerProcess) throws Exception {
+        D descriptor = null;
+        Exception readException = null;
+        try {
+            descriptor = readDescriptorFromStream(preparerProcess.getInputStream());
+        } catch (Exception e) {
+            readException = e;
+        }
+        int preparerExit = preparerProcess.waitFor();
+        if (preparerExit != 0) {
+            System.exit(preparerExit);
+        }
+        if (readException != null) {
+            if (readException instanceof IOException io) {
+                throw new UncheckedIOException(io);
+            }
+            throw new RuntimeException(readException);
+        }
+        return descriptor;
+    }
+
+    private void installShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            synchronized (shuttingDown) {
+                shuttingDown.set(true);
+                if (server != null) {
+                    try {
+                        server.stop();
+                    } catch (IOException e) {
+                        System.err.println("Error stopping server: " + e.getMessage());
+                    }
+                }
+            }
+        }, shutdownHookName()));
+    }
+
     /**
-     * Reads a launch descriptor from the preparer's stdout. Returns null if no
-     * bytes were written (e.g. --version or --help was used).
+     * Starts the server process from the given descriptor and process starter function.
+     * Package-visible for testing.
      */
-    private static LaunchDescriptor readDescriptorFromStream(InputStream in) throws IOException {
-        byte[] bytes = in.readAllBytes();
-        if (bytes.length == 0) {
-            return null;
-        }
-        return LaunchDescriptor.readFrom(new DataInputStream(new ByteArrayInputStream(bytes)));
-    }
-
-    private static String requireEnv(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) {
-            System.err.println("Error: required environment variable " + name + " is not set");
-            System.exit(1);
-        }
-        return value;
-    }
-
-    static ServerProcess startServer(LaunchDescriptor descriptor, Function<ProcessBuilder, Process> processStarter) throws Exception {
+    ServerProcess startServer(LaunchDescriptor descriptor, Function<ProcessBuilder, Process> processStarter) throws Exception {
         ensureWorkingDirExists(descriptor.workingDir());
 
         List<String> command = new ArrayList<>();
@@ -233,5 +318,14 @@ public class ServerLauncher {
             // A failure to write here means the process has problems, and it will die anyway.
             // The error pump thread will report the actual error.
         }
+    }
+
+    private static String requireEnv(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            System.err.println("Error: required environment variable " + name + " is not set");
+            System.exit(1);
+        }
+        return value;
     }
 }

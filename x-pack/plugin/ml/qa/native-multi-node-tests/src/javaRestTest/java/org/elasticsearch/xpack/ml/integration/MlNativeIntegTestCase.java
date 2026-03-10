@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
@@ -178,7 +179,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             EsqlCorePlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
-            TestOnlyMultiProjectPlugin.class
+            TestOnlyMultiProjectPlugin.class,
+            // GPU plugin needed for node features published by DEFAULT distribution nodes
+            GPUPlugin.class
         );
     }
 

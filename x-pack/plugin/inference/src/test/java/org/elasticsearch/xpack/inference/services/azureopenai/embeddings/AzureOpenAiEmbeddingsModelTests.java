@@ -13,12 +13,14 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
 
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -26,7 +28,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
-        var requestTaskSettingsMap = getAzureOpenAiRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
@@ -106,15 +108,22 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secretSettings = apiKey != null
-            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
-            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
+        AzureOpenAiEntraIdApiKeySecrets secretSettings;
+        if (apiKey != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+        } else if (entraId != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+        } else {
+            throw new IllegalArgumentException("Either apiKey or entraId must be provided");
+        }
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             chunkingSettings,
             secretSettings
         );
@@ -129,15 +138,22 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secretSettings = apiKey != null
-            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
-            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
+        AzureOpenAiEntraIdApiKeySecrets secretSettings;
+        if (apiKey != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+        } else if (entraId != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+        } else {
+            throw new IllegalArgumentException("Either apiKey or entraId must be provided");
+        }
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
             secretSettings
         );
@@ -156,9 +172,16 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secretSettings = apiKey != null
-            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
-            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
+        AzureOpenAiEntraIdApiKeySecrets secretSettings;
+        if (apiKey != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+        } else if (entraId != null) {
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+        } else {
+            throw new IllegalArgumentException("Either apiKey or entraId must be provided");
+        }
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
@@ -173,7 +196,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 similarity,
                 null
             ),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
             secretSettings
         );

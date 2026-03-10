@@ -584,7 +584,7 @@ public class Security extends Plugin
     public static final LicensedFeature.Momentary USER_PROFILE_COLLABORATION_FEATURE = LicensedFeature.momentary(
         null,
         "user-profile-collaboration",
-        License.OperationMode.STANDARD
+        License.OperationMode.BASIC
     );
 
     /**
@@ -990,7 +990,7 @@ public class Security extends Plugin
         components.add(
             new PluginComponentBinding<>(
                 SamlAuthenticateResponseHandler.class,
-                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, clusterService, getClock())
             )
         );
         this.fileRolesStore.set(

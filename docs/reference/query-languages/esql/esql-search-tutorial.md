@@ -146,12 +146,12 @@ Full-text search involves executing text-based queries across one or more docume
 
 {{esql}} provides multiple functions for full-text search, including `MATCH`, `MATCH_PHRASE`, and `QSTR`. For basic text matching, you can use either:
 
-1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax: `match(field, "search terms")`
+1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions/match.md) syntax: `match(field, "search terms")`
 2. Compact syntax using the [match operator "`:`"](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
 
 Both are equivalent for basic matching and can be used interchangeably. The compact syntax is more concise, while the function syntax allows for more configuration options. We use the compact syntax in most examples for brevity.
 
-Refer to the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) reference docs for advanced parameters available with the function syntax.
+Refer to the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) reference docs for advanced parameters available with the function syntax.
 
 ### Perform your first search query
 
@@ -431,7 +431,7 @@ POST /cooking_blog/_doc
 
 ### Perform semantic search
 
-Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
+Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
 
 ```esql
 FROM cooking_blog METADATA _score
@@ -578,7 +578,7 @@ stack: preview 9.3
 serverless: preview
 ```
 
-The [`TOP_SNIPPETS` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-top_snippets) is like the [`CHUNK` function](/reference/query-languages/esql/functions-operators/string-functions.md#esql-chunk) with additional relevance ranking capabilities. `TOP_SNIPPETS` ranks chunks by relevance to your query and returns only the top matches.
+The [`TOP_SNIPPETS` function](/reference/query-languages/esql/functions-operators/search-functions/top-snippets.md) is like the [`CHUNK` function](/reference/query-languages/esql/functions-operators/string-functions/chunk.md) with additional relevance ranking capabilities. `TOP_SNIPPETS` ranks chunks by relevance to your query and returns only the top matches.
 
 This is very useful for context engineering with LLMs: instead of sending entire field values, you send only the most relevant portions. This reduces token costs, helps you stay within context limits, and avoids the ["lost in the middle"](https://arxiv.org/abs/2307.03172) problem where important information is overlooked in large blocks of text.
 
@@ -691,7 +691,7 @@ To learn more about `TOP_SNIPPETS` refer to this [blog post](https://www.elastic
 This subsection is for advanced users who want explicit control over vector search. For most use cases, the `semantic_text` field type covered in [Step 8](#step-8-semantic-search-and-hybrid-search) is recommended as it handles embeddings automatically.
 :::
 
-The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
+The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
 
 #### `KNN` with pre-computed vectors
 
@@ -733,7 +733,7 @@ stack: preview 9.3
 serverless: preview
 ```
 
-The [`TEXT_EMBEDDING` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding)  generates dense vector embeddings from text input at query time using an inference model.
+The [`TEXT_EMBEDDING` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md)  generates dense vector embeddings from text input at query time using an inference model.
 
 :::{tip}
 You'll need to set up an inference endpoint with an embedding model to use this feature. Refer to the [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) for setup instructions.
@@ -759,12 +759,12 @@ stack: preview 9.3
 serverless: ga
 ```
 
-While `KNN` performs approximate nearest neighbor search, {{esql}} also provides [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#vector-similarity-functions) for exact vector search. These functions calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
+While `KNN` performs approximate nearest neighbor search, {{esql}} also provides [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) for exact vector search. These functions calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
 
 :::{tip}
 **When to use exact search instead of KNN**
 
-Use [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#vector-similarity-functions) when:
+Use [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) when:
 - Accuracy is more important than speed.
 - Your dataset is small enough for exhaustive search, or you are applying restrictive filters. 10,000 documents is a good rule of thumb for using exact search, but results depend on your vector [element type](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) and use of [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
 - You want to provide custom scoring using vector similarity.
@@ -783,7 +783,7 @@ FROM cooking_blog
 ```
 
 This query:
-1. Calculates exact cosine similarity between each document's vector and the query vector (calculated via TEXT_EMBEDDING) using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-v_cosine)
+1. Calculates exact cosine similarity between each document's vector and the query vector (calculated via TEXT_EMBEDDING) using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions/v_cosine.md)
 2. Filters results to only include results with vector similarity above 0.8
 3. Sorts by similarity (highest first)
 
@@ -800,7 +800,7 @@ FROM cooking_blog
 
 This advanced query combines:
 1. Exact filters (category) and range filters (rating)
-2. Exact vector similarity using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-v_dot_product)
+2. Exact vector similarity using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions/v_dot_product.md)
 3. Custom scoring that blends vector similarity with rating
 
 ## Learn more

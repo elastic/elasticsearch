@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
         super(in);
     }
 
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
         return "PotentiallyUnmappedKeywordEsField";
     }
 }

@@ -861,12 +861,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
     int bloomFilterSizeInBytesForMergedSegment(List<Integer> segmentSizes) {
         assert segmentSizes.isEmpty() == false : "Expected at least one segment size";
-        // TODO: consider how to decrease the bloom filter overhead as segments get merged
 
-        // Use median size as a balance: folding very large filters loses precision,
-        // while expanding very small filters increases false positive rate.
-        // Median minimizes the worst-case precision loss across all merged filters.
-        return boundAndRoundBloomFilterSizeInBytes(segmentSizes.stream().sorted().skip(segmentSizes.size() / 2).findFirst().orElseThrow());
+        // Use the max size to preserve the precision of the largest input filter.
+        return boundAndRoundBloomFilterSizeInBytes(segmentSizes.stream().mapToInt(Integer::intValue).max().orElseThrow());
     }
 
     private int boundAndRoundBloomFilterSizeInBytes(long idealSizeInBytes) {

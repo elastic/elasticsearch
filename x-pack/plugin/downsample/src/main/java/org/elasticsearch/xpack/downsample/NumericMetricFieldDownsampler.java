@@ -19,7 +19,8 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /**
  * Class that collects all raw values for a numeric metric field and computes its aggregate (downsampled)
@@ -179,7 +180,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
      */
     static final class AggregateCounter extends NumericMetricFieldDownsampler {
 
-        final Stack<CounterResetDataPoints.ResetPoint> resetStack = new Stack<>();
+        final Deque<CounterResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
         double downsampledValue = Double.NaN;
         long lastTimestamp = -1;
         // Cross bucket value

@@ -675,6 +675,25 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
+            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_disk");
+                b.field("bits", 7);
+                b.endObject();
+            })).documentMapper();
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(7, indexOptions.bits, 0.0F);
+            assertNull(indexOptions.rescoreVector);
+        }
+        {
             DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);

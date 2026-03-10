@@ -16,13 +16,16 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -68,6 +71,21 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
     }
 
+    public void testuUeTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+        String indexName = "standard-larger-binary-db-block-size-dv-test";
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), true)
+            .build();
+
+        createIndex(indexName, settings, "@timestamp", "type=date", "hostname", "type=keyword", "gauge", "type=long");
+
+        indexDocuments(indexName);
+
+        Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
+        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, expectedFields);
+    }
+
     private void indexDocuments(String indexName) throws Exception {
         long baseTimestamp = 1704067200000L;
         int numDocs = randomIntBetween(5, 20);
@@ -86,9 +104,23 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
     private void assertDocValuesFormat(String indexName, DocValuesFormat expectedFormat, Set<String> expectedFields) {
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        var codec = (Elasticsearch92Lucene103Codec) shard.getEngineOrNull().config().getCodec();
+        var codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+        Function<String, DocValuesFormat> docValuesFormatProvider;
+        if (codec instanceof Elasticsearch92Lucene103Codec es92103codec) {
+            docValuesFormatProvider = es92103codec::getDocValuesFormatForField;
+        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
+                docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;
+            } else {
+                fail("Unexpected codec type: " + codec.getClass().getName());
+                return;
+            }
+        } else {
+            fail("Unexpected codec type: " + codec.getClass().getName());
+            return;
+        }
         for (String field : expectedFields) {
-            DocValuesFormat writerFormat = codec.getDocValuesFormatForField(field);
+            DocValuesFormat writerFormat = docValuesFormatProvider.apply(field);
             assertThat(
                 "IndexWriter codec for field [" + field + "] should return the expected TSDB doc values format instance",
                 writerFormat,

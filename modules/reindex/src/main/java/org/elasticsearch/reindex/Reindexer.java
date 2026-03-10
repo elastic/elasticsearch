@@ -162,7 +162,13 @@ public class Reindexer {
 
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
+        final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
+            listenerWithRelocations(task, request, listener),
+            reindexMetrics,
+            task,
+            request,
+            startTime
+        );
 
         final boolean isRemote = request.getRemoteInfo() != null;
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, listenerWithRelocations, startTime, isRemote, false);
@@ -216,7 +222,7 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                workerListener,
+                responseListener,
                 remoteVersion
             );
             searchAction.start();
@@ -320,16 +326,16 @@ public class Reindexer {
         BulkByScrollTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByScrollResponse> listenerWithRelocations,
+        ActionListener<BulkByScrollResponse> listener,
         Consumer<Version> workerAction,
         long startTime
     ) {
         // Wrap with metrics so failures before the worker runs (version lookup, PIT open) are recorded
-        final ActionListener<BulkByScrollResponse> listenerWithMetrics = workerListenerWithRelocationAndMetrics(
-            listenerWithRelocations,
-            startTime,
-            true
-        );
+//        final ActionListener<BulkByScrollResponse> listenerWithMetrics = workerListenerWithRelocationAndMetrics(
+//            listenerWithRelocations,
+//            startTime,
+//            true
+//        );
 
         RemoteInfo remoteInfo = request.getRemoteInfo();
         assert reindexSslConfig != null : "Reindex ssl config must be set";
@@ -431,80 +437,77 @@ public class Reindexer {
         });
     }
 
-    /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
-    ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
-        ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
-        long startTime,
-        boolean isRemote
-    ) {
-        final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
-            potentiallyWrappedRelocationListener,
-            reindexMetrics,
-            startTime,
-            isRemote
-        );
-
-        return metricListener.delegateFailure((l, resp) -> {
-            // note: implicitly relies on TaskResumeInfo only being populated if a suitable node exists for relocating to.
-            final boolean willBeRelocatedThereforeDoNotRecordMetrics = resp.getTaskResumeInfo().isPresent();
-            if (willBeRelocatedThereforeDoNotRecordMetrics) {
-                assert resp.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
-                assert resp.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
-                potentiallyWrappedRelocationListener.onResponse(resp);
-                return;
-            }
-            l.onResponse(resp);
-        });
-    }
-
-    // Visible for testing
+    /**
+     * Wrap listener with reindex metrics. For sliced reindex, this should record once only when all slices complete
+     * Visible for testing
+     */
     static ActionListener<BulkByScrollResponse> wrapWithMetrics(
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
-        long startTime,
-        boolean isRemote
+        BulkByScrollTask task,
+        ReindexRequest request,
+        long startTime
     ) {
         if (metrics == null) {
             return listener;
         }
+        if (task.isWorker() && task.getParentTaskId().isSet()) {
+            // Do not record metrics for slice worker, only leader will record them when all slices are completed
+            // Potentially add slice-level metrics for slice worker
+            return listener;
+        }
+        final boolean isRemote = request.getRemoteInfo() != null;
+        final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
         // todo(szy): add relocation metrics
-        // add completion metrics
-        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+        return new ActionListener<>() {
+            private void recordDuration() {
+                long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
+            }
+
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
-                    .stream()
-                    .flatMap(List::stream)
-                    .map(PaginatedHitSource.SearchFailure::getReason)
-                    .findFirst();
-                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
-                    .stream()
-                    .flatMap(List::stream)
-                    .map(BulkItemResponse.Failure::getCause)
-                    .findFirst();
-                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
-                    // record only the first sample error in metric
-                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                    metrics.recordFailure(isRemote, e);
+                if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
+                    // Task will be relocated to a different node
+                    // Do not record metrics on the source node, the destination node will record metrics when the relocated task completes
+                    assert bulkByScrollResponse.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
+                    assert bulkByScrollResponse.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
                     listener.onResponse(bulkByScrollResponse);
-                } else {
-                    metrics.recordSuccess(isRemote);
+                    return;
+                }
+                try {
+                    var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                        .stream()
+                        .flatMap(List::stream)
+                        .map(PaginatedHitSource.SearchFailure::getReason)
+                        .findFirst();
+                    var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                        .stream()
+                        .flatMap(List::stream)
+                        .map(BulkItemResponse.Failure::getCause)
+                        .findFirst();
+                    if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                        Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                        metrics.recordFailure(isRemote, slicingMode, e);
+                    } else {
+                        metrics.recordSuccess(isRemote, slicingMode);
+                    }
                     listener.onResponse(bulkByScrollResponse);
+                } finally {
+                    recordDuration();
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote, e);
-                listener.onFailure(e);
+                try {
+                    metrics.recordFailure(isRemote, slicingMode, e);
+                    listener.onFailure(e);
+                } finally {
+                    recordDuration();
+                }
             }
         };
-
-        // add duration metric
-        return ActionListener.runAfter(withCompletionMetrics, () -> {
-            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-            metrics.recordTookTime(elapsedTime, isRemote);
-        });
     }
 
     /** Wraps the listener with relocation handling (if applicable). Visible for testing. */

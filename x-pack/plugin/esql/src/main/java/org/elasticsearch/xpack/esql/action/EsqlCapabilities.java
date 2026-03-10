@@ -2114,6 +2114,11 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * Support for {@code FIRST_OVER_TIME} and {@code LAST_OVER_TIME} on {@code tdigest} type fields.
+         */
+        TDIGEST_FIRST_LAST_OVER_TIME,
+
+        /**
          * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
          * We previously were using hybrid-digests by accident and now use a merging digest.
          */

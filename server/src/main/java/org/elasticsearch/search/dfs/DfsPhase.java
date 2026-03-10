@@ -188,7 +188,7 @@ public class DfsPhase {
         }
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        // KnnSearchBuilder::toQueryBuilder will disable rescoring for the underlying KnnVectorQueryBuilder
+        // KnnSearchBuilder::toQueryBuilder might disable rescoring for the underlying KnnVectorQueryBuilder
         List<KnnVectorQueryBuilder> knnQueries = knnSearch.stream().map(knn -> knn.toQueryBuilder(searchExecutionContext)).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
         knnQueries.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));

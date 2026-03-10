@@ -232,14 +232,12 @@ class DfsQueryPhase extends SearchPhase {
             if (oversampling[i] != null && oversampling[i] >= 1) {
                 resultsToKeep = (int) Math.ceil(oversampling[i] * localK);
             }
-            String path = topDocsLists.get(i).isEmpty() ? null : nestedPath.get(i).get();
             List<TopDocs> topDocsList = topDocsLists.get(i);
             if (topDocsList.isEmpty()) {
-                mergedResults.add(new DfsKnnResults(path, new ScoreDoc[0], null, null));
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), new ScoreDoc[0], null, null));
             } else {
                 TopDocs mergedTopDocs = TopDocs.merge(resultsToKeep, topDocsList.toArray(new TopDocs[0]));
-                // When no shard sent KNN results (e.g. all on older nodes), nestedPath was never set
-                mergedResults.add(new DfsKnnResults(path, mergedTopDocs.scoreDocs, oversampling[i], localK));
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK));
             }
         }
         return mergedResults;

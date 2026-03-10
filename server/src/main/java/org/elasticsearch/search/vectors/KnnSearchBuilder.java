@@ -46,7 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
-    public static final float MINIMUM_OVERSAMPLE_FOR_GLOBAL_RESCORING = 1f;
+    public static final float MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING = 1f;
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -499,7 +499,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException("missing rewrite");
         }
         Float oversample = getOversampleFactor(searchExecutionContext);
-        if (optimizedRescoring && (oversample != null && oversample > MINIMUM_OVERSAMPLE_FOR_GLOBAL_RESCORING)) {
+        if (optimizedRescoring && (oversample != null && oversample > MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING)) {
             int localK = (int) Math.ceil(k * oversample);
             int localNumCands = Math.max(localK, numCands);
             return new KnnVectorQueryBuilder(field, queryVector, localK, localNumCands, visitPercentage, NO_RESCORING, similarity).boost(

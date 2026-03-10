@@ -1304,15 +1304,16 @@ own file-system abstraction used to read and write index files on disk.
 Lucene's `Directory` is a pure I/O abstraction: callers open
 an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
 and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
-write one. The `Store` builds on the Lucene `Directory` capabilities by tracking committed file metadata and enforcing
-integrity invariants. It also adds reference counting and corruption detection.
+write one. The `Store` builds on the Lucene `Directory` capabilities by adding reference counting and corruption 
+detection, exposing committed file metadata and enforcing integrity invariants.
 
 #### Reference Counting and Lifecycle
 
 The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
 a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
 directory is cleaned up. This allows the `Store` to outlive the higher-level [IndexShard] instance that owns it (for
-example, during shard relocation).
+example, during shard relocation). The `Store` also receives a [ShardLock] at construction time and only releases it 
+once closed, allowing other threads waiting to acquire the lock for this shard to proceed.
 
 #### Backing Directory
 
@@ -1347,30 +1348,9 @@ Elasticsearch flush.
 Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
 Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
 
-`MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including peer recovery and replica shard
-allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two distinct
-shards and calculate how much data needs to be transferred to bring them into sync.
-
-During peer recovery, the recovering shard (target) calls `indexShard.snapshotStoreMetadata()` to capture its
-local `MetadataSnapshot`
-and [bundles](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java#L483)
-it into the `StartRecoveryRequest` sent to the primary. On the source side, `RecoverySourceHandler.phase1` reads its own
-`MetadataSnapshot` from the current Lucene commit,
-then [computes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/recovery/plan/PeerOnlyRecoveryPlannerService.java#L43)
-a `RecoveryDiff` that will classify every committed file as `identical`, `different` or `missing`. The source's
-`MetadataSnapshot` is also included in the subsequent `RecoveryCleanFilesRequest` so the target knows which files belong
-to the new commit and can delete anything stale.
-
-During replica shard allocation, before allocating a replica, the master
-will [ask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L168)
-every data node to report its on-disk `MetadataSnapshot` for the shard via `TransportNodesListShardStoreMetadata`. This
-read [happens directly](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L179)
-against the Lucene directory without going through the engine, so it works even on nodes where the
-shard is not active. The `ReplicaShardAllocator` then compares each candidate node's snapshot against the
-primary's, [counting the total bytes of files](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L428)
-that are identical. The node
-with [the most reusable state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/ReplicaShardAllocator.java#L474)
-is preferred, minimizing the data that needs to be transferred during recovery.
+`MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including [peer recovery](#peer-recovery) and
+replica shard allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two
+distinct shards and calculate how much data needs to be transferred to bring them into sync.
 
 #### Concurrency
 
@@ -1383,11 +1363,12 @@ Access to a shard's on-disk data is protected by three layers of locking, each s
 The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]. It is backed by a
 `Semaphore` and guarantees that at most one owner at a time has write access to a given shard directory
 within a JVM process. The
-`Store` [acquires](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
-a `ShardLock` when it is created and holds it for its entire lifetime. Write operations such as creating an
-`IndexWriter`, deleting shard files, or recovering from another shard all require holding the `ShardLock` first. Callers
-that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading metadata
-for allocation
+`Store` [is given](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
+a `ShardLock` at creation time. It holds this lock for its entire lifetime, ensuring that write operations (e.g.
+creating an `IndexWriter`, deleting shard files, or recovering from another shard) have exclusive access to the shard 
+directory.
+Callers that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading 
+metadata for allocation
 decisions) [acquire a temporary](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L182)
 `ShardLock` for the duration of the read.
 
@@ -1428,8 +1409,8 @@ primary or a snapshot).
 
 ### Engine
 
-The [Engine] abstract class is the Elasticsearch abstraction for the live shard index. Where the `Store`
-manages files on disk, the `Engine` manages and coordinates operations on the running shard index. It owns the write
+The [Engine] abstract class is the Elasticsearch abstraction that manages and coordinates operations on the running
+shard index. Where the `Store` manages files on disk, the `Engine` owns the write
 path (indexing, deletion, no-ops), the read path (searcher acquisition, real-time GET), and Lucene lifecycle
 operations (refresh, flush, merge). It also controls the translog, ensuring that every acknowledged write is
 durably recorded before a response is sent.
@@ -1439,8 +1420,8 @@ implementations serve more specialized roles. For example,
 the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
 gives read-only access to a frozen shard, and
 the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
-acts as a do-nothing placeholder for shards belonging to a closed index, where an engine object must exist but
-all read and write operations throw `UnsupportedOperationException`.
+acts as a placeholder for shards belonging to a closed index. It exists to allow shards of closed indices to be
+correctly replicated in case of a node failure.
 
 #### Segments, Refresh, and Flush
 
@@ -1551,25 +1532,11 @@ a `Store` referencing the shard's on-disk directory,
 and [instantiates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L569)
 an `IndexShard`. Recovery is
 then [triggered](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/IndicesService.java#L993)
-based on the [RecoverySource] in the [ShardRouting]:
+based on the [RecoverySource] in the [ShardRouting].
 
-- `EMPTY_STORE`: creates a
-  new [empty Lucene index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java#L483)
-  and bootstraps an empty translog, then opens the engine. No translog replay is needed.
-- `EXISTING_STORE`: opens the engine against the existing Lucene commit on disk, then replays the translog.
-- `PEER`: first synchronizes Lucene segment files from the primary over the network (engine not open yet) via the
-  `RecoverySourceHandler`/`PeerRecoveryTargetService` classes, then opens the engine
-  and [skips](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L2270)
-  local translog replay, because the primary streams any remaining operations directly during the recovery protocol.
-- `SNAPSHOT`: downloads segment files from a remote snapshot repository into the local store directory (`StoreRecovery`
-  class), then proceeds as `EXISTING_STORE`.
-- `LOCAL_SHARDS`: copies segment files from another index's shards on the same node (used by the shrink, split, and
-  clone index APIs), then proceeds as `EXISTING_STORE`.
-
-Recovery also creates the `Engine` via `IndexShard.innerOpenEngineAndTranslog()`. Once
-recovery completes, `IndexShard` sends a `shardStarted` notification to the master via the
-[ShardStateAction]. The master processes this as a cluster state update, marking the shard as `STARTED` in
-the routing table and making it available to serve index and search requests.
+The details of recovery, including how the `Engine` is created and started, are covered in the
+[Peer Recovery](#peer-recovery), [Snapshot Recovery](#snapshot-recovery), and [Local Shards Recovery](#local-shards-recovery)
+sections.
 
 ### Translog
 

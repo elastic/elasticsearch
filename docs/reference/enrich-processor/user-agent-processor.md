@@ -85,7 +85,7 @@ Before version 9.4, this directory was named `config/ingest-user-agent`. The old
 
 In practice, it will make most sense for any custom regex file to be a variant of the default file, either a more recent version or a customised version.
 
-The default file included in the `user-agent` module is the `regexes.yaml` from uap-core: [https://github.com/ua-parser/uap-core/blob/master/regexes.yaml](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml)
+The default file included in the `user-agent` module is `regexes.yaml` from the uap-core package: [https://github.com/ua-parser/uap-core/blob/master/regexes.yaml](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml)
 
 
 ### Node Settings [user-agent-settings]

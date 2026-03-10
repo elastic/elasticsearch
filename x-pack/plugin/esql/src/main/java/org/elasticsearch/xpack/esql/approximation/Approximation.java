@@ -508,6 +508,9 @@ public class Approximation {
             throw new IllegalStateException("Approximation count iteration limit exceeded");
         }
         double sampleProbability = nextSubPlanSampleProbability;
+        // The row count is sample-corrected, however here we want the actual
+        // (not-corrected) number of rows reaching the STATS.
+        rowCount = Math.round(sampleProbability * rowCount);
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
         double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
         if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {

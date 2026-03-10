@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -84,7 +84,7 @@ public class ApproximationPlan {
     /**
      * The number of buckets to use for computing confidence intervals.
      */
-    static final int BUCKET_COUNT = 16;
+    public static final int BUCKET_COUNT = 16;
 
     /**
      * Default confidence level for confidence intervals.
@@ -100,13 +100,6 @@ public class ApproximationPlan {
      * to data for that.
      */
     static final int MIN_ROW_COUNT_FOR_RESULT_INCLUSION = 10;
-
-    /**
-     * These aggregate functions need to be corrected for random sampling, by
-     * scaling up the sampled value by the inverse of the sampling probability.
-     * Other aggregate functions do not need any correction.
-     */
-    private static final Set<Class<? extends AggregateFunction>> SAMPLE_CORRECTED_AGGS = Set.of(Count.class, Sum.class);
 
     /**
      * These numerical scalar functions produce multivalued output. This means that
@@ -212,12 +205,12 @@ public class ApproximationPlan {
      *             | EVAL bucketId = MV_APPEND(RANDOM(B), ... , RANDOM(B))  // T times
      *             | SAMPLED_STATS[SampleProbabilityPlaceHolder]
      *                     sampleSize = COUNT(*),
-     *                     s = SUM(x) / prob,
-     *                     `s$0` = SUM(x) / (prob/B)) WHERE MV_SLICE(bucketId, 0, 0) == 0
+     *                     s = SUM(x),
+     *                     `s$0` = SUM(x) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                     ...,
-     *                     `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *                     `s$T*B-1` = SUM(x) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
      *               BY group
-     *             | WHERE sampleSize >= sampleSizeThreshold
+     *             | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION / prob
      *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
      *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90),
      *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.90)
@@ -225,8 +218,8 @@ public class ApproximationPlan {
      *     }
      * </pre>
      * During execution the {@code SAMPLED_STATS} is replaced on the data node by either
-     * sampling the source rows and a normal {@code STATS}, or pushed down to Lucene without
-     * any sampling if that's possible (which would be more efficient if it is).
+     * sampling the source rows and a normal {@code STATS} (with sample corrections applied
+     * to intermediate state), or pushed down to Lucene without any sampling (if possible).
      */
     public static LogicalPlan get(LogicalPlan logicalPlan, ApproximationSettings settings) {
         logger.debug("generating approximation plan");
@@ -239,30 +232,22 @@ public class ApproximationPlan {
         // that field.
         Map<NameId, List<Alias>> fieldBuckets = new HashMap<>();
 
-        // For each sample-corrected expression, also keep track of the uncorrected expression.
-        // These are used when a division between two sample-corrected expressions is encountered.
-        // This results in the same value (because (expr1/prob) / (expr2/prob) == expr1/expr2),
-        // except that no round-off errors occur if either the numerator or denominator is an
-        // integer and rounded to that after sample-correction. The most common case is AVG, which
-        // is rewritten to AVG::double = SUM::double / COUNT::long.
-        Map<NameId, NamedExpression> uncorrectedExpressions = new HashMap<>();
-
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate == false) {
                     // Commands before the first STATS function should be left unchanged.
                     return plan;
                 } else {
-                    // The first STATS function should be replaced by a sample-corrected STATS
-                    // and buckets (for computing confidence intervals).
+                    // The first STATS function should be replaced by a STATS with buckets
+                    // (for computing confidence intervals).
                     encounteredStats.set(true);
-                    return sampleCorrectedAggregateAndBuckets((Aggregate) plan, fieldBuckets, uncorrectedExpressions);
+                    return sampleCorrectedAggregateAndBuckets((Aggregate) plan, fieldBuckets);
                 }
             } else {
                 // After the STATS function, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
-                return planIncludingBuckets(plan, fieldBuckets, uncorrectedExpressions);
+                return planIncludingBuckets(plan, fieldBuckets);
             }
         });
 
@@ -270,11 +255,12 @@ public class ApproximationPlan {
         double confidenceLevel = settings.confidenceLevel() != null ? settings.confidenceLevel() : DEFAULT_CONFIDENCE_LEVEL;
         approximationPlan = new Eval(Source.EMPTY, approximationPlan, getConfidenceIntervals(logicalPlan, fieldBuckets, confidenceLevel));
 
-        // Drop all bucket fields and uncorrected fields from the output.
-        Set<Attribute> dropAttributes = Stream.concat(
-            fieldBuckets.values().stream().flatMap(List::stream),
-            uncorrectedExpressions.values().stream()
-        ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
+        // Drop all bucket fields from the output.
+        Set<Attribute> dropAttributes = fieldBuckets.values()
+            .stream()
+            .flatMap(List::stream)
+            .map(NamedExpression::toAttribute)
+            .collect(Collectors.toSet());
 
         List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
         keepAttributes.removeAll(dropAttributes);
@@ -284,8 +270,10 @@ public class ApproximationPlan {
     }
 
     /**
-     * Replaces the aggregate by a sample-corrected aggregate and buckets, and
-     * filters out groups with a too small sample size. This means that:
+     * Replaces the aggregate by an aggregate with buckets (for confidence intervals),
+     * and filters out groups with a too small sample size.
+     * <p>
+     * This means that:
      * <pre>
      *     {@code
      *          STATS s = SUM(x) BY group
@@ -298,21 +286,15 @@ public class ApproximationPlan {
      *                s = SUM(x),
      *                `s$0` = SUM(x) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                ...,
-     *                `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *                `s$T*B-1` = SUM(x) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
      *          BY group
-     *          | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION
-     *          | EVAL s = s / prob, `s$0` = `s$0` / (prob/B), `s$T*B-1` = `s$T*B-1` / (prob/B)
+     *          | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION / prob
      *          | DROP sampleSize
      *      }
      * </pre>
      */
-    private static LogicalPlan sampleCorrectedAggregateAndBuckets(
-        Aggregate aggregate,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> uncorrectedExpressions
-    ) {
+    private static LogicalPlan sampleCorrectedAggregateAndBuckets(Aggregate aggregate, Map<NameId, List<Alias>> fieldBuckets) {
         Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY);
-        Expression bucketSampleProbability = new Div(Source.EMPTY, sampleProbability, Literal.integer(Source.EMPTY, BUCKET_COUNT));
 
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
         Expression bucketIds = randomBucketId;
@@ -326,10 +308,7 @@ public class ApproximationPlan {
         List<NamedExpression> bucketAggregates = new ArrayList<>();
 
         // List of expressions that must be evaluated after the sampled aggregation.
-        // These consist of:
-        // - sample corrections (to correct counts/sums for sampling)
-        // - replace zero counts by NULLs (for confidence interval computation)
-        // - exact total row count if COUNT(*) is used (to avoid sampling errors there)
+        // For COUNT, zeroes must be replaced by NULLs for the confidence interval computation.
         List<Alias> evals = new ArrayList<>();
         List<NamedExpression> originalAggregates = new ArrayList<>();
         List<Attribute> projections = new ArrayList<>();
@@ -370,56 +349,30 @@ public class ApproximationPlan {
                             aggOrKey.name() + "$bucket$" + (trialId * BUCKET_COUNT + bucketId),
                             bucket
                         );
-                        if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
-                            buckets.add(bucketAlias);
-                            bucketAggregates.add(bucketAlias);
-                            projections.add(bucketAlias.toAttribute());
-                        } else {
-                            Alias uncorrectedBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$uncorrected", bucket);
-                            uncorrectedExpressions.put(bucketAlias.id(), uncorrectedBucketAlias);
-                            bucketAggregates.add(uncorrectedBucketAlias);
-                            projections.add(uncorrectedBucketAlias.toAttribute());
+                        bucketAggregates.add(bucketAlias);
 
-                            Expression uncorrectedBucket = uncorrectedBucketAlias.toAttribute();
-                            if (aggFn instanceof Count) {
-                                // For COUNT, no data should result in NULL, like in other aggregations.
-                                // Otherwise, the confidence interval computation breaks.
-                                uncorrectedBucket = new Case(
+                        if (aggFn instanceof Count) {
+                            // COUNT returns 0 for no data, but confidence computation needs NULL.
+                            bucketAlias = new Alias(
+                                Source.EMPTY,
+                                bucketAlias.name(),
+                                new Case(
                                     Source.EMPTY,
-                                    new Equals(Source.EMPTY, uncorrectedBucket, Literal.fromLong(Source.EMPTY, 0L)),
-                                    List.of(Literal.NULL, uncorrectedBucket)
-                                );
-                            }
-
-                            Expression correctedBucket = correctForSampling(uncorrectedBucket, bucketSampleProbability, null);
-                            Alias correctedBucketAlias = bucketAlias.replaceChild(correctedBucket);
-                            evals.add(correctedBucketAlias);
-                            projections.add(correctedBucketAlias.toAttribute());
-                            buckets.add(correctedBucketAlias);
+                                    new Equals(Source.EMPTY, bucketAlias.toAttribute(), Literal.fromLong(Source.EMPTY, 0L)),
+                                    List.of(Literal.NULL, bucketAlias.toAttribute())
+                                )
+                            );
+                            evals.add(bucketAlias);
                         }
+                        buckets.add(bucketAlias);
+                        projections.add(bucketAlias.toAttribute());
                     }
                 }
                 fieldBuckets.put(aggOrKey.id(), buckets);
             }
 
-            // Replace the original aggregation by a sample-corrected one if needed.
-            if (SAMPLE_CORRECTED_AGGS.contains(aggFn.getClass()) == false) {
-                originalAggregates.add(aggAlias);
-                projections.add(aggAlias.toAttribute());
-            } else {
-                Alias uncorrectedAggAlias = new Alias(aggAlias.source(), aggAlias.name() + "$uncorrected", aggFn);
-                uncorrectedExpressions.put(aggAlias.id(), uncorrectedAggAlias);
-                originalAggregates.add(uncorrectedAggAlias);
-                projections.add(uncorrectedAggAlias.toAttribute());
-
-                Expression correctedAgg = correctForSampling(
-                    uncorrectedAggAlias.toAttribute(),
-                    sampleProbability,
-                    fieldBuckets.get(aggOrKey.id())
-                );
-                evals.add(aggAlias.replaceChild(correctedAgg));
-                projections.add(aggAlias.toAttribute());
-            }
+            originalAggregates.add(aggAlias);
+            projections.add(aggAlias.toAttribute());
         }
 
         List<NamedExpression> aggregates = Stream.concat(originalAggregates.stream(), bucketAggregates.stream())
@@ -433,7 +386,7 @@ public class ApproximationPlan {
             originalAggregates.add(sampleSize);
         }
 
-        // Add the bucket ID, do the aggregations (sampled corrected, including the buckets),
+        // Add the bucket ID, do the aggregations (including the buckets),
         // and filter out rows with too few sampled values.
         LogicalPlan plan = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketIdField));
 
@@ -441,6 +394,8 @@ public class ApproximationPlan {
 
         if (sampleSize != null) {
             List<Attribute> allBuckets = Expressions.asAttributes(bucketAggregates);
+            // The threshold is adjusted by 1/prob because $sample_size is also
+            // corrected on the data nodes by 1/prob.
             plan = new Filter(
                 Source.EMPTY,
                 plan,
@@ -450,7 +405,11 @@ public class ApproximationPlan {
                     new GreaterThanOrEqual(
                         Source.EMPTY,
                         sampleSize.toAttribute(),
-                        Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
+                        new Round(
+                            Source.EMPTY,
+                            new Div(Source.EMPTY, Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION), sampleProbability),
+                            Literal.integer(Source.EMPTY, 0)
+                        )
                     )
                 )
             );
@@ -461,42 +420,13 @@ public class ApproximationPlan {
     }
 
     /**
-     * Corrects an aggregation function for random sampling.
-     * Some functions (like COUNT and SUM) need to be scaled up by the inverse of
-     * the sampling probability, while others (like AVG and MEDIAN) do not.
-     */
-    private static Expression correctForSampling(Expression expr, Expression sampleProbability, List<Alias> buckets) {
-        Expression correctedAgg = new Div(expr.source(), expr, sampleProbability);
-        correctedAgg = switch (expr.dataType()) {
-            case DOUBLE -> correctedAgg;
-            case LONG -> new ToLong(expr.source(), correctedAgg);
-            default -> throw new IllegalStateException("unexpected data type [" + expr.dataType() + "]");
-        };
-        if (buckets != null) {
-            // All buckets being null indicates that the query was executed
-            // exactly, hence no sampling correction must be applied.
-            List<Expression> rest = buckets.subList(1, buckets.size()).stream().map(Alias::toAttribute).collect(Collectors.toList());
-            correctedAgg = new Case(
-                Source.EMPTY,
-                new IsNull(Source.EMPTY, new Coalesce(Source.EMPTY, buckets.getFirst().toAttribute(), rest)),
-                List.of(expr, correctedAgg)
-            );
-        }
-        return correctedAgg;
-    }
-
-    /**
      * Returns a plan that also processes the buckets for fields that have them.
      * Luckily, there's only a limited set of commands that have to do something
      * with the buckets: EVAL, PROJECT and MV_EXPAND.
      */
-    private static LogicalPlan planIncludingBuckets(
-        LogicalPlan plan,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> uncorrectedExpressions
-    ) {
+    private static LogicalPlan planIncludingBuckets(LogicalPlan plan, Map<NameId, List<Alias>> fieldBuckets) {
         return switch (plan) {
-            case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, uncorrectedExpressions);
+            case Eval eval -> evalIncludingBuckets(eval, fieldBuckets);
             case Project project -> projectIncludingBuckets(project, fieldBuckets);
             case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
             default -> plan;
@@ -509,11 +439,7 @@ public class ApproximationPlan {
      * non-numeric or multivalued, though, confidence intervals don't apply anymore,
      * and the buckets not computed.
      */
-    private static LogicalPlan evalIncludingBuckets(
-        Eval eval,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> uncorrectedExpressions
-    ) {
+    private static LogicalPlan evalIncludingBuckets(Eval eval, Map<NameId, List<Alias>> fieldBuckets) {
         List<Alias> fields = new ArrayList<>(eval.fields());
         for (Alias field : eval.fields()) {
             // Don't create buckets for non-numeric or multivalued fields.
@@ -537,26 +463,6 @@ public class ApproximationPlan {
                 fields.addAll(buckets);
                 fieldBuckets.put(field.id(), buckets);
             }
-        }
-        // For each division of two sample-corrected expressions, replace it by
-        // a division of the corresponding uncorrected expressions.
-        for (int i = 0; i < fields.size(); i++) {
-            Alias field = fields.get(i);
-            fields.set(i, field.replaceChild(field.child().transformUp(e -> {
-                if (e instanceof Div div
-                    && div.left() instanceof NamedExpression left
-                    && uncorrectedExpressions.containsKey(left.id())
-                    && div.right() instanceof NamedExpression right
-                    && uncorrectedExpressions.containsKey(right.id())) {
-                    return new Div(
-                        e.source(),
-                        uncorrectedExpressions.get(left.id()).toAttribute(),
-                        uncorrectedExpressions.get(right.id()).toAttribute(),
-                        div.dataType()
-                    );
-                }
-                return e;
-            })));
         }
         return new Eval(Source.EMPTY, eval.child(), fields);
     }

@@ -216,15 +216,15 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(Count.class)));
 
-        // Filtered count of 10, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(10));
+        // Sampled-corrected filtered count of 10^9 (so actual count of 10), so increase the sample probability.
+        approximation.newMainPlan(newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Count.class)));
 
-        // Filtered count of 10_000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(10_000));
+        // Sampled-corrected filtered count of 10^9 (so actual count of 10_000), so no more subplans.
+        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -399,8 +399,8 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Count.class)));
 
-        // sampled mv_expanded count of 10^7, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(10_000_000));
+        // Sample-corrected mv_expanded count of 10^12 (so actual of 10^7), so no more subplans.
+        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000_000L));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 

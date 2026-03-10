@@ -2237,6 +2237,12 @@ public class EsqlCapabilities {
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
+        /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        UNION_TYPES_CONFLICT_RESOLUTION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

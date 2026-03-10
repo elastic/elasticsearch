@@ -3,7 +3,7 @@ serverless: preview
 stack: preview
 ```
 
-The `MMR` command reduces the result set from another retriever by applying a diversification strategy to the return rows.
+The `MMR` command reduces the result set from a set of input rows by applying a diversification strategy to the return rows.
 
 ## Syntax
 
@@ -21,7 +21,7 @@ MMR [query_vector] ON field LIMIT limit [WITH { "lambda": lambda_value }]
 :   (required) The maximum number of rows to return after diversification.
 
 `query_vector`
-:   (optional) The query vector to use as part of the diversification algorithm for comparison. 
+:   (optional) The query vector to use as part of the diversification algorithm for comparison.
     Must have the same number of dimensions as the vector field you are searching against.
     Must be one of:
       - An array of floats
@@ -30,7 +30,7 @@ MMR [query_vector] ON field LIMIT limit [WITH { "lambda": lambda_value }]
       - A function or expression that returns a `dense_vector`
 
 `lambda_value`
-:   (Required if `WITH` is used) A value between 0.0 and 1.0 that controls how similarity is calculated during diversification. 
+:   (Required if `WITH` is used) A value between 0.0 and 1.0 that controls how similarity is calculated during diversification.
     Higher values weight the similarity to the query_vector more heavily, lower values weight the diversity more heavily.
 
 ## Description
@@ -46,16 +46,24 @@ The command uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
 
 :::{note}
-The ordering of results returned from the inner retriever is preserved.
+The ordering of results returned from the input rows is preserved.
+:::
+
+:::{note}
+You must limit the number of input rows before the `MMR` command.
+As an example you can use the [LIMIT command](../../../../esql/commands/limit.md) to restrict the input.
 :::
 
 ## Examples
 
+### Basic result diversification
 :::{include} ../examples/mmr.csv-spec/simpleMMR.md
 :::
 
+### Result diversification with a query vector
 :::{include} ../examples/mmr.csv-spec/simpleMMRWithQueryVector.md
 :::
 
+### Result diversification using a text embedding to generate a query vector
 :::{include} ../examples/mmr.csv-spec/simpleMMRWithTextEmbedding.md
 :::

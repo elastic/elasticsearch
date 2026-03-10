@@ -1019,6 +1019,10 @@ public final class ServiceUtils {
         );
     }
 
+    public static void throwUnsupportedReasoningUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
+    }
+
     public static ElasticsearchStatusException createUnsupportedTaskTypeStatusException(Model model, EnumSet<TaskType> supportedTaskTypes) {
         var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, supportedTaskTypes);
 

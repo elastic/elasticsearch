@@ -26,6 +26,7 @@ import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
+import java.util.Arrays;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -1183,6 +1184,36 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        byte first = term[termOffset];
+        byte last = term[termOffset + termLength - 1];
+        int maxPos = valueOffset + valueLength - termLength;
+
+        ByteVector firstVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, first);
+        ByteVector lastVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, last);
+        int vectorSize = PREFERRED_BYTE_SPECIES.length();
+        int i = valueOffset;
+        int loopBound = maxPos - vectorSize + 1;
+        for (; i <= loopBound; i += vectorSize) {
+            ByteVector blockFirst = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i);
+            ByteVector blockLast = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i + termLength - 1);
+            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
+            while (mask != 0) {
+                int pos = Long.numberOfTrailingZeros(mask);
+                int absPos = i + pos;
+                if (absPos > maxPos) {
+                    break;
+                }
+                if (Arrays.mismatch(value, absPos, absPos + termLength, term, termOffset, termOffset + termLength) == -1) {
+                    return true;
+                }
+                mask &= mask - 1;
+            }
+        }
+        return ByteArrayUtils.contains(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
     }
 
     @Override

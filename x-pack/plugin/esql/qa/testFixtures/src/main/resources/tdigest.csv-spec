@@ -660,3 +660,22 @@ time:datetime            | count:long
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
 ;
+
+// -------------------------------------------------------------------------------
+
+timeseriesLastAndFirstOverTimeDirectTDigest
+required_capability: ts_command_v0
+required_capability: tdigest_first_last_over_time
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS first_count = COUNT(first_over_time(responseTime)),
+         last_count = COUNT(last_over_time(responseTime))
+         BY time = TBUCKET(1d)
+ | KEEP time, first_count, last_count
+ | SORT time
+;
+
+time:datetime            | first_count:long | last_count:long
+2025-09-25T00:00:00.000Z | 135              | 142
+;

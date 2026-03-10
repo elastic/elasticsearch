@@ -24,7 +24,7 @@ import java.util.Arrays;
  */
 class RoundToLong {
     static final RoundTo.Build BUILD = (source, field, points) -> {
-        long[] f = points.stream().mapToLong(p -> ((Number) p).longValue()).toArray();
+        long[] f = points.stream().mapToLong(p -> p.longValue()).toArray();
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToLong1Evaluator.Factory(source, field, f[0]);

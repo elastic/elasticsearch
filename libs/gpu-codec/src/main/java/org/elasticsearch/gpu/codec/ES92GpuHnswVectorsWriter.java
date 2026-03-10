@@ -585,7 +585,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
                 // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
@@ -628,9 +628,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
                 try (IndexInput clonedSlice = slice.clone()) {
                     clonedSlice.seek(0);
-                    byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                    int dims = fieldInfo.getVectorDimension();
+                    byte[] vector = new byte[dims];
                     for (int i = 0; i < numVectors; ++i) {
-                        clonedSlice.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                        clonedSlice.readBytes(vector, 0, dims);
+                        clonedSlice.skipBytes(4); // skip scalar quantization correction constant
                         builder.addVector(vector);
                     }
                 }
@@ -685,7 +687,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Fast path, possible direct access to mmapped file
                 try (

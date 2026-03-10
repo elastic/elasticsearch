@@ -286,7 +286,7 @@ m:double | pod:keyword | bucket:datetime
 10.75    | TWO         | 2024-05-10T00:20:00.000Z
 ;
 
-# Kept this test disabled to show the difference from IGNORE_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
+# Kept this test disabled to show the difference from INSIST_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
 # up at all.
 fieldIsUnmappedButSourceIsDisabledSingleIndex-Ignore
 required_capability: source_field_mapping
@@ -393,9 +393,9 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | null
 ;
 
-#########################
-# Multi-parameter tests #
-#########################
+###############################
+# Multi-unmapped fields tests #
+###############################
 
 noFieldExistsMultiParametersSingleIndex
 required_capability: optional_fields_v2
@@ -435,57 +435,11 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 ;
 
-repeatedInsistFieldsUseTheLastEntry
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data
-| KEEP @timestamp, foo, message, unmapped_message
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | foo:keyword | message:keyword        | unmapped_message:keyword
-2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error
-2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error
-2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error
-2024-10-23T13:33:34.937Z | null        | 42                     | 43
-2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
-;
-
 #####################
 # Multi index tests #
 #####################
 
 mixedFieldsMultiParametersMultiIndex
-required_capability: index_metadata_field
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data, sample_data METADATA _index
-| KEEP _index, @timestamp, foo, message, unmapped_message
-| SORT @timestamp DESC
-;
-
-_index:keyword              | @timestamp:datetime      | foo:keyword | message:keyword        | unmapped_message:keyword
-partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error
-partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error
-partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error
-partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | null        | 42                     | 43
-partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
-sample_data                 | 2023-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1  | null
-sample_data                 | 2023-10-23T13:53:55.832Z | null        | Connection error       | null
-sample_data                 | 2023-10-23T13:52:55.015Z | null        | Connection error       | null
-sample_data                 | 2023-10-23T13:51:54.732Z | null        | Connection error       | null
-sample_data                 | 2023-10-23T13:33:34.937Z | null        | Disconnected           | null
-sample_data                 | 2023-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2  | null
-sample_data                 | 2023-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3  | null
-;
-
-insistOnTopOfInsistMultiIndex
 required_capability: index_metadata_field
 required_capability: optional_fields_v2
 
@@ -566,33 +520,6 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3  | null                       | sample_data
 ;
 
-
-fieldIsMappedToDifferentTypesMultiIndex
-required_capability: index_metadata_field
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data METADATA _index
-| KEEP _index, @timestamp
-| SORT _index
-;
-
-_index:keyword      | @timestamp:unsupported
-sample_data         | null
-sample_data         | null
-sample_data         | null
-sample_data         | null
-sample_data         | null
-sample_data         | null
-sample_data         | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-sample_data_ts_long | null
-;
 
 fieldIsMappedToDifferentTypesButDropped
 required_capability: index_metadata_field
@@ -677,6 +604,23 @@ Connected to 10.1.0.1
 42
 ;
 
+fieldMappedUnmappedAndMissingMultiIndex
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data, missing_ip_sample_data METADATA _index
+| EVAL ip = TO_IP(client_ip)
+| STATS present = COUNT(ip) BY _index
+| SORT _index
+;
+
+present:long | _index:keyword
+0            | missing_ip_sample_data
+7            | no_mapping_sample_data
+7            | sample_data
+;
+
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: index_metadata_field
 required_capability: source_field_mapping
@@ -755,7 +699,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 2024-10-23T13:55:01.543Z | partial_mapping_sample_data                 | Connected to 10.1.0.1!
 ;
 
-partialMappingUnionTypes
+partialMappingKeywordCast
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: optional_fields_v2

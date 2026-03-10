@@ -589,6 +589,34 @@ sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
 sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 ;
 
+fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: index_metadata_field
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp
+;
+
+_index:keyword                        | @timestamp:date          | message:keyword
+partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_sample_data           | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+partial_mapping_sample_data           | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+;
+
 unmappedFieldNullifiedTsIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0

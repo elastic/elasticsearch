@@ -21,6 +21,7 @@ import org.elasticsearch.test.NodeShutdownTestUtils;
 
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -33,12 +34,22 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
 
     private static final DiskHealthInfo GREEN_DISK_HEALTH = new DiskHealthInfo(HealthStatus.GREEN, null);
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // Use the minimum poll interval so that waitForAllNodesToReportHealthy completes quickly.
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), LocalHealthMonitor.MIN_POLL_INTERVAL)
+            .build();
+    }
+
     /**
      * Verifies that the health node task is always assigned and succeeds as expected during rolling node shutdowns.
      */
     public void testHealthNodeReassignedOnShutdown() throws Exception {
         final var initialHealthNode = waitAndGetHealthNode(internalCluster());
         assertNotNull("health task must be assigned after cluster starts", initialHealthNode);
+        waitForAllNodesToReportHealthy(initialHealthNode.getName());
 
         // Alternate shutdowns: each pass marks the current health node for shutdown,
         // verifies the task migrates to the other data node atomically (no gap),
@@ -74,12 +85,13 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
                 );
 
                 NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
-                waitForAllNodesToReportHealthy(newHealthNode.getName());
                 currentHealthNodeName = newHealthNode.getName();
             } finally {
                 NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
             }
         }
+        final var finalHealthNode = waitAndGetHealthNode(internalCluster());
+        waitForAllNodesToReportHealthy(finalHealthNode.getName());
     }
 
     /**
@@ -91,9 +103,9 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
         assertNotNull("health task must be assigned on startup", initialHealthNode);
         waitForAllNodesToReportHealthy(initialHealthNode.getName());
 
-        // Disable on all nodes
-        updateClusterSettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false));
         try {
+            // Disable on all nodes
+            updateClusterSettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false));
             awaitClusterState(state -> HealthNode.findTask(state) == null && HealthNode.findHealthNode(state) == null);
 
             // Re-enable the task
@@ -135,6 +147,6 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
                     equalTo(GREEN_DISK_HEALTH)
                 );
             }
-        });
+        }, 3 * LocalHealthMonitor.MIN_POLL_INTERVAL.seconds(), TimeUnit.SECONDS);
     }
 }

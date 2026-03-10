@@ -102,7 +102,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
             clusterService.addListener(taskStarter);
         } else {
             clusterService.removeListener(taskStarter);
-            abortTaskIfApplicable("disabling health node via '" + ENABLED_SETTING.getKey() + "'");
+            stopTaskIfApplicable("disabling health node via '" + ENABLED_SETTING.getKey() + "'");
         }
     }
 
@@ -170,8 +170,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    // visible for testing
-    void abortTaskIfApplicable(String reason) {
+    private void stopTaskIfApplicable(String reason) {
         HealthNode task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
             logger.info("Stopping health node task due to {}.", reason);

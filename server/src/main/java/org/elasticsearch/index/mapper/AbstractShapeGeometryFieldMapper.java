@@ -124,14 +124,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 throws IOException {
                 try (var builder = factory.ints(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(binaryDocValues, docs.get(i), builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }
             }
 
-            private void read(BinaryDocValues binaryDocValues, int doc, org.elasticsearch.index.mapper.BlockLoader.IntBuilder builder)
-                throws IOException {
+            private void read(int doc, BlockLoader.IntBuilder builder) throws IOException {
                 if (binaryDocValues.advanceExact(doc) == false) {
                     builder.appendNull();
                     return;
@@ -177,9 +176,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
+            public BlockLoader.ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                breaker.addEstimateBytesAndMaybeBreak(BLOCK_LOADER_ESTIMATED_SIZE, "load blocks");
                 BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
-                return binaryDocValues == null ? ConstantNull.READER : new CentroidReader(binaryDocValues, encoder);
+                if (binaryDocValues == null) {
+                    breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+                    return ConstantNull.COLUMN_READER;
+                }
+                return new CentroidReader(breaker, binaryDocValues, encoder);
             }
 
             @Override
@@ -188,12 +192,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
         }
 
-        private static class CentroidReader implements BlockLoader.AllReader {
+        private static class CentroidReader implements BlockLoader.ColumnAtATimeReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
 
-            private CentroidReader(BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+            private CentroidReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+                this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
             }
@@ -207,11 +213,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     }
                     return builder.build();
                 }
-            }
-
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-                read(docId, (BlockLoader.DoubleBuilder) builder);
             }
 
             private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
@@ -237,6 +238,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.appendDouble(reader.getDimensionalShapeType().ordinal());
                 builder.endPositionEntry();
             }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+            }
         }
 
         /**
@@ -255,13 +261,14 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
 
             @Override
-            public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
+            public BlockLoader.ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                breaker.addEstimateBytesAndMaybeBreak(BLOCK_LOADER_ESTIMATED_SIZE, "load blocks");
                 BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
-                return binaryDocValues == null ? ConstantNull.READER : createReader(binaryDocValues);
-            }
-
-            protected BlockLoader.AllReader createReader(BinaryDocValues binaryDocValues) {
-                return new BoundsAndCentroidReader(binaryDocValues, encoder, this);
+                if (binaryDocValues == null) {
+                    breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+                    return ConstantNull.COLUMN_READER;
+                }
+                return new BoundsAndCentroidReader(breaker, binaryDocValues, encoder, this);
             }
 
             @Override
@@ -284,17 +291,20 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             }
         }
 
-        private static class BoundsAndCentroidReader implements BlockLoader.AllReader {
+        private static class BoundsAndCentroidReader implements BlockLoader.ColumnAtATimeReader {
             private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;
             private final BoundsAndCentroidBlockLoader loader;
 
             private BoundsAndCentroidReader(
+                CircuitBreaker breaker,
                 BinaryDocValues binaryDocValues,
                 CoordinateEncoder encoder,
                 BoundsAndCentroidBlockLoader loader
             ) {
+                this.breaker = breaker;
                 this.binaryDocValues = binaryDocValues;
                 this.encoder = encoder;
                 this.loader = loader;
@@ -309,11 +319,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     }
                     return builder.build();
                 }
-            }
-
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-                read(docId, (BlockLoader.DoubleBuilder) builder);
             }
 
             private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
@@ -340,6 +345,11 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.appendDouble(reader.getSumCentroidWeight());
                 builder.appendDouble(reader.getDimensionalShapeType().ordinal());
                 builder.endPositionEntry();
+            }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
             }
         }
     }

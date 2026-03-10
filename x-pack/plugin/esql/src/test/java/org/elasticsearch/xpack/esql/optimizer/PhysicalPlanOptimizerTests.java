@@ -9497,6 +9497,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertThat("Extracting spatial centroid from doc-values", extract.boundsAttributes(), is(empty()));
                 assertThat("Extracting spatial centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
             }
+            case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> {
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
+            }
         }
         assertTrue(
             "Expect field attribute to be extracted as " + fieldExtractPreference,

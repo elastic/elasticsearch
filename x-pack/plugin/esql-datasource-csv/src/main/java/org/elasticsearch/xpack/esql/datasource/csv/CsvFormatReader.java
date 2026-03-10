@@ -133,14 +133,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final CsvMapper sharedCsvMapper;
 
     private final CsvFormatOptions options;
+    private final String format;
+    private final List<String> extensions;
 
     public CsvFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, CsvFormatOptions.DEFAULT);
+        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"));
     }
 
-    private CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options) {
+    public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
+        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions);
+    }
+
+    public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
         this.blockFactory = blockFactory;
         this.options = options;
+        this.format = format;
+        this.extensions = extensions;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -248,7 +256,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Returns a new CsvFormatReader configured with the given options.
      */
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions);
+        return new CsvFormatReader(blockFactory, newOptions, format, extensions);
     }
 
     @Override
@@ -396,12 +404,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public String formatName() {
-        return "csv";
+        return format;
     }
 
     @Override
     public List<String> fileExtensions() {
-        return List.of(".csv", ".tsv");
+        return extensions;
     }
 
     @Override

@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -161,8 +161,8 @@ public class StSimplify extends SpatialDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
 
         if (tolerance.foldable() == false) {
             throw new IllegalArgumentException("tolerance must be foldable");

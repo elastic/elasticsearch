@@ -17,9 +17,10 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PositionKeyEncoder;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -28,7 +29,7 @@ import java.util.List;
 
 /**
  * A top-N operator for grouped (SORT + LIMIT BY) queries. Maintains per-group priority queues
- * using a {@link PositionKeyEncoder} to map group key columns to integer group IDs.
+ * using a {@link GroupKeyEncoder} to map group key columns to integer group IDs.
  * <p>
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  * <p>
@@ -65,6 +66,9 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public GroupedTopNOperator get(DriverContext driverContext) {
+            var scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "group-key-encoder");
+            int[] groupKeysArray = groupKeys.stream().mapToInt(Integer::intValue).toArray();
+            var keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, scratch);
             return new GroupedTopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
@@ -72,7 +76,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                groupKeys.stream().mapToInt(Integer::intValue).toArray(),
+                keyEncoder,
                 maxPageSize,
                 jumboPageBytes
             );
@@ -102,9 +106,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<TopNOperator.SortOrder> sortOrders;
-    private final int[] groupKeys;
     private final boolean[] channelInKey;
-    private final PositionKeyEncoder keyEncoder;
+    private final GroupKeyEncoder keyEncoder;
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
@@ -126,7 +129,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders,
-        int[] groupKeys,
+        GroupKeyEncoder keyEncoder,
         int maxPageSize,
         long jumboPageBytes
     ) {
@@ -139,10 +142,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(keysHash, inputQueue);
+                Releasables.close(keyEncoder, keysHash, inputQueue);
             }
         }
-        this.keyEncoder = new PositionKeyEncoder(groupKeys, elementTypes);
+        this.keyEncoder = keyEncoder;
         this.keysHash = keysHash;
         this.inputQueue = inputQueue;
         this.blockFactory = blockFactory;
@@ -153,7 +156,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.groupKeys = groupKeys;
         this.channelInKey = new boolean[elementTypes.size()];
         for (TopNOperator.SortOrder so : sortOrders) {
             channelInKey[so.channel()] = true;
@@ -195,11 +197,18 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
         rowFiller.writeKey(position, spare);
 
-        var nextSpare = inputQueue.addRow(groupId, spare);
-        if (nextSpare != spare) {
-            var insertedRow = spare;
+        // Write values BEFORE modifying the queue so that if writeValues throws (e.g. circuit breaker),
+        // spare is not left in both the queue and the spare field (which would double-close).
+        TopNQueue queue = inputQueue.getOrCreateQueue(groupId);
+        if (queue.size() < queue.topCount) {
+            rowFiller.writeValues(position, spare);
+            queue.add(spare);
+            spare = null;
+        } else if (queue.lessThan(queue.top(), spare)) {
+            rowFiller.writeValues(position, spare);
+            TopNRow nextSpare = queue.top();
+            queue.updateTop(spare);
             spare = nextSpare;
-            rowFiller.writeValues(position, insertedRow);
         }
     }
 
@@ -235,7 +244,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash);
+        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder);
         inputQueue = null;
         output = null;
     }
@@ -248,7 +257,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * elementTypes.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
-        size += RamUsageEstimator.sizeOf(groupKeys);
         size += RamUsageEstimator.sizeOf(channelInKey);
         size += sortOrders.size() * SORT_ORDER_SIZE;
         size += keyEncoder.ramBytesUsed();
@@ -270,7 +278,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             receiveNanos,
             emitNanos,
             inputQueue != null ? inputQueue.size() : 0,
-            keysHash != null ? keysHash.size() : 0,
+            keysHash != null ? (int) keysHash.size() : 0,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -290,7 +298,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             + ", sortOrders="
             + sortOrders
             + ", groupKeys="
-            + Arrays.toString(groupKeys)
+            + Arrays.toString(keyEncoder.groupChannels())
             + "]";
     }
 

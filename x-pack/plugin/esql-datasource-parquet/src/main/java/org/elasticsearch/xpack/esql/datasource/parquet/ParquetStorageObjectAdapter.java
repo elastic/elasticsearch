@@ -50,14 +50,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * SeekableInputStream implementation that uses StorageObject's range-based reads.
-     *
-     * <p>This implementation provides efficient random access by:
-     * <ul>
-     *   <li>Tracking current position in the stream</li>
-     *   <li>Using range reads for seek operations</li>
-     *   <li>Buffering data from the current stream until a seek is needed</li>
-     * </ul>
+     * SeekableInputStream backed by StorageObject's range-based InputStream API.
+     * All reads (byte-array and ByteBuffer) go through a single cached InputStream
+     * that is reopened on seek.
      */
     private static class StorageObjectSeekableInputStream extends SeekableInputStream {
         private final StorageObject storageObject;
@@ -71,7 +66,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.length = storageObject.length();
             this.position = 0;
             this.streamStartPosition = 0;
-            // Open initial stream from beginning
             this.currentStream = storageObject.newStream();
         }
 
@@ -89,40 +83,35 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 throw new IOException("Cannot seek beyond end of file: " + newPos + " > " + length);
             }
 
-            // If we're seeking within the current stream, try to skip forward
             if (newPos >= streamStartPosition && newPos >= position) {
                 long skipAmount = newPos - position;
                 if (skipAmount > 0) {
                     long skipped = currentStream.skip(skipAmount);
                     if (skipped != skipAmount) {
-                        // Skip failed, need to reopen stream
                         reopenStreamAt(newPos);
                     } else {
                         position = newPos;
                     }
                 }
-                // If newPos == position, we're already there
                 return;
             }
 
-            // For backward seeks or large forward seeks, reopen the stream
             reopenStreamAt(newPos);
         }
 
-        /**
-         * Reopens the stream at the specified position using a range read.
-         */
         private void reopenStreamAt(long newPos) throws IOException {
-            // Close current stream
-            if (currentStream != null) {
-                currentStream.close();
+            InputStream old = currentStream;
+            currentStream = null;
+            try {
+                long remainingBytes = length - newPos;
+                currentStream = storageObject.newStream(newPos, remainingBytes);
+                streamStartPosition = newPos;
+                position = newPos;
+            } finally {
+                if (old != null) {
+                    old.close();
+                }
             }
-
-            // Open new stream from the target position to the end
-            long remainingBytes = length - newPos;
-            currentStream = storageObject.newStream(newPos, remainingBytes);
-            streamStartPosition = newPos;
-            position = newPos;
         }
 
         @Override
@@ -192,34 +181,42 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (buf.hasRemaining() == false) {
                 return 0;
             }
-
             if (buf.hasArray()) {
-                int bytesRead = read(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
+                int off = buf.arrayOffset() + buf.position();
+                int bytesRead = read(buf.array(), off, buf.remaining());
                 if (bytesRead > 0) {
                     buf.position(buf.position() + bytesRead);
                 }
                 return bytesRead;
             }
-
-            byte[] temp = new byte[buf.remaining()];
-            int bytesRead = read(temp, 0, temp.length);
-            if (bytesRead > 0) {
-                buf.put(temp, 0, bytesRead);
+            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            int totalRead = 0;
+            while (buf.hasRemaining()) {
+                int toRead = Math.min(transfer.length, buf.remaining());
+                int n = read(transfer, 0, toRead);
+                if (n < 0) {
+                    break;
+                }
+                buf.put(transfer, 0, n);
+                totalRead += n;
             }
-            return bytesRead;
+            return totalRead == 0 ? -1 : totalRead;
         }
 
         @Override
         public void readFully(java.nio.ByteBuffer buf) throws IOException {
             if (buf.hasArray()) {
-                readFully(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
+                int off = buf.arrayOffset() + buf.position();
+                readFully(buf.array(), off, buf.remaining());
                 buf.position(buf.limit());
                 return;
             }
-
-            byte[] temp = new byte[buf.remaining()];
-            readFully(temp, 0, temp.length);
-            buf.put(temp);
+            byte[] transfer = new byte[Math.min(buf.remaining(), StorageObject.TRANSFER_BUFFER_SIZE)];
+            while (buf.hasRemaining()) {
+                int toRead = Math.min(transfer.length, buf.remaining());
+                readFully(transfer, 0, toRead);
+                buf.put(transfer, 0, toRead);
+            }
         }
     }
 }

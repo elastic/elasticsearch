@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
+import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -20,7 +20,7 @@ import java.util.List;
  * A source operator whose output is the given tuple values. This operator produces pages
  * with two Blocks. The returned pages preserve the order of values as given in the in initial list.
  */
-public abstract class TupleAbstractBlockSourceOperator<T, S> extends TypedAbstractBlockSourceBuilder {
+public abstract class TupleAbstractBlockSourceOperator<T, S> extends AbstractTypedBlockSourceOperator {
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final List<Tuple<T, S>> values;

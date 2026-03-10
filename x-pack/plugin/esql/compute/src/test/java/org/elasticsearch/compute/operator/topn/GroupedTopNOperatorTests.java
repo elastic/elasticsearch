@@ -14,8 +14,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -90,7 +92,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             assertThat(status, instanceOf(GroupedTopNOperatorStatus.class));
             GroupedTopNOperatorStatus groupedStatus = (GroupedTopNOperatorStatus) status;
             assertThat(groupedStatus.occupiedRows(), equalTo(0));
-            assertThat(groupedStatus.groupCount(), equalTo(0L));
+            assertThat(groupedStatus.groupCount(), equalTo(0));
             assertThat(groupedStatus.ramBytesUsed(), greaterThan(0L));
             assertThat(groupedStatus.pagesReceived(), equalTo(0));
             assertThat(groupedStatus.pagesEmitted(), equalTo(0));
@@ -107,7 +109,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             assertThat(groupedStatus.receiveNanos(), greaterThan(0L));
             assertThat(groupedStatus.emitNanos(), equalTo(0L));
             assertThat(groupedStatus.occupiedRows(), equalTo(8));
-            assertThat(groupedStatus.groupCount(), equalTo(2L));
+            assertThat(groupedStatus.groupCount(), equalTo(2));
             assertThat(groupedStatus.ramBytesUsed(), greaterThan(0L));
             assertThat(groupedStatus.pagesReceived(), equalTo(1));
             assertThat(groupedStatus.pagesEmitted(), equalTo(0));
@@ -378,7 +380,11 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     randomBlocksResult.elementTypes,
                     randomBlocksResult.encoders,
                     uniqueOrders,
-                    groupKeys.stream().mapToInt(Integer::intValue).toArray(),
+                    new GroupKeyEncoder(
+                        groupKeys.stream().mapToInt(Integer::intValue).toArray(),
+                        randomBlocksResult.elementTypes,
+                        new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                    ),
                     rows,
                     Long.MAX_VALUE
                 )
@@ -441,7 +447,11 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         elementTypes,
                         encoders,
                         sortOrders,
-                        groupKeys,
+                        new GroupKeyEncoder(
+                            groupKeys,
+                            elementTypes,
+                            new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                        ),
                         randomPageSize(),
                         Long.MAX_VALUE
                     )

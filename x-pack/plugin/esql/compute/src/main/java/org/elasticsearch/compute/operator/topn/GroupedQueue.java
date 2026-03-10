@@ -20,10 +20,7 @@ import java.util.List;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 /**
- * A queue that maintains a separate {@link TopNQueue} per group, indexed by integer group IDs
- * assigned by a {@link org.elasticsearch.compute.aggregation.blockhash.BlockHash}.
- * Uses a {@link BigArrays}-backed {@link ObjectArray} for better performance and circuit
- * breaker integration.
+ * A queue that maintains a separate {@link TopNQueue} per group, indexed by group IDs.
  */
 class GroupedQueue implements Accountable, Releasable {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class);
@@ -56,17 +53,7 @@ class GroupedQueue implements Accountable, Releasable {
         return totalSize;
     }
 
-    /**
-     * Attempts to add the row to the per-group queue identified by {@code groupId}.
-     * @return If the row was added and the queue was full, the evicted row.
-     *         If the row was added and it wasn't full, {@code null}.
-     *         If the row wasn't added, the input row.
-     */
-    TopNRow addRow(long groupId, TopNRow row) {
-        return getOrCreateQueue(groupId).addRow(row);
-    }
-
-    private TopNQueue getOrCreateQueue(long groupId) {
+    TopNQueue getOrCreateQueue(long groupId) {
         if (groupId >= queues.size()) {
             queues = bigArrays.grow(queues, groupId + 1);
         }

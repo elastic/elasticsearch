@@ -17,7 +17,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * A single row in a top-N operation. Stores encoded sort keys and values.
@@ -112,7 +111,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(keys);
+        return keys.bytesRefView().hashCode();
     }
 
     @Override

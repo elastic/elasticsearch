@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -719,11 +721,18 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     /**
      * Tests relocating and initializing shards with heap usage estimates.
+     *
+     * Runs either the {@link ClusterInfoSimulator#simulateShardStarted} path or the
+     * {@link ClusterInfoSimulator#simulateAlreadyStartedShard} path, based on a random boolean: both paths should result in the same total
+     * node heap usage estimates.
      */
     public void testHeapUsageSimulationWithEstimates() {
+        var useAlreadyStartedPath = randomBoolean();
+
         var harness = setupHeapUsageTestHarness();
-        var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow it (as a record type.
+        var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow modification as a record type.
         var shardRouting2 = harness.shardRouting2;
+        final RoutingNodes routingNodes = harness.clusterState.mutableRoutingNodes();
 
         /** Set up ClusterInfo */
 
@@ -792,7 +801,16 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 equalTo(true)
             );
 
-            simulator.simulateShardStarted(relocationShards.v2());
+            if (useAlreadyStartedPath) {
+                final var startedRelocatingShard = routingNodes.startShard(
+                    relocationShards.v2(), // ShardRouting for the target node
+                    RoutingChangesObserver.NOOP,
+                    randomLongBetween(100, 999)
+                );
+                simulator.simulateAlreadyStartedShard(startedRelocatingShard, relocationShards.v1().currentNodeId());
+            } else {
+                simulator.simulateShardStarted(relocationShards.v2());
+            }
 
             assertThat(
                 "Expected the original node heap usage, "
@@ -845,7 +863,16 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             assertThat("Expected all the index shards to be moved off the original node", indexRemovedFromSource, equalTo(true));
             assertThat("Expected all the index shards to be assigned to the other node now", indexAddedToTarget, equalTo(false));
 
-            simulator.simulateShardStarted(relocationShards.v2());
+            if (useAlreadyStartedPath) {
+                final var startedRelocatingShard = routingNodes.startShard(
+                    relocationShards.v2(), // ShardRouting for the target node
+                    RoutingChangesObserver.NOOP,
+                    randomLongBetween(100, 999)
+                );
+                simulator.simulateAlreadyStartedShard(startedRelocatingShard, relocationShards.v1().currentNodeId());
+            } else {
+                simulator.simulateShardStarted(relocationShards.v2());
+            }
 
             // Now, the estimated heap usage on nodeId2 should have increased with the new shard, while sourceNodeId remained the same.
             assertThat(
@@ -893,7 +920,17 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             // Initialize the shard on the other node.
             shardRouting1 = allocation.routingNodes()
                 .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
-            simulator.simulateShardStarted(shardRouting1);
+
+            if (useAlreadyStartedPath) {
+                final var startedShard = routingNodes.startShard(
+                    shardRouting1, // ShardRouting for the target node
+                    RoutingChangesObserver.NOOP,
+                    randomLongBetween(100, 999)
+                );
+                simulator.simulateAlreadyStartedShard(startedShard, null);
+            } else {
+                simulator.simulateShardStarted(shardRouting1);
+            }
 
             // Check that nodeId2 further increased the heap usage.
             assertThat(
@@ -1070,7 +1107,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         ShardRouting shardRouting2
     ) {}
 
-    /** Set up ClusterState and references to state within it. */
+    /**
+     * Set up ClusterState with a single index with two primary shards and returns a {@link HeapUsageTestHarness} with references.
+     */
     private HeapUsageTestHarness setupHeapUsageTestHarness() {
         final String indexName = "test-index-one";
 

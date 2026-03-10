@@ -611,12 +611,11 @@ public class DesiredBalanceComputer {
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
             }
 
-            var nodeToIndexCountMap =
-                mapOfNodeIdsToCountOfNewShardsPerIndex.computeIfAbsent(startedShard.currentNodeId(), ignored -> new HashMap<>());
-            nodeToIndexCountMap.put(
-                startedShard.index(),
-                nodeToIndexCountMap.getOrDefault(startedShard.index(), 0) + 1
+            var nodeToIndexCountMap = mapOfNodeIdsToCountOfNewShardsPerIndex.computeIfAbsent(
+                startedShard.currentNodeId(),
+                ignored -> new HashMap<>()
             );
+            nodeToIndexCountMap.put(startedShard.index(), nodeToIndexCountMap.getOrDefault(startedShard.index(), 0) + 1);
 
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
         }
@@ -626,7 +625,8 @@ public class DesiredBalanceComputer {
                 // Check if the number of shards for an index moved to the particular node, since the ClusterInfo was created, is equal to
                 // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
                 // should be added to the node.
-                if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey()).numberOfStartedShardsForIndex(indexToCount.getKey())) {
+                if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
+                    .numberOfStartedShardsForIndex(indexToCount.getKey())) {
                     clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
                 }
             }

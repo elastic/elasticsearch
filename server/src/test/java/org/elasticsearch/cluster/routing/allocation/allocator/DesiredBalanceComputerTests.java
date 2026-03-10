@@ -2013,12 +2013,19 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
                 }
-                if (routingNodes.node(startedRelocatingShard.currentNodeId()).numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedRelocatingShard.currentNodeId(), startedRelocatingShard.index());
+                if (routingNodes.node(startedRelocatingShard.currentNodeId())
+                    .numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
+                    verify(clusterInfoSimulator).simulateAddIndexToNode(
+                        startedRelocatingShard.currentNodeId(),
+                        startedRelocatingShard.index()
+                    );
                 }
             }
             if (routingNodes.node(relocationTuple.v1().currentNodeId()).hasIndex(startedRelocatingShard.index()) == false) {
-                verify(clusterInfoSimulator).simulateRemoveIndexFromNode(startedRelocatingShard.currentNodeId(), startedRelocatingShard.index());
+                verify(clusterInfoSimulator).simulateRemoveIndexFromNode(
+                    startedRelocatingShard.currentNodeId(),
+                    startedRelocatingShard.index()
+                );
             }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }

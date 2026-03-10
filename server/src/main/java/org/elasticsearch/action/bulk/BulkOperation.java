@@ -438,7 +438,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private void completeBulkOperation() {
         BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[responses.length()]);
-        redactSeqNoFromDisabledIndices(bulkItemResponses);
         listener.onResponse(
             new BulkResponse(
                 bulkItemResponses,
@@ -449,27 +448,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         );
         // Allow memory for bulk shard request items to be reclaimed before all items have been completed
         bulkRequest = null;
-    }
-
-    private void redactSeqNoFromDisabledIndices(BulkItemResponse[] bulkItemResponses) {
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
-            return;
-        }
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
-        for (int i = 0; i < bulkItemResponses.length; i++) {
-            BulkItemResponse item = bulkItemResponses[i];
-            if (item == null || item.isFailed()) {
-                continue;
-            }
-            IndexMetadata indexMetadata = project.index(item.getIndex());
-            if (indexMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings())) {
-                bulkItemResponses[i] = BulkItemResponse.success(
-                    item.getItemId(),
-                    item.getOpType(),
-                    item.getResponse().withoutSequenceNumber()
-                );
-            }
-        }
     }
 
     /**
@@ -518,6 +496,25 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     return projectMetadata;
                 }
 
+                private BulkItemResponse maybeRedactSequenceNumber(BulkItemResponse in) {
+                    if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
+                        return in;
+                    }
+                    if (in == null || in.isFailed()) {
+                        return in;
+                    }
+                    ProjectMetadata project = getProjectMetadata();
+                    IndexMetadata indexMetadata = project.index(in.getIndex());
+                    if (indexMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings())) {
+                        return BulkItemResponse.success(
+                            in.getItemId(),
+                            in.getOpType(),
+                            in.getResponse().withoutSequenceNumber()
+                        );
+                    }
+                    return in;
+                }
+
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
@@ -540,7 +537,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                                 && bulkItemResponse.getResponse() instanceof IndexResponse ir) {
                                 ir.setFailureStoreStatus(IndexDocFailureStoreStatus.USED);
                             }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                            responses.set(bulkItemResponse.getItemId(), maybeRedactSequenceNumber(bulkItemResponse));
                         }
                     }
                     completeShardOperation();

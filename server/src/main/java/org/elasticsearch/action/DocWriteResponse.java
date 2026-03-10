@@ -294,10 +294,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field(FORCED_REFRESH, true);
         }
         builder.field(_SHARDS, shardInfo);
-        if (getSeqNo() >= 0) {
-            builder.field(_SEQ_NO, getSeqNo());
-            builder.field(_PRIMARY_TERM, getPrimaryTerm());
-        }
+        builder.field(_SEQ_NO, getSeqNo());
+        builder.field(_PRIMARY_TERM, getPrimaryTerm());
         return builder;
     }
 

@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -45,7 +47,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
@@ -159,7 +160,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             .setSettings(
                 Settings.builder()
                     .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             )
@@ -221,8 +222,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
     private static void assertSeqNoRedactedFromXContent(BulkItemResponse item) throws IOException {
         String xcontent = Strings.toString(item);
-        assertThat(xcontent, not(containsString("_seq_no")));
-        assertThat(xcontent, not(containsString("_primary_term")));
+        assertThat(xcontent, containsString("\"_seq_no\":" + SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(xcontent, containsString("\"_primary_term\":" + SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
     }
 
     /** This test ensures that index deletion makes indexing fail quickly, not wait on the index that has disappeared */

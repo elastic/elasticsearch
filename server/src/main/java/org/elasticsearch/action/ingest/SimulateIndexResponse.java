@@ -132,7 +132,7 @@ public class SimulateIndexResponse extends IndexResponse {
 
     @Override
     public SimulateIndexResponse withoutSequenceNumber() {
-        throw new UnsupportedOperationException("SimulateIndexResponse does not support withoutSequenceNumber");
+        return this;
     }
 
     @Override

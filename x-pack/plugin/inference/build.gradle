@@ -107,6 +107,18 @@ dependencies {
   runtimeOnly "io.netty:netty-transport-native-unix-common:${versions.netty}"
   runtimeOnly "io.netty:netty-transport:${versions.netty}"
 
+  /* Nimbus OAuth2/OIDC (required by azure-identity/MSAL at runtime) */
+  implementation "com.nimbusds:content-type:2.3"
+  implementation "com.nimbusds:lang-tag:1.7"
+  implementation("com.nimbusds:nimbus-jose-jwt:10.0.2") {
+    exclude group: 'com.google.crypto.tink', module: 'tink'
+  }
+  implementation("com.nimbusds:oauth2-oidc-sdk:11.22.2") {
+    exclude group: 'com.google.crypto.tink', module: 'tink'
+  }
+  implementation "net.minidev:accessors-smart:2.5.2"
+  implementation "net.minidev:json-smart:2.5.2"
+
   /* SLF4J (via AWS SDKv2) */
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"

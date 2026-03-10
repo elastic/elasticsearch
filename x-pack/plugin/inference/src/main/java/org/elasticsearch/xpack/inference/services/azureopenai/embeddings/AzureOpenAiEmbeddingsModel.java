@@ -15,7 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
@@ -50,7 +50,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            AzureOpenAiSecretsSettings.fromMap(secrets, inferenceEntityId)
+            AzureOpenAiSecretSettings.fromMap(secrets, inferenceEntityId)
         );
     }
 
@@ -62,7 +62,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable AzureOpenAiSecretsSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),

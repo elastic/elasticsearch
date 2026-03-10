@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.request.Azu
  * Azure OpenAI secret settings for API key or Entra ID only.
  * Holds exactly one of the two (the other is null). Wire format matches main-branch behavior.
  */
-public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings {
+public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 
     public static final String NAME = "azure_openai_secret_settings";
 
@@ -75,15 +75,17 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings 
         } else if (entraId != null && entraId.isEmpty() == false) {
             request.setHeader(RequestUtils.createAuthBearerHeader(entraId));
         }
+
+        listener.onResponse(request);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (apiKey != null) {
-            builder.field(AzureOpenAiSecretsSettings.API_KEY, apiKey.toString());
+            builder.field(AzureOpenAiSecretSettings.API_KEY, apiKey.toString());
         } else if (entraId != null) {
-            builder.field(AzureOpenAiSecretsSettings.ENTRA_ID, entraId.toString());
+            builder.field(AzureOpenAiSecretSettings.ENTRA_ID, entraId.toString());
         }
         builder.endObject();
         return builder;

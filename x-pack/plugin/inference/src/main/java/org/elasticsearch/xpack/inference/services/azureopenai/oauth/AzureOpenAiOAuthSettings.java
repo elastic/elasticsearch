@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.EXACTLY_ONE_CONFIG_DESCRIPTION;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.EXACTLY_ONE_CONFIG_DESCRIPTION;
 
 public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
 
@@ -39,7 +40,7 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
     public static final String TENANT_ID_FIELD = "tenant_id";
     public static final String SCOPES_FIELD = "scopes";
 
-    public static final String REQUIRED_FIELDS = String.join(",", CLIENT_ID_FIELD, TENANT_ID_FIELD, SCOPES_FIELD);
+    public static final String REQUIRED_FIELDS = String.join(", ", CLIENT_ID_FIELD, TENANT_ID_FIELD, SCOPES_FIELD);
 
     public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
 
@@ -66,16 +67,27 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         ValidationException validationException
     ) {
         boolean anyFieldProvided = clientId != null || tenantId != null || scopes != null;
-        boolean allFieldsProvided = clientId != null && tenantId != null && scopes != null;
+        if (anyFieldProvided == false) {
+            return;
+        }
 
-        if (anyFieldProvided && allFieldsProvided == false) {
+        var missingFields = new ArrayList<String>();
+        if (clientId == null) {
+            missingFields.add(CLIENT_ID_FIELD);
+        }
+        if (tenantId == null) {
+            missingFields.add(TENANT_ID_FIELD);
+        }
+        if (scopes == null) {
+            missingFields.add(SCOPES_FIELD);
+        }
+
+        if (missingFields.isEmpty() == false) {
             validationException.addValidationError(
                 Strings.format(
-                    "[%s] all OAuth2 fields must be provided together, received client_id=%s tenant_id=%s scopes=%s",
+                    "[%s] all OAuth2 fields must be provided together; missing: [%s]",
                     ModelConfigurations.SERVICE_SETTINGS,
-                    clientId,
-                    tenantId,
-                    scopes
+                    String.join(", ", missingFields)
                 )
             );
         }

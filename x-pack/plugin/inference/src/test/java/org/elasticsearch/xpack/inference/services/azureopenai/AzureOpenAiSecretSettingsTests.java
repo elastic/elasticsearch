@@ -23,8 +23,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -32,17 +32,19 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {
 
+    private static final String TEST_INFERENCE_ID = "test-inference-id";
+
     public static AzureOpenAiEntraIdApiKeySecrets createRandomEntraIdApiKeySecrets() {
         if (randomBoolean()) {
-            return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+            return new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, randomSecureStringOfLength(15), null);
         }
-        return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        return new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, randomSecureStringOfLength(15));
     }
 
     public void testNewSecretSettingsApiKey() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, apiKey, null);
         var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
             Map.of(API_KEY, apiKey.toString())
         );
@@ -53,7 +55,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     public void testNewSecretSettingsEntraId() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, entraId);
         var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
             Map.of(ENTRA_ID, entraId.toString())
         );
@@ -62,19 +64,19 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testFromMap_ApiKey_Only() {
-        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(API_KEY, "abc")));
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, "abc")), TEST_INFERENCE_ID);
         assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
-        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(new SecureString("abc".toCharArray()), null)));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, new SecureString("abc".toCharArray()), null)));
     }
 
     public void testFromMap_EntraId_Only() {
-        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")));
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")), TEST_INFERENCE_ID);
         assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
-        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString("xyz".toCharArray()))));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, new SecureString("xyz".toCharArray()))));
     }
 
     public void testFromMap_ClientSecret_Only() {
-        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")));
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")), TEST_INFERENCE_ID);
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
         assertThat(
             ((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(),
@@ -83,13 +85,13 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
-        assertNull(AzureOpenAiSecretsSettings.fromMap(null));
+        assertNull(AzureOpenAiSecretSettings.fromMap(null, TEST_INFERENCE_ID));
     }
 
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>())
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(), TEST_INFERENCE_ID)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -102,7 +104,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         var mapValues = getAzureOpenAiSecretSettingsMap("apikey", "entraid", null);
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretsSettings.fromMap(mapValues)
+            () -> AzureOpenAiSecretSettings.fromMap(mapValues, TEST_INFERENCE_ID)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -113,7 +115,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         var mapWithApiKeyAndClientSecret = getAzureOpenAiSecretSettingsMap("apikey", null, "clientsecret");
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretsSettings.fromMap(mapWithApiKeyAndClientSecret)
+            () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret, TEST_INFERENCE_ID)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -123,7 +125,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     public void testFromMap_EmptyApiKey_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(API_KEY, "")))
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, "")), TEST_INFERENCE_ID)
         );
 
         assertThat(
@@ -140,7 +142,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     public void testFromMap_EmptyEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")))
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")), TEST_INFERENCE_ID)
         );
 
         assertThat(
@@ -150,7 +152,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {
-        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString("apikey".toCharArray()), null);
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, new SecureString("apikey".toCharArray()), null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
@@ -161,7 +163,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testToXContext_WritesEntraIdOnlyWhenEntraIdSet() throws IOException {
-        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString("entraid".toCharArray()));
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, new SecureString("entraid".toCharArray()));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -171,8 +173,9 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testToXContent_WritesClientSecretOnlyWhenSet() throws IOException {
-        var result = AzureOpenAiSecretsSettings.fromMap(
-            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret"))
+        var result = AzureOpenAiSecretSettings.fromMap(
+            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")),
+            TEST_INFERENCE_ID
         );
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
         var testSettings = (AzureOpenAiOAuth2Secrets) result;
@@ -198,11 +201,13 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     protected AzureOpenAiEntraIdApiKeySecrets mutateInstance(AzureOpenAiEntraIdApiKeySecrets instance) throws IOException {
         if (instance.apiKey() != null) {
             return new AzureOpenAiEntraIdApiKeySecrets(
+                TEST_INFERENCE_ID,
                 randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15)),
                 null
             );
         }
         return new AzureOpenAiEntraIdApiKeySecrets(
+            TEST_INFERENCE_ID,
             null,
             randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15))
         );

@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.Azure
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.REQUIRED_FIELDS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.REQUIRED_FIELDS_DESCRIPTION;
 
-public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretsSettings {
+public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     public static final String NAME = "azure_openai_oauth2_client_secret";
 

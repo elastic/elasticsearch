@@ -31,7 +31,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 
-public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
+public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
@@ -50,14 +50,14 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
 
     protected final String inferenceId;
 
-    protected AzureOpenAiSecretsSettings(@Nullable String inferenceId) {
+    protected AzureOpenAiSecretSettings(@Nullable String inferenceId) {
         this.inferenceId = Objects.requireNonNullElse(inferenceId, UNKNOWN_INFERENCE_ID);
     }
 
     /**
      * Parses the map, validates exactly one auth field, returns the matching secret type.
      */
-    public static AzureOpenAiSecretsSettings fromMap(@Nullable Map<String, Object> map, String inferenceId) {
+    public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map, String inferenceId) {
         if (map == null) {
             return null;
         }
@@ -132,7 +132,7 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretsSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
+        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
     }
 
     /**

@@ -98,8 +98,8 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
     }
 
     @Override
-    public AzureOpenAiSecretsSettings getSecretSettings() {
-        return (AzureOpenAiSecretsSettings) super.getSecretSettings();
+    public AzureOpenAiSecretSettings getSecretSettings() {
+        return (AzureOpenAiSecretSettings) super.getSecretSettings();
     }
 
     public AzureOpenAiServiceSettings baseServiceSettings() {

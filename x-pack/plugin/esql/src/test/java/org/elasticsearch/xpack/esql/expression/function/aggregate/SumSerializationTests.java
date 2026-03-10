@@ -116,7 +116,7 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
      */
     public void testSerializeSumWithOverflowingLongSupplier() throws IOException {
         var transportVersion = TransportVersion.current();
-        var sum = new Sum(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), true);
+        var sum = new Sum(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), Sum.OVERFLOWING_LONG);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
             planOut.setTransportVersion(transportVersion);

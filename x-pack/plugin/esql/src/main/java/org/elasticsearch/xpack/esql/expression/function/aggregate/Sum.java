@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDenseVectorAggregatorFunctionSupplier;
@@ -59,14 +58,15 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
 
+    public static final Literal OVERFLOWING_LONG = Literal.keyword(Source.EMPTY, "overflowing_long");
+    public static final Literal SAFE_LONG = Literal.keyword(Source.EMPTY, "safe_long");
+
     private final Expression summationMode;
     /**
-     * True to use the old, overflowing aggregator. False to use the current, fixed implementation.
-     * <p>
-     *     Do not set directly; it's automatically set for backwards compatibility at planning time, and defaults to {@code false}.
-     * </p>
+     * Either {@link #OVERFLOWING_LONG} or {@link #SAFE_LONG}.
+     * Set internally only, used for BWC.
      */
-    private final boolean useOverflowingLongSupplier;
+    private final Expression useOverflowingLongSupplier;
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
@@ -93,7 +93,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     }
 
     public Sum(Source source, Expression field, Expression filter, Expression window, Expression summationMode) {
-        this(source, field, filter, window, summationMode, false);
+        this(source, field, filter, window, summationMode, SAFE_LONG);
     }
 
     public Sum(
@@ -102,9 +102,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         Expression filter,
         Expression window,
         Expression summationMode,
-        boolean useOverflowingLongSupplier
+        Expression useOverflowingLongSupplier
     ) {
-        super(source, field, filter, window, List.of(summationMode));
+        super(source, field, filter, window, List.of(summationMode, useOverflowingLongSupplier));
         this.summationMode = summationMode;
         this.useOverflowingLongSupplier = useOverflowingLongSupplier;
     }
@@ -115,21 +115,21 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            readSummationMode(in),
-            in.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX) ? in.readBoolean() : true
+            readParameters(in)
         );
     }
 
-    @Override
-    protected void writeAdditionalFields(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX)) {
-            out.writeBoolean(useOverflowingLongSupplier);
-        }
+    private record SumParameters(Expression summationMode, Expression useOverflowingLongSupplier) {}
+
+    private Sum(Source source, Expression field, Expression filter, Expression window, SumParameters params) {
+        this(source, field, filter, window, params.summationMode(), params.useOverflowingLongSupplier());
     }
 
-    private static Expression readSummationMode(StreamInput in) throws IOException {
+    private static SumParameters readParameters(StreamInput in) throws IOException {
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        Expression summationMode = parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        Expression overflowing = parameters.size() >= 2 ? parameters.get(1) : OVERFLOWING_LONG;
+        return new SumParameters(summationMode, overflowing);
     }
 
     @Override
@@ -144,14 +144,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.get(2),
-            newChildren.get(3),
-            useOverflowingLongSupplier
-        );
+        return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
     @Override
@@ -170,7 +163,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        if (useOverflowingLongSupplier) {
+        if (useOverflowingLongSupplier()) {
             return new SumOverflowingLongAggregatorFunctionSupplier();
         }
         return new SumLongAggregatorFunctionSupplier(source());
@@ -200,7 +193,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     }
 
     public boolean useOverflowingLongSupplier() {
-        return useOverflowingLongSupplier;
+        return useOverflowingLongSupplier.equals(OVERFLOWING_LONG);
     }
 
     @Override
@@ -269,8 +262,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @Override
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
-        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX) == false && useOverflowingLongSupplier == false) {
-            return new Sum(source(), field(), filter(), window(), summationMode, true);
+        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX) == false && useOverflowingLongSupplier() == false) {
+            return new Sum(source(), field(), filter(), window(), summationMode, OVERFLOWING_LONG);
         }
         return null;
     }
@@ -279,16 +272,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
         // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), useOverflowingLongSupplier);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            Sum other = (Sum) obj;
-            return Objects.equals(other.children(), children())
-                && Objects.equals(other.useOverflowingLongSupplier, useOverflowingLongSupplier);
-        }
-        return false;
+        return Objects.hash(getClass(), children());
     }
 }

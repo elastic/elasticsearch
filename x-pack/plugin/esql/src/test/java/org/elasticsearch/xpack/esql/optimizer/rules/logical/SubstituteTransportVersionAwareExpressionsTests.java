@@ -53,7 +53,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
      */
     public void testSumAlreadyOverflowingWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);
-        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, true);
+        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, Sum.OVERFLOWING_LONG);
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_SUM_LONG_OVERFLOW_FIX);
         Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, oldVersion);
         assertThat(result, sameInstance(sum));
@@ -68,7 +68,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
      */
     public void testSumAlreadyOverflowingWithNewVersionKeptOverflowing() {
         Expression field = getFieldAttribute("f", DataType.LONG);
-        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, true);
+        Sum sum = new Sum(EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL, Sum.OVERFLOWING_LONG);
         TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_SUM_LONG_OVERFLOW_FIX);
         Expression result = SubstituteTransportVersionAwareExpressions.rule(sum, newVersion);
         assertThat(result, sameInstance(sum));

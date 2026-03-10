@@ -1,5 +1,5 @@
 ExchangeSinkExec[[$$sum$sum{r}#0, $$sum$seen{r}#1],false]
-\_AggregateExec[[],[SUM(salary{f}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum#3],INITIAL,[$$sum$sum{r}#4, $$sum$seen{r}#5],8]
+\_AggregateExec[[],[SUM(salary{f}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],safe_long[KEYWORD]) AS sum#3],INITIAL,[$$sum$sum{r}#4, $$sum$seen{r}#5],8]
   \_FieldExtractExec[salary{f}#2]<[],[]>
     \_EsQueryExec[employees], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "exists" : {

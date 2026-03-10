@@ -102,7 +102,7 @@ public class SynonymsManagementAPIService {
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int MAX_SCROLL_SYNONYM_RULES = 100_000;
     private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
-    private static final int SCROLL_BATCH_SIZE = 10_000;
+    static final int SCROLL_BATCH_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
@@ -111,6 +111,7 @@ public class SynonymsManagementAPIService {
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
     private final int maxScrollSynonymRules;
+    private final int scrollBatchSize;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -130,19 +131,25 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYMS_SETS, MAX_SCROLL_SYNONYM_RULES);
+        this(client, MAX_SYNONYMS_SETS, MAX_SCROLL_SYNONYM_RULES, SCROLL_BATCH_SIZE);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
-        this(client, maxSynonymsSets, MAX_SCROLL_SYNONYM_RULES);
+        this(client, maxSynonymsSets, MAX_SCROLL_SYNONYM_RULES, SCROLL_BATCH_SIZE);
     }
 
     // Used for testing scroll limit without needing to insert MAX_SCROLL_SYNONYM_RULES entries
     SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxScrollSynonymRules) {
+        this(client, maxSynonymsSets, maxScrollSynonymRules, SCROLL_BATCH_SIZE);
+    }
+
+    // Used for testing scroll behavior with a small batch size to force multiple scroll iterations
+    SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxScrollSynonymRules, int scrollBatchSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.maxSynonymsSets = maxSynonymsSets;
         this.maxScrollSynonymRules = maxScrollSynonymRules;
+        this.scrollBatchSize = scrollBatchSize;
     }
 
     /* The synonym index stores two object types:
@@ -277,7 +284,7 @@ public class SynonymsManagementAPIService {
                     .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
                     .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
             )
-            .setSize(SCROLL_BATCH_SIZE)
+            .setSize(scrollBatchSize)
             .setScroll(scrollTimeout)
             .addSort("id", SortOrder.ASC)
             .setPreference(Preference.LOCAL.type())
@@ -331,13 +338,18 @@ public class SynonymsManagementAPIService {
         }
 
         SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId).scroll(scrollTimeout);
-        client.execute(
-            TransportSearchScrollAction.TYPE,
-            scrollRequest,
-            listener.delegateFailureAndWrap(
-                (l, nextResponse) -> scrollAllRules(nextResponse.getScrollId(), scrollTimeout, totalHits, accumulated, nextResponse, l)
-            )
-        );
+        client.execute(TransportSearchScrollAction.TYPE, scrollRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse nextResponse) {
+                scrollAllRules(nextResponse.getScrollId(), scrollTimeout, totalHits, accumulated, nextResponse, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                clearScrollSilently(scrollId);
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void clearScrollSilently(String scrollId) {

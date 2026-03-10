@@ -144,30 +144,33 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     }
 
     public void testGetAllSynonymSetRulesViaScroll() throws Exception {
-        String synonymSetId = randomIdentifier();
-        int rulesNumber = randomIntBetween(maxSynonymSets / 2, maxSynonymSets);
-        CountDownLatch putLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(rulesNumber, rulesNumber),
-            false,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    putLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            }
+        int scrollBatchSize = randomIntBetween(2, 5);
+        int rulesNumber = scrollBatchSize * randomIntBetween(3, 6);
+        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(
+            client(),
+            maxSynonymSets,
+            rulesNumber + 1,
+            scrollBatchSize
         );
+
+        String synonymSetId = randomIdentifier();
+        CountDownLatch putLatch = new CountDownLatch(1);
+        scrollService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                putLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
         assertBusy(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+            scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
                 @Override
                 public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                     assertEquals(rulesNumber, synonymRulePagedResult.totalResults());

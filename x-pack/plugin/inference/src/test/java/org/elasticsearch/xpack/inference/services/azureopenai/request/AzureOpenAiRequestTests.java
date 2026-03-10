@@ -51,7 +51,8 @@ public class AzureOpenAiRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader_oauthClientSecret_doesNotSetAuthHeaders() {
         var httpPost = new HttpPost();
         var secretSettings = (AzureOpenAiOAuth2Secrets) AzureOpenAiSecretSettings.fromMap(
-            Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)), TEST_INFERENCE_ID
+            Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)),
+            TEST_INFERENCE_ID
         );
 
         secretSettings.applyTo(httpPost, ActionListener.noop());

@@ -42,7 +42,16 @@ public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureOpenAiCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context, threadPool);
+        return new AzureOpenAiCompletionModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            context,
+            threadPool
+        );
     }
 
     @Override

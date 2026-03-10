@@ -33,7 +33,6 @@ public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest<AzureOpenAi
         this.inputType = inputType;
     }
 
-
     private static String createRequestEntity(Truncator.TruncationResult input, InputType inputType, AzureOpenAiEmbeddingsModel model) {
         return Strings.toString(
             new AzureOpenAiEmbeddingsRequestEntity(

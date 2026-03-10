@@ -76,7 +76,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                groupKeysArray,
                 keyEncoder,
                 maxPageSize,
                 jumboPageBytes
@@ -107,7 +106,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<TopNOperator.SortOrder> sortOrders;
-    private final int[] groupKeys;
     private final boolean[] channelInKey;
     private final GroupKeyEncoder keyEncoder;
 
@@ -131,7 +129,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders,
-        int[] groupKeys,
         GroupKeyEncoder keyEncoder,
         int maxPageSize,
         long jumboPageBytes
@@ -159,7 +156,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.groupKeys = groupKeys;
         this.channelInKey = new boolean[elementTypes.size()];
         for (TopNOperator.SortOrder so : sortOrders) {
             channelInKey[so.channel()] = true;
@@ -261,7 +257,6 @@ public class GroupedTopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * elementTypes.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
-        size += RamUsageEstimator.sizeOf(groupKeys);
         size += RamUsageEstimator.sizeOf(channelInKey);
         size += sortOrders.size() * SORT_ORDER_SIZE;
         size += keyEncoder.ramBytesUsed();
@@ -303,7 +298,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             + ", sortOrders="
             + sortOrders
             + ", groupKeys="
-            + Arrays.toString(groupKeys)
+            + Arrays.toString(keyEncoder.groupChannels())
             + "]";
     }
 

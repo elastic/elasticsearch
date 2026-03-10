@@ -380,7 +380,6 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     randomBlocksResult.elementTypes,
                     randomBlocksResult.encoders,
                     uniqueOrders,
-                    groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                     new GroupKeyEncoder(
                         groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                         randomBlocksResult.elementTypes,
@@ -448,7 +447,6 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         elementTypes,
                         encoders,
                         sortOrders,
-                        groupKeys,
                         new GroupKeyEncoder(
                             groupKeys,
                             elementTypes,

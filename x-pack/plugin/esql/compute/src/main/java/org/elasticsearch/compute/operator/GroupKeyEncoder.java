@@ -117,9 +117,14 @@ public class GroupKeyEncoder implements Accountable, Releasable {
         }
     }
 
+    public int[] groupChannels() {
+        return groupChannels;
+    }
+
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(groupChannels);
         size += RamUsageEstimator.shallowSizeOf(elementTypes);
         size += scratch.ramBytesUsed();
         size += RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);

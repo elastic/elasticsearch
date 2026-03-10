@@ -48,7 +48,7 @@ class FlightResultCursor implements ResultCursor {
         int rowCount = root.getRowCount();
         Block[] blocks = new Block[attributes.size()];
         for (int col = 0; col < attributes.size(); col++) {
-            blocks[col] = FlightTypeMapping.toBlock(root.getVector(col), rowCount, blockFactory);
+            blocks[col] = FlightTypeMapping.toBlock(root.getVector(attributes.get(col).name()), rowCount, blockFactory);
         }
         hasNextBatch = advance();
         return new Page(rowCount, blocks);

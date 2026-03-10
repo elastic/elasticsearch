@@ -173,14 +173,22 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
         // because they may produce inconsistent results with multiple clusters.
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
-        // METRICS_INFO/TS_INFO produce a data_stream column that includes the cluster alias prefix in CCS.
-        // Non-remote tests expect the bare data stream name; use *-remote.csv-spec variants instead.
-        assumeFalse(
-            "METRICS_INFO/TS_INFO non-remote tests skipped in CCS; use *-remote.csv-spec variants",
-            remoteMetadata == false
-                && (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())
-                    || testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName()))
-        );
+        // METRICS_INFO/TS_INFO produce a data_stream column that includes the cluster alias prefix
+        // when data is on a remote cluster. Non-remote tests expect the bare data stream name, so
+        // they are always skipped in CCS. Remote tests need the data to be on the remote cluster,
+        // which is only guaranteed when dataLocation == REMOTE_ONLY.
+        boolean hasMetricsOrTsInfo = testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())
+            || testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName());
+        if (hasMetricsOrTsInfo) {
+            assumeFalse(
+                "METRICS_INFO/TS_INFO non-remote tests skipped in CCS; use *-remote.csv-spec variants",
+                remoteMetadata == false
+            );
+            assumeTrue(
+                "METRICS_INFO/TS_INFO remote tests require data on the remote cluster (dataLocation=REMOTE_ONLY)",
+                dataLocation == DataLocation.REMOTE_ONLY
+            );
+        }
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
         if (testCase.requiredCapabilities.contains(INLINE_STATS.capabilityName())
@@ -260,7 +268,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     // These indices are used in metadata tests so we want them on remote only for consistency
-    public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs", "k8s");
+    public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
 
     // These are lookup indices, we want them on both remotes and locals
     public static final Set<String> LOOKUP_INDICES = CSV_DATASET.values()

@@ -18,12 +18,11 @@ import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.Types;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
@@ -92,14 +91,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float4Vector f4v = (Float4Vector) vector;
-            return new FloatArrowBufBlock(
-                f4v.getDataBuffer(),
-                f4v.getValidityBuffer(),
-                f4v.getOffsetBuffer(),
-                f4v.getValueCount(),
-                0,
-                factory
-            );
+            return FloatArrowBufBlock.of(vector, factory);
         }
     }
 
@@ -111,7 +103,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float8Vector f8v = (Float8Vector) vector;
-            return new DoubleArrowBufBlock(f8v.getDataBuffer(), f8v.getValidityBuffer(), null, f8v.getValueCount(), 0, factory);
+            return DoubleArrowBufBlock.of(f8v, factory);
         }
     }
 
@@ -123,14 +115,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             BigIntVector bigIntVector = (BigIntVector) vector;
-            return new LongArrowBufBlock(
-                bigIntVector.getDataBuffer(),
-                bigIntVector.getValidityBuffer(),
-                null,
-                bigIntVector.getValueCount(),
-                0,
-                factory
-            );
+            return LongArrowBufBlock.of(bigIntVector, factory);
         }
     }
 
@@ -142,14 +127,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             IntVector intVector = (IntVector) vector;
-            return new IntArrowBufBlock(
-                intVector.getDataBuffer(),
-                intVector.getValidityBuffer(),
-                null,
-                intVector.getValueCount(),
-                0,
-                factory
-            );
+            return IntArrowBufBlock.of(intVector, factory);
         }
     }
 
@@ -161,14 +139,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             BitVector bitVector = (BitVector) vector;
-            return new BooleanArrowBufBlock(
-                bitVector.getDataBuffer(),
-                bitVector.getValidityBuffer(),
-                null,
-                bitVector.getValueCount(),
-                0,
-                factory
-            );
+            return BooleanArrowBufBlock.of(bitVector, factory);
         }
     }
 
@@ -180,19 +151,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             VarCharVector varCharVector = (VarCharVector) vector;
-            int valueCount = varCharVector.getValueCount();
-
-            try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (varCharVector.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        byte[] bytes = varCharVector.get(i);
-                        builder.appendBytesRef(new BytesRef(bytes));
-                    }
-                }
-                return builder.build();
-            }
+            return BytesRefArrowBufBlock.of(varCharVector, factory);
         }
     }
 
@@ -204,19 +163,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             VarBinaryVector varBinaryVector = (VarBinaryVector) vector;
-            int valueCount = varBinaryVector.getValueCount();
-
-            try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (varBinaryVector.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        byte[] bytes = varBinaryVector.get(i);
-                        builder.appendBytesRef(new BytesRef(bytes));
-                    }
-                }
-                return builder.build();
-            }
+            return BytesRefArrowBufBlock.of(varBinaryVector, factory);
         }
     }
 

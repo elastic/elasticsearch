@@ -51,7 +51,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             10_000,
             maxTokenLimit,
             SynonymsManagementAPIService.TokenLimitMode.STRICT,
-            100_000
+            100_000,
+            SynonymsManagementAPIService.SCROLL_BATCH_SIZE
         );
     }
 
@@ -158,10 +159,21 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     }
 
     public void testGetAllSynonymSetRulesViaScroll() throws Exception {
+        int scrollBatchSize = randomIntBetween(2, 5);
+        int rulesNumber = scrollBatchSize * randomIntBetween(3, 6);
+        int tokenLimit = rulesNumber * 3 + 1;
+        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(
+            client(),
+            10_000,
+            tokenLimit,
+            SynonymsManagementAPIService.TokenLimitMode.STRICT,
+            rulesNumber + 1,
+            scrollBatchSize
+        );
+
         String synonymSetId = randomIdentifier();
-        int rulesNumber = randomIntBetween(1, maxTokenLimit / 3);
         CountDownLatch putLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, fixedTokenRules(rulesNumber), false, new ActionListener<>() {
+        scrollService.putSynonymsSet(synonymSetId, fixedTokenRules(rulesNumber), false, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 putLatch.countDown();
@@ -176,7 +188,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         CountDownLatch getLatch = new CountDownLatch(1);
         assertBusy(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+            scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
                 @Override
                 public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                     assertEquals(rulesNumber, synonymRulePagedResult.totalResults());

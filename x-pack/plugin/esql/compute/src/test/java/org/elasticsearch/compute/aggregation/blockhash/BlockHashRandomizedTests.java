@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,8 +56,6 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
@@ -143,8 +140,8 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     public void test() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
         test(new MockBlockFactory(BlockFactory.builder(bigArrays)));
     }
 
@@ -427,13 +424,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 add(randomBlocks, p, newKey);
             }
         }
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
     }
 
     private static List<Object> randomKey(List<Type> types) {

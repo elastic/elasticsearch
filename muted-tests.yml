@@ -240,9 +240,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField
-  issue: https://github.com/elastic/elasticsearch/issues/141203
 - class: org.elasticsearch.snapshots.SnapshotStatusApisIT
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
@@ -324,9 +321,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
-  issue: https://github.com/elastic/elasticsearch/issues/141202
 - class: org.elasticsearch.xpack.core.termsenum.TermsEnumTests
   method: testTermsEnumIPRandomized
   issue: https://github.com/elastic/elasticsearch/issues/142811
@@ -339,9 +333,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResults
-  issue: https://github.com/elastic/elasticsearch/issues/143314
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testConcurrentDynamicIgnoreBeyondLimitUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143326

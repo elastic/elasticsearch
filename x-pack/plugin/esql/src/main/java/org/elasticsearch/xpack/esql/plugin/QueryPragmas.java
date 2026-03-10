@@ -110,6 +110,13 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
+    /**
+     * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
+     * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
+     * of doc-sequence loading.
+     */
+    public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -251,6 +258,18 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    /**
+     * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
+     * {@code true}, returns {@code 0} so that all non-single-segment pages use
+     * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
+     */
+    public int docSequenceBytesRefFieldThreshold(int clusterDefault) {
+        if (FORCE_DOC_SEQUENCE.get(settings)) {
+            return 0;
+        }
+        return clusterDefault;
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

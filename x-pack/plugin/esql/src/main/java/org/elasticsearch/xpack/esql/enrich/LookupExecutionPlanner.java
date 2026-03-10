@@ -349,7 +349,8 @@ public class LookupExecutionPlanner {
                     shardContexts,
                     true,
                     docChannel,
-                    PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+                    PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
                 );
             }
 

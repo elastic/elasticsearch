@@ -136,7 +136,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                                     .setGracePeriod(timeout)
                                     .build(),
                                 new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0),
-                                new ShutdownPersistentTasksStatus(),
+                                ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
                                 new ShutdownPluginsStatus(true)
                             )
                         )
@@ -441,7 +441,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                                     .setGracePeriod(timeout)
                                     .build(),
                                 new ShutdownShardMigrationStatus(status, 0, 0, 0),
-                                new ShutdownPersistentTasksStatus(),
+                                ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
                                 new ShutdownPluginsStatus(true)
                             )
                         )

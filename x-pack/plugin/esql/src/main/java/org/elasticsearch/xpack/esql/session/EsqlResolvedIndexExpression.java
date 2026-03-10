@@ -38,7 +38,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
                         .stream()
                         .filter(e -> e.localExpressions().indices().isEmpty() == false)
                         .filter(e -> e.localExpressions().localIndexResolutionResult() == SUCCESS)
-                        .map(e -> cleanupPrefix(entry.getKey(), e))
+                        .map(e -> stripClusterAliasForOriginProject(entry.getKey(), e))
                         .reduce(EMPTY, EsqlResolvedIndexExpression::merge)
                 )
             )
@@ -50,7 +50,7 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
         return new EsqlResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
     }
 
-    private static EsqlResolvedIndexExpression cleanupPrefix(String origin, ResolvedIndexExpression e) {
+    private static EsqlResolvedIndexExpression stripClusterAliasForOriginProject(String origin, ResolvedIndexExpression e) {
         return Objects.equals(origin, LOCAL_CLUSTER_GROUP_KEY) && RemoteClusterAware.isRemoteIndexName(e.original())
             ? new EsqlResolvedIndexExpression(Set.of(RemoteClusterAware.parseLocalIndexName(e.original())), e.localExpressions().indices())
             : new EsqlResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices());

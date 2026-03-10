@@ -17,8 +17,8 @@ dependencies {
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
-  implementation project(path: xpackModule('mapper-version'))
-  implementation "org.locationtech.jts:jts-core:${versions.jts}"
+  compileOnly project(path: xpackModule('mapper-version'))
+  compileOnly "org.locationtech.jts:jts-core:${versions.jts}"
   implementation project(':libs:swisshash')
 
   testImplementation(project(':modules:analysis-common'))

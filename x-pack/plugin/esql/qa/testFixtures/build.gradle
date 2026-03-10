@@ -5,6 +5,7 @@ dependencies {
   implementation project(':x-pack:plugin:esql:compute')
   implementation project(':x-pack:plugin:esql')
   compileOnly project(path: xpackModule('core'))
+  implementation project(path: xpackModule('mapper-version'))
   implementation project(":libs:x-content")
   implementation project(':client:rest')
   implementation project(':libs:logging')

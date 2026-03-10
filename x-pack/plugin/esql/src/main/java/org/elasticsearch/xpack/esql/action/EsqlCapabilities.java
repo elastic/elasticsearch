@@ -2114,6 +2114,11 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * Support for {@code FIRST_OVER_TIME} and {@code LAST_OVER_TIME} on {@code tdigest} type fields.
+         */
+        TDIGEST_FIRST_LAST_OVER_TIME,
+
+        /**
          * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
          * We previously were using hybrid-digests by accident and now use a merging digest.
          */
@@ -2228,6 +2233,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/143070
          */
         MATCH_FUNCTION_ZERO_TERMS_QUERY,
+
+        /**
+         * Fix for full-text functions failing on renamed fields.
+         * https://github.com/elastic/elasticsearch/issues/143859
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

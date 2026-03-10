@@ -33,10 +33,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
 /**
@@ -195,6 +198,7 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
+            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -241,22 +245,21 @@ record TestConfiguration(
             )
         );
 
-        int nameWidth = "parameter".length();
-        int typeWidth = "type".length();
+        int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
         for (ParameterHelp param : params) {
-            nameWidth = Math.max(nameWidth, param.name.length());
-            typeWidth = Math.max(typeWidth, param.type.length());
+            lengths[0] = Math.max(lengths[0], param.name.length());
+            lengths[1] = Math.max(lengths[1], param.type.length());
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Configuration parameters:");
         sb.append("\n");
-        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append(formatParamRow(lengths, "parameter", "type", "description"));
         sb.append("\n");
-        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
         sb.append("\n");
         for (ParameterHelp param : params) {
-            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append(formatParamRow(lengths, param.name, param.type, param.description));
             sb.append("\n");
         }
         sb.append("\n");
@@ -267,19 +270,90 @@ record TestConfiguration(
         return sb.toString();
     }
 
-    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
-        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    private static String formatParamRow(int[] entryLengths, String... entries) {
+        assert entries.length == entryLengths.length;
+        return Strings.format(
+            Arrays.stream(entryLengths).mapToObj(l -> "%-" + l + "s").collect(Collectors.joining("  ")),
+            (Object[]) entries
+        );
     }
 
     private record ParameterHelp(String name, String type, String description) {}
+
+    public static String listDatasets() throws IOException {
+        var datasets = datasets();
+
+        int[] lengths = new int[] { "dataset".length(), "docs".length(), "queries".length(), "dims".length(), "space".length() };
+        for (Map.Entry<String, String[]> entry : datasets.entrySet()) {
+            lengths[0] = Math.max(lengths[0], entry.getKey().length());
+            lengths[1] = Math.max(lengths[1], entry.getValue()[0].length());
+            lengths[2] = Math.max(lengths[2], entry.getValue()[1].length());
+            lengths[3] = Math.max(lengths[3], entry.getValue()[2].length());
+            lengths[4] = Math.max(lengths[4], entry.getValue()[3].length());
+        }
+
+        System.out.println(formatParamRow(lengths, "Dataset", "docs", "queries", "dims", "space"));
+        System.out.println(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
+        return datasets.entrySet()
+            .stream()
+            .map(e -> formatParamRow(lengths, e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
+            .collect(Collectors.joining("\n"));
+    }
+
+    private static Map<String, String[]> datasets() throws IOException {
+        final String cloudProjectId = "benchmarking";
+        final String datasetBucket = "knnindextester";
+
+        try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
+            Map<String, String[]> datasets = new TreeMap<>();
+            var page = storage.list(datasetBucket);
+
+            while (true) {
+                for (Blob blob : page.iterateAll()) {
+                    String name = blob.getName();
+                    int slash = name.indexOf('/');
+
+                    String dataset = name.substring(0, slash);
+                    String descriptor = name.substring(slash + 1);
+                    if (descriptor.equals(dataset + ".json")) {
+                        Map<?, ?> dsData;
+                        try (
+                            XContentParser parser = XContentType.JSON.xContent()
+                                .createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                        ) {
+                            dsData = parser.map();
+                        }
+
+                        datasets.put(
+                            dataset,
+                            new String[] {
+                                String.valueOf(dsData.get("num_doc_vectors")),
+                                String.valueOf(dsData.get("num_query_vectors")),
+                                String.valueOf(dsData.get("dimensions")),
+                                String.valueOf(dsData.get("vector_space")) }
+                        );
+                    }
+                }
+
+                if (page.hasNextPage() == false) {
+                    break;
+                }
+                page = page.getNextPage();
+            }
+
+            return datasets;
+        } catch (Exception e) {
+            throw new IOException("Failed to list datasets from gs://" + datasetBucket, e);
+        }
+    }
 
     static class Builder implements ToXContentObject {
         private String dataset;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
-        private int numDocs = 1000;
-        private int numQueries = 100;
+        private Integer numDocs;
+        private Integer numQueries;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
@@ -294,7 +368,7 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
+        private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
@@ -311,6 +385,7 @@ record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
 
         /**
@@ -400,6 +475,11 @@ record TestConfiguration(
 
         public Builder setHnswEfConstruction(int hnswEfConstruction) {
             this.hnswEfConstruction = hnswEfConstruction;
+            return this;
+        }
+
+        public Builder setFlatIndexThreshold(int flatIndexThreshold) {
+            this.flatIndexThreshold = flatIndexThreshold;
             return this;
         }
 
@@ -574,6 +654,13 @@ record TestConfiguration(
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
 
+            if (numDocs == null) {
+                numDocs = numDocVectors;
+            }
+            if (numQueries == null) {
+                numQueries = numQueryVectors;
+            }
+
             if (numDocs > numDocVectors) {
                 throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
             }
@@ -665,9 +752,15 @@ record TestConfiguration(
                 // this fills in various options from the dataset
                 resolveDataset();
             }
+            // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
-                // specify the default here, so it can be set by the config file or dataset first
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+            }
+            if (numDocs == null) {
+                numDocs = 1000;
+            }
+            if (numQueries == null) {
+                numQueries = 100;
             }
 
             if (docVectors == null) {

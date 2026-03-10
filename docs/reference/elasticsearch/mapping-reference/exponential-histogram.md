@@ -76,6 +76,12 @@ In Query DSL, because the data is not indexed, you can use `exponential_histogra
 - [avg](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation
 - [value_count](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation
 - [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) aggregation
+- [min](/reference/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [max](/reference/aggregations/search-aggregations-metrics-max-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentiles](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentile ranks](/reference/aggregations/search-aggregations-metrics-percentile-rank-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [boxplot](/reference/aggregations/search-aggregations-metrics-boxplot-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
 
 ## Synthetic `_source` [exponential-histogram-synthetic-source]
 

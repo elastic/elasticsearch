@@ -47,10 +47,13 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -295,6 +298,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportSetEnabledAction.TYPE.name(),
         TransportChangePasswordAction.TYPE.name(),
         CreateApiKeyAction.NAME,
+        CloneApiKeyAction.NAME,
         GrantApiKeyAction.NAME,
         PutPrivilegesAction.NAME,
         DeleteUserAction.NAME,
@@ -717,6 +721,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
+                } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
+                    assert CloneApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(cloneApiKeyRequest).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
                     assert PutPrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
@@ -1240,6 +1247,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, cloneApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1277,6 +1294,26 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 builder.field("metadata", abstractCreateApiKeyRequest.getMetadata());
             }
             builder.endObject(); // apikey
+        }
+
+        private static void withRequestBody(XContentBuilder builder, CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            TimeValue expiration = cloneApiKeyRequest.getExpiration();
+            builder.startObject("apikey")
+                .field("id", cloneApiKeyRequest.getId())
+                .field("name", cloneApiKeyRequest.getName())
+                .field("type", "rest")
+                .field("expiration", expiration != null ? expiration.toString() : null);
+            try (ApiKeyCredentials source = cloneApiKeyRequest.getSourceApiKey()) {
+                if (source != null) {
+                    builder.startObject("source").field("id", source.getId()).endObject();
+                }
+            } catch (IllegalArgumentException e) {
+                // omit source when credential cannot be parsed
+            }
+            if (cloneApiKeyRequest.getMetadata() != null) {
+                builder.field("metadata", cloneApiKeyRequest.getMetadata());
+            }
+            builder.endObject();
         }
 
         private static void withRequestBody(

@@ -60,6 +60,19 @@ public final class InstrumenterImpl implements Instrumenter {
         return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, checkMethods);
     }
 
+    private static boolean isJvmConstant(Object value) {
+        return value == null
+            || value instanceof String
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Float
+            || value instanceof Double
+            || value instanceof Character
+            || value instanceof Short
+            || value instanceof Byte
+            || value instanceof Boolean;
+    }
+
     private enum VerificationPhase {
         BEFORE_INSTRUMENTATION,
         AFTER_INSTRUMENTATION
@@ -285,23 +298,34 @@ public final class InstrumenterImpl implements Instrumenter {
             pushInstrumentationId();
             pushCallerClass();
             pushArguments();
-            if (strategy instanceof DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy) {
-                // For return early strategy we want to catch not entitled and return early
-                catchNotEntitledAndReturnEarly();
-            } else if (strategy instanceof DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue) {
-                // For default value strategy we want to catch not entitled and return the default value
-                catchNotEntitledAndReturnValue(defaultValue.getDefaultValue());
-            } else if (strategy instanceof DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue) {
-                // For method argument value strategy we want to catch not entitled and return the method argument at the given index
-                catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
-            } else if (strategy instanceof DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy) {
-                // For not entitled strategy we just want to let the not entitled exception propagate
-                invokeInstrumentationMethod();
-            } else if (strategy instanceof DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy) {
-                // Custom exception strategy is handled by invoking the instrumentation method
-                invokeInstrumentationMethod();
-            } else {
-                throw new IllegalStateException("Unexpected strategy type: " + strategy.getClass().getName());
+            switch (strategy) {
+                case DeniedEntitlementStrategy.ReturnEarlyDeniedEntitlementStrategy returnEarly -> {
+                    // For return early strategy we want to catch not entitled and return early
+                    catchNotEntitledAndReturnEarly();
+                }
+                case DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy defaultValue -> {
+                    // For default value strategy we want to catch not entitled and return a default value;
+                    // null, String, and boxed primitives are embedded as JVM constants, all other reference
+                    // types are retrieved at runtime via defaultValue$
+                    Object value = defaultValue.getDefaultValue();
+                    if (isJvmConstant(value)) {
+                        catchNotEntitledAndReturnValue(value);
+                    } else {
+                        catchNotEntitledAndReturnReferenceDefault();
+                    }
+                }
+                case DeniedEntitlementStrategy.MethodArgumentValueDeniedEntitlementStrategy methodArgValue -> {
+                    // For method argument value strategy we want to catch not entitled and return the method argument at the given index
+                    catchNotEntitledAndReturnMethodArgument(methodArgValue.getIndex());
+                }
+                case DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy notEntitled -> {
+                    // For not entitled strategy we just want to let the not entitled exception propagate
+                    invokeInstrumentationMethod();
+                }
+                case DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy exception -> {
+                    // Custom exception strategy is handled by invoking the instrumentation method
+                    invokeInstrumentationMethod();
+                }
             }
             super.visitCode();
         }
@@ -422,6 +446,24 @@ public final class InstrumenterImpl implements Instrumenter {
             );
         }
 
+        private void catchNotEntitledAndReturnReferenceDefault() {
+            wrapInstrumentationInTryCatch(() -> {
+                mv.visitInsn(Opcodes.POP);
+                pushEntitlementChecker();
+                mv.visitLdcInsn(instrumentationId);
+                mv.visitMethodInsn(
+                    INVOKEINTERFACE,
+                    Type.getReturnType(registryClassMethodDescriptor).getInternalName(),
+                    "defaultValue$",
+                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    true
+                );
+                Type returnType = Type.getReturnType(instrumentedMethodDescriptor);
+                mv.visitTypeInsn(Opcodes.CHECKCAST, returnType.getInternalName());
+                mv.visitInsn(Opcodes.ARETURN);
+            });
+        }
+
         private void catchNotEntitledAndReturnValue(Object defaultValue) {
             wrapInstrumentationInTryCatch(() -> { returnConstantValue(defaultValue); });
         }
@@ -499,7 +541,9 @@ public final class InstrumenterImpl implements Instrumenter {
                     || constant instanceof Boolean) {
                         mv.visitInsn(Opcodes.IRETURN);
                     } else {
-                        throw new IllegalStateException("unexpected check method constant [" + constant + "]");
+                        throw new IllegalStateException(
+                            "unsupported default return value [" + constant + "] of type [" + constant.getClass().getName() + "]"
+                        );
                     }
             }
         }

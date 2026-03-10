@@ -25,12 +25,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -76,14 +78,15 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         ThreadPool threadPool,
         Client client
     ) {
-        super(NAME, transportService, actionFilters, RemoteWriteRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
+        super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, RemoteWriteRequest request, ActionListener<RemoteWriteResponse> listener) {
-        try {
+        try (request) {
             RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
+            request.releaseBody();
 
             int totalSamples = countTotalSamples(writeRequest);
             if (totalSamples == 0) {
@@ -138,10 +141,13 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
         } catch (InvalidProtocolBufferException e) {
             // Invalid protobuf is a client error - return 400 so clients don't retry
-            listener.onResponse(new RemoteWriteResponse(RestStatus.BAD_REQUEST));
+            listener.onResponse(
+                new RemoteWriteResponse(RestStatus.BAD_REQUEST, "Invalid Prometheus remote write payload: " + e.getMessage())
+            );
         } catch (Exception e) {
-            logger.error("Failed to process Prometheus remote write request", e);
-            listener.onResponse(new RemoteWriteResponse(ExceptionsHelper.status(e)));
+            listener.onResponse(
+                new RemoteWriteResponse(ExceptionsHelper.status(e), "Failed to process Prometheus remote write request: " + e.getMessage())
+            );
         }
     }
 
@@ -268,22 +274,24 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
 
-    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest {
-        private final BytesReference remoteWriteRequest;
-        private final String dataset;
-        private final String namespace;
+    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest, Releasable {
+        final ReleasableBytesReference remoteWriteRequest;
+        final String dataset;
+        final String namespace;
+        private final Releasable releaseBody;
+        private final Releasable releasePressure;
 
-        public RemoteWriteRequest(StreamInput in) throws IOException {
-            super(in);
-            remoteWriteRequest = in.readBytesReference();
-            dataset = in.readString();
-            namespace = in.readString();
-        }
-
-        public RemoteWriteRequest(BytesReference remoteWriteRequest, String dataset, String namespace) {
+        public RemoteWriteRequest(
+            ReleasableBytesReference remoteWriteRequest,
+            String dataset,
+            String namespace,
+            Releasable indexingPressureRelease
+        ) {
             this.remoteWriteRequest = remoteWriteRequest;
             this.dataset = dataset;
             this.namespace = namespace;
+            this.releaseBody = Releasables.releaseOnce(remoteWriteRequest);
+            this.releasePressure = Releasables.releaseOnce(indexingPressureRelease);
         }
 
         @Override
@@ -291,12 +299,19 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             return null;
         }
 
+        void releaseBody() {
+            releaseBody.close();
+        }
+
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBytesReference(remoteWriteRequest);
-            out.writeString(dataset);
-            out.writeString(namespace);
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public void close() {
+            releaseBody.close();
+            releasePressure.close();
         }
     }
 
@@ -315,8 +330,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(status);
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
 
         public RestStatus getStatus() {

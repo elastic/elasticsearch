@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
-import org.elasticsearch.xpack.transform.LinkedProjectsProvider;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -225,7 +224,7 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            mock(LinkedProjectsProvider.class)
+            () -> false
         );
     }
 

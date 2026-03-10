@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
-import org.elasticsearch.xpack.transform.LinkedProjectsProvider;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -246,7 +245,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        mock(LinkedProjectsProvider.class)
+                        () -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -334,7 +333,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        mock(LinkedProjectsProvider.class)
+                        () -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -471,7 +470,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
-                    mock(LinkedProjectsProvider.class)
+                    () -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

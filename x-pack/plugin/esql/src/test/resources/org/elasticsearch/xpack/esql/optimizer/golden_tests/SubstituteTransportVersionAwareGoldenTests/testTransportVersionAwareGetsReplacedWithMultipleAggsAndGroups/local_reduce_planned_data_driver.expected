@@ -1,0 +1,4 @@
+ExchangeSinkExec[[emp_no{f}#0, $$sum_a$sum{r}#1, $$sum_a$seen{r}#2, $$sum_b$sum{r}#3, $$sum_b$seen{r}#4],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[emp_no{f}#0],[SUM(salary{f}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum_a#6, SUM(emp_no{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum_b#7, emp_no{f}#0]]
+\_EsRelation[employees][avg_worked_seconds{f}#8, birth_date{f}#9, emp_no{f}#0, first_name{f}#10, gender{f}#11, height{f}#12, height.float{f}#13, height.half_float{f}#14, height.scaled_float{f}#15, hire_date{f}#16, is_rehired{f}#17, job_positions{f}#18, languages{f}#19, languages.byte{f}#20, languages.long{f}#21, languages.short{f}#22, last_name{f}#23, salary{f}#5, salary_change{f}#24, salary_change.int{f}#25, salary_change.keyword{f}#26, salary_change.long{f}#27, still_hired{f}#28]<>]]

@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.capabilities;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 /**
  * Interface for expressions that may be replaced based on the {@code minTransportVersion} of the clusters.
  * <p>
  *     For generic surrogation, use {@link SurrogateExpression} instead.
+ * </p>
+ * <p>
+ *     See {@link Versioned} for details on how transport versions affect planning.
  * </p>
  */
 public interface TransportVersionAware {

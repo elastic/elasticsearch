@@ -532,8 +532,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
             final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext).build(childContext);
 
-
-
             return new SemanticTextFieldMapper(
                 leafName(),
                 new SemanticTextFieldType(

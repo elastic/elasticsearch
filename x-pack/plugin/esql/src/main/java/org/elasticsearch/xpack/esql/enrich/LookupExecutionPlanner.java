@@ -298,7 +298,7 @@ public class LookupExecutionPlanner {
 
         // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
         // to avoid caching stale IndexReader references when PhysicalOperation is cached
-        ByteSizeValue jumboSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
+        ByteSizeValue jumboSize = plannerSettings.valuesLoadingJumboSize();
         return source.with(new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
@@ -315,6 +315,7 @@ public class LookupExecutionPlanner {
                         extractField.dataType() == DataType.UNSUPPORTED,
                         MappedFieldType.FieldExtractPreference.NONE,
                         null,
+                        null,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
 
@@ -324,7 +325,7 @@ public class LookupExecutionPlanner {
                             extractField.name(),
                             PlannerUtils.toElementType(extractField.dataType()),
                             false,
-                            shardIdx -> {
+                            (ctx, shardIdx) -> {
                                 if (shardIdx != 0) {
                                     throw new IllegalStateException("only one shard");
                                 }

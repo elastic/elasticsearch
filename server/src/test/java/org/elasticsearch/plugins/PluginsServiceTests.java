@@ -68,7 +68,7 @@ public class PluginsServiceTests extends ESTestCase {
             null,
             PluginsLoader.createPluginsLoader(
                 Set.of(),
-                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
                 Map.of(),
                 false
             )
@@ -466,7 +466,21 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL
+                    ),
                     extensiblePlugin,
                     null
                 )
@@ -481,7 +495,21 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL
+                    ),
                     extensiblePlugin,
                     null
                 ),
@@ -498,7 +526,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        false
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL
                     ),
                     testPlugin,
                     null

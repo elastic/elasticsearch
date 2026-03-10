@@ -134,7 +134,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             (l, unused) -> putTransform(request, l)
         );
 
-        // TODO In between 2 and 3, we would mint a new UIAM token using the current UIAM token in config.getHeaders()
+        // TODO In between 2 and 3, we would mint a new UIAM token using the current UIAM token (stored separately from config.headers())
 
         // <2> Validate source and destination indices
 

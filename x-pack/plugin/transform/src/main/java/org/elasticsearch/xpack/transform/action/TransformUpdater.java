@@ -333,7 +333,7 @@ public class TransformUpdater {
             listener::onFailure
         );
 
-        // TODO In between 1 and 2, we would mint a new UIAM token using the current UIAM token in config.getHeaders()
+        // TODO In between 1 and 2, we would mint a new UIAM token using the current UIAM token (stored separately from config.headers())
 
         // <1> Create destination index if necessary
         final String destinationIndex = config.getDestination().getIndex();

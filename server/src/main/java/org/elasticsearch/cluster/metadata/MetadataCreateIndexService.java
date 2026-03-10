@@ -23,9 +23,7 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -289,19 +287,14 @@ public class MetadataCreateIndexService {
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     private void setUpMetrics(MeterRegistry meterRegistry) {
-
-        meterRegistry.registerLongGauge(
-            USER_INDEX_TOTAL_METRIC_NAME,
-            "Total number of user indices",
-            "index",
-            () -> {
-                if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
-                    return new LongWithAttributes(0);
-                }
-                return new LongWithAttributes(
-                    getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next()));
+        meterRegistry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+            if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
+                return new LongWithAttributes(0);
             }
-        );
+            return new LongWithAttributes(
+                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
+            );
+        });
     }
 
     public static long getTotalUserIndices(SystemIndices systemIndices, ProjectMetadata projectMetadata) {

@@ -49,6 +49,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -91,7 +92,7 @@ public class ParallelParsingBenchmark {
     public void setup() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
-            sb.append("line-").append(String.format("%08d", i)).append(",value-").append(i % 1000).append("\n");
+            sb.append("line-").append(String.format(Locale.ROOT, "%08d", i)).append(",value-").append(i % 1000).append("\n");
         }
         fileData = sb.toString().getBytes(StandardCharsets.UTF_8);
         executor = Executors.newFixedThreadPool(Math.max(parallelism, 1));

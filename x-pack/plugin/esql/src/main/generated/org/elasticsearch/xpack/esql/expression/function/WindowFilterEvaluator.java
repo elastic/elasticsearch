@@ -5,9 +5,12 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Long;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Map;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -31,7 +34,9 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
   private final long window;
 
-  private final long bucket;
+  private final Rounding.Prepared bucket;
+
+  private final Map<Long, Long> nextTimestamps;
 
   private final EvalOperator.ExpressionEvaluator timestamp;
 
@@ -39,11 +44,13 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public WindowFilterEvaluator(Source source, long window, long bucket,
-      EvalOperator.ExpressionEvaluator timestamp, DriverContext driverContext) {
+  public WindowFilterEvaluator(Source source, long window, Rounding.Prepared bucket,
+      Map<Long, Long> nextTimestamps, EvalOperator.ExpressionEvaluator timestamp,
+      DriverContext driverContext) {
     this.source = source;
     this.window = window;
     this.bucket = bucket;
+    this.nextTimestamps = nextTimestamps;
     this.timestamp = timestamp;
     this.driverContext = driverContext;
   }
@@ -81,7 +88,7 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
               continue position;
         }
         long timestamp = timestampBlock.getLong(timestampBlock.getFirstValueIndex(p));
-        result.appendBoolean(WindowFilter.process(this.window, this.bucket, timestamp));
+        result.appendBoolean(WindowFilter.process(this.window, this.bucket, this.nextTimestamps, timestamp));
       }
       return result.build();
     }
@@ -91,7 +98,7 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long timestamp = timestampVector.getLong(p);
-        result.appendBoolean(p, WindowFilter.process(this.window, this.bucket, timestamp));
+        result.appendBoolean(p, WindowFilter.process(this.window, this.bucket, this.nextTimestamps, timestamp));
       }
       return result.build();
     }
@@ -99,7 +106,7 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "WindowFilterEvaluator[" + "window=" + window + ", bucket=" + bucket + ", timestamp=" + timestamp + "]";
+    return "WindowFilterEvaluator[" + "window=" + window + ", bucket=" + bucket + ", nextTimestamps=" + nextTimestamps + ", timestamp=" + timestamp + "]";
   }
 
   @Override
@@ -119,26 +126,29 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
     private final long window;
 
-    private final long bucket;
+    private final Rounding.Prepared bucket;
+
+    private final Map<Long, Long> nextTimestamps;
 
     private final EvalOperator.ExpressionEvaluator.Factory timestamp;
 
-    public Factory(Source source, long window, long bucket,
-        EvalOperator.ExpressionEvaluator.Factory timestamp) {
+    public Factory(Source source, long window, Rounding.Prepared bucket,
+        Map<Long, Long> nextTimestamps, EvalOperator.ExpressionEvaluator.Factory timestamp) {
       this.source = source;
       this.window = window;
       this.bucket = bucket;
+      this.nextTimestamps = nextTimestamps;
       this.timestamp = timestamp;
     }
 
     @Override
     public WindowFilterEvaluator get(DriverContext context) {
-      return new WindowFilterEvaluator(source, window, bucket, timestamp.get(context), context);
+      return new WindowFilterEvaluator(source, window, bucket, nextTimestamps, timestamp.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "WindowFilterEvaluator[" + "window=" + window + ", bucket=" + bucket + ", timestamp=" + timestamp + "]";
+      return "WindowFilterEvaluator[" + "window=" + window + ", bucket=" + bucket + ", nextTimestamps=" + nextTimestamps + ", timestamp=" + timestamp + "]";
     }
   }
 }

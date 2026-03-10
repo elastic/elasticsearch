@@ -22,7 +22,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MoveWindowFilter extends Rule<LogicalPlan, LogicalPlan> {
+public class ApplyWindowFilter extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         return logicalPlan.transformUp(node -> node instanceof TimeSeriesAggregate, this::rule);
@@ -31,7 +31,6 @@ public class MoveWindowFilter extends Rule<LogicalPlan, LogicalPlan> {
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
         List<NamedExpression> aggs = new ArrayList<>();
         for (var agg : aggregate.aggregates()) {
-            Expression newAggregateFunction = agg;
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af && af.hasWindow()) {
                 if (af.window().foldable() && af.window().fold(FoldContext.small()) instanceof Duration windowDuration) {
                     Expression bucket = aggregate.timeBucket().buckets();
@@ -39,33 +38,24 @@ public class MoveWindowFilter extends Rule<LogicalPlan, LogicalPlan> {
                         && bucket.foldable()
                         && bucket.fold(FoldContext.small()) instanceof Duration bucketDuration
                         && bucketDuration.compareTo(windowDuration) > 0) {
-                        newAggregateFunction = af.transformDown(AggregateFunction.class, tsAgg -> {
-                            if (tsAgg.hasFilter()) {
-                                return tsAgg.withFilter(
-                                    Predicates.combineAnd(
-                                        List.of(
-                                            tsAgg.filter(),
-                                            new WindowFilter(
-                                                tsAgg.source(),
-                                                tsAgg.window(),
-                                                aggregate.timeBucket().buckets(),
-                                                aggregate.timestamp()
-                                            )
-                                        )
+                        AggregateFunction newAggregateFunction;
+                        if (af.hasFilter()) {
+                            newAggregateFunction = af.withFilter(
+                                Predicates.combineAnd(
+                                    List.of(
+                                        af.filter(),
+                                        new WindowFilter(af.source(), af.window(), aggregate.timeBucket(), aggregate.timestamp())
                                     )
-                                );
-                            } else {
-                                return tsAgg.withFilter(
-                                    new WindowFilter(
-                                        tsAgg.source(),
-                                        tsAgg.window(),
-                                        aggregate.timeBucket().buckets(),
-                                        aggregate.timestamp()
-                                    )
-                                );
-                            }
-                        });
-                        aggs.add(new Alias(alias.source(), alias.name(), newAggregateFunction, agg.id()));
+                                )
+                            );
+                        } else {
+                            newAggregateFunction = af.withFilter(
+                                new WindowFilter(af.source(), af.window(), aggregate.timeBucket(), aggregate.timestamp())
+                            );
+                        }
+                        aggs.add(
+                            new Alias(alias.source(), alias.name(), newAggregateFunction.withWindow(AggregateFunction.NO_WINDOW), agg.id())
+                        );
                         continue;
                     }
                 }

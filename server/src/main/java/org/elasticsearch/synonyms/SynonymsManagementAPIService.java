@@ -424,7 +424,7 @@ public class SynonymsManagementAPIService {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.addScrollId(scrollId);
         client.execute(TransportClearScrollAction.TYPE, clearScrollRequest, ActionListener.wrap(r -> {}, e -> {
-            logger.warn("Failed to clear scroll context [{}]", scrollId, e);
+            logger.warn(() -> org.elasticsearch.common.Strings.format("Failed to clear scroll context [%s]", scrollId), e);
         }));
     }
 

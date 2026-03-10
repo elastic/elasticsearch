@@ -506,11 +506,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     ProjectMetadata project = getProjectMetadata();
                     IndexMetadata indexMetadata = project.index(in.getIndex());
                     if (indexMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings())) {
-                        return BulkItemResponse.success(
-                            in.getItemId(),
-                            in.getOpType(),
-                            in.getResponse().withoutSequenceNumber()
-                        );
+                        return BulkItemResponse.success(in.getItemId(), in.getOpType(), in.getResponse().withoutSequenceNumber());
                     }
                     return in;
                 }

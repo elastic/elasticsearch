@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 143915
+summary: Health logging task gets reassigned on shutdown
+type: feature

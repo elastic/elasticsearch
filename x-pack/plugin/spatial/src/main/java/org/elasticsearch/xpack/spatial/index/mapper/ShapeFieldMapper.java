@@ -133,6 +133,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 orientation.get().value(),
                 parser,
                 context.isSourceSynthetic(),
+                version,
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -158,9 +159,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Orientation orientation,
             Parser<Geometry> parser,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, indexCreatedVersion, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 

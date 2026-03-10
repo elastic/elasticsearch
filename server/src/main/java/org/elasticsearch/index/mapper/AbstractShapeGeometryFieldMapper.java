@@ -14,6 +14,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.lucene.spatial.Extent;
@@ -61,6 +63,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {
 
         private final Orientation orientation;
+        private final IndexVersion indexCreatedVersion;
 
         protected AbstractShapeGeometryFieldType(
             String name,
@@ -68,14 +71,27 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             boolean isStored,
             Parser<T> parser,
             Orientation orientation,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
             super(name, indexType, isStored, parser, null, meta);
             this.orientation = orientation;
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        /**
+         * Returns true if the doc-values for this field use the V2 format that supports
+         * geometry reconstruction via {@link GeometryDocValueReader#getGeometry}. Indices
+         * created before {@link IndexVersions#GEOMETRY_DOC_VALUES_V2} use the legacy format,
+         * which only supports reconstruction of point geometries.
+         */
+        @Override
+        public boolean supportsGeometryDocValueReconstruction() {
+            return indexCreatedVersion.onOrAfter(IndexVersions.GEOMETRY_DOC_VALUES_V2);
         }
 
         @Override

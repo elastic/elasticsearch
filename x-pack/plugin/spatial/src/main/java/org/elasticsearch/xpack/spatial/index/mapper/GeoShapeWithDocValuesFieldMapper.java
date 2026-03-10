@@ -214,6 +214,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 scriptValues(),
                 geoFormatterFactory,
                 context.isSourceSynthetic(),
+                version,
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -245,9 +246,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, indexCreatedVersion, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -437,7 +439,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
-            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
+            // we pass the original geometry for both precise centroid calculation, and persisted geometry topology
             docValuesField.add(fields, geometry);
         } else if (indexed) {
             context.addToFieldNames(fieldType().name());

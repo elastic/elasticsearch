@@ -400,16 +400,8 @@ public class SynonymsManagementAPIService {
         }
 
         if (searchResponse.getHits().getHits().length == 0) {
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-            clearScrollRequest.addScrollId(scrollId);
-            client.execute(
-                TransportClearScrollAction.TYPE,
-                clearScrollRequest,
-                ActionListener.wrap(r -> listener.onResponse(new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]))), e -> {
-                    logger.warn("Failed to clear scroll context [{}]", scrollId, e);
-                    listener.onResponse(new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0])));
-                })
-            );
+            clearScrollSilently(scrollId);
+            listener.onResponse(new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0])));
             return;
         }
 

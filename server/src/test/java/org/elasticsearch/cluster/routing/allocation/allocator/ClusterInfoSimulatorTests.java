@@ -70,6 +70,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -690,7 +691,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         {
             final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, null);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture(), eq(false));
             final var captureShard = shardCaptor.getValue();
             assertTrue(captureShard.initializing());
             assertNull(captureShard.relocatingNodeId());
@@ -705,7 +706,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
             final String sourceNodeId = randomIdentifier();
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture(), eq(false));
             final var captureShard = shardCaptor.getValue();
             assertTrue(captureShard.initializing());
             assertThat(captureShard.relocatingNodeId(), equalTo(sourceNodeId));

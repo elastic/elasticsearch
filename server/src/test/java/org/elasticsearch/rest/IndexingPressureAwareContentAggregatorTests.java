@@ -19,9 +19,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.After;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.IntStream.range;
@@ -35,6 +37,14 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
     private final AtomicReference<Releasable> pressureRef = new AtomicReference<>();
     private FakeRestChannel channel;
     private IndexingPressureAwareContentAggregator aggregator;
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        Optional.ofNullable(contentRef.get()).ifPresent(ReleasableBytesReference::close);
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
 
     public void testSingleChunkAggregation() {
         long maxSize = 1024;

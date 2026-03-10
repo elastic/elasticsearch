@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
@@ -71,6 +71,21 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
     }
 
+    public void testuUeTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+        String indexName = "standard-larger-binary-db-block-size-dv-test";
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), true)
+            .build();
+
+        createIndex(indexName, settings, "@timestamp", "type=date", "hostname", "type=keyword", "gauge", "type=long");
+
+        indexDocuments(indexName);
+
+        Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
+        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, expectedFields);
+    }
+
     private void indexDocuments(String indexName) throws Exception {
         long baseTimestamp = 1704067200000L;
         int numDocs = randomIntBetween(5, 20);
@@ -91,8 +106,8 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         var shard = indexService.getShard(0);
         var codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
         Function<String, DocValuesFormat> docValuesFormatProvider;
-        if (codec instanceof Elasticsearch92Lucene103Codec es92103codec) {
-            docValuesFormatProvider = es92103codec::getDocValuesFormatForField;
+        if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
+            docValuesFormatProvider = es93104codec::getDocValuesFormatForField;
         } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
                 docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;

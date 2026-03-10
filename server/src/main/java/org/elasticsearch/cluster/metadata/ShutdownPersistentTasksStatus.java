@@ -25,7 +25,7 @@ import java.util.Objects;
  * <p>
  * Reports the total number of persistent tasks still assigned to the shutdown node ({@code persistentTasksRemaining}),
  * the subset of those that will be proactively reassigned by the persistent task framework
- * ({@code autoReassignedTasksRemaining}), and an overall {@code status} that is {@code COMPLETE} when no auto
+ * ({@code autoReassignableTasksRemaining}), and an overall {@code status} that is {@code COMPLETE} when no auto
  * reassigned tasks remain or {@code IN_PROGRESS} otherwise.
  * If the node is not present and has not been seen in the cluster, the status will be {@code NOT_STARTED}.
  */
@@ -41,62 +41,62 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
 
     private final SingleNodeShutdownMetadata.Status status;
     private final int persistentTasksRemaining;
-    private final int autoReassignedTasksRemaining;
-
-    public static ShutdownPersistentTasksStatus inProgressOrComplete(int persistentTasksRemaining, int autoReassignedTasksRemaining) {
-        // Only auto-reassigned persistent tasks will be proactively relocated in response to node shutdown.
-        // Other persistent tasks either handle their own abort or wait to be unassigned then assigned
-        // once the node finishes shutdown.
-        SingleNodeShutdownMetadata.Status status = autoReassignedTasksRemaining == 0
-            ? SingleNodeShutdownMetadata.Status.COMPLETE
-            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
-        return new ShutdownPersistentTasksStatus(status, persistentTasksRemaining, autoReassignedTasksRemaining);
-    }
+    private final int autoReassignableTasksRemaining;
 
     public static ShutdownPersistentTasksStatus notStarted() {
         return NOT_STARTED_STATUS;
     }
 
-    ShutdownPersistentTasksStatus(
+    public static ShutdownPersistentTasksStatus fromRemainingTasks(int persistentTasksRemaining, int autoReassignableTasksRemaining) {
+        // Only auto-reassigned persistent tasks will be proactively relocated in response to node shutdown.
+        // Other persistent tasks either handle their own abort or wait to be unassigned then assigned
+        // once the node finishes shutdown.
+        SingleNodeShutdownMetadata.Status status = autoReassignableTasksRemaining == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return new ShutdownPersistentTasksStatus(status, persistentTasksRemaining, autoReassignableTasksRemaining);
+    }
+
+    private ShutdownPersistentTasksStatus(
         SingleNodeShutdownMetadata.Status status,
         int persistentTasksRemaining,
-        int autoReassignedTasksRemaining
+        int autoReassignableTasksRemaining
     ) {
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.persistentTasksRemaining = persistentTasksRemaining;
-        this.autoReassignedTasksRemaining = autoReassignedTasksRemaining;
-        assertValidStatus(status, persistentTasksRemaining, autoReassignedTasksRemaining);
+        this.autoReassignableTasksRemaining = autoReassignableTasksRemaining;
+        assertValidStatus(status, persistentTasksRemaining, autoReassignableTasksRemaining);
     }
 
     public ShutdownPersistentTasksStatus(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(SHUTDOWN_PERSISTENT_TASKS_STATUS)) {
             this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
             this.persistentTasksRemaining = in.readVInt();
-            this.autoReassignedTasksRemaining = in.readVInt();
+            this.autoReassignableTasksRemaining = in.readVInt();
         } else {
             this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
             this.persistentTasksRemaining = 0;
-            this.autoReassignedTasksRemaining = 0;
+            this.autoReassignableTasksRemaining = 0;
         }
-        assertValidStatus(this.status, this.persistentTasksRemaining, this.autoReassignedTasksRemaining);
+        assertValidStatus(this.status, this.persistentTasksRemaining, this.autoReassignableTasksRemaining);
     }
 
     private static void assertValidStatus(
         SingleNodeShutdownMetadata.Status status,
         int persistentTasksRemaining,
-        int autoReassignedTasksRemaining
+        int autoReassignableTasksRemaining
     ) {
-        assert autoReassignedTasksRemaining >= 0 && autoReassignedTasksRemaining <= persistentTasksRemaining
-            : "autoReassignedTasksRemaining ["
-                + autoReassignedTasksRemaining
+        assert autoReassignableTasksRemaining >= 0 && autoReassignableTasksRemaining <= persistentTasksRemaining
+            : "autoReassignableTasksRemaining ["
+                + autoReassignableTasksRemaining
                 + "] must be >= 0 and <= persistentTasksRemaining ["
                 + persistentTasksRemaining
                 + "]";
-        assert status != SingleNodeShutdownMetadata.Status.COMPLETE || autoReassignedTasksRemaining == 0
-            : "status cannot be complete if autoReassignedTasksRemaining > 0";
+        assert status != SingleNodeShutdownMetadata.Status.COMPLETE || autoReassignableTasksRemaining == 0
+            : "status cannot be complete if autoReassignableTasksRemaining > 0";
         assert status != SingleNodeShutdownMetadata.Status.NOT_STARTED
-            || (autoReassignedTasksRemaining == 0 && persistentTasksRemaining == 0)
-            : "status cannot be not_started if autoReassignedTasksRemaining != 0 or persistentTasksRemaining != 0";
+            || (autoReassignableTasksRemaining == 0 && persistentTasksRemaining == 0)
+            : "status cannot be not_started if autoReassignableTasksRemaining != 0 or persistentTasksRemaining != 0";
     }
 
     @Override
@@ -104,7 +104,7 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
         if (out.getTransportVersion().supports(SHUTDOWN_PERSISTENT_TASKS_STATUS)) {
             out.writeEnum(status);
             out.writeVInt(persistentTasksRemaining);
-            out.writeVInt(autoReassignedTasksRemaining);
+            out.writeVInt(autoReassignableTasksRemaining);
         }
     }
 
@@ -113,7 +113,7 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
         builder.startObject();
         builder.field("status", status);
         builder.field("persistent_tasks_remaining", persistentTasksRemaining);
-        builder.field("auto_reassigned_tasks_remaining", autoReassignedTasksRemaining);
+        builder.field("auto_reassignable_tasks_remaining", autoReassignableTasksRemaining);
         builder.endObject();
         return builder;
     }
@@ -126,13 +126,13 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
         return persistentTasksRemaining;
     }
 
-    public int getAutoReassignedTasksRemaining() {
-        return autoReassignedTasksRemaining;
+    public int getAutoReassignableTasksRemaining() {
+        return autoReassignableTasksRemaining;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, persistentTasksRemaining, autoReassignedTasksRemaining);
+        return Objects.hash(status, persistentTasksRemaining, autoReassignableTasksRemaining);
     }
 
     @Override
@@ -142,7 +142,7 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
         ShutdownPersistentTasksStatus other = (ShutdownPersistentTasksStatus) o;
         return status.equals(other.status)
             && persistentTasksRemaining == other.persistentTasksRemaining
-            && autoReassignedTasksRemaining == other.autoReassignedTasksRemaining;
+            && autoReassignableTasksRemaining == other.autoReassignableTasksRemaining;
     }
 
     @Override

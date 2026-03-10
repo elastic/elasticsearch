@@ -175,7 +175,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
         int autoReassignTasks = 0;
         int persistentTasks = 0;
-        for (final var tuple : PersistentTasks.getAllTasks(state).toList()) {
+        for (final var it = PersistentTasks.getAllTasks(state).iterator(); it.hasNext();) {
+            final var tuple = it.next();
             for (final var task : tuple.v2().tasks()) {
                 if (nodeId.equals(task.getAssignment().getExecutorNode())) {
                     persistentTasks++;
@@ -185,7 +186,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 }
             }
         }
-        return ShutdownPersistentTasksStatus.inProgressOrComplete(persistentTasks, autoReassignTasks);
+        return ShutdownPersistentTasksStatus.fromRemainingTasks(persistentTasks, autoReassignTasks);
     }
 
     // pkg-private for testing

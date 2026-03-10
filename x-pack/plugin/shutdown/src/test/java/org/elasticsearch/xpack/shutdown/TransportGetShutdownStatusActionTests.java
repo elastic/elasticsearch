@@ -792,14 +792,14 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         if (nodeSeen == false) {
             assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.NOT_STARTED));
             assertThat(status.getPersistentTasksRemaining(), equalTo(0));
-            assertThat(status.getAutoReassignedTasksRemaining(), equalTo(0));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(0));
         } else {
             final var expectedStatus = autoReassignCount == 0
                 ? SingleNodeShutdownMetadata.Status.COMPLETE
                 : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
             assertThat(status.getStatus(), equalTo(expectedStatus));
             assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount));
-            assertThat(status.getAutoReassignedTasksRemaining(), equalTo(autoReassignCount));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
         }
     }
 
@@ -851,7 +851,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
         assertThat(status.getStatus(), equalTo(expectedStatus));
         assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount + nonAutoReassignCount));
-        assertThat(status.getAutoReassignedTasksRemaining(), equalTo(autoReassignCount));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
     }
 
     public void testPersistentTasksStatusOnlyCountsShuttingDownNode() {
@@ -889,7 +889,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS));
         assertThat(status.getPersistentTasksRemaining(), equalTo(2));
-        assertThat(status.getAutoReassignedTasksRemaining(), equalTo(1));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(1));
     }
 
     private void checkStalledShardWithIlmState(

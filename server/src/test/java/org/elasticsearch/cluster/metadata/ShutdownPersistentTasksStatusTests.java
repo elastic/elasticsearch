@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -18,7 +17,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.IN_PROGRESS;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.NOT_STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,31 +29,34 @@ public class ShutdownPersistentTasksStatusTests extends AbstractWireSerializingT
 
     @Override
     protected ShutdownPersistentTasksStatus createTestInstance() {
-        int persistentTasksRemaining = randomIntBetween(0, 10);
-        int autoReassignedTasksRemaining = randomIntBetween(0, persistentTasksRemaining);
-        Status status = autoReassignedTasksRemaining == 0 ? COMPLETE : IN_PROGRESS;
-        return new ShutdownPersistentTasksStatus(status, persistentTasksRemaining, autoReassignedTasksRemaining);
+        if (randomBoolean()) {
+            return ShutdownPersistentTasksStatus.notStarted();
+        } else {
+            int persistentTasksRemaining = randomIntBetween(0, 10);
+            int autoReassignableTasksRemaining = randomIntBetween(0, persistentTasksRemaining);
+            return ShutdownPersistentTasksStatus.fromRemainingTasks(persistentTasksRemaining, autoReassignableTasksRemaining);
+        }
     }
 
     @Override
     protected ShutdownPersistentTasksStatus mutateInstance(ShutdownPersistentTasksStatus instance) throws IOException {
         return switch (randomInt(3)) {
             case 0 -> instance.getStatus() == COMPLETE
-                ? new ShutdownPersistentTasksStatus(IN_PROGRESS, instance.getPersistentTasksRemaining() + 1, 1)
-                : new ShutdownPersistentTasksStatus(COMPLETE, instance.getPersistentTasksRemaining(), 0);
+                ? ShutdownPersistentTasksStatus.fromRemainingTasks(instance.getPersistentTasksRemaining() + 1, 1)
+                : ShutdownPersistentTasksStatus.fromRemainingTasks(instance.getPersistentTasksRemaining(), 0);
             case 1 -> instance.getStatus() == NOT_STARTED
-                ? new ShutdownPersistentTasksStatus(COMPLETE, 0, 0)
-                : new ShutdownPersistentTasksStatus(
-                    instance.getStatus(),
+                ? ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0)
+                : ShutdownPersistentTasksStatus.fromRemainingTasks(
                     instance.getPersistentTasksRemaining() + randomIntBetween(1, 10),
-                    instance.getAutoReassignedTasksRemaining()
+                    instance.getAutoReassignableTasksRemaining()
                 );
-            case 2 -> new ShutdownPersistentTasksStatus(
-                IN_PROGRESS,
+            case 2 -> ShutdownPersistentTasksStatus.fromRemainingTasks(
                 instance.getPersistentTasksRemaining() + randomIntBetween(5, 10),
-                instance.getAutoReassignedTasksRemaining() + randomIntBetween(1, 5)
+                instance.getAutoReassignableTasksRemaining() + randomIntBetween(1, 5)
             );
-            default -> new ShutdownPersistentTasksStatus(NOT_STARTED, 0, 0);
+            default -> instance.getStatus() == NOT_STARTED
+                ? ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0)
+                : ShutdownPersistentTasksStatus.notStarted();
         };
     }
 
@@ -72,6 +73,6 @@ public class ShutdownPersistentTasksStatusTests extends AbstractWireSerializingT
 
         assertThat(deserialized.getStatus(), equalTo(COMPLETE));
         assertThat(deserialized.getPersistentTasksRemaining(), equalTo(0));
-        assertThat(deserialized.getAutoReassignedTasksRemaining(), equalTo(0));
+        assertThat(deserialized.getAutoReassignableTasksRemaining(), equalTo(0));
     }
 }

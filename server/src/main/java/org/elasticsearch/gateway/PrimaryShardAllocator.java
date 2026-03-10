@@ -169,6 +169,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         if (allocation.hasPendingAsyncFetch()) {
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeResults);
         } else if (decisionType == Decision.Type.YES || decisionType == Decision.Type.NOT_PREFERRED) {
+            assert node != null : "node must not be null if decisionType is YES or NOT_PREFERRED";
             return AllocateUnassignedDecision.yes(node, allocationId, nodeResults, false);
         } else if (decisionType == Decision.Type.THROTTLE) {
             return AllocateUnassignedDecision.throttle(nodeResults);

@@ -372,17 +372,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * options exist (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
      */
     public void testThrottleBeforeNotPreferredNode() {
-        AllocationDecider throttleForNode1NotPreferredForNode2 = new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return node.nodeId().equals(node1.getId()) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
-            }
-        };
-        AllocationDeciders deciders = new AllocationDeciders(List.of(throttleForNode1NotPreferredForNode2));
-        final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, CLUSTER_RECOVERED, "allocId1", "allocId2");
-        testAllocator.addData(node1, "allocId1", randomBoolean());
-        testAllocator.addData(node2, "allocId2", randomBoolean());
-        allocateAllUnassigned(allocation);
+        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.THROTTLE, Decision.NOT_PREFERRED);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
@@ -392,6 +382,60 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         );
         assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(0));
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
+     * Tests that we allocate to a YES node rather than a NOT_PREFERRED node when both exist
+     * (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
+     */
+    public void testYesBeforeNotPreferredNode() {
+        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.YES, Decision.NOT_PREFERRED);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertAllocatedToNode1(allocation);
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
+    }
+
+    /**
+     * Tests that we allocate to a NOT_PREFERRED node rather than a NO node when both exist
+     * (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
+     */
+    public void testNotPreferredBeforeNoNode() {
+        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.NOT_PREFERRED, Decision.NO);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
+        assertAllocatedToNode1(allocation);
+        assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
+    }
+
+    /**
+     * Runs allocation with two nodes (node1, node2) where the decider returns the given
+     * decision for each. Both nodes have shard data (allocId1 / allocId2). Returns the
+     * allocation after {@link #allocateAllUnassigned}.
+     */
+    private RoutingAllocation allocateWithTwoNodeDecider(Decision node1Decision, Decision node2Decision) {
+        AllocationDecider decider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return node.nodeId().equals(node1.getId()) ? node1Decision : node2Decision;
+            }
+        };
+        final var deciders = new AllocationDeciders(List.of(decider));
+        final var allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, CLUSTER_RECOVERED, "allocId1", "allocId2");
+        testAllocator.addData(node1, "allocId1", randomBoolean());
+        testAllocator.addData(node2, "allocId2", randomBoolean());
+        allocateAllUnassigned(allocation);
+        return allocation;
+    }
+
+    private void assertAllocatedToNode1(RoutingAllocation allocation) {
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node1.getId())
+        );
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).allocationId().getId(),
+            equalTo("allocId1")
+        );
     }
 
     public void testNodesToAllocateIteratorOrder() {

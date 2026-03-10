@@ -20,6 +20,7 @@ esplugin {
     description = "Triggers graceful master failover on shutdown for stateless Elasticsearch"
     classname = "org.elasticsearch.xpack.stateless.shutdown.masterfailover.MasterFailoverPlugin"
     extendedPlugins = listOf("x-pack-core")
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 dependencies {

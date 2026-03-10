@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectIdResolver;
 
 public interface LinkedProjectsProvider {
 
@@ -19,8 +18,8 @@ public interface LinkedProjectsProvider {
 
     /**
      * Checks for projects linked to this project's {@link ProjectId}.
-     * This method will read the ProjectId from {@link ProjectIdResolver#getProjectId()} and is intended to be used where the ProjectId
-     * is embedded in the ThreadContext (e.g. REST and Transport layer).
+     * This method will read the ProjectId from {@link org.elasticsearch.cluster.project.ProjectIdResolver#getProjectId()} and is intended
+     * to be used where the ProjectId is embedded in the ThreadContext (e.g. REST and Transport layer).
      * For background tasks that may not have the ProjectId in the ThreadContext, pass the {@link ProjectId} to
      * {@link #hasLinkedProjects(ProjectId)}.
      */

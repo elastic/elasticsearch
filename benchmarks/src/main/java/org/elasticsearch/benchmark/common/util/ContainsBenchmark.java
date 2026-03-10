@@ -39,7 +39,7 @@ public class ContainsBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    @Param({ "20", "50", "100", "500", "1000" })
+    @Param({ "20", "35", "50", "100", "500", "1000" })
     public int avgValueLength;
 
     @Param({ "5", "10", "20" })
@@ -82,16 +82,8 @@ public class ContainsBenchmark {
     }
 
     @Benchmark
-    public boolean simdContains() {
-        int idx = index++ & (NUM_VALUES - 1);
-        byte[] value = values[idx];
-        byte[] term = terms[idx];
-        return ESVectorUtil.contains(value, 0, value.length, term, 0, term.length);
-    }
-
-    @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public boolean panamaSimdContains() {
+    public boolean panamaSimd() {
         int idx = index++ & (NUM_VALUES - 1);
         byte[] value = values[idx];
         byte[] term = terms[idx];

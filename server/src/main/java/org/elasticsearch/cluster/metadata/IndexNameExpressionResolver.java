@@ -359,8 +359,6 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
-            } else if (ia.getType() == Type.VIEW) {
-                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;

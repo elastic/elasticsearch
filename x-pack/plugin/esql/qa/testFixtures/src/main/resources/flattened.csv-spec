@@ -1,4 +1,21 @@
-flattenedSubfieldKeep
+flattened root fields
+required_capability: load_flattened_field
+required_capability: unmapped_fields
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported            
+2020-01-01T00:02:48.461Z | null                   | null
+2020-01-01T00:07:43.000Z | null                   | null
+;
+
+// ----------------------------------------------------
+flattened KEEP subfield
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -22,7 +39,8 @@ FROM flattened_otel_logs
 2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
 ;
 
-flattenedSubfieldDrop
+// ----------------------------------------------------
+flattened DROP subfield
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -47,7 +65,8 @@ FROM flattened_otel_logs
 2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
 ;
 
-flattenedSubfieldWhere
+// ----------------------------------------------------
+flattened subfield with WHERE
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -62,10 +81,10 @@ FROM flattened_otel_logs
 @timestamp:date          | resource.attributes.host.name:keyword
 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
 2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
-
 ;
 
-flattenedSubfieldEval
+// ----------------------------------------------------
+flattened subfield with EVAL TO_UPPER
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -90,7 +109,34 @@ FROM flattened_otel_logs
 2020-01-01T21:38:06.655Z | INFRA-FILEBEAT-CPCMV
 ;
 
-flattenedSubfieldSort
+// ----------------------------------------------------
+flattened subfield with EVAL LENGTH
+required_capability: load_flattened_field
+required_capability: unmapped_fields
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| EVAL host_length = LENGTH(resource.attributes.host.name)
+| KEEP @timestamp, host_length
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | host_length:integer
+2020-01-01T00:02:48.461Z | 20
+2020-01-01T00:07:43.000Z | 48
+2020-01-01T00:31:18.303Z | 54
+2020-01-01T00:58:35.557Z | 20
+2020-01-01T10:12:02.675Z | 14
+2020-01-01T11:38:54.751Z | 20
+2020-01-01T11:43:13.255Z | 14
+2020-01-01T14:37:29.195Z | 59
+2020-01-01T21:03:55.497Z | 20
+2020-01-01T21:38:06.655Z | 20
+;
+
+// ----------------------------------------------------
+SORT on flattened subfield
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -114,7 +160,8 @@ FROM flattened_otel_logs
 2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
 ;
 
-flattenedSubfieldRename
+// ----------------------------------------------------
+RENAME flattened subfield
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -139,7 +186,8 @@ FROM flattened_otel_logs
 2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
 ;
 
-flattenedSubfieldStats
+// ----------------------------------------------------
+flattened subfield with STATS count
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -147,14 +195,29 @@ required_capability: optional_fields_v2
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
 | STATS count(*) BY resource.attributes.agent.type
-| SORT resource.attributes.agent.type ASC
 ;
 
 count(*):long | resource.attributes.agent.type:keyword
 10            | filebeat
 ;
 
-flattenedSubfieldInlineStats
+// ----------------------------------------------------
+flattened subfield with STATS count_distinct
+required_capability: load_flattened_field
+required_capability: unmapped_fields
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| STATS count_distinct(resource.attributes.host.name)
+;
+
+count_distinct(resource.attributes.host.name):long
+9
+;
+
+// ----------------------------------------------------
+flattened subfield with INLINE STATS
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2
@@ -175,7 +238,8 @@ FROM flattened_otel_logs
 2020-01-01T10:12:02.675Z | 1          | filebeat-8pmfj
 ;
 
-flattenedSubfieldMvExpand
+// ----------------------------------------------------
+flattened subfield with MV_EXPAND
 required_capability: load_flattened_field
 required_capability: unmapped_fields
 required_capability: optional_fields_v2

@@ -256,7 +256,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> allowedSystemDataStreams = Arrays.asList(
             ".fleet-actions-results",
             ".fleet-fileds*",
-            ".workflows-execution-data-stream-logs"
+            ".workflows*"
         );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {

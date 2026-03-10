@@ -57,7 +57,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized
     // vectors (OSQ bit)
     public static final String CLUSTER_EXTENSION = "clivf";
-    static final String IVF_META_EXTENSION = "mivf";
+    public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_DIRECT_IO = 1;
@@ -193,10 +193,12 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        final Boolean writeDirectIOReads = Boolean.valueOf(useDirectIO);
+        validateDirectIOMetadata(writeDirectIOReads, VERSION_CURRENT);
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
-            useDirectIO,
+            writeDirectIOReads,
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -207,7 +209,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     // for testing
-    KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
+    protected KnnVectorsWriter version0FieldsWriter(SegmentWriteState state) throws IOException {
+        validateDirectIOMetadata(null, VERSION_START);
         return new ES920DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
@@ -220,6 +223,16 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
             numMergeWorkers,
             flatVectorThreshold
         );
+    }
+
+    private static void validateDirectIOMetadata(Boolean useDirectIOReads, int writeVersion) {
+        final boolean shouldWriteDirectIOReads = writeVersion >= VERSION_DIRECT_IO;
+        if (shouldWriteDirectIOReads && useDirectIOReads == null) {
+            throw new IllegalArgumentException("useDirectIOReads must be provided when writing direct-IO metadata");
+        }
+        if (shouldWriteDirectIOReads == false && useDirectIOReads != null) {
+            throw new IllegalArgumentException("useDirectIOReads must be null when direct-IO metadata is not written");
+        }
     }
 
     @Override

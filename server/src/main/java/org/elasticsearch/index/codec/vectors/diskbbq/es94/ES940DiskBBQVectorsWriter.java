@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -61,23 +61,23 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
-    private static final Logger logger = LogManager.getLogger(ESNextDiskBBQVectorsWriter.class);
+public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(ES940DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+    private final ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
 
-    public ESNextDiskBBQVectorsWriter(
+    public ES940DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
         boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         TaskExecutor mergeExec,
@@ -91,11 +91,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             rawVectorFormatName,
             useDirectIOReads,
             rawVectorDelegate,
-            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
-            ESNextDiskBBQVectorsFormat.NAME,
-            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
-            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
-            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.NAME,
+            ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
             flatVectorThreshold
         );
@@ -606,7 +606,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
         throws IOException {
         final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
-        final long bytesRequired = ESNextDiskBBQVectorsReader.directWriterSizeOnDisk(centroidAssignments.length, bitsRequired);
+        final long bytesRequired = ES940DiskBBQVectorsReader.directWriterSizeOnDisk(centroidAssignments.length, bitsRequired);
         final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
         final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
         for (int centroidAssignment : centroidAssignments) {
@@ -899,7 +899,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final byte[] quantizedVector;
         private final int[] quantizedVectorScratch;
         private final float[] floatVectorScratch;
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
+        private final ES940DiskBBQVectorsFormat.QuantEncoding encoding;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final VectorSimilarityFunction similarityFunction;
         private float[] currentCentroid, currentParentCentroid;
@@ -910,7 +910,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         OnHeapQuantizedVectors(
             FloatVectorValues vectorValues,
             VectorSimilarityFunction similarityFunction,
-            ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
+            ES940DiskBBQVectorsFormat.QuantEncoding encoding,
             int dimension,
             OptimizedScalarQuantizer quantizer
         ) {
@@ -984,7 +984,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private IntToBooleanFunction isOverspill = null;
         private IntToIntFunction ordTransformer = null;
 
-        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
+        OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ES940DiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
             this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Integer.BYTES);

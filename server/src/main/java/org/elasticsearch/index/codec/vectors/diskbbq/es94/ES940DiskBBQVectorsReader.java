@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -54,21 +54,21 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
+public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
-    public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
+    public ES940DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(
             state,
             getFormatReader,
-            ESNextDiskBBQVectorsFormat.NAME,
-            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
-            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
-            ESNextDiskBBQVectorsFormat.VERSION_START,
-            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
-            ESNextDiskBBQVectorsFormat.VERSION_DIRECT_IO,
-            ESNextDiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+            ES940DiskBBQVectorsFormat.NAME,
+            ES940DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES940DiskBBQVectorsFormat.VERSION_START,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
 
@@ -198,7 +198,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         float globalCentroidDp
     ) throws IOException {
         int bulkSize = input.readInt();
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
         if (preconditionerLength > 0) {
@@ -243,7 +243,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     }
 
     static class NextFieldEntry extends FieldEntry {
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
 
@@ -259,7 +259,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
             long preconditionerLength
@@ -283,7 +283,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             this.preconditionerLength = preconditionerLength;
         }
 
-        public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
+        public ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
         }
 
@@ -606,7 +606,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             bitsRequired
         );
         centroidSlice.skipBytes(sizeLookup);
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
+        ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
         int numParents = centroidSlice.readVInt();
         final QueryQuantizer queryQuantizer;
         if (numParents > 0) {
@@ -629,7 +629,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
     private static class QueryQuantizer {
         private final Cache<Integer, QueryQuantizerResult> cache;
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding;
         private final float[] target;
         private final float[] scratch;
         private final int[] quantizationScratch;
@@ -643,7 +643,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         private QueryQuantizerResult result = null;
 
         QueryQuantizer(
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
             FieldInfo fieldInfo,
             float[] target,
             IndexInput parentsSlice,
@@ -751,7 +751,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
         MemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
             IndexInput indexInput,
             FieldEntry entry,
             FieldInfo fieldInfo,

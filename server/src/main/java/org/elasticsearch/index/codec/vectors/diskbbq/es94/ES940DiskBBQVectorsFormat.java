@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -49,9 +49,9 @@ import java.util.concurrent.ExecutorService;
  * <p> Stores metadata including the number of centroids and their offsets in the clivf file</p>
  *
  */
-public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
+public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
 
-    public static final String NAME = "ESNextDiskBBQVectorsFormat";
+    public static final String NAME = "ES940DiskBBQVectorsFormat";
     // centroid ordinals -> centroid values, offsets
     public static final String CENTROID_EXTENSION = "cenivf";
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized vectors
@@ -59,7 +59,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 1;
-    public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_CURRENT = VERSION_START;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
@@ -286,11 +285,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
 
-    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+    public ES940DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+    public ES940DiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
         this(
             quantEncoding,
             vectorPerCluster,
@@ -305,7 +304,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         );
     }
 
-    public ESNextDiskBBQVectorsFormat(
+    public ES940DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -330,7 +329,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         );
     }
 
-    public ESNextDiskBBQVectorsFormat(
+    public ES940DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -397,13 +396,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
-    public ESNextDiskBBQVectorsFormat() {
+    public ES940DiskBBQVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESNextDiskBBQVectorsWriter(
+        return new ES940DiskBBQVectorsWriter(
             state,
             rawVectorFormat.getName(),
             useDirectIO,
@@ -421,7 +420,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
+        return new ES940DiskBBQVectorsReader(state, (f, dio) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
@@ -435,7 +434,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
+        return "ES940DiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
     }
 
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -32,10 +33,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -188,7 +189,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         Collection<NodeGatewayStartedShards> ineligibleShards;
         if (nodesToAllocate != null) {
             final Set<DiscoveryNode> discoNodes = new HashSet<>();
-            nodesToAllocate.stream().forEach(dnode -> {
+            for (DecidedNode dnode : nodesToAllocate) {
                 discoNodes.add(dnode.nodeShardState.getNode());
                 nodeResults.add(
                     new NodeAllocationResult(
@@ -197,7 +198,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                         dnode.decision
                     )
                 );
-            });
+            }
             ineligibleShards = fetchedShardData.getData()
                 .values()
                 .stream()
@@ -370,12 +371,19 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         List<DecidedNode> throttleNodeShards,
         List<DecidedNode> notPreferredNodeShards,
         List<DecidedNode> noNodeShards
-    ) {
+    ) implements Iterable<DecidedNode> {
+
         /**
-         * Stream all decided nodes in order: YES, THROTTLE, NOT_PREFERRED, NO.
+         * Iterate over all decided nodes in order: YES, THROTTLE, NOT_PREFERRED, NO.
          */
-        Stream<DecidedNode> stream() {
-            return Stream.of(yesNodeShards, throttleNodeShards, notPreferredNodeShards, noNodeShards).flatMap(Collection::stream);
+        @Override
+        public Iterator<DecidedNode> iterator() {
+            return Iterators.concat(
+                yesNodeShards.iterator(),
+                throttleNodeShards.iterator(),
+                notPreferredNodeShards.iterator(),
+                noNodeShards.iterator()
+            );
         }
     }
 

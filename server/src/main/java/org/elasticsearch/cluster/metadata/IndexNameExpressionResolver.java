@@ -1522,7 +1522,7 @@ public class IndexNameExpressionResolver {
                 throw infe;
             }
         }
-        if (indexAbstraction.getType() == Type.VIEW && context.getOptions().wildcardOptions().resolveViews() == false) {
+        if (indexAbstraction.getType() == Type.VIEW && context.getOptions().indexAbstractionOptions().resolveViews() == false) {
             if (ignoreUnavailable) {
                 return false;
             } else {

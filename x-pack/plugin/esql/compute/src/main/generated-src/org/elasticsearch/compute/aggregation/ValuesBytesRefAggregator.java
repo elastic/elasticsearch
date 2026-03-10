@@ -146,6 +146,7 @@ class ValuesBytesRefAggregator {
     private static class NextValues implements Releasable {
         private final BlockFactory blockFactory;
         private final LongHashTable hashes;
+
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
             this.hashes = HashImplFactory.newLongHash(blockFactory);

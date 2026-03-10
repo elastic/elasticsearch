@@ -195,6 +195,23 @@ FROM partial_mapping_no_source_sample_data
 2024-10-23T12:15:03.360Z | null
 ;
 
+unmappedNumericFromSyntheticSourceSingleIndex
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_synthetic_sample_data
+| KEEP @timestamp, unmapped_event_duration
+| SORT @timestamp DESC
+| LIMIT 4
+;
+
+@timestamp:date          | unmapped_event_duration:keyword
+2024-10-23T13:55:01.543Z | 1756468
+2024-10-23T13:53:55.832Z | 5033756
+2024-10-23T13:52:55.015Z | 8268154
+2024-10-23T13:51:54.732Z | 725449
+;
+
 statsByUnmappedFieldExistsInSource
 required_capability: optional_fields_v2
 
@@ -247,6 +264,25 @@ FROM k8s_unmapped
 2024-05-10T00:00:51.000Z   | prod            | null
 2024-05-10T00:00:57.000Z   | prod            | null
 2024-05-10T00:01:25.000Z   | qa              | null
+;
+
+unmappedNumericFromK8sSyntheticTsIndex
+required_capability: optional_fields_v2
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, network.cost
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date            | cluster:keyword | network.cost:keyword
+2024-05-10T00:00:29.000Z   | staging         | 9.375
+2024-05-10T00:00:33.000Z   | staging         | 1.25
+2024-05-10T00:00:51.000Z   | prod            | 9.25
+2024-05-10T00:00:57.000Z   | prod            | 12.125
+2024-05-10T00:01:25.000Z   | qa              | 5.375
 ;
 
 statsImplicitLastOverTimeUnmappedTsIndex

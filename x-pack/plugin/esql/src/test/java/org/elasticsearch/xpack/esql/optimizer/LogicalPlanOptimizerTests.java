@@ -7633,8 +7633,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Holder<Rate> holder = new Holder<>();
             plan.forEachExpressionDown(Rate.class, holder::set);
             assertNotNull(holder.get());
-            assertTrue(holder.get().hasWindow());
-            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            assertFalse(holder.get().hasWindow());
             assertTrue(holder.get().hasFilter());
         }
         // not supported

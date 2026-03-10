@@ -2411,6 +2411,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String optimizedLogicalPlan = null;
                 String optimizedPhysicalPlan = null;
                 String localPhysicalPlan = null;
+                String nodeReducePlan = null;
+                String finalPlan = null;
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
@@ -2431,6 +2433,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         if ("localPhysicalPlan".equals(type)) {
                             localPhysicalPlan = plan;
                         }
+                    } else if ("node_reduce".equals(role)) {
+                        nodeReducePlan = plan;
+                    } else if ("final".equals(role)) {
+                        finalPlan = plan;
                     }
                 }
 
@@ -2481,6 +2487,18 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     localPhysicalPlan,
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
+
+                // === Node Reduce Plan Assertions ===
+                assertNotNull("Should have node_reduce plan", nodeReducePlan);
+                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
+                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
+
+                // === Final Plan Assertions ===
+                assertNotNull("Should have final coordinator plan", finalPlan);
+                // Final plan should contain OutputExec for final result output
+                assertThat("Final plan should contain OutputExec", finalPlan, containsString("OutputExec"));
+                // Final plan should contain ExchangeSourceExec to receive data from data nodes
+                assertThat("Final plan should contain ExchangeSourceExec", finalPlan, containsString("ExchangeSourceExec"));
             }
         } finally {
             // Clean up
@@ -2537,6 +2555,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String optimizedLogicalPlan = null;
                 String optimizedPhysicalPlan = null;
                 String localPhysicalPlan = null;
+                String nodeReducePlan = null;
+                String finalPlan = null;
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
@@ -2557,6 +2577,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         if ("localPhysicalPlan".equals(type)) {
                             localPhysicalPlan = plan;
                         }
+                    } else if ("node_reduce".equals(role)) {
+                        nodeReducePlan = plan;
+                    } else if ("final".equals(role)) {
+                        finalPlan = plan;
                     }
                 }
 
@@ -2607,6 +2631,18 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     localPhysicalPlan,
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
+
+                // === Node Reduce Plan Assertions ===
+                assertNotNull("Should have node_reduce plan", nodeReducePlan);
+                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
+                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
+
+                // === Final Plan Assertions ===
+                assertNotNull("Should have final coordinator plan", finalPlan);
+                // Final plan should contain OutputExec for final result output
+                assertThat("Final plan should contain OutputExec", finalPlan, containsString("OutputExec"));
+                // Final plan should contain ExchangeSourceExec to receive data from data nodes
+                assertThat("Final plan should contain ExchangeSourceExec", finalPlan, containsString("ExchangeSourceExec"));
             }
         } finally {
             // Clean up

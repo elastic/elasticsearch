@@ -487,7 +487,8 @@ public class EsqlSession {
             // Add subplan information (captured before execution)
             values.addAll(subplanValues);
 
-            // Extract local plans from profile data (captured during execution)
+            // Extract plans from profile data (captured during execution)
+            // This includes: data node plans, node_reduce plans, and final coordinator plans
             if (result.completionInfo() != null && result.completionInfo().planProfiles() != null) {
                 for (var planProfile : result.completionInfo().planProfiles()) {
                     String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
@@ -501,6 +502,10 @@ public class EsqlSession {
                             values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
                         }
                         values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
+                    } else if (ComputeService.REDUCE_DESCRIPTION.equals(description)) {
+                        values.add(List.of(cluster, node, "node_reduce", "physicalPlan", planTree));
+                    } else if (description != null && description.endsWith("final")) {
+                        values.add(List.of(cluster, node, "final", "physicalPlan", planTree));
                     }
                 }
             }

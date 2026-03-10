@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.DataSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -34,17 +31,8 @@ public final class ExplainPlanTransformer {
      */
     public static PhysicalPlan replaceDataSourcesWithEmpty(PhysicalPlan plan) {
         return plan.transformUp(PhysicalPlan.class, p -> {
-            if (p instanceof EsQueryExec esQuery) {
-                return new LocalSourceExec(esQuery.source(), esQuery.output(), EmptyLocalSupplier.EMPTY);
-            }
-            if (p instanceof EsSourceExec esSource) {
-                return new LocalSourceExec(esSource.source(), esSource.output(), EmptyLocalSupplier.EMPTY);
-            }
-            if (p instanceof EsStatsQueryExec esStats) {
-                return new LocalSourceExec(esStats.source(), esStats.output(), EmptyLocalSupplier.EMPTY);
-            }
-            if (p instanceof ExternalSourceExec externalSource) {
-                return new LocalSourceExec(externalSource.source(), externalSource.output(), EmptyLocalSupplier.EMPTY);
+            if (p instanceof DataSourceExec dse) {
+                return new LocalSourceExec(dse.source(), dse.output(), EmptyLocalSupplier.EMPTY);
             }
             return p;
         });

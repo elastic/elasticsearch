@@ -78,10 +78,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     public void testFromMap_ClientSecret_Only() {
         var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")), TEST_INFERENCE_ID);
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
-        assertThat(
-            ((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(),
-            is("clientsecret")
-        );
+        assertThat(((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(), is("clientsecret"));
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
@@ -130,12 +127,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
         assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "[secret_settings] Invalid value empty string. [%s] must be a non-empty string",
-                    API_KEY
-                )
-            )
+            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
         );
     }
 
@@ -214,10 +206,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     @Override
-    protected AzureOpenAiEntraIdApiKeySecrets mutateInstanceForVersion(
-        AzureOpenAiEntraIdApiKeySecrets instance,
-        TransportVersion version
-    ) {
+    protected AzureOpenAiEntraIdApiKeySecrets mutateInstanceForVersion(AzureOpenAiEntraIdApiKeySecrets instance, TransportVersion version) {
         return instance;
     }
 

@@ -454,12 +454,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .put("index.number_of_replicas", 0)
             // Reduce sync interval to speedup this integraton test,
             // otherwise by default it will take 30 seconds before minimum retained seqno is updated:
-            .put("index.soft_deletes.retention_lease.sync_interval", "100ms");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            .put("index.soft_deletes.retention_lease.sync_interval", "100ms")
             // This test checks that _id's are pruned, that only applies
             // when regular _id's are used.
-            indexSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), false);
-        }
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false);
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))

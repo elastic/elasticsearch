@@ -41,13 +41,21 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
+    private static final int MAX_STRING_FIELDS = 1000;
+
+    private static final int MAX_STRING_FIELD_SERVERLESS = 600;
+
+    private static final int MAX_DOC = 500;
+
+    private static final int MAX_DOC_SERVERLESS = 100;
+
     @Before
     public void checkCapability() {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
     }
 
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
-        heapAttackIT.initManyBigFieldsIndex(500, "keyword", false);
+        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, "keyword", false, MAX_STRING_FIELDS);
         for (int subquery : List.of(MIN_SUBQUERIES, MAX_SUBQUERIES)) {
             ListMatcher columns = matchesList();
             int fieldsToRead = subquery < MAX_SUBQUERIES ? 1000 : 600; // with 1000 fields we circuit break
@@ -67,19 +75,19 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "manybigfields"));
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", " f000 "));
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
         for (int f = 1; f < 11; f++) {
@@ -90,15 +98,16 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomNumericFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         int docs = 1000;
+        int fields = 1000;
         String type = randomFrom("integer", "long", "double");
-        heapAttackIT.initManyBigFieldsIndex(docs, type, true);
+        heapAttackIT.initManyBigFieldsIndex(docs, type, true, fields);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
         for (int f = 1; f < 100; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         ListMatcher columns = matchesList();
-        for (int f = 0; f < 1000; f++) {
+        for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", type));
         }
         // results are returned from non-serverless environment, but CBE is expected in serverless
@@ -116,19 +125,19 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResults() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
         assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "manybigfields"));
     }
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
         assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", " f000 "));
     }
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
         for (int f = 1; f < 5; f++) {
@@ -139,7 +148,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false, MAX_STRING_FIELDS);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", null);
         ListMatcher values = matchesList();
@@ -151,7 +160,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, MAX_STRING_FIELDS);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", null);
         ListMatcher values = matchesList();
@@ -163,7 +172,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithGBYOneField() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, MAX_STRING_FIELDS);
         var columns = List.of(Map.of("name", "sum", "type", "long"), Map.of("name", "f000", "type", "keyword"));
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", "f000");
         var values = response.get("values");
@@ -173,7 +182,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggGBYManyFields() throws IOException {
         int docs = docs();
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         StringBuilder grouping = new StringBuilder();
         grouping.append("f000");
         int groupBySize = 100;
@@ -181,7 +190,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         try {
-            Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString());
+            Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f499)", grouping.toString());
             assertTrue(response.get("columns") instanceof List<?> l && l.size() == (groupBySize + 1));
         } catch (ResponseException e) {
             Map<?, ?> map = responseAsMap(e.getResponse());
@@ -220,19 +229,19 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testLoadDocSequenceReturnsCorrectResultsKeyword() throws IOException {
         int docs = 20;
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false, MAX_STRING_FIELDS);
         verifyLoadDocSequenceResults(docs, "keyword");
     }
 
     public void testLoadDocSequenceReturnsCorrectResultsText() throws IOException {
         int docs = 20;
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", false);
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", false, MAX_STRING_FIELDS);
         verifyLoadDocSequenceResults(docs, "text");
     }
 
     private void verifyLoadDocSequenceResults(int docs, String dataType) throws IOException {
         List<Map<String, String>> columns = new ArrayList<>();
-        for (int f = 0; f < 1000; f++) {
+        for (int f = 0; f < MAX_STRING_FIELDS; f++) {
             Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", dataType);
             columns.add(column);
         }
@@ -306,6 +315,12 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     private static int docs() throws IOException {
         // serverless has 6 shards, non-serverless has 1 shard,
         // limiting the number of docs to reduce the gc lagging and intermittent OOMs in serverless
-        return isServerless() ? 100 : 500;
+        return isServerless() ? MAX_DOC_SERVERLESS : MAX_DOC;
+    }
+
+    private static int fields() throws IOException {
+        // serverless has 6 shards, non-serverless has 1 shard,
+        // limiting the number of keyword/text fields to reduce the gc lagging and intermittent OOMs in serverless
+        return isServerless() ? MAX_STRING_FIELD_SERVERLESS : MAX_STRING_FIELDS;
     }
 }

@@ -578,40 +578,4 @@ public final class DocVector extends AbstractVector implements Vector {
             return this;
         }
     }
-
-    /**
-     * Returns true if this vector contain only documents from a single shard.
-     */
-    public boolean singleShard() {
-        if (shards.isConstant()) {
-            return true;
-        }
-        int first = shards.getInt(0);
-        for (int i = 1; i < shards.getPositionCount(); i++) {
-            if (shards.getInt(i) != first) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Returns true if this vector contain only documents from a single shard and segment.
-     */
-    public boolean singleShardSingleSegment() {
-        if (singleSegment()) {
-            return true;
-        }
-        if (singleShard() == false) {
-            return false;
-        }
-        int first = segments.getInt(0);
-        for (int i = 1; i < segments.getPositionCount(); i++) {
-            if (segments.getInt(i) != first) {
-                return false;
-            }
-        }
-        return true;
-    }
-
 }

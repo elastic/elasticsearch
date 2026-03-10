@@ -1933,7 +1933,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             docVector = builder.build(DocVector.config());
         }
         assertFalse("FixedBuilder produces non-constant vectors", docVector.singleSegment());
-        assertTrue("all docs from same shard+segment", docVector.singleShardSingleSegment());
 
         Page inputPage = new Page(docVector.asBlock());
         var readerFactory = new ValuesSourceReaderOperator.Factory(

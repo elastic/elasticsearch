@@ -675,7 +675,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
-
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -710,17 +709,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
 
             ArrayList<Attribute> resolvedGroupings = new ArrayList<>(newGroupings.size());
+            Set<String> unresolvedGroupingNames = new HashSet<>(newGroupings.size());
             for (Expression e : newGroupings) {
                 Attribute attr = Expressions.attribute(e);
-                if (attr != null && attr.resolved()) {
-                    resolvedGroupings.add(attr);
+                if (attr != null) {
+                    if (attr.resolved()) {
+                        resolvedGroupings.add(attr);
+                    } else {
+                        unresolvedGroupingNames.add(attr.name());
+                    }
                 }
             }
 
             boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
+                var inputAttributes = new ArrayList<>(childrenOutput);
+                // Remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups.
+                // E.g. for
+                // SET unmapped_fields="nullify"; ROW x = 1, language_code = 2
+                // | STATS c = max(language_code) BY language_code = does_not_exist
+                // max(language_code) should not be resolved to the input attribute language_code.
+                inputAttributes.removeIf(a -> unresolvedGroupingNames.contains(a.name()));
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, inputAttributes);
 
                 List<NamedExpression> newAggregates = new ArrayList<>(aggregates.size());
                 // If no groupings are resolved, skip the resolution of the references to groupings in the aggregates, resolve the

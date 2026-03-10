@@ -31,8 +31,8 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String EVENT_DURATION_FIELD = "event.duration";
     String TRACE_ID_FIELD = "trace.id";
     String TASK_ID_FIELD = "elasticsearch.task.id";
-    String PARENT_TASK_ID_FIELD = "elasticsearch.parent.task";
-    String PARENT_NODE_ID_FIELD = "elasticsearch.parent.node";
+    String PARENT_TASK_ID_FIELD = "elasticsearch.parent.task.id";
+    String PARENT_NODE_ID_FIELD = "elasticsearch.parent.node.id";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.

@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,9 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
 public class ToTDigest extends AbstractConvertFunction {
 
@@ -39,7 +41,10 @@ public class ToTDigest extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DataType.TDIGEST, (source, field) -> field),
-        Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
+        Map.entry(
+            DataType.HISTOGRAM,
+            (source, in) -> new ToTDigestFromHistogramEvaluator.Factory(source, in, dc -> new EncodedTDigest(), dc -> new TDigestHolder())
+        )
     );
 
     @FunctionInfo(
@@ -86,39 +91,36 @@ public class ToTDigest extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
-    static TDigestHolder fromHistogram(BytesRef in) {
+    static TDigestHolder fromHistogram(
+        BytesRef in,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) EncodedTDigest decoder,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) TDigestHolder scratch
+    ) {
         if (in.length > ByteSizeUnit.MB.toBytes(2)) {
             throw new IllegalArgumentException("Histogram length is greater than 2MB");
         }
         // even though the encoded format is the same, we need to decode here to compute the summary data
-        List<Double> centroids = new ArrayList<>();
-        List<Long> counts = new ArrayList<>();
-        ByteArrayStreamInput streamInput = new ByteArrayStreamInput();
-        streamInput.reset(in.bytes, in.offset, in.length);
+        decoder.reset(in);
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
         double sum = 0;
         long totalCount = 0;
-        try {
-            while (streamInput.available() > 0) {
-                long count = streamInput.readVLong();
-                double value = Double.longBitsToDouble(streamInput.readLong());
-                min = Math.min(min, value);
-                max = Math.max(max, value);
-                sum += value * count;
-                totalCount += count;
-                centroids.add(value);
-                counts.add(count);
-            }
-            if (totalCount == 0) {
-                min = Double.NaN;
-                max = Double.NaN;
-                sum = Double.NaN;
-            }
-            return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e.getMessage());
+        EncodedTDigest.CentroidIterator it = decoder.centroidIterator();
+        while (it.next()) {
+            long count = it.currentCount();
+            double value = it.currentMean();
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+            sum += value * count;
+            totalCount += count;
         }
+        if (totalCount == 0) {
+            min = Double.NaN;
+            max = Double.NaN;
+            sum = Double.NaN;
+        }
+        scratch.reset(in, min, max, sum, totalCount);
+        return scratch;
     }
 
 }

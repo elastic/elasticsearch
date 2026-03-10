@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -111,10 +112,9 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static IndexSettings defaultIndexSettings() {
         IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
@@ -162,19 +162,19 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
                 )
             );
             default -> List.of(
@@ -182,7 +182,7 @@ public class ValuesSourceReaderBenchmark {
                     name,
                     elementType(name),
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader(name))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader(name))
                 )
             );
         };
@@ -631,6 +631,11 @@ public class ValuesSourceReaderBenchmark {
 
         @Override
         public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
+
+        @Override
+        public Warnings warnings() {
             return null;
         }
 

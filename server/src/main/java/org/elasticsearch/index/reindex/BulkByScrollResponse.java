@@ -174,7 +174,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         return timedOut;
     }
 
-    /** Resume info for relocation or empty if this is a final response. */
+    /**
+     * Resume info for relocation. Only present if the task is not complete and needs to be relocated to a different node
+     * due to the current node being shut down, and a suitable destination node has been found.
+     * */
     public Optional<ResumeInfo> getTaskResumeInfo() {
         return Optional.ofNullable(resumeInfo);
     }

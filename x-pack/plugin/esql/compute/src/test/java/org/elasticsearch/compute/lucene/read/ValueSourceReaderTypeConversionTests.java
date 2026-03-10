@@ -60,6 +60,7 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -223,7 +224,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     ) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, (ctx, shardIdx) -> {
                 if (shardIdx < 0 || shardIdx >= INDICES.size()) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
@@ -522,7 +523,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, null));
+        return new ValuesSourceReaderOperator.FieldInfo(
+            ft.name(),
+            elementType,
+            false,
+            (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, ft, null)
+        );
     }
 
     private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, String toType) {
@@ -530,7 +536,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             fieldName,
             elementType,
             false,
-            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType)
+            (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, fieldName, toType)
         );
     }
 
@@ -610,7 +616,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType ft1 = mapperService.fieldType(f1);
         MappedFieldType ft2 = mapperService.fieldType(f2);
         return new FieldCase(
-            new ValuesSourceReaderOperator.FieldInfo(f1, elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft1, ft2))
+            new ValuesSourceReaderOperator.FieldInfo(f1, elementType, false, (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, ft1, ft2))
         );
     }
 
@@ -734,7 +740,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 )
             ).results(checks::constantBytes).readers(StatusChecks::constantBytes)
         );
@@ -744,7 +750,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "null",
                     ElementType.NULL,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 )
             ).results(checks::constantNulls).readers(StatusChecks::constantNulls)
         );
@@ -920,13 +926,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
@@ -1013,7 +1019,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, (ctx, shardIdx) -> {
                     seenShards.add(shardIdx);
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
@@ -1060,7 +1066,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            new TestDriverRunner().run(d);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(d);
             success = true;
         } finally {
             if (success == false) {

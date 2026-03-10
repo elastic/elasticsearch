@@ -94,5 +94,10 @@ public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlock
         public void close() {
             ordinals.close();
         }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromOrds.RowStride";
+        }
     }
 }

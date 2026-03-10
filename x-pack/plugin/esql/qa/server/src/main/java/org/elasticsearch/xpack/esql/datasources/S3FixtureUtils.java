@@ -10,12 +10,14 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -26,6 +28,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiPredicate;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
@@ -84,6 +89,88 @@ public final class S3FixtureUtils {
 
     private S3FixtureUtils() {
         // Utility class - no instantiation
+    }
+
+    /**
+     * Iterate over all fixture entries in the iceberg-fixtures resource directory,
+     * supporting both filesystem and JAR-packaged resources. Compressed files are skipped.
+     */
+    public static void forEachFixtureEntry(Class<?> anchor, CheckedBiConsumer<String, byte[], IOException> consumer) throws Exception {
+        URL resourceUrl = anchor.getResource(FIXTURES_RESOURCE_PATH);
+        if (resourceUrl == null) {
+            throw new IllegalStateException("Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH);
+        }
+
+        Set<String> compressedExts = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
+
+        if (resourceUrl.getProtocol().equals("file")) {
+            Path fixturesPath = Paths.get(resourceUrl.toURI());
+            if (Files.exists(fixturesPath) == false) {
+                throw new IllegalStateException("Fixtures path does not exist: " + fixturesPath);
+            }
+            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String name = file.getFileName().toString();
+                    if (compressedExts.stream().anyMatch(name::endsWith)) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    String relativePath = fixturesPath.relativize(file).toString();
+                    byte[] content = Files.readAllBytes(file);
+                    consumer.accept(relativePath, content);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } else if (resourceUrl.getProtocol().equals("jar")) {
+            JarURLConnection jarConnection = (JarURLConnection) resourceUrl.openConnection();
+            String entryPrefix = jarConnection.getEntryName();
+            if (entryPrefix.endsWith("/") == false) {
+                entryPrefix = entryPrefix + "/";
+            }
+            try (JarFile jarFile = jarConnection.getJarFile()) {
+                Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String entryName = entry.getName();
+                    if (entry.isDirectory() || entryName.startsWith(entryPrefix) == false) {
+                        continue;
+                    }
+                    String relativePath = entryName.substring(entryPrefix.length());
+                    if (relativePath.isEmpty()) {
+                        continue;
+                    }
+                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                    if (compressedExts.stream().anyMatch(fileName::endsWith)) {
+                        continue;
+                    }
+                    try (InputStream is = jarFile.getInputStream(entry)) {
+                        byte[] content = is.readAllBytes();
+                        consumer.accept(relativePath, content);
+                    }
+                }
+            }
+        } else {
+            throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
+        }
+    }
+
+    /**
+     * Resolve the local filesystem path to the iceberg-fixtures directory, or null if
+     * fixtures are packaged inside a JAR.
+     */
+    public static Path resolveLocalFixturesPath(Class<?> anchor) {
+        URL resourceUrl = anchor.getResource(FIXTURES_RESOURCE_PATH);
+        if (resourceUrl != null && "file".equals(resourceUrl.getProtocol())) {
+            try {
+                Path path = Paths.get(resourceUrl.toURI());
+                if (Files.exists(path)) {
+                    return path;
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to resolve local fixtures path", e);
+            }
+        }
+        return null;
     }
 
     /**
@@ -395,24 +482,62 @@ public final class S3FixtureUtils {
 
         /**
          * Load test fixtures from the classpath resources into the S3 fixture.
+         * Supports both filesystem paths and JAR-packaged resources.
          */
         public void loadFixturesFromResources() {
             try {
                 URL resourceUrl = getClass().getResource(FIXTURES_RESOURCE_PATH);
                 if (resourceUrl == null) {
-                    fixtureLogger.warn("Fixtures resource path not found: {}", FIXTURES_RESOURCE_PATH);
-                    return;
+                    throw new IllegalStateException("Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH);
                 }
 
                 if (resourceUrl.getProtocol().equals("file")) {
                     Path fixturesPath = Paths.get(resourceUrl.toURI());
                     loadFixturesFromPath(fixturesPath);
+                } else if (resourceUrl.getProtocol().equals("jar")) {
+                    loadFixturesFromJar(resourceUrl);
                 } else {
-                    fixtureLogger.warn("Cannot load fixtures from non-file URL: {}", resourceUrl);
+                    throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
                 }
             } catch (Exception e) {
                 fixtureLogger.error("Failed to load fixtures from resources", e);
+                throw new RuntimeException(e);
             }
+        }
+
+        private void loadFixturesFromJar(URL jarUrl) throws IOException {
+            JarURLConnection jarConnection = (JarURLConnection) jarUrl.openConnection();
+            String entryPrefix = jarConnection.getEntryName();
+            if (entryPrefix.endsWith("/") == false) {
+                entryPrefix = entryPrefix + "/";
+            }
+
+            Set<String> loadedFiles = new HashSet<>();
+            try (JarFile jarFile = jarConnection.getJarFile()) {
+                Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String entryName = entry.getName();
+                    if (entry.isDirectory() || entryName.startsWith(entryPrefix) == false) {
+                        continue;
+                    }
+                    String relativePath = entryName.substring(entryPrefix.length());
+                    if (relativePath.isEmpty()) {
+                        continue;
+                    }
+                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(fileName::endsWith)) {
+                        continue;
+                    }
+                    String key = WAREHOUSE + "/" + relativePath;
+                    try (InputStream is = jarFile.getInputStream(entry)) {
+                        byte[] content = is.readAllBytes();
+                        addBlobToFixture(handler, key, content);
+                        loadedFiles.add(key);
+                    }
+                }
+            }
+            fixtureLogger.info("Loaded {} fixture files from JAR {}", loadedFiles.size(), jarUrl);
         }
 
         /** Compressed extensions generated on the fly; skip loading from disk */

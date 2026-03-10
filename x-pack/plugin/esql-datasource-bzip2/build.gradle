@@ -8,10 +8,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
-versions << [
-  'commonsCompress': '1.26.1'
-]
-
 esplugin {
   name = 'esql-datasource-bzip2'
   description = 'Bzip2 decompression support for ESQL external data sources'
@@ -30,7 +26,7 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation("org.apache.commons:commons-compress:${versions.commonsCompress}") {
+  testImplementation("org.apache.commons:commons-compress:${versions.esql_commons_compress}") {
     exclude group: 'commons-codec', module: 'commons-codec'
   }
 
@@ -38,10 +34,3 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
-  mapping from: /commons-compress-.*/, to: 'commons-compress'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses()
-}

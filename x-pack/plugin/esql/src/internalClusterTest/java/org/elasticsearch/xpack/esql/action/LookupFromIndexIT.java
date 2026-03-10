@@ -342,7 +342,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         "key" + idx,
                         PlannerUtils.toElementType(keyTypes.get(idx)),
                         false,
-                        shard -> ValuesSourceReaderOperator.load(
+                        (ctx, shard) -> ValuesSourceReaderOperator.load(
                             searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
                         )
                     )

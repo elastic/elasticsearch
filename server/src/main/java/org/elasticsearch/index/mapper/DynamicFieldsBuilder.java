@@ -207,7 +207,8 @@ final class DynamicFieldsBuilder {
         CheckedSupplier<Boolean, IOException> dynamicFieldStrategy
     ) throws IOException {
         if (applyMatchingTemplate(context, name, matchType, dateFormatter)) {
-            context.markFieldAsAppliedFromTemplate(name);
+            String fullFieldName = context.path().pathAsText(name);
+            context.markFieldAsAppliedFromTemplate(fullFieldName);
             return true;
         } else {
             return dynamicFieldStrategy.get();

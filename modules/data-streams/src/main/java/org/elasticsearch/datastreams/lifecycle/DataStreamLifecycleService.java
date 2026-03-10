@@ -99,6 +99,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -180,6 +181,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
+    private final AtomicBoolean dlmCurrentlyRunning = new AtomicBoolean(false);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
@@ -356,18 +358,28 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
-        long startTime = nowSupplier.getAsLong();
-        if (lastRunStartedAt != null) {
-            timeBetweenStarts = startTime - lastRunStartedAt;
-        }
-        lastRunStartedAt = startTime;
-        for (var projectId : state.metadata().projects().keySet()) {
-            // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
-            try {
-                run(state.projectState(projectId));
-            } catch (Exception e) {
-                logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+        // Ensure that if DLM execution takes longer than its invocation interval, that we still only run a single invocation at once.
+        if (dlmCurrentlyRunning.compareAndSet(false, true)) {
+            long startTime = nowSupplier.getAsLong();
+            if (lastRunStartedAt != null) {
+                timeBetweenStarts = startTime - lastRunStartedAt;
             }
+            lastRunStartedAt = startTime;
+            try {
+                for (var projectId : state.metadata().projects().keySet()) {
+                    // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
+                    try {
+                        run(state.projectState(projectId));
+                    } catch (Exception e) {
+                        logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+                    }
+                }
+            } finally {
+                // Ensure that no matter what, we unset the running flag.
+                dlmCurrentlyRunning.set(false);
+            }
+        } else {
+            logger.debug("DLM skipping run because it is already running, last run was started at [{}]", lastRunStartedAt);
         }
     }
 

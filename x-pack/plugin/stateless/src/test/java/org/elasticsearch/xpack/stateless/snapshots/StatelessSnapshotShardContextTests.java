@@ -209,6 +209,198 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
         }
     }
 
+    public void testResetWithoutMark() throws IOException {
+        final var setup = createMarkResetTestSetup();
+        try (var fileReader = setup.context.fileReader("file", mock(StoreFileMetadata.class))) {
+            final var stream = fileReader.openInput(setup.fileLength);
+            assertTrue(stream.markSupported());
+
+            final int firstReadSize = between(1, setup.fileLength - 1);
+            byte[] firstBytes = stream.readNBytes(firstReadSize);
+            assertArrayEquals(Arrays.copyOfRange(setup.expectedContent, 0, firstReadSize), firstBytes);
+
+            stream.reset();
+
+            byte[] allBytes = readMixedBytes(stream, setup.fileLength);
+            assertArrayEquals(setup.expectedContent, allBytes);
+
+            fileReader.verify();
+        }
+
+        for (CloseTrackingInputStream s : setup.allOpenedStreams) {
+            assertTrue("Expected all opened input streams to be closed", s.isClosed());
+        }
+    }
+
+    public void testMarkAndReset() throws IOException {
+        final var setup = createMarkResetTestSetup();
+        try (var fileReader = setup.context.fileReader("file", mock(StoreFileMetadata.class))) {
+            final var stream = fileReader.openInput(setup.fileLength);
+
+            final int markPosition = between(1, setup.fileLength - 2);
+            stream.readNBytes(markPosition);
+            // Randomize the readLimit argument since is ignored by our implementation, i.e. reset is always allowed regardless of
+            // how many bytes have been read after mark.
+            stream.mark(randomInt());
+
+            final int extraRead = between(1, setup.fileLength - markPosition);
+            stream.readNBytes(extraRead);
+
+            stream.reset();
+
+            byte[] remaining = readMixedBytes(stream, setup.fileLength - markPosition);
+            assertArrayEquals(Arrays.copyOfRange(setup.expectedContent, markPosition, setup.fileLength), remaining);
+
+            fileReader.verify();
+        }
+
+        for (CloseTrackingInputStream s : setup.allOpenedStreams) {
+            assertTrue("Expected all opened input streams to be closed", s.isClosed());
+        }
+    }
+
+    public void testMultipleResets() throws IOException {
+        final var setup = createMarkResetTestSetup();
+        try (var fileReader = setup.context.fileReader("file", mock(StoreFileMetadata.class))) {
+            final var stream = fileReader.openInput(setup.fileLength);
+
+            int markPos = 0;
+            final int rounds = between(2, 10);
+            for (int i = 0; i < rounds; i++) {
+                final int remaining = setup.fileLength - markPos;
+                if (remaining <= 1) {
+                    break;
+                }
+                final int bytesToRead = between(1, remaining - 1);
+                readMixedBytes(stream, bytesToRead);
+
+                if (randomBoolean()) {
+                    final int newMarkPos = between(markPos, markPos + bytesToRead);
+                    stream.reset();
+                    readMixedBytes(stream, newMarkPos - markPos);
+                    // Randomize the readLimit argument since is ignored by our implementation, i.e. reset is always allowed regardless of
+                    // how many bytes have been read after mark.
+                    stream.mark(randomInt());
+                    markPos = newMarkPos;
+                } else {
+                    stream.reset();
+                }
+            }
+
+            byte[] content = readMixedBytes(stream, setup.fileLength - markPos);
+            assertArrayEquals(Arrays.copyOfRange(setup.expectedContent, markPos, setup.fileLength), content);
+
+            fileReader.verify();
+        }
+
+        for (CloseTrackingInputStream s : setup.allOpenedStreams) {
+            assertTrue("Expected all opened input streams to be closed", s.isClosed());
+        }
+    }
+
+    private record MarkResetTestSetup(
+        byte[] expectedContent,
+        int fileLength,
+        StatelessSnapshotShardContext context,
+        List<CloseTrackingInputStream> allOpenedStreams
+    ) {}
+
+    private MarkResetTestSetup createMarkResetTestSetup() throws IOException {
+        final Directory dir = newDirectory();
+        final IndexOutput output = dir.createOutput("test.file", IOContext.DEFAULT);
+        final byte[] content = randomByteArrayOfLength(between(100, 1000));
+        output.writeBytes(content, content.length);
+        CodecUtil.writeFooter(output);
+        output.close();
+
+        final long totalLength;
+        try (var indexInput = dir.openInput("test.file", IOContext.DEFAULT)) {
+            totalLength = indexInput.length();
+        }
+
+        final long generation = 42L;
+        final String blobName = "stateless_commit_" + generation;
+        final int blobPadding = between(0, 50);
+        final FsBlobContainer blobContainer = createBlobContainer();
+
+        final byte[] expectedContent;
+        try (
+            var indexInput = dir.openInput("test.file", IOContext.DEFAULT);
+            var indexInputStream = new InputStreamIndexInput(indexInput, totalLength)
+        ) {
+            final byte[] fileContent = indexInputStream.readAllBytes();
+            // Add padding bytes randomly so that the file is sometimes in the middle of a blob
+            final byte[] padding = randomByteArrayOfLength(blobPadding);
+            final int blobTrailing = between(0, 50);
+            final byte[] trailing = randomByteArrayOfLength(blobTrailing);
+            final byte[] blobContent = new byte[blobPadding + fileContent.length + blobTrailing];
+            System.arraycopy(padding, 0, blobContent, 0, blobPadding);
+            System.arraycopy(fileContent, 0, blobContent, blobPadding, fileContent.length);
+            System.arraycopy(trailing, 0, blobContent, blobPadding + fileContent.length, blobTrailing);
+            blobContainer.writeBlob(
+                OperationPurpose.SNAPSHOT_DATA,
+                blobName,
+                new ByteArrayInputStream(blobContent),
+                blobContent.length,
+                false
+            );
+            expectedContent = fileContent;
+        } finally {
+            IOUtils.close(dir);
+        }
+
+        final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        final List<CloseTrackingInputStream> allOpenedStreams = new ArrayList<>();
+        final var context = new StatelessSnapshotShardContext(
+            shardId,
+            new SnapshotId(randomIdentifier(), randomUUID()),
+            new IndexId(shardId.getIndexName(), randomUUID()),
+            randomIdentifier(),
+            IndexShardSnapshotStatus.newInitializing(ShardGeneration.newGeneration()),
+            IndexVersion.current(),
+            randomNonNegativeLong(),
+            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
+            Map.of(
+                "file",
+                new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)
+            ),
+            (s, g) -> new FilterBlobContainer(blobContainer) {
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    throw new AssertionError("should not obtain child");
+                }
+
+                @Override
+                public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                    var inputStream = new CloseTrackingInputStream(super.readBlob(purpose, blobName, position, length), false);
+                    allOpenedStreams.add(inputStream);
+                    return inputStream;
+                }
+            },
+            new PlainActionFuture<>()
+        );
+
+        return new MarkResetTestSetup(expectedContent, (int) totalLength, context, allOpenedStreams);
+    }
+
+    private static byte[] readMixedBytes(InputStream stream, int count) throws IOException {
+        final byte[] result = new byte[count];
+        int pos = 0;
+        while (pos < count) {
+            if (randomBoolean()) {
+                final int b = stream.read();
+                assertNotEquals("unexpected end of stream at position " + pos, -1, b);
+                result[pos++] = (byte) b;
+            } else {
+                final int len = between(1, count - pos);
+                final int n = stream.read(result, pos, len);
+                assertNotEquals("unexpected end of stream at position " + pos, -1, n);
+                pos += n;
+            }
+        }
+        return result;
+    }
+
     private static byte[] readBlobContent(
         SnapshotShardContext.FileReader fileReader,
         int numberOfParts,

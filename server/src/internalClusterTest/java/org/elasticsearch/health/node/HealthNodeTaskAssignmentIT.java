@@ -35,7 +35,6 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // Use the minimum poll interval so that waitForAllNodesToReportHealthy completes quickly.
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), LocalHealthMonitor.MIN_POLL_INTERVAL)
@@ -51,8 +50,7 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
         waitForAllNodesToReportHealthy(initialHealthNode.getName());
 
         // Alternate shutdowns: each pass marks the current health node for shutdown,
-        // verifies the task migrates to the other data node atomically (no gap),
-        // confirms health data is reported, then clears the shutdown for the next pass.
+        // verifies the task migrates to the other data node atomically.
         String currentHealthNodeName = initialHealthNode.getName();
         final int passes = randomIntBetween(2, 4);
         for (int pass = 0; pass < passes; pass++) {
@@ -103,7 +101,7 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
         waitForAllNodesToReportHealthy(initialHealthNode.getName());
 
         try {
-            // Disable on all nodes
+            // Disable the task
             updateClusterSettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false));
             awaitClusterState(state -> HealthNode.findTask(state) == null && HealthNode.findHealthNode(state) == null);
 

@@ -18,6 +18,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -341,7 +342,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         "key" + idx,
                         PlannerUtils.toElementType(keyTypes.get(idx)),
                         false,
-                        shard -> ValuesSourceReaderOperator.load(
+                        (ctx, shard) -> ValuesSourceReaderOperator.load(
                             searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
                         )
                     )
@@ -502,7 +503,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
      * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
      */
     protected final DriverContext driverContext() {
-        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        var breaker = new LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
         return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 

@@ -72,6 +72,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "lhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -95,6 +96,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "rhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",

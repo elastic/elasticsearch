@@ -2852,7 +2852,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class InsertFromAggregateMetricDouble extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p))
+                .transformExpressionsUp(EsqlBinaryComparison.class, this::doRule);
+        }
+
+        private Expression doRule(EsqlBinaryComparison comparison) {
+            Expression left = comparison.left();
+            Expression right = comparison.right();
+            boolean modified = false;
+            if (left.resolved() == false || right.resolved() == false) {
+                return comparison;
+            }
+            if (left.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                left = FromAggregateMetricDouble.withMetric(left.source(), left, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (right.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                right = FromAggregateMetricDouble.withMetric(right.source(), right, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (modified == false) {
+                return comparison;
+            }
+            return comparison.replaceChildren(List.of(left, right));
         }
 
         private LogicalPlan doRule(Aggregate plan) {

@@ -216,10 +216,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener);
 
         /**
-         * Creates a new byte stream for serializing hits.
-         * <p>
-         * Uses {@link org.elasticsearch.transport.TransportService#newNetworkBytesStream()}
-         * which allocates buffers from Netty's pooled allocator.
+         * Creates a new byte stream for serializing hits. Uses a network buffer pool for efficient allocation.
          *
          * @return a new RecyclerBytesStreamOutput from the network buffer pool
          */

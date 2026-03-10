@@ -2170,7 +2170,7 @@ public class EsqlCapabilities {
 
         /**
 
-         * Enables LIMIT N BY in the LIMIT command, both with and without a preceding SORT.
+         * Enables LIMIT N BY without a preceding SORT.
          */
         LIMIT_BY,
 

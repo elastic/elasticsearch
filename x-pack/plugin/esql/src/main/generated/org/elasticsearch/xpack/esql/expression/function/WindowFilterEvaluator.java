@@ -17,17 +17,17 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link WindowFilter}.
+ * {@link ExpressionEvaluator} implementation for {@link WindowFilter}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class WindowFilterEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(WindowFilterEvaluator.class);
 
   private final Source source;
@@ -38,15 +38,14 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
   private final Map<Long, Long> nextTimestamps;
 
-  private final EvalOperator.ExpressionEvaluator timestamp;
+  private final ExpressionEvaluator timestamp;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public WindowFilterEvaluator(Source source, long window, Rounding.Prepared bucket,
-      Map<Long, Long> nextTimestamps, EvalOperator.ExpressionEvaluator timestamp,
-      DriverContext driverContext) {
+      Map<Long, Long> nextTimestamps, ExpressionEvaluator timestamp, DriverContext driverContext) {
     this.source = source;
     this.window = window;
     this.bucket = bucket;
@@ -121,7 +120,7 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final long window;
@@ -130,10 +129,10 @@ public final class WindowFilterEvaluator implements EvalOperator.ExpressionEvalu
 
     private final Map<Long, Long> nextTimestamps;
 
-    private final EvalOperator.ExpressionEvaluator.Factory timestamp;
+    private final ExpressionEvaluator.Factory timestamp;
 
     public Factory(Source source, long window, Rounding.Prepared bucket,
-        Map<Long, Long> nextTimestamps, EvalOperator.ExpressionEvaluator.Factory timestamp) {
+        Map<Long, Long> nextTimestamps, ExpressionEvaluator.Factory timestamp) {
       this.source = source;
       this.window = window;
       this.bucket = bucket;

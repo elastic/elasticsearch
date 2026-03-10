@@ -3767,7 +3767,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
@@ -3778,7 +3778,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
@@ -3793,7 +3793,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
@@ -3810,7 +3810,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLambdaValueIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
@@ -3852,7 +3852,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         assertThat(error("""
             FROM test

@@ -41,13 +41,15 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
+    private static final int PREFETCH_DEPTH = 1;
+
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
         super(state, getFormatReader);
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
         throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, PREFETCH_DEPTH);
     }
 
     @Override
@@ -623,6 +625,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
             return scoredDocs;
         }
+
     }
 
 }

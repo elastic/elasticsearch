@@ -26,6 +26,7 @@ esplugin {
     name = "stateless-health-shards-availability"
     description = "Overrides Shards Availability indicator with stateless-specific version"
     classname = "org.elasticsearch.xpack.stateless.health.StatelessShardsHealthPlugin"
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 configurations {

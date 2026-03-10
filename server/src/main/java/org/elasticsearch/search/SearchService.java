@@ -261,13 +261,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         CHUNKED_FETCH_PHASE_FEATURE_FLAG,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     public static final Setting<Integer> FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS = Setting.intSetting(
         "search.fetch_phase_chunked_max_in_flight_chunks",
-        3,
+        3, // Conservative default: keeps a few chunk sends pipelined without allowing unbounded in-flight chunk memory.
         0,
         Property.Dynamic,
         Property.NodeScope

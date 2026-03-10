@@ -27,21 +27,16 @@ public record TransformServices(
     TransformAuditor auditor,
     TransformScheduler scheduler,
     TransformNode transformNode,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    LinkedProjectsProvider linkedProjectsProvider
 ) {
-    public TransformServices(
-        TransformConfigManager configManager,
-        TransformCheckpointService checkpointService,
-        TransformAuditor auditor,
-        TransformScheduler scheduler,
-        TransformNode transformNode,
-        CrossProjectModeDecider crossProjectModeDecider
-    ) {
-        this.configManager = Objects.requireNonNull(configManager);
-        this.checkpointService = Objects.requireNonNull(checkpointService);
-        this.auditor = Objects.requireNonNull(auditor);
-        this.scheduler = Objects.requireNonNull(scheduler);
-        this.transformNode = Objects.requireNonNull(transformNode);
-        this.crossProjectModeDecider = Objects.requireNonNull(crossProjectModeDecider);
+    public TransformServices {
+        Objects.requireNonNull(configManager);
+        Objects.requireNonNull(checkpointService);
+        Objects.requireNonNull(auditor);
+        Objects.requireNonNull(scheduler);
+        Objects.requireNonNull(transformNode);
+        Objects.requireNonNull(crossProjectModeDecider);
+        Objects.requireNonNull(linkedProjectsProvider);
     }
 }

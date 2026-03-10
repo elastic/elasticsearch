@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
+import org.elasticsearch.xpack.transform.LinkedProjectsProvider;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformNode;
@@ -672,7 +673,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mockAuditor,
             scheduler,
             mock(TransformNode.class),
-            mock(CrossProjectModeDecider.class)
+            mock(CrossProjectModeDecider.class),
+            mock(LinkedProjectsProvider.class)
         );
     }
 

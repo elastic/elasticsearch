@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.LinkedProjectsProvider;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
@@ -839,7 +840,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 auditor,
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                mock(LinkedProjectsProvider.class)
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1058,7 +1060,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
-            mock(CrossProjectModeDecider.class)
+            mock(CrossProjectModeDecider.class),
+            mock(LinkedProjectsProvider.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1094,7 +1097,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
-            mock(CrossProjectModeDecider.class)
+            mock(CrossProjectModeDecider.class),
+            mock(LinkedProjectsProvider.class)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

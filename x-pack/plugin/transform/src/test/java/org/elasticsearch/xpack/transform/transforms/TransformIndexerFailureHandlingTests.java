@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.LinkedProjectsProvider;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
@@ -148,7 +149,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    mock(LinkedProjectsProvider.class)
                 ),
                 checkpointProvider,
                 initialState,

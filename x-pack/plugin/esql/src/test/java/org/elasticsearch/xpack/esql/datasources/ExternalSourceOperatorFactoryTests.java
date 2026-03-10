@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -16,17 +20,23 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * Tests for ExternalSourceOperatorFactory.
@@ -149,6 +159,161 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         );
     }
 
+    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
+
+    public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
+        long splitOffset = 500;
+        long splitLength = 300;
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/large.csv"),
+            splitOffset,
+            splitLength,
+            "csv",
+            Map.of(FileSplitProvider.LAST_SPLIT_KEY, "false"),
+            Map.of()
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubStorageProvider storageProvider = new StubStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/large.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
+        DriverContext driverContext = Mockito.mock(DriverContext.class);
+        Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            FormatReader.NO_LIMIT,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedObjects.size());
+        StorageObject received = capturedObjects.get(0);
+        assertTrue(
+            "Expected RangeStorageObject for non-zero offset, got: " + received.getClass().getSimpleName(),
+            received instanceof RangeStorageObject
+        );
+        RangeStorageObject range = (RangeStorageObject) received;
+        assertEquals(splitOffset, range.offset());
+        assertEquals(splitLength, range.length());
+
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueMultipleSplitsWithMixedOffsets() throws Exception {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit(
+                "test",
+                StoragePath.of("s3://bucket/data.csv"),
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+                Map.of()
+            ),
+            new FileSplit("test", StoragePath.of("s3://bucket/data.csv"), 1000, 1000, "csv", Map.of(), Map.of()),
+            new FileSplit(
+                "test",
+                StoragePath.of("s3://bucket/data.csv"),
+                2000,
+                500,
+                "csv",
+                Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of()
+            )
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubStorageProvider storageProvider = new StubStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        BlockFactory blockFactory = Mockito.mock(BlockFactory.class);
+        DriverContext driverContext = Mockito.mock(DriverContext.class);
+        Mockito.when(driverContext.blockFactory()).thenReturn(blockFactory);
+
+        ExternalSourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            FormatReader.NO_LIMIT,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(3, capturedObjects.size());
+
+        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
+
+        assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);
+        RangeStorageObject range1 = (RangeStorageObject) capturedObjects.get(1);
+        assertEquals(1000, range1.offset());
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(1));
+
+        assertTrue("Third split (offset=2000) should be wrapped", capturedObjects.get(2) instanceof RangeStorageObject);
+        RangeStorageObject range2 = (RangeStorageObject) capturedObjects.get(2);
+        assertEquals(2000, range2.offset());
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     public void testDescribe() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
@@ -169,5 +334,158 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("file:///tmp/data.csv"));
         assertTrue(description.contains("500"));
+    }
+
+    // ===== Helpers =====
+
+    private static Page createTestPage() {
+        IntBlock block = TEST_BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(42).build();
+        return new Page(block);
+    }
+
+    private static class SplitCapturingFormatReader implements FormatReader {
+        private final List<StorageObject> capturedObjects;
+        private final List<Boolean> capturedSkipFirstLine;
+
+        SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
+            this.capturedObjects = capturedObjects;
+            this.capturedSkipFirstLine = capturedSkipFirstLine;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+            capturedObjects.add(object);
+            capturedSkipFirstLine.add(false);
+            return singlePageIterator();
+        }
+
+        @Override
+        public CloseableIterator<Page> readSplit(
+            StorageObject object,
+            List<String> projectedColumns,
+            int batchSize,
+            boolean skipFirstLine,
+            boolean lastSplit,
+            List<Attribute> resolvedAttributes
+        ) {
+            capturedObjects.add(object);
+            capturedSkipFirstLine.add(skipFirstLine);
+            return singlePageIterator();
+        }
+
+        private static CloseableIterator<Page> singlePageIterator() {
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-split-capturing";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubStorageObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return new StubStorageObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return new StubStorageObject(path);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return true;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class StubStorageObject implements StorageObject {
+        private final StoragePath path;
+
+        StubStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public long length() {
+            return 0;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 }

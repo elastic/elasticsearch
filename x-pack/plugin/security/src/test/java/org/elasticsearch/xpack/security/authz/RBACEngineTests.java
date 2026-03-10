@@ -179,13 +179,7 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(
-            Settings.EMPTY,
-            rolesStore,
-            new FieldPermissionsCache(Settings.EMPTY),
-            timerFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {
@@ -1207,7 +1201,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future1 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future1);
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future1);
         final PrivilegesCheckResult privilegesCheckResult1 = future1.actionGet();
 
         // Result should be cached
@@ -1219,7 +1213,7 @@ public class RBACEngineTests extends ESTestCase {
         Mockito.clearInvocations(role);
 
         final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future2);
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future2);
         final PrivilegesCheckResult privilegesCheckResult2 = future2.actionGet();
 
         assertThat(privilegesCheckResult2, is(privilegesCheckResult1));
@@ -1239,18 +1233,18 @@ public class RBACEngineTests extends ESTestCase {
             randomBoolean()
         );
         final PlainActionFuture<PrivilegesCheckResult> future3 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, future3);
+        engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future3);
         final RuntimeException e1 = expectThrows(RuntimeException.class, future3::actionGet);
         assertThat(e1, is(stallCheckException));
     }
 
-    public void testCheckPrivilegesAlwaysForksToExecutor() {
+    public void testCheckPrivilegesDispatchesToProvidedExecutor() {
         final AtomicInteger executorInvocations = new AtomicInteger();
         final AtomicReference<Runnable> capturedRunnable = new AtomicReference<>();
-        final RBACEngine engineWithCapturingExecutor = createEngineWithPrivilegeCheckExecutor(runnable -> {
+        final Executor capturingExecutor = runnable -> {
             assertThat("expected only one executor invocation", capturedRunnable.compareAndSet(null, runnable), is(true));
             executorInvocations.incrementAndGet();
-        });
+        };
 
         final Role role = Role.builder(RESTRICTED_INDICES, "test-role").cluster(Set.of("monitor"), Set.of()).build();
         final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
@@ -1262,7 +1256,7 @@ public class RBACEngineTests extends ESTestCase {
         );
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
 
-        engineWithCapturingExecutor.checkPrivileges(authzInfo, privilegesToCheck, List.of(), future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, List.of(), capturingExecutor, future);
 
         assertThat(executorInvocations.get(), is(1));
         assertThat(capturedRunnable.get(), notNullValue());
@@ -2260,7 +2254,13 @@ public class RBACEngineTests extends ESTestCase {
             appPrivileges,
             randomBoolean()
         );
-        engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
+        engine.checkPrivileges(
+            authorizationInfo,
+            privilegesToCheck,
+            applicationPrivilegeDescriptors,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
         // flip the "runDetailedCheck" flag
         engine.checkPrivileges(
             authorizationInfo,
@@ -2271,6 +2271,7 @@ public class RBACEngineTests extends ESTestCase {
                 false == privilegesToCheck.runDetailedCheck()
             ),
             applicationPrivilegeDescriptors,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future2
         );
 
@@ -2322,15 +2323,4 @@ public class RBACEngineTests extends ESTestCase {
         return roleBuilder.build();
     }
 
-    private static RBACEngine createEngineWithPrivilegeCheckExecutor(Executor privilegeCheckExecutor) {
-        final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
-        when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
-        return new RBACEngine(
-            Settings.EMPTY,
-            mock(CompositeRolesStore.class),
-            new FieldPermissionsCache(Settings.EMPTY),
-            timerFactory,
-            privilegeCheckExecutor
-        );
-    }
 }

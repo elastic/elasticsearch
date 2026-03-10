@@ -157,20 +157,17 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
-    private final Executor privilegeCheckExecutor;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
-        Executor privilegeCheckExecutor
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
-        this.privilegeCheckExecutor = privilegeCheckExecutor;
     }
 
     @Override
@@ -610,6 +607,7 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
+        Executor privilegeCheckExecutor,
         ActionListener<PrivilegesCheckResult> originalListener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {

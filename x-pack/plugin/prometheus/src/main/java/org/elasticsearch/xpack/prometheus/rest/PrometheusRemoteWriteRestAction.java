@@ -33,11 +33,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     private final IndexingPressure indexingPressure;
-    private final long maxRequestSize;
+    private final long maxRequestSizeBytes;
 
-    public PrometheusRemoteWriteRestAction(IndexingPressure indexingPressure, long maxRequestSize) {
+    public PrometheusRemoteWriteRestAction(IndexingPressure indexingPressure, long maxRequestSizeBytes) {
         this.indexingPressure = indexingPressure;
-        this.maxRequestSize = maxRequestSize;
+        this.maxRequestSizeBytes = maxRequestSizeBytes;
     }
 
     @Override
@@ -72,12 +72,12 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         DataStream.validateDataset(dataset);
         DataStream.validateNamespace(namespace);
 
-        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSize, false);
+        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSizeBytes, false);
 
         return new IndexingPressureAwareContentAggregator(
             request,
             coordinating,
-            maxRequestSize,
+            maxRequestSizeBytes,
             (channel, content, indexingPressureRelease) -> {
                 var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
                     content,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasable;
@@ -89,10 +90,10 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
                 chunks = null;
             }
             coordinating.close();
-            channel.sendResponse(
-                new RestResponse(RestStatus.REQUEST_ENTITY_TOO_LARGE, "request body too large, max [" + maxRequestSize + "] bytes")
+            throw new ElasticsearchStatusException(
+                "request body too large, max [" + maxRequestSize + "] bytes",
+                RestStatus.REQUEST_ENTITY_TOO_LARGE
             );
-            return;
         }
 
         if (isLast == false) {

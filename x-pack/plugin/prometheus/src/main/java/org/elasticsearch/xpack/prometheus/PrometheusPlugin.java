@@ -50,11 +50,11 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
     private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
     private final boolean enabled;
-    private final long maxProtobufContentLength;
+    private final long maxProtobufContentLengthBytes;
 
     public PrometheusPlugin(Settings settings) {
         this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings) && PROMETHEUS_FEATURE_FLAG.isEnabled();
-        this.maxProtobufContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.get(settings).getBytes();
+        this.maxProtobufContentLengthBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -105,7 +105,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
-            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLength));
+            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
         }
         return List.of();
     }

@@ -48,6 +48,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -249,17 +250,7 @@ public class MetadataCreateIndexService {
             maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
         }
 
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                // defer reading cluster state until the first metadata change.
-                if (event.metadataChanged() == false) {
-                    return;
-                }
-                clusterService.removeListener(this);
-                setUpMetrics(meterRegistry);
-            }
-        });
+        setUpMetrics(meterRegistry);
     }
 
     /**
@@ -298,13 +289,18 @@ public class MetadataCreateIndexService {
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     private void setUpMetrics(MeterRegistry meterRegistry) {
+
         meterRegistry.registerLongGauge(
             USER_INDEX_TOTAL_METRIC_NAME,
             "Total number of user indices",
             "index",
-            () -> new LongWithAttributes(
-                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
-            )
+            () -> {
+                if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
+                    return new LongWithAttributes(0);
+                }
+                return new LongWithAttributes(
+                    getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next()));
+            }
         );
     }
 

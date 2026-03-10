@@ -9,14 +9,11 @@ package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedWidthVector;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.AbstractNonThreadSafeRefCounted;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.core.ReleasableIterator;
 
 public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Vector {
 
@@ -99,15 +96,24 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public B keepMask(BooleanVector mask) {
-        // TODO
-        throw new UnsupportedOperationException();
-    }
 
-    @Override
-    public ReleasableIterator<? extends B> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO
-        throw new UnsupportedOperationException();
+        // Looks redundant with AbstractArrowBufBlock.keepMask, but we must retain buffers
+        // instead of incRef() that happens there as the result of `asBlock` is transient.
+        if (getPositionCount() == 0) {
+            retainBuffers();
+            return asBlock();
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                retainBuffers();
+                return asBlock();
+            }
+            return (B) blockFactory.newConstantNullBlock(getPositionCount());
+        }
+
+        return (B) asBlock().keepMask(mask);
     }
 
     @Override

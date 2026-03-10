@@ -106,6 +106,112 @@ public class LongArrowBufTests extends ESTestCase {
         }
     }
 
+    public void testVectorKeepMaskConstantTrue() {
+        try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+            arrowVec.allocateNew(3);
+            arrowVec.set(0, 10L);
+            arrowVec.set(1, 20L);
+            arrowVec.set(2, 30L);
+            arrowVec.setValueCount(3);
+
+            try (var vector = LongArrowBufVector.of(arrowVec, blockFactory)) {
+                try (BooleanVector mask = blockFactory.newConstantBooleanVector(true, 3)) {
+                    try (LongBlock kept = vector.keepMask(mask)) {
+                        assertEquals(3, kept.getPositionCount());
+                        assertFalse(kept.mayHaveNulls());
+                        assertEquals(10L, kept.getLong(kept.getFirstValueIndex(0)));
+                        assertEquals(20L, kept.getLong(kept.getFirstValueIndex(1)));
+                        assertEquals(30L, kept.getLong(kept.getFirstValueIndex(2)));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testVectorKeepMaskConstantFalse() {
+        try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+            arrowVec.allocateNew(3);
+            arrowVec.set(0, 10L);
+            arrowVec.set(1, 20L);
+            arrowVec.set(2, 30L);
+            arrowVec.setValueCount(3);
+
+            try (var vector = LongArrowBufVector.of(arrowVec, blockFactory)) {
+                try (BooleanVector mask = blockFactory.newConstantBooleanVector(false, 3)) {
+                    try (LongBlock kept = vector.keepMask(mask)) {
+                        assertEquals(3, kept.getPositionCount());
+                        assertTrue(kept.areAllValuesNull());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testVectorKeepMaskMixed() {
+        try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+            arrowVec.allocateNew(4);
+            arrowVec.set(0, 10L);
+            arrowVec.set(1, 20L);
+            arrowVec.set(2, 30L);
+            arrowVec.set(3, 40L);
+            arrowVec.setValueCount(4);
+
+            try (var vector = LongArrowBufVector.of(arrowVec, blockFactory)) {
+                try (var maskBuilder = blockFactory.newBooleanVectorFixedBuilder(4)) {
+                    maskBuilder.appendBoolean(true);
+                    maskBuilder.appendBoolean(false);
+                    maskBuilder.appendBoolean(true);
+                    maskBuilder.appendBoolean(false);
+                    try (BooleanVector mask = maskBuilder.build()) {
+                        try (LongBlock kept = vector.keepMask(mask)) {
+                            assertEquals(4, kept.getPositionCount());
+                            assertFalse(kept.isNull(0));
+                            assertEquals(10L, kept.getLong(kept.getFirstValueIndex(0)));
+                            assertTrue(kept.isNull(1));
+                            assertFalse(kept.isNull(2));
+                            assertEquals(30L, kept.getLong(kept.getFirstValueIndex(2)));
+                            assertTrue(kept.isNull(3));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testVectorLookup() {
+        try (BigIntVector arrowVec = new BigIntVector("test", allocator)) {
+            arrowVec.allocateNew(4);
+            arrowVec.set(0, 10L);
+            arrowVec.set(1, 20L);
+            arrowVec.set(2, 30L);
+            arrowVec.set(3, 40L);
+            arrowVec.setValueCount(4);
+
+            try (var vector = LongArrowBufVector.of(arrowVec, blockFactory)) {
+                try (IntBlock.Builder posBuilder = blockFactory.newIntBlockBuilder(3)) {
+                    posBuilder.appendInt(0);
+                    posBuilder.appendInt(2);
+                    posBuilder.appendInt(3);
+                    try (IntBlock positions = posBuilder.build()) {
+                        try (ReleasableIterator<? extends LongBlock> iter = vector.lookup(positions, ByteSizeValue.ofMb(1))) {
+                            assertTrue(iter.hasNext());
+                            try (LongBlock result = iter.next()) {
+                                assertEquals(3, result.getPositionCount());
+                                assertFalse(result.isNull(0));
+                                assertEquals(10L, result.getLong(result.getFirstValueIndex(0)));
+                                assertFalse(result.isNull(1));
+                                assertEquals(30L, result.getLong(result.getFirstValueIndex(1)));
+                                assertFalse(result.isNull(2));
+                                assertEquals(40L, result.getLong(result.getFirstValueIndex(2)));
+                            }
+                            assertFalse(iter.hasNext());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // -- Single-valued block tests (from BigIntVector) --
 
     public void testBlockWithNulls() {

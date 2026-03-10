@@ -11,11 +11,15 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefLookup;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -107,6 +111,11 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     @Override
     public long ramBytesUsed() {
         return super.ramBytesUsed() + valueOffsetsBuffer.getActualMemoryConsumed();
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

@@ -10,11 +10,15 @@ package org.elasticsearch.compute.data.arrow;
 // begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedWidthVector;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleLookup;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 // end generated imports
@@ -64,6 +68,11 @@ public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVec
     @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
+    }
+
+    @Override
+    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new DoubleLookup(asBlock(), positions, targetBlockSize);
     }
 
 }

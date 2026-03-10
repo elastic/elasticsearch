@@ -10,10 +10,14 @@ package org.elasticsearch.compute.data.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BitVector;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanLookup;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -79,6 +83,11 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
             }
         }
         return true;
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

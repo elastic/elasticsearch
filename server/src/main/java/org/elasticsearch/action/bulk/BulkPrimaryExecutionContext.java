@@ -283,7 +283,7 @@ class BulkPrimaryExecutionContext {
                     response = new DeleteResponse(
                         primary.shardId(),
                         requestToExecute.id(),
-                        result.getSeqNo(),
+                        deleteResult.getSeqNo(),
                         result.getTerm(),
                         deleteResult.getVersion(),
                         deleteResult.isFound()

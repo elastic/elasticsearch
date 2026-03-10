@@ -423,7 +423,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire());
+                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
+                    && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
         }
     }
@@ -472,7 +474,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         completeBulkOperation();
     }
 
-    private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, ProjectId projectId, Releasable releaseOnFinish) {
+    private void executeBulkShardRequest(
+        BulkShardRequest bulkShardRequest,
+        ProjectId projectId,
+        Releasable releaseOnFinish,
+        boolean redactSeqNo
+    ) {
         ShardId shardId = bulkShardRequest.shardId();
 
         // Short circuit the shard level request with the existing shard failure.
@@ -497,18 +504,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
 
                 private BulkItemResponse maybeRedactSequenceNumber(BulkItemResponse in) {
-                    if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
+                    if (redactSeqNo == false || in == null || in.isFailed()) {
                         return in;
                     }
-                    if (in == null || in.isFailed()) {
-                        return in;
-                    }
-                    ProjectMetadata project = getProjectMetadata();
-                    IndexMetadata indexMetadata = project.index(in.getIndex());
-                    if (indexMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings())) {
-                        return BulkItemResponse.success(in.getItemId(), in.getOpType(), in.getResponse().withoutSequenceNumber());
-                    }
-                    return in;
+                    return BulkItemResponse.success(in.getItemId(), in.getOpType(), in.getResponse().withoutSequenceNumber());
                 }
 
                 @Override

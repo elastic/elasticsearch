@@ -71,6 +71,21 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
     }
 
+    public void testuUeTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+        String indexName = "standard-larger-binary-db-block-size-dv-test";
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE.getKey(), true)
+            .build();
+
+        createIndex(indexName, settings, "@timestamp", "type=date", "hostname", "type=keyword", "gauge", "type=long");
+
+        indexDocuments(indexName);
+
+        Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
+        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, expectedFields);
+    }
+
     private void indexDocuments(String indexName) throws Exception {
         long baseTimestamp = 1704067200000L;
         int numDocs = randomIntBetween(5, 20);

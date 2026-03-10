@@ -196,8 +196,9 @@ public class PerFieldFormatSupplier {
 
         if (useTSDBDocValuesFormat(field)) {
             var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeBlockSize);
+            boolean useLargeNumericBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
+            boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeNumericBlockSize, useLargeBinaryBlockSize);
         }
 
         return docValuesFormat;

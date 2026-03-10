@@ -132,7 +132,9 @@ public record StoredFieldsSpec(
     }
 
     public Set<String> requiredStoredFields() {
-        if (sourcePaths.isEmpty() || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
+        if (sourcePaths.isEmpty()
+            || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
+            || ignoredSourceFormat == IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
             return requiredStoredFields;
         }
         if (requiredStoredFields.isEmpty()) {

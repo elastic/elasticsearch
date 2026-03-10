@@ -36,6 +36,8 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,6 +45,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
@@ -306,7 +309,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-        return hasField(field) ? super.getBinaryDocValues(field) : null;
+        if (hasField(field) == false) {
+            return null;
+        }
+        BinaryDocValues dv = super.getBinaryDocValues(field);
+        if (dv != null
+            && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+            NumericDocValues originalCounts = super.getNumericDocValues(
+                field + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+            );
+            return new FilteredIgnoredSourceDocValues(dv, originalCounts);
+        }
+        return dv;
     }
 
     @Override
@@ -322,6 +337,108 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
+    }
+
+    /**
+     * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
+     * Per-document values are decoded from the {@link MultiValuedBinaryDocValuesField.SeparateCount} multi-value
+     * binary format, filtered through the DLS field automaton, and re-encoded in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format so that callers only observe field values
+     * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
+     * the counts numeric field as absent, avoiding stale count mismatches after filtering.
+     */
+    private class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+        private final BinaryDocValues in;
+        private final NumericDocValues originalCounts;
+        private BytesRef filteredValue;
+
+        FilteredIgnoredSourceDocValues(BinaryDocValues in, NumericDocValues originalCounts) {
+            this.in = in;
+            this.originalCounts = originalCounts;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            filteredValue = null;
+            if (in.advanceExact(target) == false) {
+                return false;
+            }
+            BytesRef bytes = in.binaryValue();
+            List<BytesRef> filteredValues = new ArrayList<>();
+            if (originalCounts != null) {
+                boolean countsAdvanced = originalCounts.advanceExact(target);
+                assert countsAdvanced;
+                int count = Math.toIntExact(originalCounts.longValue());
+                if (count == 1) {
+                    BytesRef filtered = ignoredSourceFormat.filterValue(bytes, v -> filter(v, filter, 0));
+                    if (filtered != null) {
+                        filteredValues.add(BytesRef.deepCopyOf(filtered));
+                    }
+                } else {
+                    ByteArrayStreamInput input = new ByteArrayStreamInput();
+                    input.reset(bytes.bytes, bytes.offset, bytes.length);
+                    for (int i = 0; i < count; i++) {
+                        int len = input.readVInt();
+                        BytesRef value = new BytesRef(bytes.bytes, input.getPosition(), len);
+                        input.setPosition(input.getPosition() + len);
+                        BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                        if (filtered != null) {
+                            filteredValues.add(BytesRef.deepCopyOf(filtered));
+                        }
+                    }
+                }
+            } else {
+                ByteArrayStreamInput input = new ByteArrayStreamInput();
+                input.reset(bytes.bytes, bytes.offset, bytes.length);
+                int count = input.readVInt();
+                for (int i = 0; i < count; i++) {
+                    int len = input.readVInt();
+                    BytesRef value = new BytesRef(bytes.bytes, input.getPosition(), len);
+                    input.setPosition(input.getPosition() + len);
+                    BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                    if (filtered != null) {
+                        filteredValues.add(BytesRef.deepCopyOf(filtered));
+                    }
+                }
+            }
+            if (filteredValues.isEmpty()) {
+                return false;
+            }
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(filteredValues.size());
+                for (BytesRef val : filteredValues) {
+                    out.writeVInt(val.length);
+                    out.writeBytes(val.bytes, val.offset, val.length);
+                }
+                filteredValue = out.bytes().toBytesRef();
+            }
+            return true;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return filteredValue;
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
     }
 
     @Override

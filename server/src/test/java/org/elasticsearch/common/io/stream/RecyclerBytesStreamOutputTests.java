@@ -21,8 +21,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
@@ -1568,7 +1568,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     public void testCircuitBreakerTracking() throws IOException {
         final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
         final var expectedAllocation = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + between(0, 100)));
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
@@ -1581,7 +1581,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     public void testCircuitBreakerMoveToBytesReference() throws IOException {
         final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
         final var expectedTracked = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + between(0, 100)));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + between(0, 100)));
         final ReleasableBytesReference actualBytes;
         try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             writeAllBytesRandomSlices(out, bytes);
@@ -1599,10 +1599,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     public void testCircuitBreakerTripping() {
         final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
         final var expectedTracked = getExpectedAllocation(bytes.length());
-        final var circuitBreaker = new MockBigArrays.LimitedBreaker(
-            "test",
-            ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L))
-        );
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L)));
 
         expectThrows(CircuitBreakingException.class, () -> {
             try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
@@ -1615,7 +1612,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     public void testCircuitBreakerReleaseOnRecyclerFailure() {
         final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 1, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 4L, getExpectedAllocation(bytes.length()));
-        final var circuitBreaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
 
         final var failingRecycler = new Recycler<BytesRef>() {
             int pagesLeft = between(0, 3);

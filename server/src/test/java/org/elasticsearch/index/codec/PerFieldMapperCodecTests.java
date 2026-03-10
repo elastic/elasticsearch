@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -110,7 +110,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
-        String expectedPostingsFormatName = timeSeries ? ES812_POSTINGS_FORMAT_NAME : new Lucene103PostingsFormat().getName();
+        String expectedPostingsFormatName = timeSeries ? ES812_POSTINGS_FORMAT_NAME : new Lucene104PostingsFormat().getName();
         assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field").getName(), equalTo(expectedPostingsFormatName));
     }
 
@@ -152,7 +152,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
         // standard index mode
         perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.STANDARD, MAPPING_1);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene103PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene104PostingsFormat.class));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.STANDARD, MAPPING_1);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));

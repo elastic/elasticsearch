@@ -190,6 +190,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testUpgradeDataStream() throws Exception {
+        // TODO - https://github.com/elastic/elasticsearch-team/issues/2410
         assumeFalse("PIT search cannot be used on closed indices", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         /*
          * This test tests upgrading a "normal" data stream (dataStreamName), and upgrading a data stream that was originally just an

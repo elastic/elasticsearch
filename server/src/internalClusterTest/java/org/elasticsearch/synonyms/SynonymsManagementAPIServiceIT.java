@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     private SynonymsManagementAPIService synonymsManagementAPIService;
-    private int maxSynonymSets;
+    private int maxTokenLimit;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -45,43 +45,56 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        maxSynonymSets = randomIntBetween(100, 1000);
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymSets);
+        maxTokenLimit = randomIntBetween(30, 100);
+        synonymsManagementAPIService = new SynonymsManagementAPIService(
+            client(),
+            10_000,
+            maxTokenLimit,
+            SynonymsManagementAPIService.TokenLimitMode.STRICT,
+            100_000
+        );
+    }
+
+    /**
+     * Creates synonym rules with a known, fixed token count (3 tokens per rule: "a, b, c").
+     */
+    private static SynonymRule[] fixedTokenRules(int ruleCount) {
+        SynonymRule[] rules = new SynonymRule[ruleCount];
+        for (int i = 0; i < ruleCount; i++) {
+            rules[i] = new SynonymRule("rule_" + i, "a, b, c");
+        }
+        return rules;
     }
 
     public void testCreateManySynonyms() throws Exception {
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
         boolean refresh = randomBoolean();
-        int rulesNumber = randomIntBetween(maxSynonymSets / 2, maxSynonymSets);
-        synonymsManagementAPIService.putSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(rulesNumber, rulesNumber),
-            refresh,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    assertEquals(
-                        SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED,
-                        synonymsReloadResult.synonymsOperationResult()
-                    );
-                    assertEquals(refresh, synonymsReloadResult.reloadAnalyzersResponse() != null);
-                    putLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
+        // 3 tokens per rule; stay within the token limit
+        int rulesNumber = randomIntBetween(1, maxTokenLimit / 3);
+        SynonymRule[] rules = fixedTokenRules(rulesNumber);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, refresh, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                assertEquals(
+                    SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED,
+                    synonymsReloadResult.synonymsOperationResult()
+                );
+                assertEquals(refresh, synonymsReloadResult.reloadAnalyzersResponse() != null);
+                putLatch.countDown();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
 
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
-        // Also retrieve them
         assertBusy(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymSets, new ActionListener<>() {
+            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, 10_000, new ActionListener<>() {
                 @Override
                 public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                     assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
@@ -101,7 +114,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     public void testGetAllSynonymSetRulesExceedingScrollLimitFails() throws Exception {
         int scrollLimit = randomIntBetween(2, 10);
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymSets, scrollLimit);
+        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), 10_000, scrollLimit);
 
         String synonymSetId = randomIdentifier();
         CountDownLatch putLatch = new CountDownLatch(1);
@@ -146,24 +159,19 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     public void testGetAllSynonymSetRulesViaScroll() throws Exception {
         String synonymSetId = randomIdentifier();
-        int rulesNumber = randomIntBetween(maxSynonymSets / 2, maxSynonymSets);
+        int rulesNumber = randomIntBetween(1, maxTokenLimit / 3);
         CountDownLatch putLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(rulesNumber, rulesNumber),
-            false,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    putLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, fixedTokenRules(rulesNumber), false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                putLatch.countDown();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
@@ -186,25 +194,25 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         getLatch.await(10, TimeUnit.SECONDS);
     }
 
-    public void testCreateTooManySynonymsAtOnce() throws InterruptedException {
+    public void testCreateTooManyTokensAtOnce() throws InterruptedException {
+        // Each rule has 3 tokens; create enough rules to exceed the token limit
+        int rulesNeeded = (maxTokenLimit / 3) + 1;
         CountDownLatch latch = new CountDownLatch(1);
         synonymsManagementAPIService.putSynonymsSet(
             randomIdentifier(),
-            randomSynonymsSet(maxSynonymSets + 1, maxSynonymSets * 2),
+            fixedTokenRules(rulesNeeded),
             randomBoolean(),
             new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    fail("Shouldn't create synonyms that are too large");
+                    fail("Shouldn't create synonyms that exceed the token limit");
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof IllegalArgumentException) {
-                        latch.countDown();
-                    } else {
-                        fail(e);
-                    }
+                    assertThat(e, instanceOf(IllegalArgumentException.class));
+                    assertThat(e.getMessage(), containsString("cannot exceed"));
+                    latch.countDown();
                 }
             }
         );
@@ -212,66 +220,16 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         latch.await(5, TimeUnit.SECONDS);
     }
 
-    public void testCreateTooManySynonymsUsingRuleUpdates() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        int rulesToUpdate = randomIntBetween(1, 10);
-        int synonymsToCreate = maxSynonymSets - rulesToUpdate;
+    public void testExceedTokenLimitUsingRuleUpdates() throws InterruptedException {
+        // Fill a synonym set to just under the token limit, then try adding one more rule
+        int rulesAtCapacity = maxTokenLimit / 3;
         String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(synonymsToCreate), true, new ActionListener<>() {
+
+        CountDownLatch putLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, fixedTokenRules(rulesAtCapacity), true, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                // Create as many rules as should fail
-                SynonymRule[] rules = randomSynonymsSet(atLeast(rulesToUpdate + 1));
-                CountDownLatch updatedRulesLatch = new CountDownLatch(rulesToUpdate);
-                for (int i = 0; i < rulesToUpdate; i++) {
-                    synonymsManagementAPIService.putSynonymRule(synonymSetId, rules[i], randomBoolean(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                            updatedRulesLatch.countDown();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            fail(e);
-                        }
-                    });
-                }
-                try {
-                    updatedRulesLatch.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    fail(e);
-                }
-
-                // Updating more rules fails
-                int rulesToInsert = rules.length - rulesToUpdate;
-                CountDownLatch insertRulesLatch = new CountDownLatch(rulesToInsert);
-                for (int i = rulesToUpdate; i < rulesToInsert; i++) {
-                    synonymsManagementAPIService.putSynonymRule(
-                        // Error here
-                        synonymSetId,
-                        rules[i],
-                        randomBoolean(),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                                fail("Shouldn't have been able to update a rule");
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (e instanceof IllegalArgumentException == false) {
-                                    fail(e);
-                                }
-                                updatedRulesLatch.countDown();
-                            }
-                        }
-                    );
-                }
-                try {
-                    insertRulesLatch.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    fail(e);
-                }
+                putLatch.countDown();
             }
 
             @Override
@@ -279,34 +237,42 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 fail(e);
             }
         });
+        assertTrue(putLatch.await(5, TimeUnit.SECONDS));
 
-        latch.await(5, TimeUnit.SECONDS);
+        // Adding one more rule should exceed the token limit
+        CountDownLatch failLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymRule(
+            synonymSetId,
+            new SynonymRule("extra_rule", "x, y, z"),
+            randomBoolean(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                    fail("Adding a rule should have exceeded the token limit");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalArgumentException.class));
+                    assertThat(e.getMessage(), containsString("exceed"));
+                    failLatch.countDown();
+                }
+            }
+        );
+        assertTrue(failLatch.await(5, TimeUnit.SECONDS));
     }
 
-    public void testUpdateRuleWithMaxSynonyms() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
+    public void testUpdateRuleAtTokenCapacity() throws InterruptedException {
+        // Fill to exactly the token limit
+        int rulesAtCapacity = maxTokenLimit / 3;
         String synonymSetId = randomIdentifier();
-        SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymSets, maxSynonymSets);
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, new ActionListener<>() {
+        SynonymRule[] rules = fixedTokenRules(rulesAtCapacity);
+
+        CountDownLatch putLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, true, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                // Updating a rule fails
-                synonymsManagementAPIService.putSynonymRule(
-                    synonymSetId,
-                    synonymsSet[randomIntBetween(0, maxSynonymSets - 1)],
-                    randomBoolean(),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                            latch.countDown();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            fail("Should update a rule that already exists at max capcity");
-                        }
-                    }
-                );
+                putLatch.countDown();
             }
 
             @Override
@@ -314,35 +280,35 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 fail(e);
             }
         });
+        assertTrue(putLatch.await(5, TimeUnit.SECONDS));
 
-        latch.await(5, TimeUnit.SECONDS);
+        // Updating an existing rule at capacity should succeed
+        CountDownLatch updateLatch = new CountDownLatch(1);
+        SynonymRule existingRule = rules[randomIntBetween(0, rulesAtCapacity - 1)];
+        synonymsManagementAPIService.putSynonymRule(synonymSetId, existingRule, randomBoolean(), new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                updateLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Should update a rule that already exists at token capacity");
+            }
+        });
+        assertTrue(updateLatch.await(5, TimeUnit.SECONDS));
     }
 
-    public void testCreateRuleWithMaxSynonyms() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
+    public void testCreateNewRuleAtTokenCapacityFails() throws InterruptedException {
+        // Fill to exactly the token limit
+        int rulesAtCapacity = maxTokenLimit / 3;
         String synonymSetId = randomIdentifier();
-        String ruleId = randomIdentifier();
-        SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymSets, maxSynonymSets);
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, new ActionListener<>() {
+
+        CountDownLatch putLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, fixedTokenRules(rulesAtCapacity), true, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                // Updating a rule fails
-                synonymsManagementAPIService.putSynonymRule(
-                    synonymSetId,
-                    randomSynonymRule(ruleId),
-                    randomBoolean(),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                            fail("Should not create a new rule that does not exist when at max capacity");
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            latch.countDown();
-                        }
-                    }
-                );
+                putLatch.countDown();
             }
 
             @Override
@@ -350,8 +316,29 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                 fail(e);
             }
         });
+        assertTrue(putLatch.await(5, TimeUnit.SECONDS));
 
-        latch.await(5, TimeUnit.SECONDS);
+        // Adding a new rule (not updating existing) should fail
+        CountDownLatch failLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymRule(
+            synonymSetId,
+            new SynonymRule(randomIdentifier(), "x, y, z"),
+            randomBoolean(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                    fail("Should not create a new rule when at token capacity");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalArgumentException.class));
+                    assertThat(e.getMessage(), containsString("exceed"));
+                    failLatch.countDown();
+                }
+            }
+        );
+        assertTrue(failLatch.await(5, TimeUnit.SECONDS));
     }
 
     public void testCreateSynonymsWithYellowSynonymsIndex() throws Exception {

@@ -65,7 +65,7 @@ setup:
   - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
 
 ---
-"bulk response does not contain _seq_no or _primary_term":
+"bulk response returns unassigned _seq_no and _primary_term":
   - do:
       bulk:
         refresh: true
@@ -79,10 +79,10 @@ setup:
               _id: "3"
           - foo: qux
   - match: { errors: false }
-  - is_false: items.0.index._seq_no
-  - is_false: items.0.index._primary_term
-  - is_false: items.1.index._seq_no
-  - is_false: items.1.index._primary_term
+  - match: { items.0.index._seq_no: -2 }
+  - match: { items.0.index._primary_term: 0 }
+  - match: { items.1.index._seq_no: -2 }
+  - match: { items.1.index._primary_term: 0 }
 
 ---
 "requesting seq_no_primary_term is rejected":

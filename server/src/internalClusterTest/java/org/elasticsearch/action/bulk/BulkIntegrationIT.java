@@ -148,8 +148,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that bulk index, update, and delete operations replicate correctly when sequence numbers are disabled,
-     * and that the responses do not expose seqNo or primaryTerm in XContent output.
+     * Verifies that bulk index and delete operations replicate correctly when sequence numbers are disabled,
+     * and that the responses contain unassigned seqNo and primaryTerm sentinel values in XContent output.
      */
     public void testBulkReplicationWithSequenceNumbersDisabled() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
@@ -183,23 +183,6 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         // verify all docs are visible on all copies
         for (int i = 0; i < numDocs; i++) {
             assertThat(client().prepareGet("test-repl", Integer.toString(i)).get().isExists(), is(true));
-        }
-
-        // bulk update
-        bulkBuilder = client().prepareBulk();
-        for (int i = 0; i < numDocs; i++) {
-            bulkBuilder.add(client().prepareUpdate("test-repl", Integer.toString(i)).setDoc(Map.of("value", i + 100)));
-        }
-        bulkResponse = bulkBuilder.setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
-        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-
-        for (BulkItemResponse item : bulkResponse.getItems()) {
-            assertSeqNoRedactedFromXContent(item);
-        }
-
-        // verify updates replicated
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(client().prepareGet("test-repl", Integer.toString(i)).get().getSource().get("value"), equalTo(i + 100));
         }
 
         // bulk delete

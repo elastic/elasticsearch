@@ -114,6 +114,24 @@ public class SynonymsManagementAPIService {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public enum TokenLimitMode {
+        STRICT,
+        LENIENT;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    public static final Setting<TokenLimitMode> TOKEN_LIMIT_MODE_SETTING = Setting.enumSetting(
+        TokenLimitMode.class,
+        "synonyms.set.max_token_count.mode",
+        TokenLimitMode.STRICT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
     private static final int SCROLL_BATCH_SIZE = 10_000;
     // Stored on each synonym rule document; the synonym string split on '=>' and ',' and counted
@@ -127,6 +145,7 @@ public class SynonymsManagementAPIService {
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
     private volatile int maxSynonymTokens;
+    private volatile TokenLimitMode tokenLimitMode;
     private final int maxScrollSynonymRules;
 
     // Package private for testing
@@ -147,29 +166,43 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client, ClusterSettings clusterSettings) {
-        this(client, MAX_SYNONYMS_SETS, clusterSettings.get(MAX_SYNONYMS_SET_TOKENS_SETTING), MAX_SCROLL_SYNONYM_RULES);
+        this(
+            client,
+            MAX_SYNONYMS_SETS,
+            clusterSettings.get(MAX_SYNONYMS_SET_TOKENS_SETTING),
+            clusterSettings.get(TOKEN_LIMIT_MODE_SETTING),
+            MAX_SCROLL_SYNONYM_RULES
+        );
         clusterSettings.addSettingsUpdateConsumer(MAX_SYNONYMS_SET_TOKENS_SETTING, value -> this.maxSynonymTokens = value);
+        clusterSettings.addSettingsUpdateConsumer(TOKEN_LIMIT_MODE_SETTING, value -> this.tokenLimitMode = value);
     }
 
     // Used for testing with default limits
     SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYMS_SETS, DEFAULT_MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
+        this(client, MAX_SYNONYMS_SETS, DEFAULT_MAX_SYNONYM_TOKENS, TokenLimitMode.STRICT, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
-        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
+        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, TokenLimitMode.STRICT, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing scroll limit without needing to insert MAX_SCROLL_SYNONYM_RULES entries
     SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxScrollSynonymRules) {
-        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, maxScrollSynonymRules);
+        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, TokenLimitMode.STRICT, maxScrollSynonymRules);
     }
 
-    SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxSynonymTokens, int maxScrollSynonymRules) {
+    SynonymsManagementAPIService(
+        Client client,
+        int maxSynonymsSets,
+        int maxSynonymTokens,
+        TokenLimitMode tokenLimitMode,
+        int maxScrollSynonymRules
+    ) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.maxSynonymsSets = maxSynonymsSets;
         this.maxSynonymTokens = maxSynonymTokens;
+        this.tokenLimitMode = tokenLimitMode;
         this.maxScrollSynonymRules = maxScrollSynonymRules;
     }
 
@@ -480,11 +513,21 @@ public class SynonymsManagementAPIService {
     ) {
         long totalTokens = Arrays.stream(synonymsSet).mapToLong(rule -> countTokens(rule.synonyms())).sum();
         if (totalTokens > maxSynonymTokens) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "The number of tokens in a synonym set cannot exceed " + maxSynonymTokens + ", got " + totalTokens
-                )
-            );
+            if (tokenLimitMode == TokenLimitMode.STRICT) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "The number of tokens in a synonym set cannot exceed " + maxSynonymTokens + ", got " + totalTokens
+                    )
+                );
+            } else {
+                logger.warn(
+                    "Synonym set [{}] with {} tokens exceeds the limit of {}; silently ignored in lenient mode",
+                    synonymSetId,
+                    totalTokens,
+                    maxSynonymTokens
+                );
+                listener.onResponse(new SynonymsReloadResult(UpdateSynonymsResultStatus.UPDATED, null));
+            }
             return;
         }
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
@@ -576,15 +619,24 @@ public class SynonymsManagementAPIService {
                     long currentTokens = (long) tokenCountSum.value();
                     long newRuleTokens = countTokens(synonymRule.synonyms());
                     if (currentTokens + newRuleTokens > maxSynonymTokens) {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "Adding this synonym rule would exceed the token limit of "
-                                    + maxSynonymTokens
-                                    + " for synonyms set ["
-                                    + synonymsSetId
-                                    + "]"
-                            )
-                        );
+                        if (tokenLimitMode == TokenLimitMode.STRICT) {
+                            listener.onFailure(
+                                new IllegalArgumentException(
+                                    "Adding this synonym rule would exceed the token limit of "
+                                        + maxSynonymTokens
+                                        + " for synonyms set ["
+                                        + synonymsSetId
+                                        + "]"
+                                )
+                            );
+                        } else {
+                            logger.warn(
+                                "Synonym rule for set [{}] would exceed token limit of {}; silently ignored in lenient mode",
+                                synonymsSetId,
+                                maxSynonymTokens
+                            );
+                            listener.onResponse(new SynonymsReloadResult(UpdateSynonymsResultStatus.UPDATED, null));
+                        }
                     } else {
                         indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
                     }

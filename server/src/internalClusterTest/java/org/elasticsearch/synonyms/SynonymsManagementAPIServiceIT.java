@@ -510,4 +510,73 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Reset to default
         updateClusterSettings(Settings.builder().putNull(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey()));
     }
+
+    public void testLenientModeSilentlyIgnoresExcessTokens() throws Exception {
+        int lowLimit = 10;
+        updateClusterSettings(
+            Settings.builder()
+                .put(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey(), lowLimit)
+                .put(
+                    SynonymsManagementAPIService.TOKEN_LIMIT_MODE_SETTING.getKey(),
+                    SynonymsManagementAPIService.TokenLimitMode.LENIENT.toString()
+                )
+        );
+
+        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), clusterService().getClusterSettings());
+
+        // 4 rules x 3 tokens each = 12 tokens, exceeding the limit of 10
+        SynonymRule[] rules = new SynonymRule[4];
+        for (int i = 0; i < rules.length; i++) {
+            rules[i] = new SynonymRule("rule_" + i, "a, b, c");
+        }
+
+        String synonymSetId = randomIdentifier();
+
+        // In lenient mode, the put should succeed silently (no error, no data written)
+        CountDownLatch putLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult result) {
+                putLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Lenient mode should not fail: " + e.getMessage());
+            }
+        });
+        assertTrue(putLatch.await(5, TimeUnit.SECONDS));
+
+        // Switch to strict mode dynamically — same request should now fail
+        updateClusterSettings(
+            Settings.builder()
+                .put(
+                    SynonymsManagementAPIService.TOKEN_LIMIT_MODE_SETTING.getKey(),
+                    SynonymsManagementAPIService.TokenLimitMode.STRICT.toString()
+                )
+        );
+
+        CountDownLatch failLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult result) {
+                fail("Strict mode should reject excess tokens");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), containsString("cannot exceed"));
+                failLatch.countDown();
+            }
+        });
+        assertTrue(failLatch.await(5, TimeUnit.SECONDS));
+
+        // Reset to defaults
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey())
+                .putNull(SynonymsManagementAPIService.TOKEN_LIMIT_MODE_SETTING.getKey())
+        );
+    }
 }

@@ -479,6 +479,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ScriptService.TYPES_ALLOWED_SETTING,
         ScriptService.CONTEXTS_ALLOWED_SETTING,
         SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING,
+        SynonymsManagementAPIService.TOKEN_LIMIT_MODE_SETTING,
         IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE,

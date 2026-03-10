@@ -58,7 +58,16 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_EmptyMap_OverridesNothing() {
-        var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id", threadPool);
+        var model = createCompletionModel(
+            "resource",
+            "deployment",
+            "api version",
+            "user",
+            "api key",
+            "entra id",
+            "inference entity id",
+            threadPool
+        );
         var requestTaskSettingsMap = Map.<String, Object>of();
         var overriddenModel = AzureOpenAiCompletionModel.of(model, requestTaskSettingsMap);
 
@@ -66,7 +75,16 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_NullMap_OverridesNothing() {
-        var model = createCompletionModel("resource", "deployment", "api version", "user", "api key", "entra id", "inference entity id", threadPool);
+        var model = createCompletionModel(
+            "resource",
+            "deployment",
+            "api version",
+            "user",
+            "api key",
+            "entra id",
+            "inference entity id",
+            threadPool
+        );
         var overriddenModel = AzureOpenAiCompletionModel.of(model, null);
 
         assertThat(overriddenModel, sameInstance(model));

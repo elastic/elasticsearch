@@ -45,9 +45,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
         var newSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, apiKey, null);
-        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
-            Map.of(API_KEY, apiKey.toString())
-        );
+        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(API_KEY, apiKey.toString()));
 
         assertEquals(newSettings, finalSettings);
     }
@@ -56,9 +54,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
         var newSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, entraId);
-        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
-            Map.of(ENTRA_ID, entraId.toString())
-        );
+        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(ENTRA_ID, entraId.toString()));
 
         assertEquals(newSettings, finalSettings);
     }
@@ -165,10 +161,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testToXContent_WritesClientSecretOnlyWhenSet() throws IOException {
-        var result = AzureOpenAiSecretSettings.fromMap(
-            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")),
-            TEST_INFERENCE_ID
-        );
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")), TEST_INFERENCE_ID);
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
         var testSettings = (AzureOpenAiOAuth2Secrets) result;
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

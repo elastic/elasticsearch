@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -337,7 +338,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.loaderAndConverter().apply(0);
+        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {

@@ -518,6 +518,90 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         return values;
     }
 
+    /**
+     * In cross-cluster search, the _index block contains a cluster-alias prefix
+     * (e.g. "remote_cluster:my-index"). The operator preserves the prefix in the
+     * data_stream column so users can distinguish remote data streams.
+     */
+    public void testRemoteClusterPrefixPreservedInDataStream() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        Operator op = createInitialOperator();
+        try {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "remote_cluster:my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "remote_cluster:my-index");
+            assertColumnValue(output, 5, 0, "host");
+
+            String dimensions = readSingleValue(output, 6, 0);
+            assertNotNull(dimensions);
+            assertTrue("Dimensions should contain host: " + dimensions, dimensions.contains("\"host\""));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * When the _index block contains a cluster-prefixed backing index name
+     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
+     * strips the backing-index suffix but preserves the cluster prefix, producing
+     * "remote_cluster:k8s".
+     */
+    public void testRemoteClusterPrefixPreservedForBackingIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        Operator op = createInitialOperator();
+        try {
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "remote_cluster:.ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"a\"}", "remote_cluster:.ds-k8s-2024.01.15-000002");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("remote_cluster:k8s")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Local index names (no cluster prefix) pass through unchanged.
+     */
+    public void testLocalIndexNameUnchanged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        Operator op = createInitialOperator();
+        try {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-plain-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "my-plain-index");
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
     public void testInitialModeTracksMemoryOnNewEntries() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();

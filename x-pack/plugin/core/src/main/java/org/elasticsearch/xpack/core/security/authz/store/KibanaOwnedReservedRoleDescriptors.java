@@ -86,6 +86,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
                 "grant_api_key",
+                "clone_api_key",
                 "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME,
                 "delegate_pki",
@@ -275,6 +276,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(ReservedRolesStore.ALERTS_BACKING_INDEX, ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED)
                     .privileges("all")
                     .build(),
+                // "Alerting V2" views prefix
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTING_V2_VIEWS)
+                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
                 // Kibana system user uses them to read / write alerts.
@@ -345,7 +351,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // Kibana logs streams
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs", "logs.*").privileges("read", "manage").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs", "logs.*", "$.logs", "$.logs.*")
+                    .privileges("read", "manage")
+                    .build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.

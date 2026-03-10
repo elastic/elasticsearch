@@ -19,6 +19,9 @@ public class EsqlLogContextBuilder extends ActivityLoggerContextBuilder<EsqlLogC
 
     @Override
     public EsqlLogContext build(EsqlQueryResponse response) {
+        if (response.getExecutionInfo() == null) {
+            throw new IllegalStateException("Execution info is missing for EsqlLogContext");
+        }
         return new EsqlLogContext(task, request, response);
     }
 

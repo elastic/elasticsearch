@@ -90,10 +90,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void createComponents() {
+    public void createComponents() throws Exception {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
-        ensureGreen(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
+
+        // Wait for inference indices to be created
+        assertBusy(() -> getEisEndpoints());
     }
 
     @After

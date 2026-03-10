@@ -66,13 +66,16 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     }
 
     @Before
-    public void startNodes() {
+    public void startNodes() throws Exception {
         // Ensure we have multiple master and data nodes so we have somewhere to place the inference indices and so that we can safely
         // shut down the node running the authorization task. If there is only one master and it is running the task,
         // we'll get an error that we can't shut down the only eligible master node
         internalCluster().startMasterOnlyNodes(NUM_MASTER_NODES);
         internalCluster().ensureAtLeastNumDataNodes(NUM_DATA_NODES);
         ensureStableCluster(NUM_MASTER_NODES + NUM_DATA_NODES);
+
+        // Wait for inference indices to be created
+        assertBusy(() -> getAllEndpoints());
     }
 
     @AfterClass

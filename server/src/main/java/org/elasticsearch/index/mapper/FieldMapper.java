@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -1939,6 +1940,14 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 if (parameter.deprecated) {
+                    // Needed for the https://github.com/elastic/elasticsearch/issues/143884
+                    // Remove after issue is closed.
+                    if (logger.isDebugEnabled() && "aggregate_metric_double".equals(contentType()) && "default_metric".equals(propName)) {
+                        logger.debug(
+                            "Parsing [aggregate_metric_double] with deprecated [default_metric] config",
+                            new ElasticsearchException("Stack trace retrieval")
+                        );
+                    }
                     deprecationLogger.warn(
                         DeprecationCategory.API,
                         propName,

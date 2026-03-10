@@ -1427,9 +1427,15 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 }
                 """);
         } catch (WarningFailureException warningException) {
-            Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
-            logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
-            throw warningException;
+            // Remove try-catch after https://github.com/elastic/elasticsearch/issues/143884
+            List<String> warnings = warningException.getResponse().getWarnings();
+            if (warnings.size() == 1
+                && warnings.getFirst().equals("Parameter [default_metric] is deprecated and will be removed in a future version")) {
+                Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
+                logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
+            } else {
+                throw warningException;
+            }
         }
         ESRestTestCase.createIndex("metrics-long_dimension", settings, """
             "properties": {

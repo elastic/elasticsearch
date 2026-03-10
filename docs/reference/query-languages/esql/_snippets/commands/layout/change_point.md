@@ -43,7 +43,7 @@ The possible change point types are:
 * `trend_change`: there is an overall trend change occurring at this point
 
 ::::{note}
-There must be at least 22 values for change point detection. Fewer than 1,000 is preferred.
+There must be at least 22 values for change point detection. Any values beyond the first 1,000 are ignored.
 ::::
 
 ## Examples

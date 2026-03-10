@@ -333,18 +333,12 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
-  issue: https://github.com/elastic/elasticsearch/issues/142964
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testTsIndexConflictingTypes {null}
-  issue: https://github.com/elastic/elasticsearch/issues/142410
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResults
   issue: https://github.com/elastic/elasticsearch/issues/143314
@@ -360,9 +354,6 @@ tests:
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/143419
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/TS Command grouping on text field}
-  issue: https://github.com/elastic/elasticsearch/issues/142544
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
@@ -381,9 +372,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143708
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testTsIndexConflictingTypes {NONE}
-  issue: https://github.com/elastic/elasticsearch/issues/142477
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithInvalidApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143646
@@ -426,9 +414,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845
-- class: org.elasticsearch.action.bulk.OperationsOnSeqNoDisabledIndicesIT
-  method: testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices
-  issue: https://github.com/elastic/elasticsearch/issues/143887
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849

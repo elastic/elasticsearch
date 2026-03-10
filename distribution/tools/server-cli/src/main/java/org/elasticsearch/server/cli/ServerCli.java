@@ -264,13 +264,13 @@ class ServerCli extends EnvironmentAwareCommand {
         dos.flush();
     }
 
-    private static String getJavaCommand(ProcessInfo processInfo) {
+    protected static String getJavaCommand(ProcessInfo processInfo) {
         Path javaHome = Path.of(processInfo.sysprops().get("java.home"));
         boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
         return javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
     }
 
-    private static List<String> getJvmArgs(ProcessInfo processInfo) {
+    protected static List<String> getJvmArgs(ProcessInfo processInfo) {
         Path esHome = processInfo.workingDir();
         return List.of(
             "--module-path",
@@ -283,7 +283,7 @@ class ServerCli extends EnvironmentAwareCommand {
         );
     }
 
-    private static Map<String, String> getEnvironment(ProcessInfo processInfo, Path tempDir) {
+    protected static Map<String, String> getEnvironment(ProcessInfo processInfo, Path tempDir) {
         Map<String, String> envVars = new HashMap<>(processInfo.envVars());
         envVars.remove("ES_TMPDIR");
         if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
@@ -293,7 +293,7 @@ class ServerCli extends EnvironmentAwareCommand {
         return envVars;
     }
 
-    private static byte[] serializeServerArgs(ServerArgs args) throws IOException {
+    protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             args.writeTo(out);
             return BytesReference.toBytes(out.bytes());

@@ -20,8 +20,8 @@ import java.io.IOException;
  */
 public class StaleRequestException extends ElasticsearchException {
 
-    public StaleRequestException(String index) {
-        super("Request for index [{}] is stale due to concurrent reshard operation, retry after sometime", index);
+    public StaleRequestException(String msg, Object... args) {
+        super(msg, args);
     }
 
     public StaleRequestException(StreamInput in) throws IOException {

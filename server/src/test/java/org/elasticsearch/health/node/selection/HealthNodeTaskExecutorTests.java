@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -137,7 +138,11 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             SIGTERM
         );
-        final ClusterState shutdownState = stateWithNodeShuttingDown(stateWithHealthNodeSelectorTask(initialState()), shutdownType);
+        final var assignedToLocal = new PersistentTasksCustomMetadata.Assignment(localNodeId, "");
+        final ClusterState shutdownState = stateWithNodeShuttingDown(
+            stateWithHealthNodeSelectorTask(initialState(), assignedToLocal),
+            shutdownType
+        );
         HealthNodeTaskExecutorTests.<Void>safeAwait(
             listener -> clusterService.getClusterApplierService().onNewClusterState("node shutdown applied", () -> shutdownState, listener)
         );
@@ -178,9 +183,13 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     private ClusterState stateWithHealthNodeSelectorTask(ClusterState clusterState) {
+        return stateWithHealthNodeSelectorTask(clusterState, NO_NODE_FOUND);
+    }
+
+    private ClusterState stateWithHealthNodeSelectorTask(ClusterState clusterState, PersistentTasksCustomMetadata.Assignment assignment) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
-        tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, new HealthNodeTaskParams(), NO_NODE_FOUND);
+        tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, new HealthNodeTaskParams(), assignment);
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata())
             .putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build());

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -41,6 +42,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -319,7 +321,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
             builder.indexed(false);
-            return new KeywordFieldMapper.KeywordFieldType(
+            return new UnmappedKeywordFieldType(
                 name,
                 IndexType.terms(false, false),
                 new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
@@ -327,6 +329,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 builder,
                 context.ctx.isSourceSynthetic()
             );
+        }
+
+        private static class UnmappedKeywordFieldType extends KeywordFieldMapper.KeywordFieldType {
+            UnmappedKeywordFieldType(
+                String name,
+                IndexType indexType,
+                TextSearchInfo textSearchInfo,
+                NamedAnalyzer normalizer,
+                KeywordFieldMapper.Builder builder,
+                boolean isSyntheticSource
+            ) {
+                super(name, indexType, textSearchInfo, normalizer, builder, isSyntheticSource);
+            }
+
+            @Override
+            protected String sourceValueToString(Object value) {
+                // Unmapped numeric fields are stored as numerics, not strings (ByteRefs).
+                return value instanceof BytesRef br ? br.utf8ToString() : value.toString();
+            }
         }
     }
 

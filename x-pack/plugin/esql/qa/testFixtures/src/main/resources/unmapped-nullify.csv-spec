@@ -49,6 +49,23 @@ FROM partial_mapping_excluded_source_sample_data
 2024-10-23T12:15:03.360Z | null
 ;
 
+unmappedNumericFromSyntheticSourceSingleIndex
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_synthetic_sample_data
+| KEEP @timestamp, unmapped_event_duration
+| SORT @timestamp DESC
+| LIMIT 4
+;
+
+@timestamp:date          | unmapped_event_duration:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+;
+
 fieldUnmappedInSourceButSourceDisabledSingleIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: source_field_mapping
@@ -84,6 +101,25 @@ FROM date_nanos
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
+;
+
+unmappedNumericFromK8sSyntheticTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, network.cost
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:datetime      | cluster:keyword | network.cost:null
+2024-05-10T00:00:29.000Z | staging         | null
+2024-05-10T00:00:33.000Z | staging         | null
+2024-05-10T00:00:51.000Z | prod            | null
+2024-05-10T00:00:57.000Z | prod            | null
+2024-05-10T00:01:25.000Z | qa              | null
 ;
 
 keepStar
@@ -381,8 +417,8 @@ FROM languages
 | STATS c = COUNT(*) BY does_not_exist
 ;
 
-c:long         |does_not_exist:null
-4              |null
+c:long         | does_not_exist:null
+4              | null
 ;
 
 statsGroupAliasShadowingSourceColumnNoFilter
@@ -393,8 +429,8 @@ FROM languages
 | STATS c = COUNT(*) BY language_code = does_not_exist
 ;
 
-c:long         |language_code:null
-4              |null
+c:long         | language_code:null
+4              | null
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilter
@@ -406,8 +442,8 @@ FROM languages
 | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
 ;
 
-c:long         |language_code:null |language_name :keyword
-1              |null               |English
+c:long         | language_code:null | language_name :keyword
+1              | null               | English
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
@@ -420,8 +456,8 @@ FROM languages
         BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
 ;
 
-c:long         |language_code:integer |language_name :keyword
-1              |null                  |English
+c:long         | language_code:integer | language_name :keyword
+1              | null                  | English
 ;
 
 inlinestatsSum
@@ -550,11 +586,11 @@ FROM sample_data, sample_data_str,
 | SORT client_ip
 ;
 
-client_ip:ip   |foo:null       |bar:keyword    |baz:null
-172.21.0.5     |null           |null           |null
-172.21.2.113   |null           |null           |null
-172.21.2.162   |null           |null           |null
-172.21.3.15    |null           |null           |null
+client_ip:ip   | foo:null       | bar:keyword    | baz:null
+172.21.0.5     | null           | null           | null
+172.21.2.113   | null           | null           | null
+172.21.2.162   | null           | null           | null
+172.21.3.15    | null           | null           | null
 ;
 
 forkBranchesWithDifferentSchemas
@@ -792,12 +828,12 @@ TS k8s_unmapped
 | LIMIT 5
 ;
 
-@timestamp:datetime      | cluster:null | network.cost:null
-2024-05-10T00:00:29.000Z | null         | null
-2024-05-10T00:00:33.000Z | null         | null
-2024-05-10T00:00:51.000Z | null         | null
-2024-05-10T00:00:57.000Z | null         | null
-2024-05-10T00:01:25.000Z | null         | null
+@timestamp:datetime      | cluster:keyword | network.cost:null
+2024-05-10T00:00:29.000Z | staging         | null
+2024-05-10T00:00:33.000Z | staging         | null
+2024-05-10T00:00:51.000Z | prod            | null
+2024-05-10T00:00:57.000Z | prod            | null
+2024-05-10T00:01:25.000Z | qa              | null
 ;
 
 rateOnUnmappedTsIndex
@@ -1005,7 +1041,7 @@ FROM employees
 | EVAL y = coalesce(bar, baz)
 ;
 
-avg_worked_seconds:long	| birth_date:date	| emp_no:integer	| first_name:keyword	| gender:keyword	| height:double	| height.float:double	| height.half_float:double	| height.scaled_float:double	| hire_date:date	| is_rehired:boolean	| job_positions:keyword	| languages:integer	| languages.byte:integer	| languages.long:long	| languages.short:integer	| last_name:keyword	| salary:integer	| salary_change:double	| salary_change.int:integer	| salary_change.keyword:keyword	| salary_change.long:long	| still_hired:boolean   | foo:null  | bar:null	| baz:null	| y:null 
+avg_worked_seconds:long  | birth_date:date  | emp_no:integer  | first_name:keyword  | gender:keyword  | height:double  | height.float:double  | height.half_float:double  | height.scaled_float:double  | hire_date:date  | is_rehired:boolean  | job_positions:keyword  | languages:integer  | languages.byte:integer  | languages.long:long  | languages.short:integer  | last_name:keyword  | salary:integer  | salary_change:double  | salary_change.int:integer  | salary_change.keyword:keyword  | salary_change.long:long  | still_hired:boolean   | foo:null  | bar:null  | baz:null  | y:null
 ;
 
 
@@ -1057,6 +1093,6 @@ ROW a = 12::long
 | DROP a
 ;
 
-_fork:keyword	| x:long
-fork1        	| 12     
+_fork:keyword  | x:long
+fork1          | 12
 ;

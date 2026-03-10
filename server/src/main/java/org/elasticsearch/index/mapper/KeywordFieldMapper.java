@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -544,7 +545,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    public static final class KeywordFieldType extends TextFamilyFieldType {
+    public static class KeywordFieldType extends TextFamilyFieldType {
 
         private static final IgnoreAbove IGNORE_ABOVE_DEFAULT = new IgnoreAbove(null, IndexMode.STANDARD);
 
@@ -933,8 +934,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
-                    String stringValue = ((BytesRef) value).utf8ToString();
-                    String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
+                    String adjusted = applyIgnoreAboveAndNormalizer(sourceValueToString(value));
                     if (adjusted != null) {
                         // TODO what if the value didn't change?
                         accumulator.add(new BytesRef(adjusted));
@@ -960,6 +960,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
             };
+        }
+
+        protected String sourceValueToString(Object value) {
+            return ((BytesRef) value).utf8ToString();
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

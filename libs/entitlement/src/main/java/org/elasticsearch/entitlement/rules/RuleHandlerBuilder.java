@@ -51,23 +51,6 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
     /**
      * Specifies that when the entitlement check fails, the method should return
-     * the provided reference-type default value. Unlike {@link #elseReturn}, this
-     * is not type-parameterized, allowing arbitrary reference objects (e.g. empty
-     * collections) to be passed without unchecked cast warnings at the call site.
-     * The bytecode emitter will retrieve the value at runtime via {@code defaultValue$}.
-     *
-     * @param defaultValue the reference value to return when the entitlement check fails
-     * @return a class method builder for continuing rule definition
-     */
-    public ClassMethodBuilder<T> elseReturnReference(Object defaultValue) {
-        registry.registerRule(
-            new EntitlementRule(methodKey, checkMethod, new DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy<>(defaultValue))
-        );
-        return new ClassMethodBuilder<>(registry, clazz);
-    }
-
-    /**
-     * Specifies that when the entitlement check fails, the method should return
      * the value of the argument at the specified index.
      *
      * @param index the zero-based index of the method argument to return

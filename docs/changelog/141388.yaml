@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 141388
+summary: Adding sparkline aggregate function
+type: feature

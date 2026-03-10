@@ -92,21 +92,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
         "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
-        "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
-        "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
-        "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
-        "Overflow to represent absolute value of .*.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
-        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
         "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
-        // https://github.com/elastic/elasticsearch/issues/142860
-        "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
         // https://github.com/elastic/elasticsearch/issues/142543
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
-        "illegal match option \\[zero_terms_query\\]", // https://github.com/elastic/elasticsearch/issues/143070
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        "Input for URI_PARTS must be of type [string] but is [null]", // https://github.com/elastic/elasticsearch/issues/143145
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -180,19 +171,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
         Pattern.DOTALL
     );
-    /**
-     * Matches FIRST(...) or LAST(...) function calls where the second argument is the literal {@code null}.
-     * See https://github.com/elastic/elasticsearch/issues/142180#issuecomment-3913054718
-     */
-    private static final Pattern FIRST_LAST_NULL_ARG_PATTERN = Pattern.compile("(?i)\\b(?:first|last)\\s*\\(.+?,\\s*null\\s*\\)");
-    /**
-     * Matches FIRST(...) or LAST(...) function calls and captures both arguments.
-     * Used to detect when the same field is passed as both the search and sort parameters.
-     * See https://github.com/elastic/elasticsearch/issues/142180
-     */
-    private static final Pattern FIRST_LAST_CALL_PATTERN = Pattern.compile(
-        "(?i)\\b(?:first|last)\\s*\\(\\s*([^,()]+?)\\s*,\\s*([^,()]+?)\\s*\\)"
-    );
+
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
@@ -252,7 +231,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
                     }
-                    
+
                     previousCommands.add(current);
                     previousResult = result;
                 }
@@ -331,7 +310,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     },
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
-        ctx -> isFirstLastSameFieldError(ctx.errorMessage, ctx.query),
         ctx -> isForkOptimizationBugWithUnmappedFields(ctx.errorMessage, ctx.query),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
@@ -465,27 +443,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isScalarTypeMismatchError(String errorMessage) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
-    }
-
-    /**
-     * Checks if the error is an {@code ArrayIndexOutOfBoundsException} caused by calling FIRST or LAST with problematic arguments.
-     * See https://github.com/elastic/elasticsearch/issues/142180
-     */
-    private static boolean isFirstLastSameFieldError(String errorMessage, String query) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        if (errorWithoutLineBreaks.contains("out of bounds for length") == false) {
-            return false;
-        }
-        if (FIRST_LAST_NULL_ARG_PATTERN.matcher(query).find()) {
-            return true;
-        }
-        Matcher matcher = FIRST_LAST_CALL_PATTERN.matcher(query);
-        while (matcher.find()) {
-            if (matcher.group(1).equals(matcher.group(2))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static final Pattern FORK_OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(

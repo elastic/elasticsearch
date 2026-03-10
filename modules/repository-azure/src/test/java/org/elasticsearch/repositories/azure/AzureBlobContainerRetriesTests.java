@@ -798,6 +798,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     private String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
+        InetAddress inetAddress = address.getAddress();
         // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
         String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
             ? "localhost"

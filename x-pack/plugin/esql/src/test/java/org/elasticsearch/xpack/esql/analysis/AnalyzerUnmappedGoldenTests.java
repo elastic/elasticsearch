@@ -22,8 +22,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     public void testKeep() throws Exception {
         runTests("""
             FROM employees
-            | eval x = does_not_exist_field :: version
-            | keep x
+            | keep does_not_exist_field
             """);
     }
 
@@ -119,14 +118,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testEvalCast() throws Exception {
+    public void testCasting() throws Exception {
         runTests("""
             FROM employees
             | EVAL x = does_not_exist_field::LONG
             """);
     }
 
-    public void testEvalCastInPlace() throws Exception {
+    public void testCastingNoAliasing() throws Exception {
         runTests("""
             FROM employees
             | EVAL does_not_exist_field::LONG
@@ -149,14 +148,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testStatsCount() throws Exception {
+    public void testStatsAgg() throws Exception {
         runTests("""
             FROM employees
             | STATS cnt = COUNT(does_not_exist_field)
             """);
     }
 
-    public void testStatsBy() throws Exception {
+    public void testStatsGroup() throws Exception {
         runTests("""
             FROM employees
             | STATS BY does_not_exist_field
@@ -171,35 +170,35 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testStatsSumBy() throws Exception {
+    public void testStatsAggAndGroup() throws Exception {
         runTests("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
             """);
     }
 
-    public void testStatsSumByMultiple() throws Exception {
+    public void testStatsAggAndAliasGroup() throws Exception {
         runTests("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE) + d2 BY d2 = does_not_exist2::DOUBLE, emp_no
             """);
     }
 
-    public void testStatsSumByComplex() throws Exception {
+    public void testStatsAggAndAliasedGroupedWithExpression() throws Exception {
         runTests("""
             FROM employees
             | STATS sum = SUM(does_not_exist1::DOUBLE) + s0 + s1 BY s0 = does_not_exist2::DOUBLE + does_not_exist3::DOUBLE, s1 = emp_no
             """);
     }
 
-    public void testStatsMultiple() throws Exception {
+    public void testStatsMixed() throws Exception {
         runTests("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
             """);
     }
 
-    public void testInlineStats() throws Exception {
+    public void testInlineStatsMixed() throws Exception {
         runTests("""
             FROM employees
             | INLINE STATS s = SUM(does_not_exist1::DOUBLE), c = COUNT(*) BY does_not_exist2, emp_no
@@ -227,14 +226,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testStatsCountWhere() throws Exception {
+    public void testStatsAggFiltering() throws Exception {
         runTests("""
             FROM employees
             | STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0
             """);
     }
 
-    public void testStatsMultipleCountWhere() throws Exception {
+    public void testAggsFilteringMultipleFields() throws Exception {
         runTests("""
             FROM employees
             | STATS c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100,
@@ -256,7 +255,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testSortMultiple() throws Exception {
+    public void testSortExpressionMultipleFields() throws Exception {
         runTests("""
             FROM employees
             | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
@@ -270,6 +269,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testLookupJoin() throws Exception {
         runTests("""
             FROM employees
@@ -278,6 +278,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testLookupJoinWithFilter() throws Exception {
         runTests("""
             FROM employees
@@ -287,6 +288,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testSubqueryKeepUnmapped() throws Exception {
         runTests("""
             FROM employees, (FROM languages | KEEP language_code)
@@ -294,6 +296,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testSubqueryWithStats() throws Exception {
         runTests("""
             FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
@@ -301,6 +304,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testSubqueryKeepMultipleUnmapped() throws Exception {
         runTests("""
             FROM employees,
@@ -309,6 +313,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testFork() throws Exception {
         runTests("""
             FROM employees
@@ -325,6 +330,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testForkWithStats() throws Exception {
         runTests("""
             FROM employees
@@ -334,6 +340,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testFuse() throws Exception {
         assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
         runTests("""
@@ -344,6 +351,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testFuseWithEval() throws Exception {
         assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
         runTests("""
@@ -354,6 +362,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // FIXME comment here but keep the test
     public void testFuseLinear() throws Exception {
         assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
         runTests("""

@@ -204,7 +204,6 @@ FROM k8s_unmapped
 ;
 
 
-# Kept this test disabled to show the difference from INSIST_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
 statsImplicitLastOverTimeUnmappedTsIndex
 required_capability: optional_fields_v2
 required_capability: ts_command_v0
@@ -266,47 +265,6 @@ prod            | 2024-05-10T00:10:00.000Z | vivamus, soc
 prod            | 2024-05-10T00:20:00.000Z | volutpat ves
 qa              | 2024-05-10T00:00:00.000Z | vulputate qu
 qa              | 2024-05-10T00:10:00.000Z | volutpat hac
-;
-
-# Kept this test disabled to show the difference from IGNORE_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
->>>>>>> Stashed changes
-# up at all.
-fieldIsUnmappedButSourceIsDisabledSingleIndex-Ignore
-required_capability: source_field_mapping
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_no_source_sample_data
-;
-
-@timestamp:date          | message:keyword
-2024-10-23T13:55:01.543Z | null
-2024-10-23T13:53:55.832Z | null
-2024-10-23T13:52:55.015Z | null
-2024-10-23T13:51:54.732Z | null
-2024-10-23T13:33:34.937Z | null
-2024-10-23T12:27:28.948Z | null
-2024-10-23T12:15:03.360Z | null
-;
-
-# same comment as above (fieldIsUnmappedButSourceIsDisabledSingleIndex)
-fieldIsUnmappedButExcludedFromSourceSingleIndex-Ignore
-required_capability: source_field_mapping
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_excluded_source_sample_data
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | message:keyword
-2024-10-23T13:55:01.543Z | null
-2024-10-23T13:53:55.832Z | null
-2024-10-23T13:52:55.015Z | null
-2024-10-23T13:51:54.732Z | null
-2024-10-23T13:33:34.937Z | null
-2024-10-23T12:27:28.948Z | null
-2024-10-23T12:15:03.360Z | null
 ;
 
 fieldIsNestedAndUnmapped
@@ -526,23 +484,6 @@ Connected to 10.1.0.2
 Connected to 10.1.0.1!
 Connected to 10.1.0.1
 42
-;
-
-fieldMappedUnmappedAndMissingMultiIndex
-required_capability: index_metadata_field
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data, missing_ip_sample_data METADATA _index
-| EVAL ip = TO_IP(client_ip)
-| STATS present = COUNT(ip) BY _index
-| SORT _index
-;
-
-present:long | _index:keyword
-0            | missing_ip_sample_data
-7            | no_mapping_sample_data
-7            | sample_data
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex

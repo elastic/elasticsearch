@@ -360,9 +360,6 @@ tests:
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548
-- class: org.elasticsearch.xpack.eql.action.EqlLoggingIT
-  method: testEqlLoggingPartialShardFailure
-  issue: https://github.com/elastic/elasticsearch/issues/143659
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
@@ -381,9 +378,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143750
-- class: org.elasticsearch.xpack.esql.action.EsqlQueryLoggingIT
-  method: testLogging
-  issue: https://github.com/elastic/elasticsearch/issues/143780
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800

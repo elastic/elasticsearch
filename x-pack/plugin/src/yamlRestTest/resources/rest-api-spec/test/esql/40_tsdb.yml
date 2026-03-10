@@ -1,6 +1,15 @@
 setup:
   - requires:
       test_runner_features: [allowed_warnings_regex, allowed_warnings]
+  # Remove enabling debug logging after https://github.com/elastic/elasticsearch/issues/143884
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.index.mapper.FieldMapper": "DEBUG"
+            }
+          }
   - do:
       indices.create:
           index: test
@@ -688,18 +697,7 @@ to_aggregate_metric_double with multi_values:
           capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for to_aggregate_metric_double function"
 
-  # Remove after https://github.com/elastic/elasticsearch/issues/143884
   - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "logger.org.elasticsearch.index.mapper.FieldMapper": "DEBUG"
-            }
-          }
-  - do:
-      allowed_warnings:
-        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: convert_test
         body:
@@ -773,18 +771,7 @@ TS Command grouping on text field:
           capabilities: [ ts_permit_text_becoming_keyword_when_grouped_on, ts_command_v0 ]
       reason: "fix grouping on text fields with TS command"
 
-  # Remove after https://github.com/elastic/elasticsearch/issues/143884
   - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "logger.org.elasticsearch.index.mapper.FieldMapper": "DEBUG"
-            }
-          }
-  - do:
-      allowed_warnings:
-        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test-text-field
         body:

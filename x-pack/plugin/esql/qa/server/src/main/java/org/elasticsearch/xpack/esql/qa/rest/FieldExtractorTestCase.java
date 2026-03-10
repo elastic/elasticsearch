@@ -1433,9 +1433,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 && warnings.getFirst().equals("Parameter [default_metric] is deprecated and will be removed in a future version")) {
                 Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
                 logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
-            } else {
-                throw warningException;
             }
+            throw warningException;
         }
         ESRestTestCase.createIndex("metrics-long_dimension", settings, """
             "properties": {

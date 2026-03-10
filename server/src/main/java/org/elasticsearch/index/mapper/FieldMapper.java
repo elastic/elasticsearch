@@ -1940,11 +1940,10 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 if (parameter.deprecated) {
-                    // Needed for the https://github.com/elastic/elasticsearch/issues/143884
-                    // Remove after issue is closed.
-                    if (logger.isDebugEnabled() && "aggregate_metric_double".equals(contentType()) && "default_metric".equals(propName)) {
+                    // Remove the stack track trace logging after https://github.com/elastic/elasticsearch/issues/143884
+                    if (logger.isDebugEnabled() && "default_metric".equals(propName)) {
                         logger.debug(
-                            "Parsing [aggregate_metric_double] with deprecated [default_metric] config",
+                            "Parsing [" + contentType() + "] with deprecated [default_metric] config",
                             new ElasticsearchException("Stack trace retrieval")
                         );
                     }

@@ -344,7 +344,7 @@ This configuration is appropriate when full source fidelity is required, such as
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
 The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
-- [`int8`](#dense-vector-quantization-int8) 
+- [`int8`](#dense-vector-quantization-int8)
 - [`int4`](#dense-vector-quantization-int4)
 - [`bbq`](#dense-vector-quantization-bbq), available as:
   - [`bbq_hnsw`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-hnsw)
@@ -573,9 +573,6 @@ $$$dense-vector-index-options$$$
 `ef_construction`
 :   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
-`confidence_interval`
-:   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
-
 `default_visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
@@ -734,7 +731,7 @@ flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 :::
 ::::
 
-For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
+For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase.
 
 Updating `type` in `index_options` will fail in all other scenarios.
 

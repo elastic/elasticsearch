@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -40,16 +42,20 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     );
 
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
+    private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
     private final boolean enabled;
+    private final long maxProtobufContentLengthBytes;
 
     public PrometheusPlugin(Settings settings) {
         this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings) && PROMETHEUS_FEATURE_FLAG.isEnabled();
+        this.maxProtobufContentLengthBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
+        indexingPressure.set(services.indexingPressure());
         indexTemplateRegistry.set(
             new PrometheusIndexTemplateRegistry(
                 settings,
@@ -86,7 +92,8 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled) {
-            return List.of(new PrometheusRemoteWriteRestAction());
+            assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
+            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
         }
         return List.of();
     }

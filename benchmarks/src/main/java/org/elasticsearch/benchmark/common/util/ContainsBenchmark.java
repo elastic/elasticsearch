@@ -42,7 +42,7 @@ public class ContainsBenchmark {
     @Param({ "20", "35", "50", "100", "500", "1000" })
     public int avgValueLength;
 
-    @Param({ "5", "10", "20" })
+    @Param({ "5", "10", "20", "50" })
     public int avgTermLength;
 
     private byte[][] values;

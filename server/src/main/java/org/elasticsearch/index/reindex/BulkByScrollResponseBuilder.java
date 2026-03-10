@@ -12,7 +12,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.ArrayList;

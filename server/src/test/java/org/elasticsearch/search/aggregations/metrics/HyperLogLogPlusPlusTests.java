@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -32,6 +33,7 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -193,6 +195,24 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         );
     }
 
+    public void testMaxOrdIsExclusiveUpperBound() {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        // Use initialBucketCount=1 so that hll.maxOrd() stays at 1 and doesn't mask lc.maxOrd() bugs.
+        // Iterate through enough buckets to guarantee we cross at least one internal array growth boundary,
+        // where the off-by-one in LinearCounting.maxOrd() would surface.
+        try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1)) {
+            for (int bucket = 0; bucket < 50; bucket++) {
+                counts.collect(bucket, BitMixer.mix64(bucket));
+                assertThat(
+                    "maxOrd must be an exclusive upper bound after collecting into bucket " + bucket,
+                    (long) bucket,
+                    lessThan(counts.maxOrd())
+                );
+            }
+        }
+    }
+
     public void testDynamicGrowth() {
         int numGroups = between(1000, 10_000);
         int numValuesPerGroup = between(1, 14);
@@ -200,10 +220,12 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         long requiredBytes = requiredBytesOneGroup * numGroups;
         requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
         requiredBytes += 10 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // full allocations for the first few groups
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(requiredBytes));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(requiredBytes));
+        CircuitBreakerService breakerService = LimitedBreaker.service("test", ByteSizeValue.ofBytes(requiredBytes));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
         int precision = 14;
-        try (HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breaker, between(1, numGroups))) {
+        try (
+            HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breakerService.getBreaker(CircuitBreaker.REQUEST), 1)
+        ) {
             Map<Long, Set<Integer>> uniques = new HashMap<>();
             for (long g = 0; g < numGroups; g++) {
                 Set<Integer> sets = new HashSet<>();

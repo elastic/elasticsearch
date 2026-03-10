@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -341,10 +342,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     // ===== Multi-file iteration tests =====
 
-    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public void testMultiFileReadIteratesAllFiles() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
@@ -540,6 +540,515 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(fileSet, factory.fileSet());
         assertTrue(factory.fileSet().isResolved());
         assertEquals(2, factory.fileSet().size());
+    }
+
+    // ===== Slice Queue tests =====
+
+    public void testSliceQueueReadsSplitsSequentially() throws Exception {
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f3.parquet"), 0, 300, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f1.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(3, readCount.get());
+        assertEquals(3, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueExhaustionFinishesOperator() throws Exception {
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/only.parquet"), 0, 100, "parquet", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/only.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, readCount.get());
+        assertEquals(1, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueMultipleDriversClaimDifferentSplits() throws Exception {
+        int splitCount = 6;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        AtomicInteger totalReadCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(totalReadCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        int driverCount = 3;
+        List<SourceOperator> operators = new ArrayList<>();
+        List<DriverContext> contexts = new ArrayList<>();
+
+        for (int d = 0; d < driverCount; d++) {
+            DriverContext driverContext = mock(DriverContext.class);
+            BlockFactory blockFactory = mock(BlockFactory.class);
+            when(driverContext.blockFactory()).thenReturn(blockFactory);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+            contexts.add(driverContext);
+
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                10,
+                (Runnable r) -> r.run(),
+                null,
+                null,
+                null,
+                sliceQueue
+            );
+            operators.add(factory.get(driverContext));
+        }
+
+        List<Page> allPages = new ArrayList<>();
+        for (SourceOperator op : operators) {
+            while (op.isFinished() == false) {
+                Page page = op.getOutput();
+                if (page != null) {
+                    allPages.add(page);
+                }
+            }
+        }
+
+        assertEquals(splitCount, totalReadCount.get());
+        assertEquals(splitCount, allPages.size());
+
+        for (Page p : allPages) {
+            p.releaseBlocks();
+        }
+        for (SourceOperator op : operators) {
+            op.close();
+        }
+    }
+
+    public void testSliceQueueAccessor() {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/a.parquet"), 0, 10, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.formatName()).thenReturn("parquet");
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/a.parquet"),
+            List.of(
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            ),
+            100,
+            10,
+            Runnable::run,
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        assertSame(sliceQueue, factory.sliceQueue());
+    }
+
+    public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
+        long splitOffset = 500;
+        long splitLength = 300;
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/large.csv"),
+            splitOffset,
+            splitLength,
+            "csv",
+            Map.of(FileSplitProvider.LAST_SPLIT_KEY, "false"),
+            Map.of()
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/large.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedObjects.size());
+        StorageObject received = capturedObjects.get(0);
+        assertTrue(
+            "Expected RangeStorageObject for non-zero offset, got: " + received.getClass().getSimpleName(),
+            received instanceof RangeStorageObject
+        );
+        RangeStorageObject range = (RangeStorageObject) received;
+        assertEquals(splitOffset, range.offset());
+        assertEquals(splitLength, range.length());
+
+        assertEquals(1, capturedSkipFirstLine.size());
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueWithZeroOffsetDoesNotWrapWithRangeStorageObject() throws Exception {
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/small.csv"), 0, 1000, "csv", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/small.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedObjects.size());
+        assertFalse("Expected no RangeStorageObject for zero offset", capturedObjects.get(0) instanceof RangeStorageObject);
+
+        assertEquals(1, capturedSkipFirstLine.size());
+        assertFalse("Zero-offset split should not skip first line", capturedSkipFirstLine.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueFirstSplitWithOffsetDoesNotSkipFirstLine() throws Exception {
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/large.csv"),
+            500,
+            300,
+            "csv",
+            Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+            Map.of()
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/large.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, capturedObjects.size());
+        assertTrue(capturedObjects.get(0) instanceof RangeStorageObject);
+
+        assertEquals(1, capturedSkipFirstLine.size());
+        assertFalse("First split should not skip first line even with offset > 0", capturedSkipFirstLine.get(0));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueMultipleSplitsWithMixedOffsets() throws Exception {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit(
+                "test",
+                StoragePath.of("s3://bucket/data.csv"),
+                0,
+                1000,
+                "csv",
+                Map.of(FileSplitProvider.FIRST_SPLIT_KEY, "true"),
+                Map.of()
+            ),
+            new FileSplit("test", StoragePath.of("s3://bucket/data.csv"), 1000, 1000, "csv", Map.of(), Map.of()),
+            new FileSplit(
+                "test",
+                StoragePath.of("s3://bucket/data.csv"),
+                2000,
+                500,
+                "csv",
+                Map.of(FileSplitProvider.LAST_SPLIT_KEY, "true"),
+                Map.of()
+            )
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        FormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(3, capturedObjects.size());
+
+        assertFalse("First split (offset=0) should not be wrapped", capturedObjects.get(0) instanceof RangeStorageObject);
+        assertFalse("First split should not skip first line", capturedSkipFirstLine.get(0));
+
+        assertTrue("Second split (offset=1000) should be wrapped", capturedObjects.get(1) instanceof RangeStorageObject);
+        RangeStorageObject range1 = (RangeStorageObject) capturedObjects.get(1);
+        assertEquals(1000, range1.offset());
+        assertEquals(1000, range1.length());
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(1));
+
+        assertTrue("Third split (offset=2000) should be wrapped", capturedObjects.get(2) instanceof RangeStorageObject);
+        RangeStorageObject range2 = (RangeStorageObject) capturedObjects.get(2);
+        assertEquals(2000, range2.offset());
+        assertEquals(500, range2.length());
+        assertTrue("Non-first split with offset > 0 should skip first line", capturedSkipFirstLine.get(2));
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
     }
 
     // ===== Helpers =====
@@ -769,6 +1278,83 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public boolean supportsNativeAsync() {
             return false;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
+     * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
+     */
+    private static class SplitCapturingFormatReader implements FormatReader {
+        private final List<StorageObject> capturedObjects;
+        private final List<Boolean> capturedSkipFirstLine;
+
+        SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
+            this.capturedObjects = capturedObjects;
+            this.capturedSkipFirstLine = capturedSkipFirstLine;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+            capturedObjects.add(object);
+            capturedSkipFirstLine.add(false);
+            return singlePageIterator();
+        }
+
+        @Override
+        public CloseableIterator<Page> readSplit(
+            StorageObject object,
+            List<String> projectedColumns,
+            int batchSize,
+            boolean skipFirstLine,
+            boolean lastSplit,
+            List<Attribute> resolvedAttributes
+        ) {
+            capturedObjects.add(object);
+            capturedSkipFirstLine.add(skipFirstLine);
+            return singlePageIterator();
+        }
+
+        private static CloseableIterator<Page> singlePageIterator() {
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-split-capturing";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
         }
 
         @Override

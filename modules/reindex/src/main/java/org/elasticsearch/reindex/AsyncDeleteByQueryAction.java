@@ -16,7 +16,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -25,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
+    private final boolean useOptimisticConcurrencyControl;
+
     public AsyncDeleteByQueryAction(
         BulkByScrollTask task,
         Logger logger,
@@ -32,25 +34,29 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
+        boolean useOptimisticConcurrencyControl,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        super(task, false, true, false, logger, client, threadPool, request, listener, scriptService, null);
+        super(task, false, useOptimisticConcurrencyControl, false, logger, client, threadPool, request, listener, scriptService, null);
+        this.useOptimisticConcurrencyControl = useOptimisticConcurrencyControl;
     }
 
     @Override
-    protected boolean accept(ScrollableHitSource.Hit doc) {
+    protected boolean accept(PaginatedHitSource.Hit doc) {
         // Delete-by-query does not require the source to delete a document
         // and the default implementation checks for it
         return true;
     }
 
     @Override
-    protected RequestWrapper<DeleteRequest> buildRequest(ScrollableHitSource.Hit doc) {
+    protected RequestWrapper<DeleteRequest> buildRequest(PaginatedHitSource.Hit doc) {
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
         delete.id(doc.getId());
-        delete.setIfSeqNo(doc.getSeqNo());
-        delete.setIfPrimaryTerm(doc.getPrimaryTerm());
+        if (useOptimisticConcurrencyControl) {
+            delete.setIfSeqNo(doc.getSeqNo());
+            delete.setIfPrimaryTerm(doc.getPrimaryTerm());
+        }
         return wrap(delete);
     }
 
@@ -59,7 +65,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
      * don't care for a deletion.
      */
     @Override
-    protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
+    protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
         request.setRouting(doc.getRouting());
         return request;
     }

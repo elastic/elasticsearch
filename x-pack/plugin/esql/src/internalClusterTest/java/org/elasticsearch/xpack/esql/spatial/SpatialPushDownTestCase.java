@@ -18,8 +18,8 @@ import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -51,7 +51,7 @@ public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESInte
     protected static final String[] ALL_INDEXES = new String[] { "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values" };
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class, SpatialPlugin.class);
+        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, SpatialPlugin.class);
     }
 
     /**

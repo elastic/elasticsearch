@@ -98,6 +98,9 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataType.DOUBLE) {
             return doubleSupplier();
         }
+        if (type == DataType.DENSE_VECTOR) {
+            return denseVectorSupplier();
+        }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
@@ -106,4 +109,8 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     protected abstract AggregatorFunctionSupplier intSupplier();
 
     protected abstract AggregatorFunctionSupplier doubleSupplier();
+
+    protected AggregatorFunctionSupplier denseVectorSupplier() {
+        throw new UnsupportedOperationException("dense_vector not supported for this aggregation");
+    }
 }

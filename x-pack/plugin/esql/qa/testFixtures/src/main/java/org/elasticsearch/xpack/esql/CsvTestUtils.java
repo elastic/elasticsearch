@@ -44,21 +44,22 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -160,7 +161,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
@@ -208,7 +209,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
-        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;
@@ -620,6 +621,10 @@ public final class CsvTestUtils {
             if (actualType == Type.UNSUPPORTED) {
                 return UNSUPPORTED;
             }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
@@ -680,15 +685,15 @@ public final class CsvTestUtils {
     }
 
     record ActualResults(
-        Configuration configuration,
+        ZoneId zoneId,
         List<String> columnNames,
         List<Type> columnTypes,
         List<DataType> dataTypes,
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
+        List<List<Object>> values() {
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, zoneId));
         }
     }
 
@@ -780,7 +785,15 @@ public final class CsvTestUtils {
                 DocumentParsingException::new,
                 XContentParserUtils::parsingException
             );
-            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(
+                EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                parsed.min(),
+                parsed.max(),
+                parsed.sum(),
+                parsed.count()
+            );
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

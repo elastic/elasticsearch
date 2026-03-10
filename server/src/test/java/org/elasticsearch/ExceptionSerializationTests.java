@@ -17,6 +17,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -52,7 +53,9 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -874,6 +877,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(185, NoMatchingProjectException.class);
         ids.put(186, IndexLimitExceededException.class);
         ids.put(187, StaleRequestException.class);
+        ids.put(188, SearchContextMissingNodesException.class);
+        ids.put(189, OCCNotSupportedException.class);
+        ids.put(190, UpdateNotSupportedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

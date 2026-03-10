@@ -10,15 +10,16 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 
 class ResultBuilderForDoc implements ResultBuilder {
     private final DocVectorEncoder encoder;
-    private final DocVector.FixedBuilder builder;
+    private final DocBlock.Builder builder;
 
     ResultBuilderForDoc(BlockFactory blockFactory, DocVectorEncoder encoder, int positions) {
         this.encoder = encoder;
-        this.builder = DocVector.newFixedBuilder(blockFactory, positions);
+        this.builder = DocBlock.newBlockBuilder(blockFactory, positions);
     }
 
     @Override
@@ -35,14 +36,21 @@ class ResultBuilderForDoc implements ResultBuilder {
         // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
         encoder.refCounteds().get(shard).mustIncRef();
 
-        builder.append(shard, segment, doc);
+        builder.appendShard(shard);
+        builder.appendSegment(segment);
+        builder.appendDoc(doc);
     }
 
     @Override
     public Block build() {
         DocVector.Config config = DocVector.config().dontIncrementShardRefCounts().mayContainDuplicates();
         // TODO figure out when we don't need to set mayContainDuplicates
-        return builder.shardRefCounters(encoder.refCounteds()).build(config).asBlock();
+        return builder.shardRefCounters(encoder.refCounteds()).build(config);
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override

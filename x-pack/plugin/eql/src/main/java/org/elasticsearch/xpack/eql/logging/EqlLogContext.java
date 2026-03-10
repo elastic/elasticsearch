@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
-import joptsimple.internal.Strings;
-
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class EqlLogContext extends ActivityLoggerContext {
@@ -37,8 +39,13 @@ public class EqlLogContext extends ActivityLoggerContext {
         return request.query();
     }
 
-    public String getIndices() {
-        return Strings.join(request.indices(), ",");
+    public String[] getIndices() {
+        return request.indices();
+    }
+
+    @Override
+    public boolean isTimedOut() {
+        return response != null && response.isTimeout();
     }
 
     long getHits() {
@@ -46,5 +53,29 @@ public class EqlLogContext extends ActivityLoggerContext {
             return 0;
         }
         return response.hits().totalHits().value();
+    }
+
+    public Optional<ShardInfo> shardInfo() {
+        // We only know about failed shards in EQL
+        return Optional.ofNullable(response).map(r -> new ShardInfo(null, null, getFailedShards(response)));
+    }
+
+    private static int getFailedShards(EqlSearchResponse response) {
+        long failedShards = Arrays.stream(response.shardFailures()).map(ShardSearchFailure::shard).distinct().count();
+        return Math.clamp(failedShards, 0, Integer.MAX_VALUE);
+    }
+
+    // CCS stuff
+    public long remoteClusterCount() {
+        var resolved = request.getResolvedIndexExpressions();
+        if (resolved != null) {
+            return resolved.getRemoteIndicesList()
+                .stream()
+                .filter(RemoteClusterAware::isRemoteIndexName)
+                .map(i -> RemoteClusterAware.splitIndexName(i)[0])
+                .distinct()
+                .count();
+        }
+        return 0;
     }
 }

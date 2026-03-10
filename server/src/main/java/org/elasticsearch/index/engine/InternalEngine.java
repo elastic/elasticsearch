@@ -1381,6 +1381,11 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.optimizedAppendOnly(1L, reservingDocs);
             }
         } else {
+            if (sequenceNumbersAreDisabled()
+                && index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && index.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return IndexingStrategy.optimisticConcurrencyControlNotSupported(index.id(), shardId);
+            }
             versionMap.enforceSafeAccess();
             // resolves incoming version
             final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -1617,6 +1622,11 @@ public class InternalEngine extends Engine {
             final IndexResult result = new IndexResult(e, Versions.NOT_FOUND, id);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
         }
+
+        static IndexingStrategy optimisticConcurrencyControlNotSupported(String id, ShardId shardId) {
+            final IndexResult result = new IndexResult(new OCCNotSupportedException(shardId), Versions.NOT_FOUND, id);
+            return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+        }
     }
 
     /**
@@ -1807,6 +1817,12 @@ public class InternalEngine extends Engine {
 
     private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
+        if (sequenceNumbersAreDisabled()
+            && delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+            && delete.getIfPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            return DeletionStrategy.optimisticConcurrencyControlNotSupported(delete.id(), shardId);
+        }
+
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
@@ -1976,6 +1992,18 @@ public class InternalEngine extends Engine {
         static DeletionStrategy failAsTooManyDocs(Exception e, String id) {
             final DeleteResult deleteResult = new DeleteResult(
                 e,
+                Versions.NOT_FOUND,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                false,
+                id
+            );
+            return new DeletionStrategy(false, false, false, Versions.NOT_FOUND, 0, deleteResult);
+        }
+
+        static DeletionStrategy optimisticConcurrencyControlNotSupported(String id, ShardId shardId) {
+            final DeleteResult deleteResult = new DeleteResult(
+                new OCCNotSupportedException(shardId),
                 Versions.NOT_FOUND,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -2805,18 +2833,24 @@ public class InternalEngine extends Engine {
         MergePolicy mergePolicy = config().getMergePolicy();
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+        final var seqNoIndexOptions = engineConfig.getIndexSettings().seqNoIndexOptions();
+        // sequence numbers are trimmed when doc values only are used
+        final boolean pruneSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled()
+            && seqNoIndexOptions == SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY;
         mergePolicy = new RecoverySourcePruneMergePolicy(
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
                 : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
-            () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
+            pruneSeqNo,
+            () -> softDeletesPolicy.getRetentionQuery(seqNoIndexOptions),
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
-                () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
+                () -> softDeletesPolicy.getRetentionQuery(seqNoIndexOptions),
                 useTsdbSyntheticId ? mergePolicy : new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
-            )
+            ),
+            engineConfig.getIndexSettings().useTimeSeriesSyntheticId()
         );
         if (SHUFFLE_FORCE_MERGE) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
@@ -3238,7 +3272,7 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns the number of times a version was looked up either from the index.
+     * Returns the number of times a version was looked up from the index.
      * Note this is only available if assertions are enabled
      */
     long getNumIndexVersionsLookups() { // for testing
@@ -3715,5 +3749,9 @@ public class InternalEngine extends Engine {
     // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
     protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
         indexWriter.deleteDocuments(query);
+    }
+
+    private boolean sequenceNumbersAreDisabled() {
+        return engineConfig.getIndexSettings().sequenceNumbersDisabled();
     }
 }

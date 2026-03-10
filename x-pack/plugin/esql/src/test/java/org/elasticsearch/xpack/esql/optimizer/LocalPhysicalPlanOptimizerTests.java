@@ -28,6 +28,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -81,8 +82,10 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -131,7 +134,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+/**
+ * Unit tests for local physical plan optimization rules. For pushdown-related tests (filter, sort),
+ * prefer adding new cases to {@link PushdownGoldenTests} instead.
+ */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
@@ -294,7 +301,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testCountPushdownForSvAndMvFields() throws IOException {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
+        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
         String mapping = "{\"mappings\": " + properties + "}";
 
         String query = """
@@ -889,19 +896,22 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var source = as(eval.child(), EsQueryExec.class);
     }
 
-    /*
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],FINAL,[language_code{r}#7, $
-     *      $c$count{r}#32, $$c$seen{r}#33],12]
-     *   \_ExchangeExec[[language_code{r}#7, $$c$count{r}#32, $$c$seen{r}#33],true]
-     *     \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],INITIAL,[language_code{r}#7,
-     *          $$c$count{r}#34, $$c$seen{r}#35],12]
-     *       \_GrokExec[first_name{f}#19,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@75389ac1],[foo{r}#12]]
-     *         \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
-     *           \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
-     *             \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
-     *               \_EvalExec[[null[INTEGER] AS languages#21]]
-     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[112]
+    /**
+     * Expects
+     * <pre>{@code
+     * LimitExec[1000[INTEGER],12]
+     * \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],FINAL,[l
+     * anguage_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],12]
+     *   \_ExchangeExec[[language_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],true]
+     *     \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],INITIAL,
+     * [language_code{r}#8, $$c$count{r}#35, $$c$seen{r}#36],12]
+     *       \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *         \_ProjectExec[[emp_no{f}#19, languages{r}#22 AS language_code#8]]
+     *           \_FieldExtractExec[emp_no{f}#19]<[],[]>
+     *             \_EvalExec[[null[INTEGER] AS languages#22]]
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
+     *               [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }</pre>
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -922,8 +932,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        var grok = as(agg.child(), GrokExec.class);
-        var mvexpand = as(grok.child(), MvExpandExec.class);
+        var mvexpand = as(agg.child(), MvExpandExec.class);
         var project = as(mvexpand.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);
@@ -2168,6 +2177,44 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertNull(query.query());
+    }
+
+    public void testConstantFieldUriPartsFilter() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | uri_parts u = `constant_keyword-foo`
+            | WHERE `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, CONSTANT_K_STATS, analyzer);
+
+        var uriParts = as(plan, UriPartsExec.class);
+        var limit = as(uriParts.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        assertNull(queryExec.query());
+    }
+
+    public void testConstantFieldRegisteredDomainFilter() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | registered_domain rd = `constant_keyword-foo`
+            | WHERE `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, CONSTANT_K_STATS, analyzer);
+
+        var registeredDomain = as(plan, RegisteredDomainExec.class);
+        var limit = as(registeredDomain.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        assertNull(queryExec.query());
     }
 
     public void testMatchFunctionWithStatsWherePushable() {

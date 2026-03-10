@@ -1406,7 +1406,8 @@ public final class IndexSettings {
                 )
             );
         }
-        bloomFilterDocValuesOptimizedMergeEnabled = scopedSettings.get(BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED);
+        bloomFilterDocValuesOptimizedMergeEnabled = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            && scopedSettings.get(BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1523,10 +1524,12 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
-        scopedSettings.addSettingsUpdateConsumer(
-            BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED,
-            this::setBloomFilterDocValuesOptimizedMergeEnabled
-        );
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            scopedSettings.addSettingsUpdateConsumer(
+                BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED,
+                this::setBloomFilterDocValuesOptimizedMergeEnabled
+            );
+        }
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

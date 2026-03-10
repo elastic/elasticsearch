@@ -35,7 +35,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // Reuse HeapAttackIT methods to prepare the indices
     private static final HeapAttackIT heapAttackIT = new HeapAttackIT();
 
-    // the default number of subqueries used by this test, more than 2 subqueries OOMs in some tests
     private static final int MIN_SUBQUERIES = 2;
 
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}

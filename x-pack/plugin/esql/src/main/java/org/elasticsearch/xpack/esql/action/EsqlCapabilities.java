@@ -1719,6 +1719,12 @@ public class EsqlCapabilities {
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
+        /**
+         * Support for the zero_terms_query option in the match function.
+         * https://github.com/elastic/elasticsearch/issues/143070
+         */
+        MATCH_FUNCTION_ZERO_TERMS_QUERY,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

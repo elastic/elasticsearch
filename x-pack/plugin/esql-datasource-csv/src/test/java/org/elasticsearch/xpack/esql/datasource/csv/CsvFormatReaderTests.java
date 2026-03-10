@@ -1567,6 +1567,41 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Failed to parse CSV value"));
     }
 
+    public void testMultiValueBracketsQuotedStrings() throws IOException {
+        String csv = "id:integer,names:keyword\n1,\"[\"\"foo\"\",\"\"bar\"\"]\"\n2,\"[\"\"hello world\"\",\"\"test\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, namesBlock.getValueCount(0));
+            assertEquals(new BytesRef("\"foo\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("\"bar\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+            assertEquals(2, namesBlock.getValueCount(1));
+            assertEquals(new BytesRef("\"hello world\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1), new BytesRef()));
+            assertEquals(new BytesRef("\"test\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1) + 1, new BytesRef()));
+        }
+    }
+
+    public void testMultiValueBracketsLong() throws IOException {
+        String csv = "id:integer,values:long\n1,\"[100000000000,200000000000]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock valuesBlock = (LongBlock) page.getBlock(1);
+            assertEquals(2, valuesBlock.getValueCount(0));
+            assertEquals(100000000000L, valuesBlock.getLong(valuesBlock.getFirstValueIndex(0)));
+            assertEquals(200000000000L, valuesBlock.getLong(valuesBlock.getFirstValueIndex(0) + 1));
+        }
+    }
+
     public void testMultiValueMixedWithScalar() throws IOException {
         String csv = "id:integer,values:integer\n1,\"[1,2]\"\n2,42\n3,\"[10,20,30]\"\n";
         CsvFormatOptions options = new CsvFormatOptions(
@@ -1825,6 +1860,81 @@ public class CsvFormatReaderTests extends ESTestCase {
         System.arraycopy(suffix, 0, data, padding.length, suffix.length);
         long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals(padding.length + 2, boundary);
+    }
+
+    // --- Warning tests ---
+
+    public void testWarningsIncludeRowNumber() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            bad_id2,Dan
+            5,Eve
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+            List<String> warnings = CsvFormatReader.getWarnings(iterator);
+            assertEquals(2, warnings.size());
+            assertTrue("Warning should include row number, got: " + warnings.get(0), warnings.get(0).startsWith("Row [2]"));
+            assertTrue("Warning should include row number, got: " + warnings.get(1), warnings.get(1).startsWith("Row [4]"));
+        }
+    }
+
+    public void testWarningsIncludeFieldNameInPermissiveMode() throws IOException {
+        String csv = """
+            id:long,score:double
+            1,95.5
+            bad_id,not_double
+            3,80.0
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+            List<String> warnings = CsvFormatReader.getWarnings(iterator);
+            assertEquals(2, warnings.size());
+            assertTrue("Warning should include field name, got: " + warnings.get(0), warnings.get(0).contains("field [id]"));
+            assertTrue("Warning should include field name, got: " + warnings.get(1), warnings.get(1).contains("field [score]"));
+            assertTrue("Warning should include row number, got: " + warnings.get(0), warnings.get(0).contains("Row [2]"));
+        }
+    }
+
+    public void testWarningsOverflowMessage() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 1; i <= 30; i++) {
+            csv.append("bad").append(i).append(",Name").append(i).append("\n");
+        }
+
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, false);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 50, lenient)) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+            List<String> warnings = CsvFormatReader.getWarnings(iterator);
+            assertEquals(21, warnings.size());
+            assertTrue("First warning should have row number, got: " + warnings.get(0), warnings.get(0).startsWith("Row [1]"));
+            assertTrue(
+                "Last warning should note suppression, got: " + warnings.get(20),
+                warnings.get(20).contains("further warnings suppressed")
+            );
+        }
     }
 
     private StorageObject createStorageObject(String csvContent) {

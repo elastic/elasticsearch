@@ -114,13 +114,13 @@ import java.util.regex.Pattern;
  *
  * <h2>Examples</h2>
  * <pre>{@code
- *   FROM s3://bucket/data.tsv WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
+ *   EXTERNAL "s3://bucket/data.tsv" WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
  * }</pre>
  * <pre>{@code
- *   FROM s3://bucket/employees.csv WITH {"multi_value_syntax": "brackets"}
+ *   EXTERNAL "s3://bucket/employees.csv" WITH {"multi_value_syntax": "brackets"}
  * }</pre>
  * <pre>{@code
- *   FROM s3://bucket/data.csv WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
+ *   EXTERNAL "s3://bucket/data.csv" WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
  * }</pre>
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
@@ -456,6 +456,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "NULL", "N" -> DataType.NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
+    }
+
+    /**
+     * Returns accumulated warnings from a CSV iterator, for testing.
+     */
+    static List<String> getWarnings(CloseableIterator<Page> iterator) {
+        if (iterator instanceof CsvBatchIterator cbi) {
+            return List.copyOf(cbi.warnings);
+        }
+        return List.of();
     }
 
     private class CsvBatchIterator implements CloseableIterator<Page> {
@@ -862,27 +872,42 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new EsqlIllegalArgumentException(cause, message);
             }
             errorCount++;
-            if (warnings.size() < MAX_WARNINGS) {
-                warnings.add("Row error: " + message);
+            addWarning("Row [" + totalRowCount + "] error: " + message);
+            if (logErrors) {
+                logger.warn(
+                    "Skipping malformed CSV row [{}] (error {}/{}): {}",
+                    totalRowCount,
+                    errorCount,
+                    errorPolicy.maxErrors(),
+                    message
+                );
             }
-            if (logErrors) logger.warn("Skipping malformed CSV row (error {}/{}): {}", errorCount, errorPolicy.maxErrors(), message);
             checkBudget(message, cause);
         }
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
-            if (warnings.size() < MAX_WARNINGS) {
-                warnings.add("Field [" + attr.name() + "] value [" + value + "]: " + message);
+            addWarning("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
+            if (logErrors) {
+                logger.warn(
+                    "Null-filling unparseable field [{}] value [{}] in row [{}] (error {}/{}): {}",
+                    attr.name(),
+                    value,
+                    totalRowCount,
+                    errorCount,
+                    errorPolicy.maxErrors(),
+                    message
+                );
             }
-            if (logErrors) logger.warn(
-                "Null-filling unparseable field [{}] value [{}] (error {}/{}): {}",
-                attr.name(),
-                value,
-                errorCount,
-                errorPolicy.maxErrors(),
-                message
-            );
             checkBudget(message, null);
+        }
+
+        private void addWarning(String warning) {
+            if (warnings.size() < MAX_WARNINGS) {
+                warnings.add(warning);
+            } else if (warnings.size() == MAX_WARNINGS) {
+                warnings.add("... further warnings suppressed (total errors so far: " + errorCount + ")");
+            }
         }
 
         private void checkBudget(String message, Exception cause) {

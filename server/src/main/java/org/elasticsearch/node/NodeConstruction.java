@@ -949,7 +949,8 @@ class NodeConstruction {
             xContentRegistry,
             systemIndices,
             forbidPrivateIndexSettings,
-            indexSettingProviders
+            indexSettingProviders,
+            telemetryProvider.getMeterRegistry()
         );
 
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(

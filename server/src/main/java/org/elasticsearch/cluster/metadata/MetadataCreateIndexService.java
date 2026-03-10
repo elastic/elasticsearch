@@ -81,6 +81,8 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -127,6 +129,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  */
 public class MetadataCreateIndexService {
     public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
+    public static final String USER_INDEX_TOTAL_METRIC_NAME = "es.cluster.user.index.total.current";
 
     // Deliberately not registered so it can only be set in tests/plugins.
     public static final Setting<Priority> CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(
@@ -206,7 +209,8 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
         final boolean forbidPrivateIndexSettings,
-        final IndexSettingProviders indexSettingProviders
+        final IndexSettingProviders indexSettingProviders,
+        final MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -242,6 +246,63 @@ public class MetadataCreateIndexService {
         } else {
             maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
         }
+        setUpMetrics(meterRegistry);
+    }
+
+    /**
+     * This constructor is for test-only. Do not use in Production.
+     */
+    public MetadataCreateIndexService(
+        final Settings settings,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final AllocationService allocationService,
+        final ShardLimitValidator shardLimitValidator,
+        final Environment env,
+        final IndexScopedSettings indexScopedSettings,
+        final ThreadPool threadPool,
+        final NamedXContentRegistry xContentRegistry,
+        final SystemIndices systemIndices,
+        final boolean forbidPrivateIndexSettings,
+        final IndexSettingProviders indexSettingProviders
+    ) {
+        this(
+            settings,
+            clusterService,
+            indicesService,
+            allocationService,
+            shardLimitValidator,
+            env,
+            indexScopedSettings,
+            threadPool,
+            xContentRegistry,
+            systemIndices,
+            forbidPrivateIndexSettings,
+            indexSettingProviders,
+            MeterRegistry.NOOP
+        );
+    }
+
+    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
+    private void setUpMetrics(MeterRegistry meterRegistry) {
+        assert clusterService.state().metadata().projects().isEmpty() == false;
+        meterRegistry.registerLongGauge(
+            USER_INDEX_TOTAL_METRIC_NAME,
+            "Total number of user indices",
+            "index",
+            () -> new LongWithAttributes(
+                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
+            )
+        );
+    }
+
+    public static long getTotalUserIndices(SystemIndices systemIndices, ProjectMetadata projectMetadata) {
+        return projectMetadata.stream()
+            .filter(
+                indexMetadata -> indexMetadata.isSystem() == false
+                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
+            )
+            .count();
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
@@ -257,12 +318,7 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        var totalUserIndices = projectMetadata.stream()
-            .filter(
-                indexMetadata -> indexMetadata.isSystem() == false
-                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
-            )
-            .count();
+        var totalUserIndices = getTotalUserIndices(systemIndices, projectMetadata);
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["

@@ -4000,3 +4000,37 @@ overflow:double | underflow:double | group:integer
 null            | null             | 0
 null            | null             | 1
 ;
+
+weightedAvgWithOverflow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 5:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+weightedAvgWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 3:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;

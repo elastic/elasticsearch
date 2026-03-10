@@ -55,8 +55,6 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
-
 public class QueryBuilderStoreTests extends ESTestCase {
 
     @Override
@@ -140,8 +138,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
 
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(

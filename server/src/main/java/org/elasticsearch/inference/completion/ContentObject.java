@@ -122,7 +122,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return fileFields + ":" + type;
+            return type + ":" + fileFields;
         }
 
         @Override
@@ -244,7 +244,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return imageUrl + ":" + type;
+            return type + ":" + imageUrl;
         }
 
         @Override
@@ -357,7 +357,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return text + ":" + type;
+            return type + ":" + text;
         }
 
         @Override

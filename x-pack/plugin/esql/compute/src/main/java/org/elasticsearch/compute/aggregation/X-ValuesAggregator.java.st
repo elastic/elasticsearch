@@ -206,6 +206,7 @@ $if(long||double)$
 
 $else$
         private final LongHashTable hashes;
+
 $endif$
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;

@@ -472,6 +472,38 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
+
+                @Override
+                public float score() throws IOException {
+                    return scorer.score();
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return iterator;
+                }
+            };
+        }
+
+        @Override
+        public VectorScorer rescorer(byte[] target) throws IOException {
+            VectorScorer scorer = in.rescorer(target);
+            if (scorer == null) {
+                return null;
+            }
+            DocIdSetIterator scorerIterator = scorer.iterator();
+            return new VectorScorer() {
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
+
+                @Override
                 public float score() throws IOException {
                     return scorer.score();
                 }
@@ -528,6 +560,38 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
                 private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
+
+                @Override
+                public float score() throws IOException {
+                    return scorer.score();
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return iterator;
+                }
+            };
+        }
+
+        @Override
+        public VectorScorer rescorer(float[] target) throws IOException {
+            VectorScorer scorer = in.rescorer(target);
+            if (scorer == null) {
+                return null;
+            }
+            DocIdSetIterator scorerIterator = scorer.iterator();
+            return new VectorScorer() {
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
 
                 @Override
                 public float score() throws IOException {

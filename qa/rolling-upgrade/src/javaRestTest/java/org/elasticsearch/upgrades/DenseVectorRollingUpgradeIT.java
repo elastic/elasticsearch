@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -165,32 +166,14 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
                         if (dims.isEmpty()) {
                             continue;
                         }
-                        Request createIndex = new Request("PUT", "/" + indexName(i, elementType, directIO));
-
-                        XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
-                        if (useSyntheticSource) {
-                            payload.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
-                        }
-                        payload.startObject("mappings");
-                        payload.startObject("properties")
-                            .startObject("embedding")
-                            .field("type", "dense_vector")
-                            .field("element_type", elementType)
-                            .field("index", i.index())
-                            .field("dims", elementType == ElementType.BIT ? dims.getAsInt() * 8 : dims.getAsInt());
-                        if (i.index()) {
-                            payload.field("similarity", "l2_norm");
-                        }
-                        if (i.type() != null) {
-                            payload.startObject("index_options").field("type", i.type());
-                            if (directIO) {
-                                payload.field("on_disk_rescore", true);
-                            }
-                            payload.endObject();
-                        }
-                        payload.endObject().endObject().endObject().endObject();
-                        createIndex.setJsonEntity(Strings.toString(payload));
-                        client().performRequest(createIndex);
+                        createDenseVectorIndex(
+                            indexName(i, elementType, directIO),
+                            i,
+                            elementType,
+                            dims.getAsInt(),
+                            directIO,
+                            useSyntheticSource
+                        );
                     }
                 }
             }
@@ -204,13 +187,37 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
                         continue;
                     }
                     String indexName = indexName(i, elementType, directIO);
+                    // Allow reproducing a single upgraded phase in isolation.
+                    boolean indexExisted = indexExists(indexName);
+                    if (indexExisted == false) {
+                        try {
+                            assertBusy(() -> {
+                                try {
+                                    createDenseVectorIndex(indexName, i, elementType, dims.getAsInt(), directIO, false);
+                                } catch (ResponseException e) {
+                                    if (e.getResponse().getStatusLine().getStatusCode() == 400
+                                        && EntityUtils.toString(e.getResponse().getEntity(), StandardCharsets.UTF_8)
+                                            .contains("resource_already_exists_exception")) {
+                                        return;
+                                    }
+                                    throw e;
+                                }
+                            });
+                        } catch (Exception e) {
+                            if (e instanceof IOException ioException) {
+                                throw ioException;
+                            }
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    int existingCount = indexExisted ? readCount(indexName) : 0;
 
                     Request index = new Request("POST", "/" + indexName + "/_bulk/");
                     index.addParameter("refresh", "true");
                     index.setJsonEntity(generateBulkData(upgradedNodes, dims.getAsInt()));
                     assertOK(client().performRequest(index));
 
-                    int count = (upgradedNodes + 1) * 10;
+                    int count = existingCount + 10;
                     assertCount(indexName, count);
                     checkQuery(indexName, dims.getAsInt(), count);
                     if (i.index()) {
@@ -242,16 +249,53 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
         return OptionalInt.of(8);
     }
 
+    private void createDenseVectorIndex(
+        String indexName,
+        Index indexConfig,
+        ElementType elementType,
+        int dims,
+        boolean directIO,
+        boolean useSyntheticSource
+    ) throws IOException {
+        Request createIndex = new Request("PUT", "/" + indexName);
+        XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+        if (useSyntheticSource) {
+            payload.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+        }
+        payload.startObject("mappings");
+        payload.startObject("properties")
+            .startObject("embedding")
+            .field("type", "dense_vector")
+            .field("element_type", elementType)
+            .field("index", indexConfig.index())
+            .field("dims", elementType == ElementType.BIT ? dims * 8 : dims);
+        if (indexConfig.index()) {
+            payload.field("similarity", "l2_norm");
+        }
+        if (indexConfig.type() != null) {
+            payload.startObject("index_options").field("type", indexConfig.type());
+            if (directIO) {
+                payload.field("on_disk_rescore", true);
+            }
+            payload.endObject();
+        }
+        payload.endObject().endObject().endObject().endObject();
+        createIndex.setJsonEntity(Strings.toString(payload));
+        assertOK(client().performRequest(createIndex));
+    }
+
     private void assertCount(String index, int count) throws IOException {
+        assertEquals("Failed on index " + index, count, readCount(index));
+    }
+
+    private int readCount(String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         request.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(request);
-        assertEquals(
-            "Failed on index " + index,
-            "{\"hits\":{\"total\":" + count + "}}",
-            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
-        );
+        String body = EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8);
+        int marker = body.lastIndexOf(':');
+        return Integer.parseInt(body.substring(marker + 1).replaceAll("[^0-9]", ""));
     }
 
     private void checkQuery(String index, int dims, int expected) throws IOException {

@@ -268,12 +268,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
+
         final ESAcceptDocs esAcceptDocs;
         if (acceptDocs instanceof ESAcceptDocs) {
             esAcceptDocs = (ESAcceptDocs) acceptDocs;
         } else {
             esAcceptDocs = null;
         }
+
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?

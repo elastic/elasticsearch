@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -756,7 +756,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         if (IndexSettings.SYNTHETIC_ID.get(indexSettings.getSettings())) {
             iwc.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
                 )
             );
         }

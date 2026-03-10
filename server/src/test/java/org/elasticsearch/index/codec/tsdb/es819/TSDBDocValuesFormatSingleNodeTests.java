@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
@@ -106,8 +106,8 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         var shard = indexService.getShard(0);
         var codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
         Function<String, DocValuesFormat> docValuesFormatProvider;
-        if (codec instanceof Elasticsearch92Lucene103Codec es92103codec) {
-            docValuesFormatProvider = es92103codec::getDocValuesFormatForField;
+        if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
+            docValuesFormatProvider = es93104codec::getDocValuesFormatForField;
         } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
                 docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;

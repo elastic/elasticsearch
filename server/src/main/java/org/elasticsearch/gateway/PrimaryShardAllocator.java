@@ -367,38 +367,6 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     private record NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {}
 
-    record NodesToAllocate(
-        List<DecidedNode> yesNodeShards,
-        List<DecidedNode> throttleNodeShards,
-        List<DecidedNode> notPreferredNodeShards,
-        List<DecidedNode> noNodeShards
-    ) implements Iterable<DecidedNode> {
-
-        /**
-         * Iterate over all decided nodes in order: YES, THROTTLE, NOT_PREFERRED, NO.
-         */
-        @Override
-        public Iterator<DecidedNode> iterator() {
-            return Iterators.concat(
-                yesNodeShards.iterator(),
-                throttleNodeShards.iterator(),
-                notPreferredNodeShards.iterator(),
-                noNodeShards.iterator()
-            );
-        }
-    }
-
-    /**
-     * Result of choosing a node from allocation candidates, possibly after trying force allocation.
-     * The decision type is one of YES, NOT_PREFERRED, THROTTLE, or NO.
-     */
-    private record AllocationChoice(DiscoveryNode node, String allocationId, Decision.Type decisionType, NodesToAllocate nodesToAllocate) {
-        AllocationChoice {
-            assert (node != null) == (decisionType == Decision.Type.YES || decisionType == Decision.Type.NOT_PREFERRED)
-                : "node must be non-null iff decisionType is YES or NOT_PREFERRED";
-        }
-    }
-
     /**
      * Chooses a node (or throttle/deny) from allocation candidates. If the only decisions are NO and
      * force allocation has not been tried yet, recurses with {@code forceAllocate == true}.
@@ -471,6 +439,38 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
         return new AllocationChoice(null, null, Decision.Type.NO, nodesToAllocate);
+    }
+
+    /**
+     * Result of choosing a node from allocation candidates, possibly after trying force allocation.
+     * The decision type is one of YES, NOT_PREFERRED, THROTTLE, or NO.
+     */
+    private record AllocationChoice(DiscoveryNode node, String allocationId, Decision.Type decisionType, NodesToAllocate nodesToAllocate) {
+        AllocationChoice {
+            assert (node != null) == (decisionType == Decision.Type.YES || decisionType == Decision.Type.NOT_PREFERRED)
+                : "node must be non-null iff decisionType is YES or NOT_PREFERRED";
+        }
+    }
+
+    record NodesToAllocate(
+        List<DecidedNode> yesNodeShards,
+        List<DecidedNode> throttleNodeShards,
+        List<DecidedNode> notPreferredNodeShards,
+        List<DecidedNode> noNodeShards
+    ) implements Iterable<DecidedNode> {
+
+        /**
+         * Iterate over all decided nodes in order: YES, THROTTLE, NOT_PREFERRED, NO.
+         */
+        @Override
+        public Iterator<DecidedNode> iterator() {
+            return Iterators.concat(
+                yesNodeShards.iterator(),
+                throttleNodeShards.iterator(),
+                notPreferredNodeShards.iterator(),
+                noNodeShards.iterator()
+            );
+        }
     }
 
     /**

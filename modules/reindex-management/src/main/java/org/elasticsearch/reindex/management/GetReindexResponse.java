@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,11 +24,9 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Objects.requireNonNull;
-
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
-    private final TaskResult task;
+    private final RelocatableReindexResult result;
 
     /**
      * Matches a reindex description and captures only the safe fields we want to expose:
@@ -41,59 +38,67 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?) .+\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
     );
 
-    public GetReindexResponse(TaskResult task) {
-        this.task = requireNonNull(task, "task is required");
+    public GetReindexResponse(final RelocatableReindexResult result) {
+        this.result = Objects.requireNonNull(result, "result is required");
     }
 
     public GetReindexResponse(StreamInput in) throws IOException {
-        task = in.readOptionalWriteable(TaskResult::new);
+        this(new RelocatableReindexResult(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(task);
+        result.writeTo(out);
     }
 
-    public TaskResult getTaskResult() {
-        return task;
+    public TaskResult getOriginalTask() {
+        return result.original();
+    }
+
+    public Optional<TaskResult> getRelocatedTask() {
+        return result.relocatedTask();
     }
 
     /**
-     * Only selected fields are exposed, to hide task related implementation details
+     * Only selected fields are exposed, to hide task related implementation details.
+     * If relocation occurs, ID and timing fields reflect the original task
+     * while the completion state comes from the relocated task.
      */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        TaskInfo taskInfo = task.getTask();
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field("completed", task.isCompleted());
-        taskInfoToXContent(builder, params, taskInfo);
-        if (task.getError() != null) {
-            XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
+        builder.field("completed", result.isCompleted());
+        resultToXContent(builder, params, result);
+        if (result.error() != null) {
+            XContentHelper.writeRawField("error", result.error(), builder.contentType(), builder, params);
         }
-        if (task.getResponse() != null) {
-            XContentHelper.writeRawField("response", task.getResponse(), builder.contentType(), builder, params);
+        if (result.response() != null) {
+            XContentHelper.writeRawField("response", result.response(), builder.contentType(), builder, params);
         }
         builder.endObject();
         return builder;
     }
 
-    // reindex specific TaskInfo serialization
-    static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
-        builder.field("id", taskInfo.node() + ":" + taskInfo.id());
-        Optional<String> description = sanitizeDescription(taskInfo.description());
+    /**
+     * Renders reindex-specific task info fields.
+     * Always provides the user-facing id, start time, and running time of a reindex task regardless of relocations.
+     */
+    static XContentBuilder resultToXContent(final XContentBuilder builder, final Params params, final RelocatableReindexResult result)
+        throws IOException {
+        builder.field("id", result.originalTaskId().toString());
+        Optional<String> description = sanitizeDescription(result.description());
         if (description.isPresent()) {
             builder.field("description", description.get());
         }
-        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", result.startTimeMillis());
         if (builder.humanReadable()) {
-            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
+            builder.field("running_time", TimeValue.timeValueNanos(result.runningTimeNanos()).toString());
         }
-        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
-        builder.field("cancelled", taskInfo.cancelled());
-        if (taskInfo.status() != null) {
-            builder.field("status", taskInfo.status(), params);
+        builder.field("running_time_in_nanos", result.runningTimeNanos());
+        builder.field("cancelled", result.isCancelled());
+        if (result.status() != null) {
+            builder.field("status", result.status(), params);
         }
-
         return builder;
     }
 
@@ -121,15 +126,20 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     }
 
     @Override
+    public String toString() {
+        return "GetReindexResponse{result=" + result + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetReindexResponse that = (GetReindexResponse) o;
-        return Objects.equals(task, that.task);
+        return Objects.equals(result, that.result);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(task);
+        return Objects.hash(result);
     }
 }

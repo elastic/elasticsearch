@@ -51,8 +51,6 @@ public class IcebergSpecIT extends IcebergSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/iceberg-*.csv-spec");
-        assertTrue("No iceberg-*.csv-spec files found", urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, specParser());
+        return readExternalSpecTests("/iceberg-basic.csv-spec");
     }
 }

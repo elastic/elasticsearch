@@ -495,6 +495,47 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadTimestampColumnWithNulls() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("event_time", TypeDescription.createTimestampInstant());
+
+        long epochMillis = Instant.parse("2024-01-15T10:30:00Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            TimestampColumnVector tsCol = (TimestampColumnVector) batch.cols[1];
+
+            idCol.vector[0] = 1L;
+            tsCol.time[0] = epochMillis;
+            tsCol.nanos[0] = 0;
+
+            idCol.vector[1] = 2L;
+            tsCol.noNulls = false;
+            tsCol.isNull[1] = true;
+
+            idCol.vector[2] = 3L;
+            tsCol.time[2] = epochMillis + 7200_000;
+            tsCol.nanos[2] = 0;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+
+            LongBlock tsBlock = (LongBlock) page.getBlock(1);
+            assertEquals(epochMillis, tsBlock.getLong(0));
+            assertTrue(tsBlock.isNull(1));
+            assertEquals(epochMillis + 7200_000, tsBlock.getLong(2));
+        }
+    }
+
     public void testReadDateColumn() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

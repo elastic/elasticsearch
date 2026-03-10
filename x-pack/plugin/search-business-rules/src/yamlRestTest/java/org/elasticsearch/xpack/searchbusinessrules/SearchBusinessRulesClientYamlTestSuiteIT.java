@@ -18,6 +18,7 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
+        .module("codecs-common")
         .module("search-business-rules")
         .module("mapper-extras")
         .module("lang-painless")

@@ -30,6 +30,7 @@ public class StreamsYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("codecs-common")
         .module("streams")
         .module("ingest-common")
         .module("reindex")

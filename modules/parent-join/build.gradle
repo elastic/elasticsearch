@@ -22,5 +22,6 @@ restResources {
 }
 
 dependencies {
+  internalClusterTestImplementation project(':modules:codecs-common')
   clusterModules project(':modules:codecs-common')
 }

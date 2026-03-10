@@ -45,6 +45,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
     public static final URLFixture urlFixture = new URLFixture();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("codecs-common")
         .module("repository-url")
         .setting("path.repo", urlFixture::getRepositoryDir)
         .setting("repositories.url.allowed_urls", () -> "http://snapshot.test*, " + urlFixture.getAddress() + "," + urlFixture.getFtpUrl())

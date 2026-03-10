@@ -2,6 +2,5 @@ area: ES|QL
 issues:
  - 143859
 pr: 143893
-summary: Evaluate `ReferenceAttributes` to potentially `FieldAttributes` for full-text
-  functions restriction
+summary: Identify correctly a renamed attribute in full text functions as a field attribute
 type: bug

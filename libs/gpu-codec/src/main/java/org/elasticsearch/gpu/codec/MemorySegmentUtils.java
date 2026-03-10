@@ -11,11 +11,13 @@ package org.elasticsearch.gpu.codec;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -48,14 +50,33 @@ class MemorySegmentUtils {
     private MemorySegmentUtils() {}
 
     /**
+     * Unwraps a {@link Directory} through any {@link FilterDirectory} layers to find the underlying {@link FSDirectory}.
+     * Elasticsearch wraps directories (e.g. {@code Store$StoreDirectory} extends {@code FilterDirectory}), so a direct
+     * cast to {@link FSDirectory} will fail at runtime.
+     *
+     * @throws IllegalArgumentException if the unwrapped directory is not an {@link FSDirectory}
+     */
+    static FSDirectory unwrapFSDirectory(Directory dir) {
+        Directory unwrapped = FilterDirectory.unwrap(dir);
+        if (unwrapped instanceof FSDirectory fsDir) {
+            return fsDir;
+        }
+        throw new IllegalArgumentException(
+            "expected an FSDirectory but got [" + unwrapped.getClass().getName() + "] after unwrapping [" + dir.getClass().getName() + "]"
+        );
+    }
+
+    /**
      * Creates a file-backed MemorySegment, mapping the first {@param dataSize} bytes from {@param dataFile}, using the
      * Java {@link FileChannel} API.
      */
     static MemorySegmentHolder createFileBackedMemorySegment(Path dataFile, long dataSize) throws IOException {
+        // Unwrap test-only filesystem layers so we get a real FileChannelImpl that supports Arena-based map.
+        Path unwrappedPath = Unwrappable.unwrapAll(dataFile);
         Arena arena = null;
         try {
             arena = Arena.ofConfined();
-            try (FileChannel fc = FileChannel.open(dataFile, Set.of(READ))) {
+            try (FileChannel fc = FileChannel.open(unwrappedPath, Set.of(READ))) {
                 MemorySegment mapped = fc.map(FileChannel.MapMode.READ_ONLY, 0L, dataSize, arena);
                 return new FileBackedMemorySegmentHolder(mapped, arena, dataFile);
             }
@@ -86,17 +107,14 @@ class MemorySegmentUtils {
             return new DirectMemorySegmentHolder(inputSlice);
         }
 
-        // The only implementation of MemorySegmentAccessInput is MemorySegmentIndexInput, which is currently used only by
-        // MMapDirectory. Other implementations are unlikely but theoretically possible, so better assert so we have the
-        // opportunity to catch this in CI, if that ever happens.
-        assert dir instanceof FSDirectory;
+        FSDirectory fsDir = unwrapFSDirectory(dir);
 
         log.info(
-            "Unable to get a contiguous memory segment for [{}, size{}]. Falling back to manual mapping a temp copy.",
+            "Unable to get a contiguous memory segment for [{}, size [{}]]. Falling back to manual mapping a temp copy.",
             baseName,
             input.length()
         );
-        Path tempVectorsFilePath = copyInputToTempFile((IndexInput) input, (FSDirectory) dir, baseName);
+        Path tempVectorsFilePath = copyInputToTempFile((IndexInput) input, fsDir, baseName);
         return createFileBackedMemorySegment(tempVectorsFilePath, input.length());
     }
 
@@ -137,21 +155,14 @@ class MemorySegmentUtils {
             }
         }
 
-        assert dir instanceof FSDirectory;
+        FSDirectory fsDir = unwrapFSDirectory(dir);
 
         log.info(
-            "Unable to get a contiguous memory segment for [{}, size{}]. Falling back creating a packed temp copy.",
+            "Unable to get a contiguous memory segment for [{}, size [{}]]. Falling back creating a packed temp copy.",
             baseName,
             input.length()
         );
-        var tempVectorsFile = copyInputToTempFilePacked(
-            (IndexInput) input,
-            (FSDirectory) dir,
-            baseName,
-            numVectors,
-            sourceRowPitch,
-            packedRowSize
-        );
+        var tempVectorsFile = copyInputToTempFilePacked((IndexInput) input, fsDir, baseName, numVectors, sourceRowPitch, packedRowSize);
         return createFileBackedMemorySegment(tempVectorsFile, packedVectorsDataSize);
     }
 

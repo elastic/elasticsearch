@@ -1412,6 +1412,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
               }
             }
             """, null, DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
+        // Remove try-catch after https://github.com/elastic/elasticsearch/issues/143884
         try {
             ESRestTestCase.createIndex("metrics-long", settings, """
                 "properties": {
@@ -1427,8 +1428,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 }
                 """);
         } catch (WarningFailureException warningException) {
-            Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
-            logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
+            List<String> warnings = warningException.getResponse().getWarnings();
+            if (warnings.stream()
+                .anyMatch(warning -> warning.equals("Parameter [default_metric] is deprecated and will be removed in a future version"))) {
+                Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
+                logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
+            }
             throw warningException;
         }
         ESRestTestCase.createIndex("metrics-long_dimension", settings, """

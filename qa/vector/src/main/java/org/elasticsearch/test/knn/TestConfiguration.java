@@ -311,6 +311,7 @@ record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
 
         /**
@@ -400,6 +401,11 @@ record TestConfiguration(
 
         public Builder setHnswEfConstruction(int hnswEfConstruction) {
             this.hnswEfConstruction = hnswEfConstruction;
+            return this;
+        }
+
+        public Builder setFlatIndexThreshold(int flatIndexThreshold) {
+            this.flatIndexThreshold = flatIndexThreshold;
             return this;
         }
 

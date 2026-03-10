@@ -327,11 +327,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#9]]
+     * \_Eval[[emp_does_not_exist_field{f}#23 + 2[INTEGER] AS y#9]]
      *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
-     *     \_Project[[emp_no{f}#11, emp_does_not_exist_field{r}#23]]
-     *       \_Eval[[null[NULL] AS emp_does_not_exist_field#23]]
-     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[emp_no{f}#11, emp_does_not_exist_field{f}#23]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testEvalAfterMatchingKeepWithFieldWildcard() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -356,20 +355,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(evalX.fields().get(0).name(), is("x"));
 
         // The child is Project with emp_no and emp_does_not_exist_field
-        var esqlProject = as(evalX.child(), Project.class);
-        assertThat(Expressions.names(esqlProject.output()), is(List.of("emp_no", "emp_does_not_exist_field")));
-
-        // The child is Eval introducing emp_does_not_exist_field as null
-        var evalNull = as(esqlProject.child(), Eval.class);
-        assertThat(evalNull.fields(), hasSize(1));
-        var alias = as(evalNull.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("emp_does_not_exist_field"));
-        var lit = as(alias.child(), Literal.class);
-        assertThat(lit.dataType(), is(DataType.NULL));
+        var project = as(evalX.child(), Project.class);
+        assertThat(Expressions.names(project.output()), is(List.of("emp_no", "emp_does_not_exist_field")));
 
         // The child is EsRelation
-        var relation = as(evalNull.child(), EsRelation.class);
+        var relation = as(project.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
+        var dneAttr = relation.output().stream().filter(a -> a.name().equals("emp_does_not_exist_field")).findFirst().orElseThrow();
+        assertThat(dneAttr.dataType(), is(DataType.NULL));
     }
 
     /*
@@ -1023,11 +1016,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[does_not_exist{r}#14 AS language_code#6, language_name{f}#13],
-     *      [COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#9, language_code{r}#6, language_name{f}#13]]
+     * \_Aggregate[[does_not_exist{f}#14 AS language_code#6, language_name{f}#13],[COUNT(*[KEYWORD],true[BOOLEAN],
+     *              PT0S[TIME_DURATION]) AS c#9, language_code{r}#6, language_name{f}#13]]
      *   \_Filter[language_code{f}#12 == 1[INTEGER]]
-     *     \_Eval[[null[NULL] AS does_not_exist#14]]
-     *       \_EsRelation[languages][language_code{f}#12, language_name{f}#13]
+     *     \_EsRelation[languages][language_code{f}#12, language_name{f}#13, does_not_..]
      */
     public void testStatsAggAndAliasedShadowingGroup() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -1056,24 +1048,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(agg_language_code.id(), is(group_language_code.id()));
 
         var filter = as(agg.child(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias0 = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias0.name(), is("does_not_exist"));
-        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
 
-        var relation = as(eval.child(), EsRelation.class);
+        var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("languages"));
+        var dneAttr = relation.output().stream().filter(a -> a.name().equals("does_not_exist")).findFirst().orElseThrow();
+        assertThat(dneAttr.dataType(), is(DataType.NULL));
     }
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[TOINTEGER(does_not_exist1{r}#18) + TOINTEGER(does_not_exist2{r}#19) + language_code{f}#15 AS language_code#8,
-     *      language_name{f}#16],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) + language_code{r}#8 AS c#12, language_code{r}#8,
-     *      language_name{f}#16]]
+     * \_Aggregate[[TOINTEGER(does_not_exist1{f}#18) + TOINTEGER(does_not_exist2{f}#19) + language_code{f}#15 AS language_code#8,
+     *              language_name{f}#16],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) + language_code{r}#8 AS c#12,
+     *              language_code{r}#8, language_name{f}#16]]
      *   \_Filter[language_code{f}#15 == 1[INTEGER]]
-     *     \_Eval[[null[NULL] AS does_not_exist1#18, null[NULL] AS does_not_exist2#19]]
-     *       \_EsRelation[languages][language_code{f}#15, language_name{f}#16]
+     *     \_EsRelation[languages][language_code{f}#15, language_name{f}#16, does_not_..]
      */
     public void testStatsAggAndAliasedShadowingGroupOverExpression() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -1101,17 +1089,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), is("COUNT(*) + language_code"));
 
         var filter = as(agg.child(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-        var alias0 = as(eval.fields().get(0), Alias.class);
-        assertThat(alias0.name(), is("does_not_exist1"));
-        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias1 = as(eval.fields().get(1), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist2"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
 
-        var relation = as(eval.child(), EsRelation.class);
+        var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("languages"));
+        var dneAttrs = relation.output().stream().filter(a -> a.name().startsWith("does_not_exist")).toList();
+        assertThat(dneAttrs, hasSize(2));
+        dneAttrs.forEach(a -> assertThat(a.dataType(), is(DataType.NULL)));
     }
 
     /*
@@ -1744,6 +1727,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /*
+     *
      * Project[[_meta_field{r}#54, emp_no{r}#55, first_name{r}#56, gender{r}#57, hire_date{r}#58, job{r}#59, job.raw{r}#60,
      *      languages{r}#61, last_name{r}#62, long_noidx{r}#63, salary{r}#64, language_code{r}#65, language_name{r}#66,
      *      does_not_exist1{r}#67, does_not_exist2{r}#68]]
@@ -1754,21 +1738,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *          does_not_exist1{r}#67, does_not_exist2{r}#68, $$does_not_exist2$converted_to$long{r$}#71]]
      *       |_Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
      *              languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, language_code{r}#22, language_name{r}#23,
-     *              does_not_exist1{r}#24, does_not_exist2{r}#50, $$does_not_exist2$converted_to$long{r$}#69]]
-     *       | \_Eval[[TOLONG(does_not_exist2{r}#50) AS $$does_not_exist2$converted_to$long#69]]
-     *       |   \_Eval[[null[INTEGER] AS language_code#22, null[KEYWORD] AS language_name#23]]
-     *       |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge.., does_not_exist1{f}#24, does_not_exist2{f}#50]
+     *              does_not_exist1{r}#24, does_not_exist2{f}#50, $$does_not_exist2$converted_to$long{r$}#69]]
+     *       | \_Eval[[TOLONG(does_not_exist2{f}#50) AS $$does_not_exist2$converted_to$long#69]]
+     *       |   \_Eval[[null[INTEGER] AS language_code#22, null[KEYWORD] AS language_name#23, null[NULL] AS does_not_exist1#24]]
+     *       |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *       \_Project[[_meta_field{r}#25, emp_no{r}#26, first_name{r}#27, gender{r}#28, hire_date{r}#29, job{r}#30, job.raw{r}#31,
      *              languages{r}#32, last_name{r}#33, long_noidx{r}#34, salary{r}#35, language_code{f}#18, language_name{f}#19,
-     *              does_not_exist1{r}#20, does_not_exist2{r}#51, $$does_not_exist2$converted_to$long{r$}#70]]
-     *         \_Eval[[TOLONG(does_not_exist2{r}#51) AS $$does_not_exist2$converted_to$long#70]]
+     *              does_not_exist1{f}#20, does_not_exist2{f}#51, $$does_not_exist2$converted_to$long{r$}#70]]
+     *         \_Eval[[TOLONG(does_not_exist2{f}#51) AS $$does_not_exist2$converted_to$long#70]]
      *           \_Eval[[null[KEYWORD] AS _meta_field#25, null[INTEGER] AS emp_no#26, null[KEYWORD] AS first_name#27,
      *                  null[TEXT] AS gender#28, null[DATETIME] AS hire_date#29, null[TEXT] AS job#30, null[KEYWORD] AS job.raw#31,
      *                  null[INTEGER] AS languages#32, null[KEYWORD] AS last_name#33, null[LONG] AS long_noidx#34,
      *                  null[INTEGER] AS salary#35]]
      *             \_Subquery[]
-     *               \_Filter[TOLONG(does_not_exist1{r}#20) > 1[INTEGER]]
-     *                 \_EsRelation[languages][language_code{f}#18, language_name{f}#19, does_not_exist1{f}#20, does_not_exist2{f}#51]
+     *               \_Filter[TOLONG(does_not_exist1{f}#20) > 1[INTEGER]]
+     *                 \_EsRelation[languages][language_code{f}#18, language_name{f}#19, does_not_..]
      */
     public void testSubqueryAndMainQuery() {
         assumeTrue(
@@ -1831,7 +1815,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         // Left branch: EsRelation[test] with Project + Eval nulls
         var leftProject = as(union.children().get(0), Project.class);
-        var leftProject_does_not_exist2 = as(leftProject.output().get(14), ReferenceAttribute.class);
+        var leftProject_does_not_exist2 = as(leftProject.output().get(14), FieldAttribute.class);
         assertThat(leftProject_does_not_exist2.name(), is("does_not_exist2"));
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
@@ -1845,10 +1829,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var leftRel = as(leftEvalEval.child(), EsRelation.class);
         assertThat(leftRel.indexPattern(), is("test"));
+        // Left relation has only does_not_exist2; does_not_exist1 is added via Eval when aligning branches.
+        var leftDoesNotExistFields = leftRel.output().stream().filter(f -> f.name().startsWith("does_not_exist")).toList();
+        assertThat(leftDoesNotExistFields, hasSize(1));
+        assertThat(leftDoesNotExistFields.get(0).name(), is("does_not_exist2"));
+
 
         // Right branch: Project + Eval many nulls, Subquery -> Filter -> EsRelation[languages]
         var rightProject = as(union.children().get(1), Project.class);
-        var rightProject_does_not_exist2 = as(rightProject.output().get(14), ReferenceAttribute.class);
+        var rightProject_does_not_exist2 = as(rightProject.output().get(14), FieldAttribute.class);
         assertThat(rightProject_does_not_exist2.name(), is("does_not_exist2"));
         assertThat(rightProject_does_not_exist2.id(), not(leftProject_does_not_exist2.id())); // different IDs between branches
         var rightEval = as(rightProject.child(), Eval.class);
@@ -1881,6 +1870,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var rightRel = as(rightSubFilter.child(), EsRelation.class);
         assertThat(rightRel.indexPattern(), is("languages"));
+        // Right relation has both does_not_exist1 and does_not_exist1
+        var rightDoesNotExistFields = rightRel.output().stream().filter(f -> f.name().startsWith("does_not_exist")).toList();
+        assertThat(rightDoesNotExistFields, hasSize(2));
+        assertThat(rightDoesNotExistFields.get(0).name(), is("does_not_exist1"));
+        assertThat(rightDoesNotExistFields.get(1).name(), is("does_not_exist2"));
     }
 
     /*

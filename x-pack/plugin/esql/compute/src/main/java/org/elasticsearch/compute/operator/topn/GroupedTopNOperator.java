@@ -17,9 +17,10 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PositionKeyEncoder;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -28,7 +29,7 @@ import java.util.List;
 
 /**
  * A top-N operator for grouped (SORT + LIMIT BY) queries. Maintains per-group priority queues
- * using a {@link PositionKeyEncoder} to map group key columns to integer group IDs.
+ * using a {@link GroupKeyEncoder} to map group key columns to integer group IDs.
  * <p>
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  * <p>
@@ -65,6 +66,9 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public GroupedTopNOperator get(DriverContext driverContext) {
+            var scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "group-key-encoder");
+            int[] groupKeysArray = groupKeys.stream().mapToInt(Integer::intValue).toArray();
+            var keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, scratch);
             return new GroupedTopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
@@ -72,7 +76,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                groupKeys.stream().mapToInt(Integer::intValue).toArray(),
+                groupKeysArray,
+                keyEncoder,
                 maxPageSize,
                 jumboPageBytes
             );
@@ -104,7 +109,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<TopNOperator.SortOrder> sortOrders;
     private final int[] groupKeys;
     private final boolean[] channelInKey;
-    private final PositionKeyEncoder keyEncoder;
+    private final GroupKeyEncoder keyEncoder;
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
@@ -127,6 +132,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders,
         int[] groupKeys,
+        GroupKeyEncoder keyEncoder,
         int maxPageSize,
         long jumboPageBytes
     ) {
@@ -139,10 +145,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(keysHash, inputQueue);
+                Releasables.close(keyEncoder, keysHash, inputQueue);
             }
         }
-        this.keyEncoder = new PositionKeyEncoder(groupKeys, elementTypes);
+        this.keyEncoder = keyEncoder;
         this.keysHash = keysHash;
         this.inputQueue = inputQueue;
         this.blockFactory = blockFactory;
@@ -242,7 +248,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash);
+        Releasables.closeExpectNoException(spare, inputQueue, output, keysHash, keyEncoder);
         inputQueue = null;
         output = null;
     }

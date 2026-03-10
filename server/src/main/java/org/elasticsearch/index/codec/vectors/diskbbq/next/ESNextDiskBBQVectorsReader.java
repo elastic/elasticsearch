@@ -61,6 +61,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         super(state, getFormatReader);
     }
 
+    @Override
+    protected int getMinMetaVersion() {
+        return ESNextDiskBBQVectorsFormat.VERSION_START;
+    }
+
+    @Override
+    protected int getMaxMetaVersion() {
+        return ESNextDiskBBQVectorsFormat.VERSION_CURRENT;
+    }
+
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
         // so we don't bother prefetching many lists we won't end up scoring
@@ -172,6 +182,24 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     }
 
     @Override
+    public Float getMaxClusterRadius(FieldInfo fieldInfo) {
+        FieldEntry entry = fields.get(fieldInfo.number);
+        if (entry instanceof NextFieldEntry next) {
+            return next.maxClusterRadius();
+        }
+        return null;
+    }
+
+    @Override
+    public Float getMeanClusterRadius(FieldInfo fieldInfo) {
+        FieldEntry entry = fields.get(fieldInfo.number);
+        if (entry instanceof NextFieldEntry next) {
+            return next.meanClusterRadius();
+        }
+        return null;
+    }
+
+    @Override
     protected FieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
@@ -184,8 +212,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         long postingListOffset,
         long postingListLength,
         float[] globalCentroid,
-        float globalCentroidDp
+        float globalCentroidDp,
+        float[] segmentFingerprint,
+        int versionMeta
     ) throws IOException {
+        Float maxClusterRadius = null;
+        Float meanClusterRadius = null;
+        if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS) {
+            maxClusterRadius = Float.intBitsToFloat(input.readInt());
+            meanClusterRadius = Float.intBitsToFloat(input.readInt());
+        }
         int bulkSize = input.readInt();
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         long preconditionerLength = input.readLong();
@@ -208,7 +244,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             quantEncoding,
             bulkSize,
             preconditionerOffset,
-            preconditionerLength
+            preconditionerLength,
+            segmentFingerprint,
+            maxClusterRadius,
+            meanClusterRadius
         );
     }
 
@@ -235,6 +274,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
+        private final Float maxClusterRadius;
+        private final Float meanClusterRadius;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -251,7 +292,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
             int bulkSize,
             long preconditionerOffset,
-            long preconditionerLength
+            long preconditionerLength,
+            float[] segmentFingerprint,
+            Float maxClusterRadius,
+            Float meanClusterRadius
         ) {
             super(
                 rawVectorFormat,
@@ -265,11 +309,22 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 postingListLength,
                 globalCentroid,
                 globalCentroidDp,
-                bulkSize
+                bulkSize,
+                segmentFingerprint
             );
             this.quantEncoding = quantEncoding;
             this.preconditionerOffset = preconditionerOffset;
             this.preconditionerLength = preconditionerLength;
+            this.maxClusterRadius = maxClusterRadius;
+            this.meanClusterRadius = meanClusterRadius;
+        }
+
+        public Float maxClusterRadius() {
+            return maxClusterRadius;
+        }
+
+        public Float meanClusterRadius() {
+            return meanClusterRadius;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {

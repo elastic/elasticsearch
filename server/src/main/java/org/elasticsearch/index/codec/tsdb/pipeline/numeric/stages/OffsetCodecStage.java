@@ -73,7 +73,9 @@ public final class OffsetCodecStage implements NumericCodecStage {
         }
         // NOTE: skip when the minimum is small relative to the maximum. Uses unsigned
         // comparison so the heuristic works for both positive and negative ranges.
-        if (Long.compareUnsigned(Math.abs(min), Math.abs(max) >>> 2) < 0) {
+        final long absMin = min < 0 ? -min : min;
+        final long absMax = max < 0 ? -max : max;
+        if (Long.compareUnsigned(absMin, absMax >>> 2) < 0) {
             return;
         }
 

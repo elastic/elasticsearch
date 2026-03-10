@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.util.Optional;
 
@@ -75,6 +76,14 @@ public abstract class ActivityLoggerContext {
 
     public Optional<ShardInfo> shardInfo() {
         return Optional.empty();
+    }
+
+    public long getTaskId() {
+        return task.getId();
+    }
+
+    public Optional<TaskId> getParentTaskId() {
+        return task.getParentTaskId().isSet() ? Optional.of(task.getParentTaskId()) : Optional.empty();
     }
 
 }

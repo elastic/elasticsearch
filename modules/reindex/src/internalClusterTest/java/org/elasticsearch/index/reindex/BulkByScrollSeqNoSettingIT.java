@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -103,7 +104,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         boolean disableSequenceNumbers = randomBoolean();
-        createIndex("test-index", indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers).build());
+        createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
         indexDoc("test-index", "1", "field", "value");
         refresh("test-index");
 
@@ -126,7 +127,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         boolean disableSequenceNumbers = randomBoolean();
-        createIndex("test-index", indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers).build());
+        createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
         indexDoc("test-index", "1", "field", "value");
         refresh("test-index");
 
@@ -149,7 +150,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testPatternMatchingMultipleIndicesWithMixedSettingsRejects() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        createIndex("test-index-1", indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build());
+        createIndex("test-index-1", disableSeqNoSettings(true));
         createIndex("test-index-2", indexSettings(1, 0).build());
         indexDoc("test-index-1", "1", "field", "value");
         indexDoc("test-index-2", "1", "field", "value");
@@ -167,9 +168,9 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         boolean disableSequenceNumbers = randomBoolean();
-        Settings seqNoDisabled = indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers).build();
-        createIndex("test-index-1", seqNoDisabled);
-        createIndex("test-index-2", seqNoDisabled);
+        Settings seqNoSettings = disableSeqNoSettings(disableSequenceNumbers);
+        createIndex("test-index-1", seqNoSettings);
+        createIndex("test-index-2", seqNoSettings);
         indexDoc("test-index-1", "1", "field", "value");
         indexDoc("test-index-2", "1", "field", "value");
         refresh("test-index-*");
@@ -193,8 +194,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         String dsName = "my-data-stream";
-        Settings dsSettings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
-        createDataStreamWithTemplate(dsName, dsSettings);
+        createDataStreamWithTemplate(dsName, disableSeqNoTemplateSettings(true));
 
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
@@ -225,7 +225,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
 
-        updateDataStreamTemplate(dsName, Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build());
+        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
         rolloverDataStream(dsName);
         int numDocs2 = between(1, 5);
         indexDocs(dsName, numDocs2);
@@ -256,12 +256,12 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
 
-        updateDataStreamTemplate(dsName, Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build());
+        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
         rolloverDataStream(dsName);
         int numDocs2 = between(1, 5);
         indexDocs(dsName, numDocs2);
 
-        createIndex("test-regular", indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build());
+        createIndex("test-regular", disableSeqNoSettings(true));
         indexDoc("test-regular", "1", "field", "value");
         refresh("test-*");
 
@@ -288,7 +288,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         createDataStreamWithTemplate(dsName, Settings.EMPTY);
         indexDocs(dsName, between(1, 5));
 
-        updateDataStreamTemplate(dsName, Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build());
+        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
         rolloverDataStream(dsName);
         indexDocs(dsName, between(1, 5));
 
@@ -401,5 +401,21 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     private void rolloverDataStream(String dsName) {
         AcknowledgedResponse response = client().admin().indices().prepareRolloverIndex(dsName).get();
         assertTrue(response.isAcknowledged());
+    }
+
+    private Settings disableSeqNoSettings(boolean disableSequenceNumbers) {
+        Settings.Builder builder = indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers);
+        if (disableSequenceNumbers) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
+        }
+        return builder.build();
+    }
+
+    private static Settings disableSeqNoTemplateSettings(boolean disableSequenceNumbers) {
+        Settings.Builder builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers);
+        if (disableSequenceNumbers) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
+        }
+        return builder.build();
     }
 }

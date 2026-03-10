@@ -56,14 +56,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BlockFactory blockFactory = BlockFactory.builder(
-        new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker))
-    ).build();
+    final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    final BlockFactory blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+        .build();
 
     @Before
     @After
@@ -1452,13 +1450,6 @@ public class BasicBlockTests extends ESTestCase {
         return randomFrom(Block.MvOrdering.values());
     }
 
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
-    }
-
     public void testRefCountingArrayBlock() {
         Block block = randomArrayBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
@@ -1863,8 +1854,8 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public static Block assertDeepCopy(Block block) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-into", ByteSizeValue.ofGb(1));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
         BlockFactory into = BlockFactory.builder(bigArrays).build();
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));

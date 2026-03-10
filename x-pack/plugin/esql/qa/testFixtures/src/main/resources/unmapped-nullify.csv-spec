@@ -617,6 +617,12 @@ FROM books
 | LIMIT 3
 ;
 
+book_no:keyword | author:text                                        | does_not_exist_field:null | x:integer
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
+2713            | William Faulkner                                   | null                      | null
+2847            | Colleen Faulkner                                   | null                      | null
+;
+
 tsImplicitTimestampSortBasicWithMissing
 required_capability: ts_command_v0
 required_capability: ts_implicit_timestamp_sort

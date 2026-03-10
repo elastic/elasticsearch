@@ -351,3 +351,38 @@ setup:
   - match: { hits.hits.1._source.metricset: pod }
   # Metrics
   - match: { hits.hits.1._source.k8s.pod.multi-counter: 0 }
+
+  # Assert downsample index settings
+  - do:
+      indices.get_settings:
+        index: test-downsample
+
+  - match: { test-downsample.settings.index.mode: time_series }
+  - match: { test-downsample.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { test-downsample.settings.index.downsample.source.name: test }
+  - match: { test-downsample.settings.index.number_of_shards: "1" }
+  - match: { test-downsample.settings.index.number_of_replicas: "0" }
+
+  # Assert downsample index mapping
+  - do:
+      indices.get_mapping:
+        index: test-downsample
+
+  - match: { test-downsample.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+
+
+  # Assert source index has not been deleted
+  - do:
+      indices.get:
+        index: test

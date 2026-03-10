@@ -668,7 +668,7 @@ class DownsampleShardIndexer {
         private CounterResetDataPoints counterResetDataPoints;
         // A list of all the downsamplers so we can reset them before moving on to the next bucket
         private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
-        // An array of the fields serializers, the serializers can correspond to one or more AbstractFieldDownsampler
+        // An array of field serializers, each field has one serializer which can group one or more AbstractFieldDownsamplers
         private final DownsampleFieldSerializer[] fieldSerializers;
         // We track the dimensions and aggregate counter downsamplers separately to serialise the extra counter reset documents
         private final DimensionFieldDownsampler[] dimensionDownsamplers;

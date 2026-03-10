@@ -53,6 +53,7 @@ dependencies {
   clusterModules project(xpackModule('mapper-version'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(':modules:rest-root')
+  clusterModules project(':modules:codecs-common')
 }
 
 // Configure a task for each compatible JDBC driver version.

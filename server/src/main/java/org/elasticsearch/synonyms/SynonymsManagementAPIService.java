@@ -42,6 +42,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -102,8 +104,16 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
-    private static final int MAX_SYNONYM_TOKENS = 100_000;
+    private static final int DEFAULT_MAX_SYNONYM_TOKENS = 100_000;
     private static final int MAX_SCROLL_SYNONYM_RULES = 100_000;
+
+    public static final Setting<Integer> MAX_SYNONYMS_SET_TOKENS_SETTING = Setting.intSetting(
+        "synonyms.set.max_token_count",
+        DEFAULT_MAX_SYNONYM_TOKENS,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
     private static final int SCROLL_BATCH_SIZE = 10_000;
     // Stored on each synonym rule document; the synonym string split on '=>' and ',' and counted
@@ -116,7 +126,7 @@ public class SynonymsManagementAPIService {
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 2;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
-    private final int maxSynonymTokens;
+    private volatile int maxSynonymTokens;
     private final int maxScrollSynonymRules;
 
     // Package private for testing
@@ -136,18 +146,24 @@ public class SynonymsManagementAPIService {
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
-    public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYMS_SETS, MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
+    public SynonymsManagementAPIService(Client client, ClusterSettings clusterSettings) {
+        this(client, MAX_SYNONYMS_SETS, clusterSettings.get(MAX_SYNONYMS_SET_TOKENS_SETTING), MAX_SCROLL_SYNONYM_RULES);
+        clusterSettings.addSettingsUpdateConsumer(MAX_SYNONYMS_SET_TOKENS_SETTING, value -> this.maxSynonymTokens = value);
+    }
+
+    // Used for testing with default limits
+    SynonymsManagementAPIService(Client client) {
+        this(client, MAX_SYNONYMS_SETS, DEFAULT_MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
-        this(client, maxSynonymsSets, MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
+        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing scroll limit without needing to insert MAX_SCROLL_SYNONYM_RULES entries
     SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxScrollSynonymRules) {
-        this(client, maxSynonymsSets, MAX_SYNONYM_TOKENS, maxScrollSynonymRules);
+        this(client, maxSynonymsSets, DEFAULT_MAX_SYNONYM_TOKENS, maxScrollSynonymRules);
     }
 
     SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxSynonymTokens, int maxScrollSynonymRules) {

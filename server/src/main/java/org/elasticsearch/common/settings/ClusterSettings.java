@@ -140,6 +140,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterSettings;
@@ -477,6 +478,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
         ScriptService.TYPES_ALLOWED_SETTING,
         ScriptService.CONTEXTS_ALLOWED_SETTING,
+        SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING,
         IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE,

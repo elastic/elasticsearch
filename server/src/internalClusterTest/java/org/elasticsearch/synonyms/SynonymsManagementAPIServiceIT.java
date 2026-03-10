@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -456,5 +457,57 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         });
 
         putRuleNoRefreshLatch.await(5, TimeUnit.SECONDS);
+    }
+
+    public void testDynamicTokenLimitClusterSetting() throws Exception {
+        int lowLimit = 10;
+        updateClusterSettings(Settings.builder().put(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey(), lowLimit));
+
+        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), clusterService().getClusterSettings());
+
+        // 4 rules x 3 tokens each = 12 tokens, exceeding the limit of 10
+        SynonymRule[] rules = new SynonymRule[4];
+        for (int i = 0; i < rules.length; i++) {
+            rules[i] = new SynonymRule("rule_" + i, "a, b, c");
+        }
+
+        String synonymSetId = randomIdentifier();
+
+        CountDownLatch failLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult result) {
+                fail("Should have been rejected due to token limit");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(IllegalArgumentException.class));
+                assertThat(e.getMessage(), containsString("cannot exceed"));
+                failLatch.countDown();
+            }
+        });
+        assertTrue(failLatch.await(5, TimeUnit.SECONDS));
+
+        // Raise the limit dynamically
+        updateClusterSettings(Settings.builder().put(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey(), 100));
+
+        // Same put should now succeed
+        CountDownLatch successLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, rules, false, new ActionListener<>() {
+            @Override
+            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult result) {
+                successLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+        assertTrue(successLatch.await(5, TimeUnit.SECONDS));
+
+        // Reset to default
+        updateClusterSettings(Settings.builder().putNull(SynonymsManagementAPIService.MAX_SYNONYMS_SET_TOKENS_SETTING.getKey()));
     }
 }

@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_CODEC_NAME;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_META_EXTENSION;
@@ -64,6 +63,7 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERS
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
 import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
+import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter.mergeAndRecalculateQuantiles;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -530,7 +530,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
             @Override
             public NodesIterator getNodesOnLevel(int level) {
-                return new ArrayNodesIterator(size());
+                return new DenseNodesIterator(size());
             }
         };
     }
@@ -587,7 +587,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
                 // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
@@ -630,9 +630,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
                 try (IndexInput clonedSlice = slice.clone()) {
                     clonedSlice.seek(0);
-                    byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                    int dims = fieldInfo.getVectorDimension();
+                    byte[] vector = new byte[dims];
                     for (int i = 0; i < numVectors; ++i) {
-                        clonedSlice.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                        clonedSlice.readBytes(vector, 0, dims);
+                        clonedSlice.skipBytes(4); // skip scalar quantization correction constant
                         builder.addVector(vector);
                     }
                 }
@@ -687,7 +689,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
-            var input = FilterIndexInput.unwrapOnlyTest(slice);
+            var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Fast path, possible direct access to mmapped file
                 try (

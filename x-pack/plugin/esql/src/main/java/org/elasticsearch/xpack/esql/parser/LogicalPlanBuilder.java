@@ -599,7 +599,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<Expression> groupings;
 
             var limitByGroupKey = ctx.limitByGroupKey();
-            if (ctx.limitByGroupKey() != null) {
+            if (limitByGroupKey != null) {
                 groupings = new ArrayList<>(visitGrouping(limitByGroupKey.grouping));
                 return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input, groupings);
             }

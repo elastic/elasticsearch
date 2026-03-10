@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -336,8 +337,16 @@ public class Verifier {
 
     private static void checkLimitBy(LogicalPlan plan, Failures failures) {
         if (plan instanceof Limit limit && limit.groupings().isEmpty() == false) {
-            if (limit.child() instanceof OrderBy) {
-                failures.add(fail(limit, "SORT cannot be used before LIMIT BY"));
+            LogicalPlan child = limit.child();
+            while (child instanceof UnaryPlan unary) {
+                if (child instanceof OrderBy) {
+                    failures.add(fail(limit, "SORT cannot be used before LIMIT BY"));
+                    break;
+                }
+                if (child instanceof Limit l && l.groupings().isEmpty()) {
+                    break;
+                }
+                child = unary.child();
             }
         }
     }

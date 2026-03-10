@@ -195,8 +195,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
-| LIMIT 5 BY languages
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages
 | KEEP emp_no, first_name, languages
 ;
 
@@ -231,8 +232,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003)
-| LIMIT 0 BY languages
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 0 BY languages
 | KEEP emp_no, languages
 ;
 
@@ -244,8 +246,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10003, 10004, 10007)
-| LIMIT 5 BY languages, gender
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages, gender
 | KEEP emp_no, first_name, languages, gender
 ;
 
@@ -261,8 +264,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
-| LIMIT 5 BY languages * 2
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages * 2
 | KEEP emp_no, first_name, languages
 ;
 
@@ -279,6 +283,8 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10008)
+| SORT emp_no
+| LIMIT 1000
 | LIMIT 5 BY job_positions
 | SORT emp_no, job_positions ASC
 | KEEP emp_no, first_name, job_positions
@@ -299,7 +305,7 @@ FROM employees
 | LIMIT 5
 ;
 
-cnt:long | job_positions:keyword      | languages:integer
+cnt:long | job_positions:keyword | languages:integer
 5        | Accountant            | 2
 5        | Architect             | 4
 1        | Business Analyst      | 1
@@ -312,8 +318,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10020)
-| LIMIT 5 BY languages
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages
 | KEEP emp_no, first_name, languages
 ;
 
@@ -327,8 +334,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
-| LIMIT 2 BY 5*42
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 2 BY 5*42
 | KEEP emp_no, first_name, languages
 ;
 
@@ -342,8 +350,9 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
-| LIMIT 5 BY languages * 2, 20 - 5 * 2
 | SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages * 2, 20 - 5 * 2
 | KEEP emp_no, first_name, languages
 ;
 
@@ -360,9 +369,10 @@ required_capability: limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| SORT emp_no
+| LIMIT 1000
 | EVAL g = languages * 2
 | LIMIT 5 BY g
-| SORT emp_no
 | KEEP emp_no, first_name, languages
 ;
 

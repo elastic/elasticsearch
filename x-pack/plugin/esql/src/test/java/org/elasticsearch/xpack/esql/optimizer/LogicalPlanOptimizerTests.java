@@ -10354,6 +10354,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
         var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
     }
 
@@ -10375,9 +10376,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
         var limit1 = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit1.limit()).value(), equalTo(1));
         assertThat(limit1.groupings().size(), equalTo(1));
         assertThat(Expressions.names(limit1.groupings()), contains("first_name"));
         var limit2 = as(limit1.child(), Limit.class);
+        assertThat(((Literal) limit2.limit()).value(), equalTo(1));
         assertThat(limit2.groupings().size(), equalTo(1));
         assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
     }
@@ -10402,10 +10405,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
         var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(2));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         var limit2 = as(limit.child(), Limit.class);
+        assertThat(((Literal) limit2.limit()).value(), equalTo(2));
         assertThat(limit2.groupings(), empty());
         var limit3 = as(limit2.child(), Limit.class);
+        assertThat(((Literal) limit3.limit()).value(), equalTo(1));
         assertThat(Expressions.names(limit3.groupings()), contains("emp_no"));
     }
 
@@ -10430,6 +10436,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var defaultLimit = as(project.child(), Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
         var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));

@@ -295,7 +295,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherCommon', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -366,7 +366,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/server-cli') {
           from(configurations.libsServerCli)
-          from(configurations.libsServerLauncherCommon)
         }
         into('tools/server-launcher') {
           from(configurations.libsServerLauncher)

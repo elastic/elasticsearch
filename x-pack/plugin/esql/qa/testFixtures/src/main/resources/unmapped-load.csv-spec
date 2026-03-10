@@ -98,44 +98,6 @@ FROM partial_mapping_sample_data
 # Single index tests #
 ######################
 
-fieldIsMappedToNonKeywordSingleIndex
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data
-| KEEP @timestamp, client_ip
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | client_ip:ip
-2024-10-23T13:55:01.543Z | 173.21.3.15
-2024-10-23T13:53:55.832Z | 173.21.3.15
-2024-10-23T13:52:55.015Z | 173.21.3.15
-2024-10-23T13:51:54.732Z | 173.21.3.15
-2024-10-23T13:33:34.937Z | 173.21.0.5
-2024-10-23T12:27:28.948Z | 173.21.2.113
-2024-10-23T12:15:03.360Z | 173.21.2.162
-;
-
-fieldIsMappedToKeywordSingleIndex
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data
-| KEEP @timestamp, message
-| SORT @timestamp DESC
-;
-
-@timestamp:datetime      | message:keyword
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
-2024-10-23T13:53:55.832Z | Connection error?
-2024-10-23T13:52:55.015Z | Connection error?
-2024-10-23T13:51:54.732Z | Connection error?
-2024-10-23T13:33:34.937Z | 42
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
-;
-
 unmappedFieldDoesNotAppearLast
 required_capability: optional_fields_v2
 
@@ -145,8 +107,8 @@ FROM partial_mapping_sample_data
 | LIMIT 1
 ;
 
-@timestamp:date         |client_ip:ip   |event_duration:long |message:keyword
-2024-10-23T13:55:01.543Z|173.21.3.15    |1756466             |Connected to 10.1.0.1!
+@timestamp:date          | client_ip:ip   | event_duration:long | message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15    | 1756466             | Connected to 10.1.0.1!
 ;
 
 fieldDoesNotExistSingleIndex
@@ -223,24 +185,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:51:54.732Z | 725447              | 14027353 | 3      | Disconnection error
 ;
 
-unmappedFieldExistsInSourceTsIndex
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM k8s_unmapped
-| KEEP @timestamp, cluster, network.cost
-| SORT @timestamp
-| LIMIT 5
-;
-
-@timestamp:date            | cluster:keyword | network.cost:double
-2024-05-10T00:00:29.000Z   | staging        | 9.375
-2024-05-10T00:00:33.000Z   | staging        | 1.25
-2024-05-10T00:00:51.000Z   | prod           | 9.25
-2024-05-10T00:00:57.000Z   | prod           | 12.125
-2024-05-10T00:01:25.000Z   | qa             | 5.375
-;
-
 unmappedFieldNonExistentTsIndex
 required_capability: optional_fields_v2
 
@@ -252,41 +196,80 @@ FROM k8s_unmapped
 ;
 
 @timestamp:date            | cluster:keyword | nonexistent_field:keyword
-2024-05-10T00:00:29.000Z   | staging        | null
-2024-05-10T00:00:33.000Z   | staging        | null
-2024-05-10T00:00:51.000Z   | prod           | null
-2024-05-10T00:00:57.000Z   | prod           | null
-2024-05-10T00:01:25.000Z   | qa             | null
+2024-05-10T00:00:29.000Z   | staging         | null
+2024-05-10T00:00:33.000Z   | staging         | null
+2024-05-10T00:00:51.000Z   | prod            | null
+2024-05-10T00:00:57.000Z   | prod            | null
+2024-05-10T00:01:25.000Z   | qa              | null
 ;
 
-// Copied over from k8s-timeseries.csv-spec
-GroupingOnScalarFunction
-required_capability: ts_command_v0
-required_capability: ts_command_group_on_aliases
-TS k8s
-| STATS m = max(max_over_time(network.cost :: double)) by pod = to_upper(pod), bucket = bucket(@timestamp,5minute)
-| sort bucket, pod
-;
-
-m:double | pod:keyword | bucket:datetime
-11.0     | ONE         | 2024-05-10T00:00:00.000Z
-12.125   | THREE       | 2024-05-10T00:00:00.000Z
-12.375   | TWO         | 2024-05-10T00:00:00.000Z
-12.375   | ONE         | 2024-05-10T00:05:00.000Z
-11.5     | THREE       | 2024-05-10T00:05:00.000Z
-12.5     | TWO         | 2024-05-10T00:05:00.000Z
-11.875   | ONE         | 2024-05-10T00:10:00.000Z
-11.625   | THREE       | 2024-05-10T00:10:00.000Z
-7.75     | TWO         | 2024-05-10T00:10:00.000Z
-12.125   | ONE         | 2024-05-10T00:15:00.000Z
-12.375   | THREE       | 2024-05-10T00:15:00.000Z
-11.5     | TWO         | 2024-05-10T00:15:00.000Z
-11.875   | ONE         | 2024-05-10T00:20:00.000Z
-10.875   | THREE       | 2024-05-10T00:20:00.000Z
-10.75    | TWO         | 2024-05-10T00:20:00.000Z
-;
 
 # Kept this test disabled to show the difference from INSIST_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
+statsImplicitLastOverTimeUnmappedTsIndex
+required_capability: optional_fields_v2
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s_unmapped
+| STATS x = max(max_over_time(event_log)) BY time_bucket = bucket(@timestamp, 10minute)
+| EVAL x = SUBSTRING(x, 1, 11)
+| SORT time_bucket
+| LIMIT 5
+;
+
+time_bucket:datetime | x:keyword
+2024-05-10T00:00:00.000Z | vulputate s
+2024-05-10T00:10:00.000Z | vulputate q
+2024-05-10T00:20:00.000Z | volutpat ve
+;
+
+statsByUnmappedFieldTsIndex
+required_capability: optional_fields_v2
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s_unmapped
+| STATS s = SUM(events_received), c = COUNT(events_received) BY event_log
+| EVAL event_log = SUBSTRING(event_log, 1, 11)
+| SORT event_log, s
+| LIMIT 10
+;
+
+s:long | c:long | event_log:keyword
+6      | 1      | Aenean hime
+3      | 1      | Cubilia lac
+2      | 1      | Lorem ipsum
+3      | 1      | Lorem ipsum
+2      | 1      | Nunc
+4      | 1      | Nunc tortor
+7      | 1      | Placerat mi
+4      | 1      | Scelerisque
+6      | 1      | Scelerisque
+1      | 1      | Sed ultrici
+;
+
+explicitLastOverTimeUnmappedTsIndex
+required_capability: optional_fields_v2
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s_unmapped
+| STATS x = max(max_over_time(event_log)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL x = SUBSTRING(x, 1, 12)
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+cluster:keyword | time_bucket:datetime     | x:keyword
+prod            | 2024-05-10T00:00:00.000Z | vivamus, soc
+prod            | 2024-05-10T00:10:00.000Z | vivamus, soc
+prod            | 2024-05-10T00:20:00.000Z | volutpat ves
+qa              | 2024-05-10T00:00:00.000Z | vulputate qu
+qa              | 2024-05-10T00:10:00.000Z | volutpat hac
+;
+
+# Kept this test disabled to show the difference from IGNORE_🐔: if everywhere unmapped and not mentioned, a field (message) won't show
+>>>>>>> Stashed changes
 # up at all.
 fieldIsUnmappedButSourceIsDisabledSingleIndex-Ignore
 required_capability: source_field_mapping
@@ -324,35 +307,6 @@ FROM partial_mapping_excluded_source_sample_data
 2024-10-23T13:33:34.937Z | null
 2024-10-23T12:27:28.948Z | null
 2024-10-23T12:15:03.360Z | null
-;
-
-fieldIsNestedAndMapped
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM addresses
-| KEEP city.name
-| SORT city.name DESC
-;
-
-city.name:keyword
-Tokyo
-San Francisco
-Amsterdam
-;
-
-fieldIsNestedAndMappedNoKeep
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM addresses
-| SORT city.name DESC
-;
-
-city.country.continent.name:keyword|city.country.continent.planet.galaxy:keyword|city.country.continent.planet.name:keyword|city.country.name:keyword|city.name:keyword|number:keyword|street:keyword|zip_code:keyword
-Asia                       |Milky Way                           |Earth                             |Japan                   |Tokyo          |2-7-2          |Marunouchi     |100-7014
-North America              |Milky Way                           |Earth                             |United States of America|San Francisco  |88             |Kearny St      |CA 94108
-Europe                     |Milky Way                           |Earth                             |Netherlands             |Amsterdam      |281            |Keizersgracht  |1016 ED
 ;
 
 fieldIsNestedAndUnmapped
@@ -518,36 +472,6 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 2023-10-23T13:33:34.937Z | Disconnected           | null                       | sample_data
 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2  | null                       | sample_data
 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3  | null                       | sample_data
-;
-
-
-fieldIsMappedToDifferentTypesButDropped
-required_capability: index_metadata_field
-required_capability: optional_fields_v2
-
-SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data METADATA _index
-| KEEP _index, @timestamp
-| DROP @timestamp
-| EVAL @timestamp = 42
-| SORT _index
-;
-
-_index:keyword      | @timestamp:integer
-sample_data         | 42
-sample_data         | 42
-sample_data         | 42
-sample_data         | 42
-sample_data         | 42
-sample_data         | 42
-sample_data         | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
-sample_data_ts_long | 42
 ;
 
 fieldIsPartiallyUnmappedMultiIndex

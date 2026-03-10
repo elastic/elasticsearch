@@ -857,7 +857,7 @@ public class EsqlCapabilities {
         SOURCE_FIELD_MAPPING,
 
         /**
-         * Support for field aliases in mappings.
+         * Support for field aliases in mappings. Used by tests, since this was feature wasn't always supported by CsvTests.
          */
         FIELD_ALIAS_SUPPORT,
 

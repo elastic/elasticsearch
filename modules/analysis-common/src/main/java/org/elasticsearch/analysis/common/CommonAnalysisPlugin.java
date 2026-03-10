@@ -150,9 +150,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
-        this.synonymsManagementServiceHolder.set(
-            new SynonymsManagementAPIService(services.client(), services.clusterService().getClusterSettings())
-        );
+        if (services.clusterService() != null) {
+            this.synonymsManagementServiceHolder.set(
+                new SynonymsManagementAPIService(services.client(), services.clusterService().getClusterSettings())
+            );
+        } else {
+            this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
+        }
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
         return Collections.emptyList();
     }

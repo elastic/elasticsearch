@@ -151,6 +151,14 @@ public class SynonymsManagementAPIService {
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
 
+    public int getMaxSynonymTokens() {
+        return maxSynonymTokens;
+    }
+
+    public TokenLimitMode getTokenLimitMode() {
+        return tokenLimitMode;
+    }
+
     private final Client client;
 
     public static final String SYNONYMS_ORIGIN = "synonyms";
@@ -177,8 +185,8 @@ public class SynonymsManagementAPIService {
         clusterSettings.addSettingsUpdateConsumer(TOKEN_LIMIT_MODE_SETTING, value -> this.tokenLimitMode = value);
     }
 
-    // Used for testing with default limits
-    SynonymsManagementAPIService(Client client) {
+    // Used for testing with default limits, and as fallback when ClusterSettings is unavailable
+    public SynonymsManagementAPIService(Client client) {
         this(client, MAX_SYNONYMS_SETS, DEFAULT_MAX_SYNONYM_TOKENS, TokenLimitMode.STRICT, MAX_SCROLL_SYNONYM_RULES);
     }
 

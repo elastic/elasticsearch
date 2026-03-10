@@ -81,14 +81,19 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
         if (clusters.isEmpty()) {
             lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
         } else {
-            searchTransportService.getRemoteClusterService().collectNodes(clusters, lookupListener);
+            searchTransportService.getRemoteClusterService()
+                .collectNodes(
+                    clusters,
+                    lookupListener.map(
+                        remoteLookup -> (cluster, nodeId) -> cluster == null ? nodes.get(nodeId) : remoteLookup.apply(cluster, nodeId)
+                    )
+                );
         }
         lookupListener.addListener(listener.delegateFailure((l, nodeLookup) -> {
             final var successes = new AtomicInteger();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> l.onResponse(successes.get()))) {
                 for (SearchContextIdForNode contextId : contextIds) {
                     if (contextId.getNode() == null) {
-                        // the shard was missing when creating the PIT, ignore.
                         continue;
                     }
                     final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());

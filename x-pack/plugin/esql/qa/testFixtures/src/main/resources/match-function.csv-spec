@@ -714,6 +714,36 @@ title:text
 The Hobbit or There and Back Again
 ;
 
+testMatchWithOptionsZeroTermsQueryNone
+required_capability: match_function
+required_capability: match_function_zero_terms_query
+
+from books
+| where match(title, "", {"zero_terms_query": "none"})
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+;
+
+testMatchWithOptionsZeroTermsQueryAll
+required_capability: match_function
+required_capability: match_function_zero_terms_query
+
+from books
+| where match(title, "", {"zero_terms_query": "all"})
+| sort book_no
+| keep book_no
+| limit 5;
+
+book_no:keyword
+1211
+1463
+1502
+1937
+1985
+;
+
 testMatchWithNonPushableDisjunctions
 required_capability: match_function
 required_capability: full_text_functions_disjunctions_compute_engine

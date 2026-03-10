@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredEx
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
@@ -174,6 +175,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
+            new SubstituteTransportVersionAwareExpressions(),
             // check for a trivial conversion introduced by a surrogate
             new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval(),

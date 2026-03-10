@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -507,7 +508,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            AggregatorMode.INITIAL,
+                            List.of(1)
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
@@ -528,7 +532,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            AggregatorMode.INITIAL,
+                            List.of(1)
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
@@ -551,8 +558,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(groupSpec),
                     AggregatorMode.FINAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            AggregatorMode.FINAL,
+                            List.of(1, 2, 3)
+                        ),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
                     ),
                     16 * 1024,
                     randomIntBetween(1, 1000),

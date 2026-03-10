@@ -13,8 +13,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.ArithmeticException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -18,37 +17,32 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SumLongAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SumOverflowingLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class SumLongAggregatorFunction implements AggregatorFunction {
+public final class SumOverflowingLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("sum", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN),
-      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
-
-  private final Warnings warnings;
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
 
-  private final LongFallibleState state;
+  private final LongState state;
 
   private final List<Integer> channels;
 
-  public SumLongAggregatorFunction(Warnings warnings, DriverContext driverContext,
-      List<Integer> channels, LongFallibleState state) {
-    this.warnings = warnings;
+  public SumOverflowingLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      LongState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SumLongAggregatorFunction create(Warnings warnings, DriverContext driverContext,
+  public static SumOverflowingLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new SumLongAggregatorFunction(warnings, driverContext, channels, new LongFallibleState(SumLongAggregator.init()));
+    return new SumOverflowingLongAggregatorFunction(driverContext, channels, new LongState(SumOverflowingLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,9 +56,6 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (state.failed()) {
-      return;
-    }
     if (mask.allFalse()) {
       // Entire page masked away
     } else if (mask.allTrue()) {
@@ -98,13 +89,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
-      try {
-        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        state.failed(true);
-        return;
-      }
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
@@ -115,13 +100,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
         continue;
       }
       long vValue = vVector.getLong(valuesPosition);
-      try {
-        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        state.failed(true);
-        return;
-      }
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
@@ -136,13 +115,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        try {
-          state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.failed(true);
-          return;
-        }
+        state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -161,13 +134,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        try {
-          state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          state.failed(true);
-          return;
-        }
+        state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -188,24 +155,9 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    Block failedUncast = page.getBlock(channels.get(2));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert failed.getPositionCount() == 1;
-    if (failed.getBoolean(0)) {
-      state.failed(true);
+    if (seen.getBoolean(0)) {
+      state.longValue(SumOverflowingLongAggregator.combine(state.longValue(), sum.getLong(0)));
       state.seen(true);
-    } else if (seen.getBoolean(0)) {
-      try {
-        state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
-        state.seen(true);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        state.failed(true);
-        return;
-      }
     }
   }
 
@@ -216,7 +168,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    if (state.seen() == false || state.failed()) {
+    if (state.seen() == false) {
       blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }

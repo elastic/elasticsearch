@@ -116,7 +116,16 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             out.writeNamedWriteable(window);
         }
         out.writeNamedWriteableCollection(parameters);
+        writeAdditionalFields(out);
     }
+
+    /**
+     * Method overridden by subclasses to write additional data.
+     * <p>
+     *     Called by {@link #writeTo} after the default fields have been written.
+     * </p>
+     */
+    protected void writeAdditionalFields(StreamOutput out) throws IOException {}
 
     public Expression field() {
         return field;

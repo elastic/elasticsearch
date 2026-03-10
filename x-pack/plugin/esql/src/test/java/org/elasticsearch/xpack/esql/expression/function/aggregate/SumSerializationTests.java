@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumSerializationTests extends AbstractExpressionSerializationTests<Sum> {
@@ -77,10 +79,20 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
         }
     }
 
+    /**
+     * Ensures that, after deserializing the "Old" aggregate function;:
+     * <ul>
+     *     <li>{@link Sum#summationMode()} defaults to {@link SummationMode#COMPENSATED_LITERAL}</li>
+     *     <li>{@link Sum#useOverflowingLongSupplier()} defaults to true</li>
+     * </ul>
+     */
     public void testSerializeOldSum() throws IOException {
+        // TransportVersion before ESQL_SUM_LONG_OVERFLOW_FIX was added, which is what OldSum reproduces
+        var transportVersion = EXECUTION_PROFILE_FORMAT_VERSION;
         var oldSum = new OldSum(randomSource(), randomChild(), randomChild(), randomChild());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
+            planOut.setTransportVersion(transportVersion);
             planOut.writeNamedWriteable(oldSum);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
                 PlanStreamInput planIn = new PlanStreamInput(
@@ -89,10 +101,38 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
                     configuration(),
                     new SerializationTestUtils.TestNameIdMapper()
                 );
+                planIn.setTransportVersion(transportVersion);
                 Sum serialized = (Sum) planIn.readNamedWriteable(categoryClass());
                 assertThat(serialized.source(), equalTo(oldSum.source()));
                 assertThat(serialized.field(), equalTo(oldSum.field()));
                 assertThat(serialized.summationMode(), equalTo(SummationMode.COMPENSATED_LITERAL));
+                assertThat(serialized.useOverflowingLongSupplier(), equalTo(true));
+            }
+        }
+    }
+
+    /**
+     * Round-trip a Sum with {@code useOverflowingLongSupplier=true} on a version that supports the fix.
+     */
+    public void testSerializeSumWithOverflowingLongSupplier() throws IOException {
+        var transportVersion = TransportVersion.current();
+        var sum = new Sum(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), true);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
+            planOut.setTransportVersion(transportVersion);
+            planOut.writeNamedWriteable(sum);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                PlanStreamInput planIn = new PlanStreamInput(
+                    in,
+                    getNamedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                );
+                planIn.setTransportVersion(transportVersion);
+                Sum serialized = (Sum) planIn.readNamedWriteable(categoryClass());
+                assertThat(serialized.source(), equalTo(sum.source()));
+                assertThat(serialized.field(), equalTo(sum.field()));
+                assertThat(serialized.useOverflowingLongSupplier(), equalTo(true));
             }
         }
     }

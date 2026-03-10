@@ -24,7 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.reindex.management.GetReindexResponse.taskInfoToXContent;
+import static org.elasticsearch.reindex.management.GetReindexResponse.resultToXContent;
 
 public class ListReindexResponse extends BaseTasksResponse implements ChunkedToXContentObject {
 
@@ -58,8 +58,8 @@ public class ListReindexResponse extends BaseTasksResponse implements ChunkedToX
             return builder;
         }), Iterators.map(tasks.iterator(), taskInfo -> (builder, p) -> {
             builder.startObject();
-            final EffectiveReindexTask task = new EffectiveReindexTask(new TaskResult(false, taskInfo), null);
-            taskInfoToXContent(builder, p, task);
+            final RelocatableReindexResult result = new RelocatableReindexResult(new TaskResult(false, taskInfo), null);
+            resultToXContent(builder, p, result);
             builder.endObject();
             return builder;
         }), Iterators.single((builder, p) -> {

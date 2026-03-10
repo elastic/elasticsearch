@@ -26,15 +26,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Represents the user-facing view of a reindex task that might have been relocated to a different node.
- * If not relocated, all the information is from the original task.
- * If relocated, taskID, start time, and running time come from the original task; everything else from the relocated task.
+ * All information takes relocations into account and produces a consistent user-facing view of the task.
  */
-public record EffectiveReindexTask(TaskResult original, @Nullable TaskResult relocated) implements Writeable {
-    public EffectiveReindexTask {
+public record RelocatableReindexResult(TaskResult original, @Nullable TaskResult relocated) implements Writeable {
+    public RelocatableReindexResult {
         Objects.requireNonNull(original, "original task is required");
     }
 
-    public EffectiveReindexTask(final StreamInput in) throws IOException {
+    public RelocatableReindexResult(final StreamInput in) throws IOException {
         this(new TaskResult(in), in.readOptionalWriteable(TaskResult::new));
     }
 
@@ -44,14 +43,16 @@ public record EffectiveReindexTask(TaskResult original, @Nullable TaskResult rel
         out.writeOptionalWriteable(relocated);
     }
 
-    public EffectiveReindexTask withLatestRelocatedTask(final TaskResult relocated) {
+    public RelocatableReindexResult withLatestRelocatedTask(final TaskResult relocated) {
         Objects.requireNonNull(relocated, "relocated task cannot be null");
-        return new EffectiveReindexTask(original, relocated);
+        return new RelocatableReindexResult(original, relocated);
     }
 
-    public EffectiveReindexTask withUpdatedResult(final TaskResult updatedResult) {
+    public RelocatableReindexResult withUpdatedResult(final TaskResult updatedResult) {
         Objects.requireNonNull(updatedResult, "updated result cannot be null");
-        return relocated == null ? new EffectiveReindexTask(updatedResult, null) : new EffectiveReindexTask(original, updatedResult);
+        return relocated == null
+            ? new RelocatableReindexResult(updatedResult, null)
+            : new RelocatableReindexResult(original, updatedResult);
     }
 
     public TaskResult latestTask() {

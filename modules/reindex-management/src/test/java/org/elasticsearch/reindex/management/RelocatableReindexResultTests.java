@@ -21,33 +21,39 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EffectiveReindexTaskTests extends AbstractWireSerializingTestCase<EffectiveReindexTask> {
+public class RelocatableReindexResultTests extends AbstractWireSerializingTestCase<RelocatableReindexResult> {
 
     @Override
-    protected Writeable.Reader<EffectiveReindexTask> instanceReader() {
-        return EffectiveReindexTask::new;
+    protected Writeable.Reader<RelocatableReindexResult> instanceReader() {
+        return RelocatableReindexResult::new;
     }
 
     @Override
-    protected EffectiveReindexTask createTestInstance() {
+    protected RelocatableReindexResult createTestInstance() {
         TaskResult original = randomTaskResult();
         TaskResult relocated = randomBoolean() ? randomTaskResult() : null;
-        return new EffectiveReindexTask(original, relocated);
+        return new RelocatableReindexResult(original, relocated);
     }
 
     @Override
-    protected EffectiveReindexTask mutateInstance(EffectiveReindexTask instance) {
+    protected RelocatableReindexResult mutateInstance(RelocatableReindexResult instance) {
         if (instance.relocated() == null) {
             return switch (between(0, 1)) {
-                case 0 -> new EffectiveReindexTask(randomValueOtherThan(instance.original(), this::randomTaskResult), null);
-                case 1 -> new EffectiveReindexTask(instance.original(), randomTaskResult());
+                case 0 -> new RelocatableReindexResult(randomValueOtherThan(instance.original(), this::randomTaskResult), null);
+                case 1 -> new RelocatableReindexResult(instance.original(), randomTaskResult());
                 default -> throw new AssertionError("invalid switch");
             };
         } else {
             return switch (between(0, 2)) {
-                case 0 -> new EffectiveReindexTask(randomValueOtherThan(instance.original(), this::randomTaskResult), instance.relocated());
-                case 1 -> new EffectiveReindexTask(instance.original(), randomValueOtherThan(instance.relocated(), this::randomTaskResult));
-                case 2 -> new EffectiveReindexTask(instance.original(), null);
+                case 0 -> new RelocatableReindexResult(
+                    randomValueOtherThan(instance.original(), this::randomTaskResult),
+                    instance.relocated()
+                );
+                case 1 -> new RelocatableReindexResult(
+                    instance.original(),
+                    randomValueOtherThan(instance.relocated(), this::randomTaskResult)
+                );
+                case 2 -> new RelocatableReindexResult(instance.original(), null);
                 default -> throw new AssertionError("invalid switch");
             };
         }
@@ -71,22 +77,22 @@ public class EffectiveReindexTaskTests extends AbstractWireSerializingTestCase<E
             randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId(),
             Map.of()
         );
-        final TaskResult result = new TaskResult(randomBoolean(), info);
-        final EffectiveReindexTask task = new EffectiveReindexTask(result, null);
+        final TaskResult taskResult = new TaskResult(randomBoolean(), info);
+        final RelocatableReindexResult result = new RelocatableReindexResult(taskResult, null);
 
-        assertThat(task.latestTask(), equalTo(result));
-        assertNull(task.status());
-        assertThat(task.description(), equalTo(info.description()));
-        assertThat(task.startTimeMillis(), equalTo(info.startTime()));
-        assertThat(task.runningTimeNanos(), equalTo(info.runningTimeNanos()));
-        assertThat(task.latestTaskId(), equalTo(taskId));
-        assertThat(task.originalTaskId(), equalTo(taskId));
-        assertThat(task.isCompleted(), equalTo(result.isCompleted()));
-        assertThat(task.isCancelled(), equalTo(cancelled));
-        assertNull(task.error());
-        assertNull(task.response());
-        assertThat(task.relocatedTask(), equalTo(Optional.empty()));
-        assertThat(task.original(), equalTo(result));
+        assertThat(result.latestTask(), equalTo(taskResult));
+        assertNull(result.status());
+        assertThat(result.description(), equalTo(info.description()));
+        assertThat(result.startTimeMillis(), equalTo(info.startTime()));
+        assertThat(result.runningTimeNanos(), equalTo(info.runningTimeNanos()));
+        assertThat(result.latestTaskId(), equalTo(taskId));
+        assertThat(result.originalTaskId(), equalTo(taskId));
+        assertThat(result.isCompleted(), equalTo(taskResult.isCompleted()));
+        assertThat(result.isCancelled(), equalTo(cancelled));
+        assertNull(result.error());
+        assertNull(result.response());
+        assertThat(result.relocatedTask(), equalTo(Optional.empty()));
+        assertThat(result.original(), equalTo(taskResult));
     }
 
     public void testWithRelocated() {
@@ -125,31 +131,31 @@ public class EffectiveReindexTaskTests extends AbstractWireSerializingTestCase<E
         );
         final TaskResult originalResult = new TaskResult(randomBoolean(), original);
         final TaskResult relocatedResult = new TaskResult(randomBoolean(), relocated);
-        final EffectiveReindexTask task = new EffectiveReindexTask(originalResult, relocatedResult);
+        final RelocatableReindexResult result = new RelocatableReindexResult(originalResult, relocatedResult);
 
-        assertThat(task.latestTask(), equalTo(relocatedResult));
-        assertThat(task.description(), equalTo(original.description()));
-        assertThat(task.startTimeMillis(), equalTo(original.startTime()));
+        assertThat(result.latestTask(), equalTo(relocatedResult));
+        assertThat(result.description(), equalTo(original.description()));
+        assertThat(result.startTimeMillis(), equalTo(original.startTime()));
         final long expectedRunningTimeNanos = relocated.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
             relocated.startTime() - original.startTime()
         );
-        assertThat(task.runningTimeNanos(), equalTo(expectedRunningTimeNanos));
-        assertThat(task.latestTaskId(), equalTo(relocatedTaskId));
-        assertThat(task.originalTaskId(), equalTo(originalTaskId));
-        assertThat(task.isCompleted(), equalTo(relocatedResult.isCompleted()));
-        assertThat(task.isCancelled(), equalTo(relocated.cancelled()));
-        assertNull(task.error());
-        assertNull(task.response());
-        assertThat(task.relocatedTask(), equalTo(Optional.of(relocatedResult)));
-        assertThat(task.original(), equalTo(originalResult));
+        assertThat(result.runningTimeNanos(), equalTo(expectedRunningTimeNanos));
+        assertThat(result.latestTaskId(), equalTo(relocatedTaskId));
+        assertThat(result.originalTaskId(), equalTo(originalTaskId));
+        assertThat(result.isCompleted(), equalTo(relocatedResult.isCompleted()));
+        assertThat(result.isCancelled(), equalTo(relocated.cancelled()));
+        assertNull(result.error());
+        assertNull(result.response());
+        assertThat(result.relocatedTask(), equalTo(Optional.of(relocatedResult)));
+        assertThat(result.original(), equalTo(originalResult));
     }
 
     public void testWithLatestRelocatedTask() {
         final TaskResult original = randomTaskResult();
         final TaskResult relocated = randomTaskResult();
-        final EffectiveReindexTask task = new EffectiveReindexTask(original, null);
+        final RelocatableReindexResult result = new RelocatableReindexResult(original, null);
 
-        final EffectiveReindexTask updated = task.withLatestRelocatedTask(relocated);
+        final RelocatableReindexResult updated = result.withLatestRelocatedTask(relocated);
 
         assertThat(updated.original(), equalTo(original));
         assertThat(updated.relocatedTask(), equalTo(Optional.of(relocated)));
@@ -158,9 +164,9 @@ public class EffectiveReindexTaskTests extends AbstractWireSerializingTestCase<E
     public void testWithUpdatedResultNoRelocated() {
         final TaskResult original = randomTaskResult();
         final TaskResult updatedResult = randomTaskResult();
-        final EffectiveReindexTask task = new EffectiveReindexTask(original, null);
+        final RelocatableReindexResult result = new RelocatableReindexResult(original, null);
 
-        final EffectiveReindexTask updated = task.withUpdatedResult(updatedResult);
+        final RelocatableReindexResult updated = result.withUpdatedResult(updatedResult);
 
         assertThat(updated.original(), equalTo(updatedResult));
         assertThat(updated.relocatedTask(), equalTo(Optional.empty()));
@@ -170,26 +176,26 @@ public class EffectiveReindexTaskTests extends AbstractWireSerializingTestCase<E
         final TaskResult original = randomTaskResult();
         final TaskResult relocated = randomTaskResult();
         final TaskResult updatedResult = randomTaskResult();
-        final EffectiveReindexTask task = new EffectiveReindexTask(original, relocated);
+        final RelocatableReindexResult result = new RelocatableReindexResult(original, relocated);
 
-        final EffectiveReindexTask updated = task.withUpdatedResult(updatedResult);
+        final RelocatableReindexResult updated = result.withUpdatedResult(updatedResult);
 
         assertThat(updated.original(), equalTo(original));
         assertThat(updated.relocatedTask(), equalTo(Optional.of(updatedResult)));
     }
 
     public void testNullOriginalThrows() {
-        expectThrows(NullPointerException.class, () -> new EffectiveReindexTask(null, null));
+        expectThrows(NullPointerException.class, () -> new RelocatableReindexResult(null, null));
     }
 
     public void testWithLatestRelocatedTaskNullThrows() {
-        final EffectiveReindexTask task = new EffectiveReindexTask(randomTaskResult(), null);
-        expectThrows(NullPointerException.class, () -> task.withLatestRelocatedTask(null));
+        final RelocatableReindexResult result = new RelocatableReindexResult(randomTaskResult(), null);
+        expectThrows(NullPointerException.class, () -> result.withLatestRelocatedTask(null));
     }
 
     public void testWithUpdatedResultNullThrows() {
-        final EffectiveReindexTask task = new EffectiveReindexTask(randomTaskResult(), null);
-        expectThrows(NullPointerException.class, () -> task.withUpdatedResult(null));
+        final RelocatableReindexResult result = new RelocatableReindexResult(randomTaskResult(), null);
+        expectThrows(NullPointerException.class, () -> result.withUpdatedResult(null));
     }
 
     private TaskResult randomTaskResult() {

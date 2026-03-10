@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
-    private final EffectiveReindexTask task;
+    private final RelocatableReindexResult result;
 
     /**
      * Matches a reindex description and captures only the safe fields we want to expose:
@@ -38,25 +38,25 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?) .+\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
     );
 
-    public GetReindexResponse(final EffectiveReindexTask task) {
-        this.task = Objects.requireNonNull(task, "task is required");
+    public GetReindexResponse(final RelocatableReindexResult result) {
+        this.result = Objects.requireNonNull(result, "result is required");
     }
 
     public GetReindexResponse(StreamInput in) throws IOException {
-        this(new EffectiveReindexTask(in));
+        this(new RelocatableReindexResult(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        task.writeTo(out);
+        result.writeTo(out);
     }
 
     public TaskResult getOriginalTask() {
-        return task.original();
+        return result.original();
     }
 
     public Optional<TaskResult> getRelocatedTask() {
-        return task.relocatedTask();
+        return result.relocatedTask();
     }
 
     /**
@@ -67,13 +67,13 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field("completed", task.isCompleted());
-        taskInfoToXContent(builder, params, task);
-        if (task.error() != null) {
-            XContentHelper.writeRawField("error", task.error(), builder.contentType(), builder, params);
+        builder.field("completed", result.isCompleted());
+        resultToXContent(builder, params, result);
+        if (result.error() != null) {
+            XContentHelper.writeRawField("error", result.error(), builder.contentType(), builder, params);
         }
-        if (task.response() != null) {
-            XContentHelper.writeRawField("response", task.response(), builder.contentType(), builder, params);
+        if (result.response() != null) {
+            XContentHelper.writeRawField("response", result.response(), builder.contentType(), builder, params);
         }
         builder.endObject();
         return builder;
@@ -83,21 +83,21 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
      * Renders reindex-specific task info fields.
      * Always provides the user-facing id, start time, and running time of a reindex task regardless of relocations.
      */
-    static XContentBuilder taskInfoToXContent(final XContentBuilder builder, final Params params, final EffectiveReindexTask task)
+    static XContentBuilder resultToXContent(final XContentBuilder builder, final Params params, final RelocatableReindexResult result)
         throws IOException {
-        builder.field("id", task.originalTaskId().toString());
-        Optional<String> description = sanitizeDescription(task.description());
+        builder.field("id", result.originalTaskId().toString());
+        Optional<String> description = sanitizeDescription(result.description());
         if (description.isPresent()) {
             builder.field("description", description.get());
         }
-        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", task.startTimeMillis());
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", result.startTimeMillis());
         if (builder.humanReadable()) {
-            builder.field("running_time", TimeValue.timeValueNanos(task.runningTimeNanos()).toString());
+            builder.field("running_time", TimeValue.timeValueNanos(result.runningTimeNanos()).toString());
         }
-        builder.field("running_time_in_nanos", task.runningTimeNanos());
-        builder.field("cancelled", task.isCancelled());
-        if (task.status() != null) {
-            builder.field("status", task.status(), params);
+        builder.field("running_time_in_nanos", result.runningTimeNanos());
+        builder.field("cancelled", result.isCancelled());
+        if (result.status() != null) {
+            builder.field("status", result.status(), params);
         }
         return builder;
     }
@@ -127,7 +127,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
 
     @Override
     public String toString() {
-        return "GetReindexResponse{task=" + task + '}';
+        return "GetReindexResponse{result=" + result + '}';
     }
 
     @Override
@@ -135,11 +135,11 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetReindexResponse that = (GetReindexResponse) o;
-        return Objects.equals(task, that.task);
+        return Objects.equals(result, that.result);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(task);
+        return Objects.hash(result);
     }
 }

@@ -76,7 +76,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new EffectiveReindexTask(taskResult, null));
+        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResult, null));
         assertEquals(expectedResponse, responseRef.get());
 
         ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
@@ -161,7 +161,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new EffectiveReindexTask(taskResultCompleted, null));
+        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResultCompleted, null));
         assertEquals(expectedResponse, responseRef.get());
 
         ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
@@ -219,7 +219,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
         action.doExecute(mock(), request, listener);
 
         assertNull(failureRef.get());
-        GetReindexResponse expectedResponse = new GetReindexResponse(new EffectiveReindexTask(taskResult, null));
+        GetReindexResponse expectedResponse = new GetReindexResponse(new RelocatableReindexResult(taskResult, null));
         assertEquals(expectedResponse, responseRef.get());
 
         ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();

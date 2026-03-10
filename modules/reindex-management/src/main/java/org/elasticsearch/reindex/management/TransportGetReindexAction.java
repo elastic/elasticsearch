@@ -70,8 +70,8 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
                 return;
             }
 
-            final EffectiveReindexTask effectiveTask = new EffectiveReindexTask(taskResult, null);
-            followRelocationOrRespond(effectiveTask, originalRequest, l);
+            final RelocatableReindexResult result = new RelocatableReindexResult(taskResult, null);
+            followRelocationOrRespond(result, originalRequest, l);
         }));
     }
 
@@ -81,18 +81,18 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
      * Relocated tasks found in .tasks system index are trusted as reindex tasks without re-validation.
      */
     private void followRelocationOrRespond(
-        final EffectiveReindexTask task,
+        final RelocatableReindexResult result,
         final GetReindexRequest originalRequest,
         final ActionListener<GetReindexResponse> listener
     ) {
-        final TaskId relocatedTaskId = TaskRelocatedException.relocatedTaskIdFromErrorMap(task.errorAsMap()).orElse(null);
+        final TaskId relocatedTaskId = TaskRelocatedException.relocatedTaskIdFromErrorMap(result.errorAsMap()).orElse(null);
         if (relocatedTaskId == null) {
-            buildResponse(task, originalRequest, listener);
+            buildResponse(result, originalRequest, listener);
         } else {
-            logger.debug("task [{}] relocated to [{}], following", task.latestTaskId(), relocatedTaskId);
+            logger.debug("task [{}] relocated to [{}], following", result.latestTaskId(), relocatedTaskId);
             final GetTaskRequest req = new GetTaskRequest().setTaskId(relocatedTaskId).setWaitForCompletion(false);
             getTaskWithNotFoundHandling(req, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, relocatedTask) -> {
-                followRelocationOrRespond(task.withLatestRelocatedTask(relocatedTask), originalRequest, l);
+                followRelocationOrRespond(result.withLatestRelocatedTask(relocatedTask), originalRequest, l);
             }));
         }
     }
@@ -102,23 +102,23 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
      * running, re-fetches with {@code waitForCompletion=true} before responding.
      */
     private void buildResponse(
-        final EffectiveReindexTask effectiveTask,
+        final RelocatableReindexResult result,
         final GetReindexRequest originalRequest,
         final ActionListener<GetReindexResponse> listener
     ) {
-        if (effectiveTask.isCompleted() || originalRequest.getWaitForCompletion() == false) {
-            listener.onResponse(new GetReindexResponse(effectiveTask));
+        if (result.isCompleted() || originalRequest.getWaitForCompletion() == false) {
+            listener.onResponse(new GetReindexResponse(result));
             return;
         }
 
         // If waiting for an uncompleted task, we reissue the get request to wait for the reindex task to complete
-        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(effectiveTask.latestTaskId())
+        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(result.latestTaskId())
             .setWaitForCompletion(true)
             .setTimeout(originalRequest.getTimeout());
 
         getTaskWithNotFoundHandling(finalWaitGetRequest, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, finalResult) -> {
             // call back into followRelocationOrRespond to handle possible relocation which happened while we're waiting
-            followRelocationOrRespond(effectiveTask.withUpdatedResult(finalResult), originalRequest, l);
+            followRelocationOrRespond(result.withUpdatedResult(finalResult), originalRequest, l);
         }));
     }
 

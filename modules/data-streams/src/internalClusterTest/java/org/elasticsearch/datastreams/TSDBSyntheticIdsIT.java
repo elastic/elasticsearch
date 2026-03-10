@@ -634,7 +634,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
-            assertThat(deleteResponse.getPrimaryTerm(), equalTo(disableSeqNo ? 0L: 1L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(disableSeqNo ? 0L : 1L));
             if (disableSeqNo == false) {
                 var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.get(deleteResponse.getShardId());
                 assertThat(docsIdsBySeqNo, notNullValue());

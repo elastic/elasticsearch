@@ -180,10 +180,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         boolean hasMetricsOrTsInfo = testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())
             || testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName());
         if (hasMetricsOrTsInfo) {
-            assumeFalse(
-                "METRICS_INFO/TS_INFO non-remote tests skipped in CCS; use *-remote.csv-spec variants",
-                remoteMetadata == false
-            );
+            assumeFalse("METRICS_INFO/TS_INFO non-remote tests skipped in CCS; use *-remote.csv-spec variants", remoteMetadata == false);
             assumeTrue(
                 "METRICS_INFO/TS_INFO remote tests require data on the remote cluster (dataLocation=REMOTE_ONLY)",
                 dataLocation == DataLocation.REMOTE_ONLY

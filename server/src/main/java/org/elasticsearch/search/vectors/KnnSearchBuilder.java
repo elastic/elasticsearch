@@ -46,6 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
+    public static final float MINIMUM_OVERSAMPLE_FOR_GLOBAL_RESCORING = 1f;
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -488,10 +489,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public boolean isOptimizedRescoring() {
-        return optimizedRescoring;
-    }
-
     public KnnSearchBuilder optimizedRescoring(boolean optimizedRescoring) {
         this.optimizedRescoring = optimizedRescoring;
         return this;
@@ -501,11 +498,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        if (optimizedRescoring) {
-            Float oversample = getOversampleFactor(searchExecutionContext);
-            int localK = (oversample == null || oversample < 1) ? k : (int) Math.ceil(k * oversample);
-            int localNumcands = (oversample == null || oversample < 1) ? numCands : Math.max(localK, numCands);
-            return new KnnVectorQueryBuilder(field, queryVector, localK, localNumcands, visitPercentage, NO_RESCORING, similarity).boost(
+        Float oversample = getOversampleFactor(searchExecutionContext);
+        if (optimizedRescoring && (oversample != null && oversample > MINIMUM_OVERSAMPLE_FOR_GLOBAL_RESCORING)) {
+            int localK = (int) Math.ceil(k * oversample);
+            int localNumCands = Math.max(localK, numCands);
+            return new KnnVectorQueryBuilder(field, queryVector, localK, localNumCands, visitPercentage, NO_RESCORING, similarity).boost(
                 boost
             ).queryName(queryName).addFilterQueries(filterQueries);
         } else {

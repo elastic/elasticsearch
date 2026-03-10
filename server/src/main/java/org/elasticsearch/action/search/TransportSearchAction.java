@@ -774,6 +774,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
         if (searchRequest.hasKnnSearch()) {
             searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+            // we shouldn't optimize if we have a single shard or not all nodes of the cluster support the delayed rescoring feature
             if (singleShard || false == supportsFeature.test(KNN_DFS_RESCORING_TOP_K_ON_SHARDS)) {
                 for (KnnSearchBuilder knnSearchBuilder : searchRequest.source().knnSearch()) {
                     knnSearchBuilder.optimizedRescoring(false);

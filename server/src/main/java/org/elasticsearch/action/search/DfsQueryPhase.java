@@ -217,15 +217,10 @@ class DfsQueryPhase extends SearchPhase {
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
-                    // A knn search will spawn across multiple shards, and it is possible that some may be on older nodes that
-                    // do not support lazy oversampling. So, we want to read from the responses whether we should allow oversampling or not.
-                    // There are two options here:
-                    // * either the value is null indicating an older node
-                    // * or the value is consistent amongst all other nodes (it is picked up by the search request or the index settings)
-                    if (oversampling[i] == null) {
-                        oversampling[i] = knnResults.oversample() != null ? knnResults.oversample() : null;
-                        k[i] = knnResults.k() != null ? knnResults.k() : null;
-                    }
+                    // this value will be consistent amongst all shards as we would have enabled/disabled oversampling
+                    // as part of the TransportSearchAction#adjustSearchType before reaching out to the shards
+                    oversampling[i] = knnResults.oversample();
+                    k[i] = knnResults.k();
                 }
             }
         }
@@ -240,7 +235,7 @@ class DfsQueryPhase extends SearchPhase {
             String path = topDocsLists.get(i).isEmpty() ? null : nestedPath.get(i).get();
             List<TopDocs> topDocsList = topDocsLists.get(i);
             if (topDocsList.isEmpty()) {
-                mergedResults.add(new DfsKnnResults(path, new ScoreDoc[0], oversampling[i], localK));
+                mergedResults.add(new DfsKnnResults(path, new ScoreDoc[0], null, null));
             } else {
                 TopDocs mergedTopDocs = TopDocs.merge(resultsToKeep, topDocsList.toArray(new TopDocs[0]));
                 // When no shard sent KNN results (e.g. all on older nodes), nestedPath was never set

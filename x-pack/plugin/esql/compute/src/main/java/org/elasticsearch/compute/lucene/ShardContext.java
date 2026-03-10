@@ -62,6 +62,7 @@ public interface ShardContext extends RefCounted {
         boolean asUnsupportedSource,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
         BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+        org.elasticsearch.index.mapper.blockloader.Warnings warnings,
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript
     );

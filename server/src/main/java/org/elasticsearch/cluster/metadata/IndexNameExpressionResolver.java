@@ -359,8 +359,6 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
-            } else if (ia.getType() == Type.VIEW) {
-                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;
@@ -1522,6 +1520,13 @@ public class IndexNameExpressionResolver {
                 // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
                 infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
                 throw infe;
+            }
+        }
+        if (indexAbstraction.getType() == Type.VIEW && context.getOptions().wildcardOptions().resolveViews() == false) {
+            if (ignoreUnavailable) {
+                return false;
+            } else {
+                throw notFoundException(name);
             }
         }
         if (context.options.allowSelectors()) {

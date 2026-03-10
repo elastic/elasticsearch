@@ -14,7 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
@@ -253,8 +252,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // see currentSummary above
                 final var docShard = realtime ? indexRouting.updateShard(id, routing) : indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
-                    // XXX we may want a more specific exception type here
-                    throw new ElasticsearchStatusException("stale get request for document [" + id + "]", RestStatus.SERVICE_UNAVAILABLE);
+                    throw new StaleRequestException("stale get request for document [{}]", id);
                 } else {
                     return getResult;
                 }

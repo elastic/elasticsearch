@@ -888,6 +888,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
+        "index.use_time_series_doc_values_format_large_binary_block_size",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -1148,7 +1156,8 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
-    private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
 
@@ -1355,7 +1364,9 @@ public final class IndexSettings {
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
-        useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()
+            && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
@@ -2136,8 +2147,18 @@ public final class IndexSettings {
     /**
      * @return Whether the time series doc value format with large numeric block size should be used.
      */
-    public boolean isUseTimeSeriesDocValuesFormatLargeBlockSize() {
-        return useTimeSeriesDocValuesFormatLargeBlockSize;
+    public boolean isUseTimeSeriesDocValuesFormatLargeNumericBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    }
+
+    /**
+     * Checks if the time series DocValues format is configured to use a large binary block size.
+     *
+     * @return {@code true} if the time series DocValues format is using a large binary block size;
+     *         {@code false} otherwise.
+     */
+    public boolean isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     }
 
     /**

@@ -28,6 +28,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

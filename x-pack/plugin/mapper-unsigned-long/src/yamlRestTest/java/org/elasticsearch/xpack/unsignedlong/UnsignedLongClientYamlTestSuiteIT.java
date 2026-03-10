@@ -28,7 +28,7 @@ public class UnsignedLongClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("unsigned-long").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").module("unsigned-long").build();
 
     @Override
     protected String getTestRestCluster() {

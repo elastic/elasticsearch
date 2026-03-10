@@ -28,7 +28,7 @@ public class PercolatorClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("percolator").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").module("percolator").build();
 
     @Override
     protected String getTestRestCluster() {

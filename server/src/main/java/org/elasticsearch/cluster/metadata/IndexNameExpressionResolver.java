@@ -1792,7 +1792,7 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
-            if (context.getOptions().wildcardOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
+            if (context.getOptions().indexAbstractionOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
                 return false;
             }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
@@ -1847,7 +1847,7 @@ public class IndexNameExpressionResolver {
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (indexAbstraction.getType() == Type.VIEW) {
-                if (context.getOptions().wildcardOptions().resolveViews()) {
+                if (context.getOptions().indexAbstractionOptions().resolveViews()) {
                     resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
                 }
             } else {

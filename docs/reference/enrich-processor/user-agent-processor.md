@@ -19,7 +19,7 @@ $$$user-agent-options$$$
 | --- | --- | --- | --- |
 | `field` | yes | - | The field containing the user agent string. |
 | `target_field` | no | user_agent | The field that will be filled with the user agent details. |
-| `regex_file` | no | - | The name of the file in the `config/user-agent`\* directory containing the regular expressions for parsing the user agent string. Both the directory and the file have to be created before starting Elasticsearch. If not specified, the user-agent module will use the regexes.yaml from uap-core it ships with (see below). <br><br>\* Prior to 9.4, this directory was named `config/ingest-user-agent`. |
+| `regex_file` | no | - | The name of the file in the `config/user-agent`\* directory containing the regular expressions for parsing the user agent string. Both the directory and the file have to be created before starting {{es}}. If not specified, the `user-agent` module uses the `regexes.yaml` file from the `uap-core` package that it ships with (see below). <br><br>\* Before version 9.4, this directory was named `config/ingest-user-agent`. |
 | `properties` | no | [`name`, `os`, `device`, `original`, `version`] | Controls what properties are added to `target_field`. |
 | `extract_device_type` | no | `false` | {applies_to}`stack: beta` {applies_to}`serverless: beta` Extracts device type from the user agent string on a best-effort basis. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |

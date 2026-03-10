@@ -1886,7 +1886,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     ft.name(),
                     ElementType.BYTES_REF,
                     false,
-                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
                 )
             );
         }
@@ -1897,7 +1897,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     ft.name(),
                     ElementType.BYTES_REF,
                     false,
-                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
                 )
             );
         }
@@ -1908,7 +1908,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     ft.name(),
                     ElementType.LONG,
                     false,
-                    s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
                 )
             );
         }
@@ -2126,7 +2126,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         ft.name(),
                         ElementType.BYTES_REF,
                         false,
-                        s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                        (ctx, shardIdx) -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
                     )
                 );
             }
@@ -2137,7 +2137,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         ft.name(),
                         ElementType.LONG,
                         false,
-                        s -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
+                        (ctx, shardIdx) -> ValuesSourceReaderOperator.load(ft.blockLoader(blContext()))
                     )
                 );
             }

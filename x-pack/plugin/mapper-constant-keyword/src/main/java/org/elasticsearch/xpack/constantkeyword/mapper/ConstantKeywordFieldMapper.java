@@ -97,9 +97,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
+        public Builder setValue(String v) {
+            this.value.setValue(v);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { value, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -331,11 +341,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
-            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            Builder builder = new Builder(leafName()).setValue(value);
+            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert dynamicMapperAdded;
+            assert result != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

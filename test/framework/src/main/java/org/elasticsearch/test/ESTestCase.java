@@ -94,6 +94,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -128,6 +129,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -166,6 +168,8 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -233,6 +237,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -618,9 +623,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        CircuitBreaker breaker = new LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
+    }
+
+    protected static CircuitBreakerService newLimitedBreakerService(ByteSizeValue max) {
+        CircuitBreakerService service = LimitedBreaker.service("<es-test-case>", max);
+        breakers.add(service.getBreaker(CircuitBreaker.REQUEST));
+        return service;
     }
 
     @After
@@ -3182,4 +3193,44 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
+
+    private static boolean previousFailureSkipsRemaining;
+    @Rule
+    public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
+        @Override
+        protected void failed(Throwable e, Description description) {
+            previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
+        }
+    };
+
+    @Before
+    public final void checkPreviousFailureSkipsRemaining() {
+        assumeFalse("previous failures broke system under test", previousFailureSkipsRemaining);
+    }
+
+    /**
+     * Should a failure cause subsequent tests to be skipped?
+     */
+    protected boolean shouldFailureSkipRemainingTests() {
+        return false;
+    }
+
+    /**
+     * Have previous failures forced us to skip the test?
+     * <p>
+     *     This should only be used in rare cases where the system being tested
+     *     is typically poisoned by test failures. ESQL's HeapAttack tests are
+     *     like this. As are packaging tests.
+     * </p>
+     * <p>
+     *     If you find yourself reaching for this, ask yourself if it's the right
+     *     tool three times before actually picking it up. If you are writing a
+     *     unit test without dependencies this is almost certainly not the right
+     *     tool.
+     * </p>
+     */
+    protected boolean previousFailureSkipsRemaining() {
+        return previousFailureSkipsRemaining;
+    }
+
 }

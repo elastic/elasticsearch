@@ -23,9 +23,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -93,8 +94,9 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
@@ -110,10 +112,9 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static IndexSettings defaultIndexSettings() {
         IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
@@ -161,19 +162,19 @@ public class ValuesSourceReaderBenchmark {
                     "keyword_1",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_1"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_2",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_2"))
                 ),
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_3",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader("stored_keyword_3"))
                 )
             );
             default -> List.of(
@@ -181,7 +182,7 @@ public class ValuesSourceReaderBenchmark {
                     name,
                     elementType(name),
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(blockLoader(name))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader(name))
                 )
             );
         };
@@ -237,7 +238,7 @@ public class ValuesSourceReaderBenchmark {
                     break;
             }
             ft.freeze();
-            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(blContext());
+            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(new BenchContext());
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
@@ -279,7 +280,7 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false
-        ).blockLoader(blContext());
+        ).blockLoader(new BenchContext());
     }
 
     /**
@@ -317,7 +318,8 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
         );
         long sum = 0;
         for (Page page : pages) {
@@ -586,52 +588,65 @@ public class ValuesSourceReaderBenchmark {
         IOUtils.close(reader, directory);
     }
 
-    private static MappedFieldType.BlockLoaderContext blContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "benchmark";
-            }
+    private static class BenchContext implements MappedFieldType.BlockLoaderContext {
+        @Override
+        public String indexName() {
+            return "benchmark";
+        }
 
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public IndexSettings indexSettings() {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
+        @Override
+        public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+            return MappedFieldType.FieldExtractPreference.NONE;
+        }
 
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public SearchLookup lookup() {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return Set.of(name);
-            }
+        @Override
+        public Set<String> sourcePaths(String name) {
+            return Set.of(name);
+        }
 
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public String parentField(String field) {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
+        @Override
+        public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+            return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        }
 
-            @Override
-            public MappingLookup mappingLookup() {
-                return null;
-            }
+        @Override
+        public MappingLookup mappingLookup() {
+            return null;
+        }
 
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return null;
-            }
-        };
+        @Override
+        public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
+
+        @Override
+        public Warnings warnings() {
+            return null;
+        }
+
+        @Override
+        public ByteSizeValue ordinalsByteSize() {
+            return DEFAULT_ORDINALS_BYTE_SIZE;
+        }
+
+        @Override
+        public ByteSizeValue scriptByteSize() {
+            return DEFAULT_SCRIPT_BYTE_SIZE;
+        }
     }
 }

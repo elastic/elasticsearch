@@ -65,6 +65,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -161,7 +162,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, (ctx, shardIdx) -> {
                 if (shardIdx != 0) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
@@ -175,7 +176,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
     }
 
@@ -518,7 +520,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             reuseColumnLoaders,
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -583,7 +586,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> {
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, (ctx, shardIdx) -> {
             if (shardIdx != 0) {
                 fail("unexpected shardIdx [" + shardIdx + "]");
             }
@@ -644,7 +647,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     )
                 ),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -664,7 +668,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 ).get(driverContext)
             );
         }
@@ -810,7 +815,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         reuseBlockLoaders,
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -895,7 +901,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 )
             ).results(checks::constantBytes).readers(StatusChecks::constantBytes)
         );
@@ -905,7 +911,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     "null",
                     ElementType.NULL,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 )
             ).results(checks::constantNulls).readers(StatusChecks::constantNulls)
         );
@@ -967,7 +973,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -1544,7 +1551,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            new TestDriverRunner().run(driver);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(driver);
         }
         assertDriverContext(driverContext);
     }
@@ -1618,13 +1629,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
                         new IndexedByShardIdFromSingleton<>(
@@ -1635,7 +1646,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1690,7 +1702,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1726,7 +1739,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1773,13 +1787,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, (ctx, shardIdx) -> {
                     seenShards.add(shardIdx);
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);

@@ -11,8 +11,6 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-import java.util.Objects;
-
 /**
  * Configuration needed to transform loaded values into blocks.
  * {@link MappedFieldType}s will find me in
@@ -28,19 +26,14 @@ public interface BlockLoaderFunctionConfig {
 
     record JustFunction(Function function) implements BlockLoaderFunctionConfig {}
 
-    record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {
-
-        // Consider just the function, as warnings will have Source that differ for different invocations of the same function
+    /**
+     * Configuration for loading time-series metadata fields from {@code _source}.
+     * Controls which field types to include (dimensions, metrics, or both).
+     */
+    record TimeSeriesMetadata(boolean loadMetrics) implements BlockLoaderFunctionConfig {
         @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) return false;
-            JustWarnings that = (JustWarnings) o;
-            return function == that.function;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(function);
+        public Function function() {
+            return Function.TIME_SERIES_METADATA;
         }
     }
 
@@ -59,6 +52,6 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_DIMENSIONS
+        TIME_SERIES_METADATA
     }
 }

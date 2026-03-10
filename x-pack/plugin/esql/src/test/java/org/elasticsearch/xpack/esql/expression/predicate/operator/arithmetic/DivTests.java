@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -20,12 +21,13 @@ import org.hamcrest.Matcher;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DivTests extends AbstractScalarFunctionTestCase {
@@ -173,7 +175,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Div]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -187,7 +189,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Div]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -204,27 +206,25 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "DivDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Div]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.lang.ArithmeticException: / by zero");
         }));
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+        suppliers.addAll(
+            denseVectorScalarCases(
+                "Div",
+                (v, s) -> v.stream().map(f -> f / (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
+                (s, v) -> v.stream().map(f -> ((Float) DataTypeConverter.convert(s, FLOAT) / f)).toList()
+            )
+        );
+
+        suppliers = anyNullIsNull(true, suppliers);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-
-        }
     }
 
     @Override

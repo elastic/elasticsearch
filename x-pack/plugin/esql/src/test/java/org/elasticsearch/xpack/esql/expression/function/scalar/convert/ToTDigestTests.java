@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -88,7 +89,9 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
                 max = Double.NaN;
                 sum = Double.NaN;
             }
-            return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(EncodedTDigest.encodeCentroids(centroids, counts), min, max, sum, totalCount);
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e.getMessage());
         }

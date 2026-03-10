@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
@@ -2264,14 +2265,19 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 .setSettings(Settings.builder().put(remoteSettings.build()))
                 .setMapping("@timestamp", "type=date", "f", "type=text")
         );
-        assertFalse(
-            client(REMOTE_CLUSTER).admin()
-                .cluster()
-                .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-                .setWaitForYellowStatus()
-                .setTimeout(TimeValue.timeValueSeconds(10))
-                .get()
-                .isTimedOut()
+        // Wait for yellow and no initializing shards so all assigned shards are STARTED before tests run searches.
+        ClusterHealthResponse healthResponse = client(REMOTE_CLUSTER).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
+            .setWaitForYellowStatus()
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(TimeValue.timeValueSeconds(10))
+            .get();
+        assertFalse("remote index health check timed out", healthResponse.isTimedOut());
+        assertEquals(
+            "remote index should have no initializing shards, had: " + healthResponse.getInitializingShards(),
+            0,
+            healthResponse.getInitializingShards()
         );
         indexDocs(client(REMOTE_CLUSTER), remoteIndex);
 

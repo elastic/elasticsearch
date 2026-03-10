@@ -1107,11 +1107,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         getExecutor(readerContext.indexShard()).execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
-            private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(
-                () -> { if (readerContext.singleSession()) freeReaderContext(request.contextId()); },
-                () -> Releasables.close(searchContext),
-                markAsUsed
-            ));
+            private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
+                if (readerContext.singleSession()) freeReaderContext(request.contextId());
+            }, () -> Releasables.close(searchContext), markAsUsed));
 
             @Override
             protected void doRun() throws Exception {
@@ -1197,16 +1195,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener,
         FetchSearchResult fetchResult
     ) {
-        return ActionListener.wrap(
-            ignored -> ActionListener.respondAndRelease(listener, fetchResult),
-            e -> {
-                try {
-                    listener.onFailure(e);
-                } finally {
-                    fetchResult.decRef();
-                }
+        return ActionListener.wrap(ignored -> ActionListener.respondAndRelease(listener, fetchResult), e -> {
+            try {
+                listener.onFailure(e);
+            } finally {
+                fetchResult.decRef();
             }
-        );
+        });
     }
 
     public void executeQueryPhase(

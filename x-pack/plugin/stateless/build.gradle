@@ -38,6 +38,7 @@ esplugin {
     description = "Elasticsearch Expanded Pack Plugin - Stateless self managed"
     classname = "org.elasticsearch.xpack.stateless.StatelessPlugin"
     extendedPlugins = listOf("x-pack-core", "blob-cache")
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 // TODO: clean up this file and remove unnecessary stuff for stateless self-managed ES-13786

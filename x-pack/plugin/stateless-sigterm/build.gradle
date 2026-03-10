@@ -25,6 +25,7 @@ esplugin {
     description = "Sigterm shutdown module for stateless Elasticsearch"
     classname = "org.elasticsearch.xpack.stateless.shutdown.StatelessSigtermPlugin"
     extendedPlugins = listOf("x-pack-core")
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 dependencies {

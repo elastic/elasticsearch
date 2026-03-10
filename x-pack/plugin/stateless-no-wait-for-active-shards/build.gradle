@@ -24,6 +24,7 @@ esplugin {
     name = "stateless-no-wait-for-active-shards"
     description = "Action filter to ignore ?wait_for_active_shards= on indexing requests for stateless Elasticsearch"
     classname = "org.elasticsearch.xpack.stateless.waitforactiveshards.NoWaitForActiveShardsPlugin"
+    deploymentTarget = "STATELESS_ONLY"
 }
 
 configurations {

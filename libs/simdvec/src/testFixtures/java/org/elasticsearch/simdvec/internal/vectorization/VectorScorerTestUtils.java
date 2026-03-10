@@ -12,13 +12,23 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Random;
 
 public class VectorScorerTestUtils {
+
+    public record VectorData(
+        byte[] vector,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        short quantizedComponentSum
+    ) {}
 
     public record OSQVectorData(
         byte[] quantizedVector,
@@ -27,6 +37,72 @@ public class VectorScorerTestUtils {
         float additionalCorrection,
         int quantizedComponentSum
     ) {}
+
+    private VectorScorerTestUtils() {}
+
+    public static VectorData createBinarizedIndexData(
+        float[] values,
+        float[] centroid,
+        OptimizedScalarQuantizer binaryQuantizer,
+        int dimension
+    ) {
+        int discretizedDimension = BQVectorUtils.discretize(dimension, 64);
+
+        int[] quantizationScratch = new int[dimension];
+        byte[] toIndex = new byte[discretizedDimension / 8];
+
+        float[] scratch = new float[dimension];
+
+        OptimizedScalarQuantizer.QuantizationResult r = binaryQuantizer.scalarQuantize(
+            values,
+            scratch,
+            quantizationScratch,
+            (byte) 1,
+            centroid
+        );
+        // pack and store document bit vector
+        ESVectorUtil.packAsBinary(quantizationScratch, toIndex);
+
+        assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
+
+        return new VectorData(toIndex, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
+    }
+
+    public static VectorData createBinarizedQueryData(
+        float[] floatVectorValues,
+        float[] centroid,
+        OptimizedScalarQuantizer binaryQuantizer,
+        int dimension
+    ) {
+        int discretizedDimension = BQVectorUtils.discretize(dimension, 64);
+
+        int[] quantizationScratch = new int[dimension];
+        byte[] toQuery = new byte[(discretizedDimension / 8) * ESVectorUtilSupport.B_QUERY];
+
+        float[] scratch = new float[dimension];
+
+        OptimizedScalarQuantizer.QuantizationResult r = binaryQuantizer.scalarQuantize(
+            floatVectorValues,
+            scratch,
+            quantizationScratch,
+            (byte) ESVectorUtilSupport.B_QUERY,
+            centroid
+        );
+
+        // pack and store the 4bit query vector
+        ESVectorUtil.transposeHalfByte(quantizationScratch, toQuery);
+        assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
+
+        return new VectorData(toQuery, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
+    }
+
+    public static void writeBinarizedVectorData(IndexOutput binarizedQueryData, VectorData vectorData) throws IOException {
+        binarizedQueryData.writeBytes(vectorData.vector, vectorData.vector.length);
+        binarizedQueryData.writeInt(Float.floatToIntBits(vectorData.lowerInterval()));
+        binarizedQueryData.writeInt(Float.floatToIntBits(vectorData.upperInterval()));
+        binarizedQueryData.writeInt(Float.floatToIntBits(vectorData.additionalCorrection()));
+        binarizedQueryData.writeShort(vectorData.quantizedComponentSum());
+    }
 
     public static OSQVectorData createOSQIndexData(
         float[] values,

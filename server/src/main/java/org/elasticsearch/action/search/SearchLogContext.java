@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
@@ -47,8 +48,14 @@ public class SearchLogContext extends ActivityLoggerContext {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, SearchResponse response) {
-        this(task, namedWriteableRegistry, request, response, response.getTook().nanos(), null);
+    SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        long tookInNanos,
+        SearchResponse response
+    ) {
+        this(task, namedWriteableRegistry, request, response, tookInNanos, null);
     }
 
     SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, Exception error) {
@@ -120,5 +127,32 @@ public class SearchLogContext extends ActivityLoggerContext {
             return Optional.empty();
         }
         return Optional.of(new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
+    }
+
+    // CCS stuff
+
+    /**
+     * Does this search refer to other clusters?
+     */
+    public boolean isCrossClusterSearch() {
+        // TODO: this does not account for CCS failures.
+        return response != null && response.getClusters().hasRemoteClusters();
+    }
+
+    /**
+     * Non-null alias means the request is from a remote cluster.
+     */
+    public boolean isFromRemote() {
+        return request.getLocalClusterAlias() != null;
+    }
+
+    public long remoteClusterCount() {
+        return response != null
+            ? response.getClusters()
+                .getClusterAliases()
+                .stream()
+                .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
+                .count()
+            : 0;
     }
 }

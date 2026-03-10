@@ -224,11 +224,6 @@ class ServerCli extends EnvironmentAwareCommand {
         return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configDir(), env.logsDir());
     }
 
-    @Override
-    public void close() throws IOException {
-        // The preparer no longer manages the server process; the launcher does.
-    }
-
     // protected to allow tests to override
     protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
         return CliToolProvider.load(sysprops, toolname, libs).create();

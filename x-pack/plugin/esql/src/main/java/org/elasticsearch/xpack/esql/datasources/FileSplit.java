@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -59,7 +61,9 @@ public class FileSplit implements ExternalSplit {
         this.length = length;
         this.format = format;
         this.config = config != null ? Map.copyOf(config) : Map.of();
-        this.partitionValues = partitionValues != null ? Map.copyOf(partitionValues) : Map.of();
+        this.partitionValues = partitionValues != null && partitionValues.isEmpty() == false
+            ? Collections.unmodifiableMap(new LinkedHashMap<>(partitionValues))
+            : Map.of();
     }
 
     public FileSplit(StreamInput in) throws IOException {

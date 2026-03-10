@@ -170,6 +170,10 @@ final class RemoteRequestBuilders {
                 }
             }
 
+            if (searchRequest.getProjectRouting() != null) {
+                entity.field("project_routing", searchRequest.getProjectRouting());
+            }
+
             entity.endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {

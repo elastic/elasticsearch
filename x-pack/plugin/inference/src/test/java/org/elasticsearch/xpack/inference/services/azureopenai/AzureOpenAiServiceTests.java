@@ -974,7 +974,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1043,7 +1044,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10)
+                randomAlphaOfLength(10),
+                threadPool
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
@@ -1078,7 +1080,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1111,7 +1114,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             createRandomChunkingSettings(),
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         testChunkedInfer(model);
@@ -1126,7 +1130,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             null,
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         testChunkedInfer(model);
@@ -1141,7 +1146,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             null,
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -1709,7 +1715,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             case COMPLETION -> AzureOpenAiCompletionModelTests.createCompletionModel(
                 RESOURCE_NAME_VALUE,

@@ -70,7 +70,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     private final Sender sender;
     private final ServiceComponents serviceComponents;
     private final ClusterService clusterService;
-    private final Map<TaskType, ModelCreator<? extends M>> modelCreators;
+    protected final Map<TaskType, ModelCreator<? extends M>> modelCreators;
 
     public SenderService(
         HttpRequestSender.Factory factory,

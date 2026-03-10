@@ -175,6 +175,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                 maxInputTokens,
                 similarity,
                 Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS),
+                // TODO remove this constructor
                 null
             )
         );

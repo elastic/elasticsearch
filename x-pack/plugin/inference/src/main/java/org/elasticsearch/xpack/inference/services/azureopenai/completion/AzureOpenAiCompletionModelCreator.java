@@ -12,16 +12,25 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link AzureOpenAiCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
 public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpenAiCompletionModel> {
+
+    public final ThreadPool threadPool;
+
+    public AzureOpenAiCompletionModelCreator(ThreadPool threadPool) {
+        this.threadPool = Objects.requireNonNull(threadPool);
+    }
+
     @Override
     public AzureOpenAiCompletionModel createFromMaps(
         String inferenceId,
@@ -33,11 +42,11 @@ public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpen
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureOpenAiCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        return new AzureOpenAiCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context, threadPool);
     }
 
     @Override
     public AzureOpenAiCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureOpenAiCompletionModel(config, secrets);
+        return new AzureOpenAiCompletionModel(config, secrets, threadPool);
     }
 }

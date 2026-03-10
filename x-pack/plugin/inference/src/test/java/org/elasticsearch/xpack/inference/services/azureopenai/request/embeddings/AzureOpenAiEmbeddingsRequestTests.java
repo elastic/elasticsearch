@@ -12,7 +12,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -24,12 +26,20 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
 
     public void testCreateRequest_WithApiKeyDefined() throws IOException {
         var input = "input";
@@ -127,7 +137,8 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id"
+            "id",
+            threadPool
         );
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),

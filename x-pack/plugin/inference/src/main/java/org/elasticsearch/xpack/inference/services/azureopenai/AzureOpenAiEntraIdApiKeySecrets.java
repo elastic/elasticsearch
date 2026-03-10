@@ -7,24 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.request.RequestUtils;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 
 /**
  * Azure OpenAI secret settings for API key or Entra ID only.
@@ -59,24 +52,6 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 
     public SecureString entraId() {
         return entraId;
-    }
-
-    @Override
-    public void init(AzureOpenAiServiceSettings serviceSettings) {
-        if (serviceSettings.oAuth2Settings() != null) {
-            throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);
-        }
-    }
-
-    @Override
-    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
-        if (apiKey != null && apiKey.isEmpty() == false) {
-            request.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
-        } else if (entraId != null && entraId.isEmpty() == false) {
-            request.setHeader(RequestUtils.createAuthBearerHeader(entraId));
-        }
-
-        listener.onResponse(request);
     }
 
     @Override

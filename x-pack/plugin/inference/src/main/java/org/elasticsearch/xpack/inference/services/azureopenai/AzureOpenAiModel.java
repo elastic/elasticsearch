@@ -12,6 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
@@ -31,16 +32,24 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
     protected URI uri;
+    private final AzureOpenAiSecretsFactory.Applier secretsApplier;
     private final AzureOpenAiServiceSettings baseServiceSettings;
 
     public AzureOpenAiModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        AzureOpenAiServiceSettings baseServiceSettings
+        AzureOpenAiServiceSettings baseServiceSettings,
+        ThreadPool threadPool
     ) {
         super(configurations, secrets);
 
         this.baseServiceSettings = Objects.requireNonNull(baseServiceSettings);
+        this.secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            configurations.getInferenceEntityId(),
+            threadPool,
+            (AzureOpenAiSecretSettings) secrets.getSecretSettings(),
+            baseServiceSettings
+        );
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, TaskSettings taskSettings) {
@@ -48,6 +57,7 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
         this.uri = model.getUri();
         baseServiceSettings = model.baseServiceSettings();
+        this.secretsApplier = model.secretsApplier();
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings baseServiceSettings) {
@@ -55,6 +65,7 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
         this.uri = model.getUri();
         this.baseServiceSettings = model.baseServiceSettings();
+        this.secretsApplier = model.secretsApplier();
     }
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
@@ -92,9 +103,8 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
         this.uri = newUri;
     }
 
-    public AzureOpenAiModel init() {
-        getSecretSettings().init(baseServiceSettings);
-        return this;
+    public AzureOpenAiSecretsFactory.Applier secretsApplier() {
+        return secretsApplier;
     }
 
     @Override

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.apache.http.client.methods.HttpRequestBase;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -36,7 +34,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
 
-    private static final String EXACTLY_ONE_ERROR = format(
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
         "[secret_settings] must have exactly one of [%s], [%s], or [%s] field set",
         API_KEY,
         ENTRA_ID,
@@ -79,9 +77,9 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
         }
 
         if (provided.isEmpty()) {
-            validationException.addValidationError(EXACTLY_ONE_ERROR);
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
         } else if (provided.size() > 1) {
-            validationException.addValidationError(EXACTLY_ONE_ERROR + ", received: " + provided.keySet());
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + provided.keySet());
         }
 
         validationException.throwIfValidationErrorsExist();
@@ -134,19 +132,4 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
     }
-
-    /**
-     * Applies this secret to the given HTTP request (e.g. sets API key header or Bearer token).
-     */
-    public abstract void applyTo(
-        HttpRequestBase request,
-        ActionListener<HttpRequestBase> listener
-    );
-
-    /**
-     * Allows the secret to initialize itself based on the service settings. This is useful for one-time initialization that is expensive
-     * like when building the Azure credential instance for OAuth2.
-     * @param serviceSettings the service settings to use for initialization
-     */
-    public void init(AzureOpenAiServiceSettings serviceSettings) {}
 }

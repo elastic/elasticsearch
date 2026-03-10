@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
@@ -43,7 +46,9 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        model.getSecretSettings().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
+        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+
+        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
             var headers = taskSettings.headers();
             if (headers.mapValue().isPresent()) {
                 for (var entry : headers.mapValue().get().entrySet()) {
@@ -51,7 +56,7 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
                 }
             }
 
-            new HttpRequest(httpRequestBase, getInferenceEntityId());
+            httpRequestActionListener.onResponse(new HttpRequest(httpRequestBase, getInferenceEntityId()));
         }));
     }
 

@@ -2,6 +2,9 @@ setup:
   - requires:
       cluster_features: [ "retriever.result_diversification_mmr" ]
       reason: "Added retriever for result diversification using MMR"
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "MMR result ordering changed with Lucene 10.4"
 
   - requires:
       test_runner_features:

@@ -681,6 +681,16 @@ tasks.named("test").configure {
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
   classpath = sourceSets.test.runtimeClasspath
-  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
+  def arguments = [
+    "--input", project.findProperty("queriesFile") ?: "",
+    "--output", project.findProperty("outputFile") ?: ""
+  ]
+  if (project.hasProperty("outputFormat")) {
+    arguments += ["--format", project.findProperty("outputFormat")]
+  }
+  if (project.hasProperty("verbose")) {
+    arguments += ["--verbose", project.findProperty("verbose")]
+  }
+  args arguments as List<String>
 }
 

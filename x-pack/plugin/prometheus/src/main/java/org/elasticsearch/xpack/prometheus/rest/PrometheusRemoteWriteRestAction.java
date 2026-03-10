@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.IndexingPressureAwareContentAggregator;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -78,26 +82,36 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
             request,
             coordinating,
             maxRequestSizeBytes,
-            (channel, content, indexingPressureRelease) -> {
-                var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
-                    content,
-                    dataset,
-                    namespace,
-                    indexingPressureRelease
-                );
-                client.execute(
-                    PrometheusRemoteWriteTransportAction.TYPE,
-                    transportRequest,
-                    ActionListener.releaseBefore(transportRequest, new RestResponseListener<>(channel) {
-                        @Override
-                        public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
-                            if (r.getMessage() != null) {
-                                return new RestResponse(r.getStatus(), r.getMessage());
+            new IndexingPressureAwareContentAggregator.CompletionHandler() {
+                @Override
+                public void onComplete(RestChannel channel, ReleasableBytesReference content, Releasable indexingPressureRelease) {
+                    var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
+                        content,
+                        dataset,
+                        namespace,
+                        indexingPressureRelease
+                    );
+                    client.execute(
+                        PrometheusRemoteWriteTransportAction.TYPE,
+                        transportRequest,
+                        ActionListener.releaseBefore(transportRequest, new RestResponseListener<>(channel) {
+                            @Override
+                            public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
+                                if (r.getMessage() != null) {
+                                    return new RestResponse(r.getStatus(), r.getMessage());
+                                }
+                                return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                             }
-                            return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                        }
-                    })
-                );
+                        })
+                    );
+                }
+
+                @Override
+                public void onFailure(RestChannel channel, Exception e) {
+                    channel.sendResponse(
+                        new RestResponse(ExceptionsHelper.status(e), RestResponse.TEXT_CONTENT_TYPE, new BytesArray(e.getMessage()))
+                    );
+                }
             }
         );
     }

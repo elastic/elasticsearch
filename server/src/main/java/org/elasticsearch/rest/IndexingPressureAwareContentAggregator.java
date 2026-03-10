@@ -36,16 +36,25 @@ import java.util.ArrayList;
 public class IndexingPressureAwareContentAggregator implements BaseRestHandler.RequestBodyChunkConsumer {
 
     /**
-     * Callback invoked when the full request body has been accumulated.
+     * Callback for request body accumulation lifecycle events.
      */
-    @FunctionalInterface
     public interface CompletionHandler {
         /**
+         * Called when the full request body has been successfully accumulated.
+         *
          * @param channel the REST channel for sending the response
          * @param content the aggregated request body
          * @param indexingPressureRelease releases the indexing pressure reservation when closed
          */
         void onComplete(RestChannel channel, ReleasableBytesReference content, Releasable indexingPressureRelease);
+
+        /**
+         * Called when the request body exceeds the maximum allowed size.
+         *
+         * @param channel the REST channel for sending the error response
+         * @param e the exception describing the failure
+         */
+        void onFailure(RestChannel channel, Exception e);
     }
 
     private final RestRequest request;
@@ -90,10 +99,14 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
                 chunks = null;
             }
             coordinating.close();
-            throw new ElasticsearchStatusException(
-                "request body too large, max [" + maxRequestSize + "] bytes",
-                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            completionHandler.onFailure(
+                channel,
+                new ElasticsearchStatusException(
+                    "request body too large, max [" + maxRequestSize + "] bytes",
+                    RestStatus.REQUEST_ENTITY_TOO_LARGE
+                )
             );
+            return;
         }
 
         if (isLast == false) {

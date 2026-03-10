@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -89,9 +88,9 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         initAggregator(maxSize);
 
         var oversizedChunk = randomReleasableBytesReference((int) maxSize + 1);
-        var ex = expectThrows(ElasticsearchStatusException.class, () -> stream.sendNext(oversizedChunk, false));
+        stream.sendNext(oversizedChunk, false);
 
-        assertTooLargeRejected(ex);
+        assertTooLargeRejected();
         assertFalse(oversizedChunk.hasReferences());
     }
 
@@ -103,9 +102,9 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         stream.sendNext(chunk1, false);
 
         var chunk2 = randomReleasableBytesReference(60);
-        var ex = expectThrows(ElasticsearchStatusException.class, () -> stream.sendNext(chunk2, false));
+        stream.sendNext(chunk2, false);
 
-        assertTooLargeRejected(ex);
+        assertTooLargeRejected();
         assertFalse(chunk1.hasReferences());
         assertFalse(chunk2.hasReferences());
     }
@@ -142,9 +141,9 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         initAggregator(maxSize);
 
         var oversizedChunk = randomReleasableBytesReference((int) maxSize + 1);
-        var ex = expectThrows(ElasticsearchStatusException.class, () -> stream.sendNext(oversizedChunk, true));
+        stream.sendNext(oversizedChunk, true);
 
-        assertTooLargeRejected(ex);
+        assertTooLargeRejected();
         assertFalse(oversizedChunk.hasReferences());
     }
 
@@ -188,9 +187,10 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         return RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
     }
 
-    private void assertTooLargeRejected(ElasticsearchStatusException ex) {
-        assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, ex.status());
+    private void assertTooLargeRejected() {
         assertNull(contentRef.get());
+        assertNotNull(channel.capturedResponse());
+        assertEquals(RestStatus.REQUEST_ENTITY_TOO_LARGE, channel.capturedResponse().status());
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
 
@@ -198,10 +198,23 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         var request = newStreamedRequest(stream);
         channel = new FakeRestChannel(request, true, 1);
         var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxSize, false);
-        aggregator = new IndexingPressureAwareContentAggregator(request, coordinating, maxSize, (ch, content, pressure) -> {
-            contentRef.set(content);
-            pressureRef.set(pressure);
-        });
+        aggregator = new IndexingPressureAwareContentAggregator(
+            request,
+            coordinating,
+            maxSize,
+            new IndexingPressureAwareContentAggregator.CompletionHandler() {
+                @Override
+                public void onComplete(RestChannel ch, ReleasableBytesReference content, Releasable pressure) {
+                    contentRef.set(content);
+                    pressureRef.set(pressure);
+                }
+
+                @Override
+                public void onFailure(RestChannel ch, Exception e) {
+                    ch.sendResponse(new RestResponse(RestStatus.REQUEST_ENTITY_TOO_LARGE, e.getMessage()));
+                }
+            }
+        );
         stream.setHandler(new HttpBody.ChunkHandler() {
             @Override
             public void onNext(ReleasableBytesReference chunk, boolean isLast) {

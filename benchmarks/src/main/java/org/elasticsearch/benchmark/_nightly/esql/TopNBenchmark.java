@@ -22,10 +22,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -66,8 +63,6 @@ public class TopNBenchmark {
         .build();
 
     private static final int BLOCK_LENGTH = 4 * 1024;
-    private static final int NUM_PAGES = 1024;
-    private static final int SELF_TEST_PAGES = 16;
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -88,28 +83,10 @@ public class TopNBenchmark {
 
     static void selfTest() {
         try {
-            String[] dataValues = TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value();
-            String[] topCountValues = TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value();
-            String[] sortedInputValues = TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value();
-            String[] groupCountValues = TopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0].value();
-            String[] groupKeyTypeValues = TopNBenchmark.class.getField("groupKeyType").getAnnotationsByType(Param.class)[0].value();
-            String[] groupKeyCountValues = TopNBenchmark.class.getField("groupKeyCount").getAnnotationsByType(Param.class)[0].value();
-            for (String data : dataValues) {
-                for (String topCount : topCountValues) {
-                    int tc = Integer.parseInt(topCount);
-                    for (String sortedInput : sortedInputValues) {
-                        run(data, tc, Boolean.parseBoolean(sortedInput), 0, groupKeyTypeValues[0], 1, NUM_PAGES);
-                    }
-                    for (String groupCount : groupCountValues) {
-                        int gc = Integer.parseInt(groupCount);
-                        if (gc == 0) {
-                            continue;
-                        }
-                        for (String gkType : groupKeyTypeValues) {
-                            for (String gkCount : groupKeyCountValues) {
-                                run(data, tc, false, gc, gkType, Integer.parseInt(gkCount), SELF_TEST_PAGES);
-                            }
-                        }
+            for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
+                for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
+                    for (String sortedInput : TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value()) {
+                        run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
                     }
                 }
             }
@@ -146,51 +123,11 @@ public class TopNBenchmark {
     @Param({ "10", "1000", "4096", "10000" })
     public int topCount;
 
-    @Param({ "0", "10", "100", "1000" })
-    public int groupCount;
-
-    @Param({ LONGS, BYTES_REFS })
-    public String groupKeyType;
-
-    @Param({ "1", "2" })
-    public int groupKeyCount;
-
-    private static Operator operator(
-        String data,
-        int topCount,
-        boolean sortedInput,
-        int groupCount,
-        String groupKeyType,
-        int groupKeyCount
-    ) {
+    private static Operator operator(String data, int topCount, boolean sortedInput) {
         String[] dataSpec = data.split("_and_");
-        List<ElementType> elementTypes = new ArrayList<>(Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList());
-        List<TopNEncoder> encoders = new ArrayList<>(Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList());
+        List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
+        List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
-
-        if (groupCount > 0) {
-            int[] groupKeys = new int[groupKeyCount];
-            ElementType gkElementType = groupKeyElementType(groupKeyType);
-            for (int i = 0; i < groupKeyCount; i++) {
-                groupKeys[i] = elementTypes.size();
-                elementTypes.add(gkElementType);
-                encoders.add(TopNEncoder.DEFAULT_UNSORTABLE);
-            }
-            var scratch = new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder");
-            var keyEncoder = new GroupKeyEncoder(groupKeys, elementTypes, scratch);
-            return new GroupedTopNOperator(
-                blockFactory,
-                blockFactory.breaker(),
-                topCount,
-                elementTypes,
-                encoders,
-                sortOrders,
-                keyEncoder,
-                8 * 1024,
-                Long.MAX_VALUE
-            );
-        }
-
         CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
             CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
@@ -220,7 +157,7 @@ public class TopNBenchmark {
             8 * 1024,
             Long.MAX_VALUE,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
-            minCompetitive
+            minCompetitive // This is optional, but doesn't add much overhead either way
         );
     }
 
@@ -257,48 +194,14 @@ public class TopNBenchmark {
         return new TopNOperator.SortOrder(channel, ascDesc(data), false);
     }
 
-    private static ElementType groupKeyElementType(String groupKeyType) {
-        return switch (groupKeyType) {
-            case LONGS -> ElementType.LONG;
-            case BYTES_REFS -> ElementType.BYTES_REF;
-            default -> throw new IllegalArgumentException("unsupported group key type [" + groupKeyType + "]");
-        };
-    }
-
-    private static void checkExpected(int topCount, int groupCount, int numPages, List<Page> pages) {
-        long actualOutput = pages.stream().mapToLong(Page::getPositionCount).sum();
-        if (groupCount > 0) {
-            int effectiveGroupCount = Math.min(groupCount, BLOCK_LENGTH);
-            long expectedOutput = 0;
-            for (int g = 0; g < effectiveGroupCount; g++) {
-                int rowsPerPage = BLOCK_LENGTH / effectiveGroupCount + (g < BLOCK_LENGTH % effectiveGroupCount ? 1 : 0);
-                long totalRowsForGroup = (long) rowsPerPage * numPages;
-                expectedOutput += Math.min(topCount, totalRowsForGroup);
-            }
-            if (expectedOutput != actualOutput) {
-                throw new AssertionError("expected [" + expectedOutput + "] but got [" + actualOutput + "]");
-            }
-        } else {
-            if (topCount != actualOutput) {
-                throw new AssertionError("expected [" + topCount + "] but got [" + pages.size() + "]");
-            }
+    private static void checkExpected(int topCount, List<Page> pages) {
+        if (topCount != pages.stream().mapToLong(Page::getPositionCount).sum()) {
+            throw new AssertionError("expected [" + topCount + "] but got [" + pages.size() + "]");
         }
     }
 
-    private static Page page(boolean sortedInput, String data, int groupCount, String groupKeyType, int groupKeyCount) {
+    private static Page page(boolean sortedInput, String data) {
         String[] dataSpec = data.split("_and_");
-        if (groupCount > 0) {
-            int effectiveGroupCount = Math.min(groupCount, BLOCK_LENGTH);
-            int divisor = (int) Math.ceil(Math.sqrt(effectiveGroupCount));
-            Block[] blocks = new Block[dataSpec.length + groupKeyCount];
-            for (int i = 0; i < dataSpec.length; i++) {
-                blocks[i] = block(sortedInput, dataSpec[i]);
-            }
-            for (int k = 0; k < groupKeyCount; k++) {
-                blocks[dataSpec.length + k] = groupKeyBlock(groupKeyType, effectiveGroupCount, divisor, k, groupKeyCount);
-            }
-            return new Page(blocks);
-        }
         return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
     }
 
@@ -338,30 +241,6 @@ public class TopNBenchmark {
         };
     }
 
-    private static Block groupKeyBlock(String groupKeyType, int effectiveGroupCount, int divisor, int keyIndex, int groupKeyCount) {
-        return switch (groupKeyType) {
-            case LONGS -> {
-                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    int groupId = i % effectiveGroupCount;
-                    long keyValue = groupKeyCount == 1 ? groupId : (keyIndex == 0 ? groupId / divisor : groupId % divisor);
-                    builder.appendLong(keyValue);
-                }
-                yield builder.build();
-            }
-            case BYTES_REFS -> {
-                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    int groupId = i % effectiveGroupCount;
-                    long keyValue = groupKeyCount == 1 ? groupId : (keyIndex == 0 ? groupId / divisor : groupId % divisor);
-                    builder.appendBytesRef(new BytesRef(Long.toString(keyValue)));
-                }
-                yield builder.build();
-            }
-            default -> throw new IllegalArgumentException("unsupported group key type [" + groupKeyType + "]");
-        };
-    }
-
     private static <T extends Comparable<T>> List<T> maybeSort(boolean sortedInput, String data, Stream<T> randomValues) {
         List<T> values = new ArrayList<>();
         randomValues.forEachOrdered(values::add);
@@ -373,23 +252,15 @@ public class TopNBenchmark {
     }
 
     @Benchmark
-    @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
+    @OperationsPerInvocation(1024 * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount, sortedInput, groupCount, groupKeyType, groupKeyCount, NUM_PAGES);
+        run(data, topCount, sortedInput);
     }
 
-    private static void run(
-        String data,
-        int topCount,
-        boolean sortedInput,
-        int groupCount,
-        String groupKeyType,
-        int groupKeyCount,
-        int numPages
-    ) {
-        try (Operator operator = operator(data, topCount, sortedInput, groupCount, groupKeyType, groupKeyCount)) {
-            Page page = page(sortedInput, data, groupCount, groupKeyType, groupKeyCount);
-            for (int i = 0; i < numPages; i++) {
+    private static void run(String data, int topCount, boolean sortedInput) {
+        try (Operator operator = operator(data, topCount, sortedInput)) {
+            Page page = page(sortedInput, data);
+            for (int i = 0; i < 1024; i++) {
                 operator.addInput(page.shallowCopy());
             }
             operator.finish();
@@ -398,7 +269,7 @@ public class TopNBenchmark {
             while ((p = operator.getOutput()) != null) {
                 results.add(p);
             }
-            checkExpected(topCount, groupCount, numPages, results);
+            checkExpected(topCount, results);
         }
     }
 }

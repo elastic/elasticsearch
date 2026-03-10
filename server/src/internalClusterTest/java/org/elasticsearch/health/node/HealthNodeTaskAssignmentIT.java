@@ -21,7 +21,6 @@ import org.elasticsearch.test.NodeShutdownTestUtils;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -127,26 +126,42 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
 
     /**
      * Blocks until every node in the cluster has reported health to the health node.
+     * Retries up to 3 times, sleeping one full poll interval between attempts.
      */
     private void waitForAllNodesToReportHealthy(String healthNodeName) throws Exception {
-        assertBusy(() -> {
-            final var healthResponse = internalCluster().client(healthNodeName)
-                .execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request())
-                .get();
-            final Map<String, DiskHealthInfo> diskInfo = healthResponse.getHealthInfo().diskInfoByNode();
-            final var state = internalCluster().clusterService().state();
-            assertThat(
-                "all cluster nodes must have reported health to node [" + healthNodeName + "]",
-                diskInfo.size(),
-                equalTo(state.nodes().size())
-            );
-            for (final String nodeId : state.nodes().getNodes().keySet()) {
-                assertThat(
-                    "node [" + nodeId + "] must have GREEN disk health in cache on [" + healthNodeName + "]",
-                    diskInfo.get(nodeId),
-                    equalTo(GREEN_DISK_HEALTH)
-                );
+        AssertionError lastFailure = null;
+        final var maxAttempts = 3;
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            if (attempt > 0) {
+                safeSleep(LocalHealthMonitor.MIN_POLL_INTERVAL);
             }
-        }, 3 * LocalHealthMonitor.MIN_POLL_INTERVAL.seconds(), TimeUnit.SECONDS);
+            try {
+                assertAllNodesReportedHealthy(healthNodeName);
+                return;
+            } catch (AssertionError e) {
+                lastFailure = e;
+            }
+        }
+        throw lastFailure;
+    }
+
+    private void assertAllNodesReportedHealthy(String healthNodeName) throws Exception {
+        final var healthResponse = internalCluster().client(healthNodeName)
+            .execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request())
+            .get();
+        final Map<String, DiskHealthInfo> diskInfo = healthResponse.getHealthInfo().diskInfoByNode();
+        final var state = internalCluster().clusterService().state();
+        assertThat(
+            "all cluster nodes must have reported health to node [" + healthNodeName + "]",
+            diskInfo.size(),
+            equalTo(state.nodes().size())
+        );
+        for (final String nodeId : state.nodes().getNodes().keySet()) {
+            assertThat(
+                "node [" + nodeId + "] must have GREEN disk health in cache on [" + healthNodeName + "]",
+                diskInfo.get(nodeId),
+                equalTo(GREEN_DISK_HEALTH)
+            );
+        }
     }
 }

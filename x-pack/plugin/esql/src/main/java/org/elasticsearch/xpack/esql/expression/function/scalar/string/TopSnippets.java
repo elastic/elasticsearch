@@ -170,7 +170,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
      * Resolves the type for the function parameters, as part of the type resolution for the function
      *
      */
-    protected TypeResolution resolveParams() {
+    private TypeResolution resolveParams() {
         return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
             .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
     }
@@ -180,7 +180,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
      *
      * @return type resolution for the query parameter
      */
-    protected TypeResolution resolveQuery() {
+    private TypeResolution resolveQuery() {
         return isString(query(), sourceText(), SECOND).and(() -> isFoldable(query(), sourceText(), SECOND));
     }
 

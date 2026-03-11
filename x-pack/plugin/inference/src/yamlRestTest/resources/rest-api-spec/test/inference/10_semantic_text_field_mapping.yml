@@ -600,7 +600,6 @@ setup:
                     type: int8_hnsw
                     m: 20
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -609,7 +608,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       index:
@@ -641,7 +639,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": int8_hnsw }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
 ---
 "Specifying incompatible dense vector index options will fail":
@@ -811,7 +808,6 @@ setup:
                     type: int8_hnsw
                     m: 16
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -820,7 +816,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       indices.put_mapping:
@@ -835,7 +830,6 @@ setup:
                   type: int8_hnsw
                   m: 20
                   ef_construction: 90
-                  confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -844,7 +838,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 90 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       catch: /Cannot update parameter \[index_options\]/

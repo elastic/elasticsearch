@@ -414,6 +414,9 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
+- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
+  method: testDeletesAreBatched
+  issue: https://github.com/elastic/elasticsearch/issues/144034
 
 # Examples:
 #

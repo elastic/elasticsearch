@@ -724,6 +724,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
         final int[] docIdsScratch = new int[BULK_SIZE];
+        final int[] offsetsScratch = new int[BULK_SIZE];
         byte docEncoding;
         int docBase = 0;
 
@@ -785,57 +786,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             return vectors;
         }
 
-        private float scoreIndividually(int bulkSize) throws IOException {
-            float maxScore = Float.NEGATIVE_INFINITY;
-            // score individually, first the quantized byte chunk
-            for (int j = 0; j < bulkSize; j++) {
-                int doc = docIdsScratch[j];
-                if (doc != -1) {
-                    float qcDist = osqVectorsScorer.quantizeScore(queryQuantizer.getQuantizedTarget());
-                    scores[j] = qcDist;
-                } else {
-                    indexInput.skipBytes(quantizedVectorByteSize);
-                }
-            }
-            // read in all corrections
-            indexInput.readFloats(correctionsLower, 0, bulkSize);
-            indexInput.readFloats(correctionsUpper, 0, bulkSize);
-            for (int j = 0; j < bulkSize; j++) {
-                correctionsSum[j] = indexInput.readInt();
-            }
-            indexInput.readFloats(correctionsAdd, 0, bulkSize);
-            // Now apply corrections
-            for (int j = 0; j < bulkSize; j++) {
-                int doc = docIdsScratch[j];
-                if (doc != -1) {
-                    scores[j] = osqVectorsScorer.score(
-                        queryQuantizer.getQueryCorrections().lowerInterval(),
-                        queryQuantizer.getQueryCorrections().upperInterval(),
-                        queryQuantizer.getQueryCorrections().quantizedComponentSum(),
-                        centroidDistance,
-                        fieldInfo.getVectorSimilarityFunction(),
-                        0,
-                        correctionsLower[j],
-                        correctionsUpper[j],
-                        correctionsSum[j],
-                        correctionsAdd[j],
-                        scores[j]
-                    );
-                    if (scores[j] > maxScore) {
-                        maxScore = scores[j];
-                    }
-                }
-            }
-            return maxScore;
-        }
-
-        private static int docToBulkScore(int[] docIds, Bits acceptDocs, int bulkSize) {
+        private static int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
             assert acceptDocs != null : "acceptDocs must not be null";
-            int docToScore = bulkSize;
+            int docToScore = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
-                    docToScore--;
+                } else {
+                    offsets[docToScore] = i;
+                    docToScore++;
                 }
             }
             return docToScore;
@@ -870,15 +829,29 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = acceptDocs == null ? BULK_SIZE : docToBulkScore(docIdsScratch, acceptDocs, BULK_SIZE);
+                final int docsToBulkScore = acceptDocs == null
+                    ? BULK_SIZE
+                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
                 }
                 queryQuantizer.quantizeQueryIfNecessary();
                 final float maxScore;
-                if (docsToBulkScore < BULK_SIZE / 2) {
-                    maxScore = scoreIndividually(BULK_SIZE);
+                if (docsToBulkScore < BULK_SIZE) {
+                    maxScore = osqVectorsScorer.scoreBulkOffsets(
+                        queryQuantizer.getQuantizedTarget(),
+                        queryQuantizer.getQueryCorrections().lowerInterval(),
+                        queryQuantizer.getQueryCorrections().upperInterval(),
+                        queryQuantizer.getQueryCorrections().quantizedComponentSum(),
+                        centroidDistance,
+                        fieldInfo.getVectorSimilarityFunction(),
+                        0f,
+                        offsetsScratch,
+                        docsToBulkScore,
+                        scores,
+                        BULK_SIZE
+                    );
                 } else {
                     maxScore = osqVectorsScorer.scoreBulk(
                         queryQuantizer.getQuantizedTarget(),
@@ -900,14 +873,28 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             if (i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
-                final int docsToBulkScore = acceptDocs == null ? tailSize : docToBulkScore(docIdsScratch, acceptDocs, tailSize);
+                final int docsToBulkScore = acceptDocs == null
+                    ? tailSize
+                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {
                     queryQuantizer.quantizeQueryIfNecessary();
                     final float maxScore;
-                    if (docsToBulkScore < tailSize / 2) {
-                        maxScore = scoreIndividually(tailSize);
+                    if (docsToBulkScore < tailSize) {
+                        maxScore = osqVectorsScorer.scoreBulkOffsets(
+                            queryQuantizer.getQuantizedTarget(),
+                            queryQuantizer.getQueryCorrections().lowerInterval(),
+                            queryQuantizer.getQueryCorrections().upperInterval(),
+                            queryQuantizer.getQueryCorrections().quantizedComponentSum(),
+                            centroidDistance,
+                            fieldInfo.getVectorSimilarityFunction(),
+                            0f,
+                            offsetsScratch,
+                            docsToBulkScore,
+                            scores,
+                            tailSize
+                        );
                     } else {
                         maxScore = osqVectorsScorer.scoreBulk(
                             queryQuantizer.getQuantizedTarget(),

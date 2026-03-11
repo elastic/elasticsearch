@@ -128,7 +128,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductI7uBulkWithOffsets(
+    public static void dotProductI7uBulkWithOffsets(
         MemorySegment a,
         MemorySegment b,
         int length,
@@ -320,7 +320,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductD2Q4BulkWithOffsets(
+    public static void dotProductD2Q4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,
@@ -352,7 +352,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductD4Q4BulkWithOffsets(
+    public static void dotProductD4Q4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,

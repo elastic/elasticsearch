@@ -437,18 +437,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        it.iterateAsync(
-            createShardTarget(),
-            docs.reader,
-            docs.docIds,
-            chunkWriter,
-            50,
-            refs,
-            4,
-            sendFailure,
-            cancelled::get,
-            future
-        );
+        it.iterateAsync(createShardTarget(), docs.reader, docs.docIds, chunkWriter, 50, refs, 4, sendFailure, cancelled::get, future);
 
         Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
         assertTrue(
@@ -492,18 +481,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         CountDownLatch refsComplete = new CountDownLatch(1);
         RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
 
-        it.iterateAsync(
-            createShardTarget(),
-            docs.reader,
-            docs.docIds,
-            chunkWriter,
-            50,
-            refs,
-            4,
-            sendFailure,
-            cancelled::get,
-            future
-        );
+        it.iterateAsync(createShardTarget(), docs.reader, docs.docIds, chunkWriter, 50, refs, 4, sendFailure, cancelled::get, future);
 
         Exception e = expectThrows(Exception.class, () -> future.get(10, TimeUnit.SECONDS));
         assertThat(e.getCause().getMessage(), containsString("Simulated producer failure"));

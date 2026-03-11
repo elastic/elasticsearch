@@ -322,17 +322,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
         @Override
         public void onResponse(Releasable throttleReleasable) {
-            sendChunk(
-                chunk,
-                throttleReleasable,
-                completionRef,
-                writer,
-                shardId,
-                totalDocs,
-                sendFailure,
-                chunkCompletionRefs,
-                isCancelled
-            );
+            sendChunk(chunk, throttleReleasable, completionRef, writer, shardId, totalDocs, sendFailure, chunkCompletionRefs, isCancelled);
         }
 
         @Override

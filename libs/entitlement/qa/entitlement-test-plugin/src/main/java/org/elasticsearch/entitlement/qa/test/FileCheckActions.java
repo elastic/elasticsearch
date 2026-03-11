@@ -74,22 +74,19 @@ class FileCheckActions {
         return testRootDir.resolve("read_write_file");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileCanExecute() {
-        readFile().toFile().canExecute();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileCanExecute() {
+        return readFile().toFile().canExecute();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileCanRead() {
-        readFile().toFile().canRead();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileCanRead() {
+        return readFile().toFile().canRead();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileCanWrite() {
-        readFile().toFile().canWrite();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileCanWrite() {
+        return readFile().toFile().canWrite();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
@@ -125,10 +122,9 @@ class FileCheckActions {
         toDelete.toFile().deleteOnExit();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileExists() {
-        readFile().toFile().exists();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileExists() {
+        return readFile().toFile().exists();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -146,112 +142,100 @@ class FileCheckActions {
         readFile().toFile().isHidden();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileLastModified() {
-        readFile().toFile().lastModified();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long fileLastModified() {
+        return readFile().toFile().lastModified();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileLength() {
-        readFile().toFile().length();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long fileLength() {
+        return readFile().toFile().length();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileList() {
-        readDir().toFile().list();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String[] fileList() {
+        return readDir().toFile().list();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileListWithFilter() {
-        readDir().toFile().list((dir, name) -> true);
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String[] fileListWithFilter() {
+        return readDir().toFile().list((dir, name) -> true);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileListFiles() {
-        readDir().toFile().listFiles();
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static File[] fileListFiles() {
+        return readDir().toFile().listFiles();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileListFilesWithFileFilter() {
-        readDir().toFile().listFiles(pathname -> true);
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static File[] fileListFilesWithFileFilter() {
+        return readDir().toFile().listFiles(pathname -> true);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileListFilesWithFilenameFilter() {
-        readDir().toFile().listFiles((dir, name) -> true);
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static File[] fileListFilesWithFilenameFilter() {
+        return readDir().toFile().listFiles((dir, name) -> true);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileMkdir() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileMkdir() {
         Path mkdir = readWriteDir().resolve("mkdir");
-        mkdir.toFile().mkdir();
-        return "true";
+        return mkdir.toFile().mkdir();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileMkdirs() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileMkdirs() {
         Path mkdir = readWriteDir().resolve("mkdirs");
-        mkdir.toFile().mkdirs();
-        return "true";
+        return mkdir.toFile().mkdirs();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileRenameTo() throws IOException {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileRenameTo() throws IOException {
         var dir = EntitledActions.createTempDirectoryForWrite();
         Path toRename = dir.resolve("to_rename");
         EntitledActions.createFile(toRename);
-        toRename.toFile().renameTo(dir.resolve("renamed").toFile());
-        return "true";
+        return toRename.toFile().renameTo(dir.resolve("renamed").toFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
-    static String fileSetExecutable() {
-        return String.valueOf(readWriteFile().toFile().setExecutable(false));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileSetExecutable() {
+        return readWriteFile().toFile().setExecutable(false);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
-    static String fileSetExecutableOwner() {
-        return String.valueOf(readWriteFile().toFile().setExecutable(false, false));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileSetExecutableOwner() {
+        return readWriteFile().toFile().setExecutable(false, false);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetLastModified() {
-        readWriteFile().toFile().setLastModified(System.currentTimeMillis());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileSetLastModified() {
+        return readWriteFile().toFile().setLastModified(System.currentTimeMillis());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetReadable() {
-        return String.valueOf(readWriteFile().toFile().setReadable(true));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true", expectedDefaultType = boolean.class)
+    static boolean fileSetReadable() {
+        return readWriteFile().toFile().setReadable(true);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetReadableOwner() {
-        return String.valueOf(readWriteFile().toFile().setReadable(true, false));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true", expectedDefaultType = boolean.class)
+    static boolean fileSetReadableOwner() {
+        return readWriteFile().toFile().setReadable(true, false);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetReadOnly() throws IOException {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileSetReadOnly() throws IOException {
         Path readOnly = EntitledActions.createTempFileForWrite();
-        readOnly.toFile().setReadOnly();
-        return "true";
+        return readOnly.toFile().setReadOnly();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetWritable() {
-        return String.valueOf(readWriteFile().toFile().setWritable(true));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true", expectedDefaultType = boolean.class)
+    static boolean fileSetWritable() {
+        return readWriteFile().toFile().setWritable(true);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileSetWritableOwner() {
-        return String.valueOf(readWriteFile().toFile().setWritable(true, false));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true", expectedDefaultType = boolean.class)
+    static boolean fileSetWritableOwner() {
+        return readWriteFile().toFile().setWritable(true, false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -619,11 +603,10 @@ class FileCheckActions {
         Files.readAllBytes(file);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String readAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean readAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
         var file = environment.configDir().resolve("jvm.options.d");
-        Files.isDirectory(file);
-        return "true";
+        return Files.isDirectory(file);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)

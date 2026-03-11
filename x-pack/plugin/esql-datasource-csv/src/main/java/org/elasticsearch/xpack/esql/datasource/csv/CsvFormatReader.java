@@ -100,6 +100,16 @@ import java.util.regex.Pattern;
  *       <td>—</td><td>{@code Array()} type notation</td></tr>
  * </table>
  *
+ * <h2>Bracket multi-value syntax</h2>
+ * When {@code multi_value_syntax} is {@code brackets}, array-like values support:
+ * <ul>
+ *   <li>{@code [a,b,c]} — unquoted elements</li>
+ *   <li>{@code ["a","b","c"]} — quoted elements (quotes stripped)</li>
+ *   <li>{@code [a,"b,c"]} — mixed; commas inside quotes are literal</li>
+ * </ul>
+ * <p>With comma delimiter, a cell like {@code [hello,world]} is treated as one column:
+ * commas inside {@code [...]} are not column delimiters.
+ *
  * <h2>Error handling</h2>
  * Controlled by {@link ErrorPolicy} and its {@link ErrorPolicy.Mode}:
  * <table>
@@ -444,10 +454,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return attributes;
     }
 
+    /**
+     * Parse CSV type names to ESQL DataType. Small numeric types (SHORT, BYTE, FLOAT, etc.)
+     * are widened to INTEGER/DOUBLE since the planner expects widened types.
+     */
     private DataType parseDataType(String typeName) {
-        return switch (typeName) {
+        String upper = typeName.toUpperCase(Locale.ROOT);
+        return switch (upper) {
+            case "SHORT", "BYTE" -> DataType.INTEGER;
             case "INTEGER", "INT", "I" -> DataType.INTEGER;
             case "LONG", "L" -> DataType.LONG;
+            case "FLOAT", "HALF_FLOAT", "SCALED_FLOAT" -> DataType.DOUBLE;
             case "DOUBLE", "D" -> DataType.DOUBLE;
             case "KEYWORD", "K", "STRING", "S" -> DataType.KEYWORD;
             case "TEXT", "TXT" -> DataType.TEXT;
@@ -583,29 +600,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 initProjection();
 
-                CsvSchema csvSchema = CsvSchema.emptySchema()
-                    .withColumnSeparator(options.delimiter())
-                    .withQuoteChar(options.quoteChar())
-                    .withEscapeChar(options.escapeChar())
-                    .withNullValue(options.nullValue());
-                csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+                boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
+                if (useBracketAwareParsing == false) {
+                    CsvSchema csvSchema = CsvSchema.emptySchema()
+                        .withColumnSeparator(options.delimiter())
+                        .withQuoteChar(options.quoteChar())
+                        .withEscapeChar(options.escapeChar())
+                        .withNullValue(options.nullValue());
+                    csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+                }
             }
             while (true) {
                 List<String[]> rows = new ArrayList<>();
-                while (rows.size() < batchSize && csvIterator.hasNext()) {
-                    List<?> rowList = csvIterator.next();
-                    String[] row = new String[rowList.size()];
-                    for (int i = 0; i < rowList.size(); i++) {
-                        Object val = rowList.get(i);
-                        row[i] = val != null ? val.toString() : null;
-                    }
-                    if (hasCommentFilter && row.length > 0 && row[0] != null) {
-                        String trimmedFirstCell = row[0].trim();
-                        if (trimmedFirstCell.startsWith(options.commentPrefix())) {
-                            continue;
+                if (bracketMultiValues && options.delimiter() == ',') {
+                    rows = readRowsBracketAware(batchSize);
+                } else {
+                    while (rows.size() < batchSize && csvIterator.hasNext()) {
+                        List<?> rowList = csvIterator.next();
+                        String[] row = new String[rowList.size()];
+                        for (int i = 0; i < rowList.size(); i++) {
+                            Object val = rowList.get(i);
+                            row[i] = val != null ? val.toString() : null;
                         }
+                        if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                            String trimmedFirstCell = row[0].trim();
+                            if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                                continue;
+                            }
+                        }
+                        rows.add(row);
                     }
-                    rows.add(row);
                 }
 
                 if (rows.isEmpty()) {
@@ -617,6 +641,129 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return page;
                 }
             }
+        }
+
+        /**
+         * Reads CSV rows using bracket-aware parsing. When a cell starts with {@code [} after a comma
+         * and ends with {@code ]} before a comma, commas inside are not column delimiters.
+         * The cell value is kept as {@code [a,b,c]} so multi-value conversion can parse it.
+         * Supports multi-line quoted fields.
+         */
+        private List<String[]> readRowsBracketAware(int batchSize) throws IOException {
+            List<String[]> rows = new ArrayList<>();
+            String line;
+            while (rows.size() < batchSize && (line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
+                    continue;
+                }
+                StringBuilder logicalLine = new StringBuilder(line);
+                while (hasUnclosedQuote(logicalLine.toString(), options.quoteChar())) {
+                    String next = reader.readLine();
+                    if (next == null) {
+                        break;
+                    }
+                    logicalLine.append('\n').append(next);
+                }
+                String[] row = splitLineBracketAware(logicalLine.toString());
+                rows.add(row);
+            }
+            return rows;
+        }
+
+        private static boolean hasUnclosedQuote(String s, char quote) {
+            boolean inQuotes = false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == quote) {
+                    if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
+                        i++;
+                        continue;
+                    }
+                    inQuotes = !inQuotes;
+                }
+            }
+            return inQuotes;
+        }
+
+        /**
+         * Splits a CSV line by delimiter, treating quoted fields and {@code [..,..,..]} as single cells.
+         * Commas inside quotes or brackets are not delimiters. Escaped commas ({@code \,}) are skipped.
+         */
+        private String[] splitLineBracketAware(String line) {
+            List<String> entries = new ArrayList<>();
+            char delim = options.delimiter();
+            char quote = options.quoteChar();
+            char esc = options.escapeChar();
+            StringBuilder current = new StringBuilder();
+            boolean inQuotes = false;
+            boolean inBrackets = false;
+            int i = 0;
+            while (i < line.length()) {
+                char c = line.charAt(i);
+                if (inQuotes) {
+                    if (c == quote) {
+                        if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
+                            current.append(quote);
+                            i += 2;
+                            continue;
+                        }
+                        inQuotes = false;
+                    } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
+                        current.append(delim);
+                        i += 2;
+                        continue;
+                    } else {
+                        current.append(c);
+                    }
+                    i++;
+                } else if (inBrackets) {
+                    current.append(c);
+                    if (c == ']') {
+                        inBrackets = false;
+                        entries.add(current.toString());
+                        current = new StringBuilder();
+                        i++;
+                        while (i < line.length() && line.charAt(i) == ' ') {
+                            i++;
+                        }
+                        if (i < line.length() && line.charAt(i) == delim) {
+                            i++;
+                            continue;
+                        }
+                        continue;
+                    }
+                    i++;
+                } else if (c == quote) {
+                    inQuotes = true;
+                    i++;
+                } else if (c == '[' && current.length() == 0) {
+                    inBrackets = true;
+                    current.append(c);
+                    i++;
+                } else if (c == delim) {
+                    if (i > 0 && line.charAt(i - 1) == esc) {
+                        current.append(c);
+                    } else {
+                        entries.add(current.toString().trim());
+                        current = new StringBuilder();
+                    }
+                    i++;
+                } else {
+                    current.append(c);
+                    i++;
+                }
+            }
+            if (inQuotes) {
+                throw new EsqlIllegalArgumentException("Unclosed quoted field in line [{}]", line);
+            }
+            if (inBrackets) {
+                throw new EsqlIllegalArgumentException("Unclosed bracket cell in line [{}]", line);
+            }
+            if (current.length() > 0) {
+                entries.add(current.toString().trim());
+            }
+            return entries.toArray(String[]::new);
         }
 
         private void initProjection() {
@@ -768,16 +915,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<String> result = new ArrayList<>();
             StringBuilder current = new StringBuilder();
             char esc = options.escapeChar();
+            char quote = options.quoteChar();
+            boolean inQuotes = false;
             int i = 0;
             while (i < content.length()) {
                 char c = content.charAt(i);
-                if (c == esc && i + 1 < content.length() && content.charAt(i + 1) == ',') {
-                    current.append(',');
-                    i += 2;
-                } else if (c == ',') {
+                if (c == quote) {
+                    if (inQuotes) {
+                        if (i + 1 < content.length() && content.charAt(i + 1) == quote) {
+                            current.append(quote);
+                            i += 2;
+                            continue;
+                        }
+                        inQuotes = false;
+                    } else {
+                        inQuotes = true;
+                    }
+                    i++;
+                } else if (c == ',' && inQuotes == false) {
                     result.add(current.toString().trim());
                     current = new StringBuilder();
                     i++;
+                } else if (c == esc && inQuotes == false && i + 1 < content.length() && content.charAt(i + 1) == ',') {
+                    current.append(',');
+                    i += 2;
                 } else {
                     current.append(c);
                     i++;
@@ -794,6 +955,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (hasCustomNullValue && value.equals(nullValueStr)) {
                 return null;
             }
+            value = unquoteElement(value);
+            if (value.isEmpty()) {
+                return null;
+            }
             return switch (dataType) {
                 case INTEGER -> tryParseInt(value);
                 case LONG -> tryParseLong(value);
@@ -807,6 +972,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     yield null;
                 }
             };
+        }
+
+        /**
+         * Unquotes an element that is wrapped in the configured quote character.
+         * Removes leading/trailing quotes and replaces {@code ""} with {@code "} in the inner content.
+         */
+        private String unquoteElement(String value) {
+            char quote = options.quoteChar();
+            if (value.length() >= 2 && value.charAt(0) == quote && value.charAt(value.length() - 1) == quote) {
+                String inner = value.substring(1, value.length() - 1);
+                return inner.replace(String.valueOf(quote) + quote, String.valueOf(quote));
+            }
+            return value;
         }
 
         private Object tryParseInt(String value) {
@@ -936,6 +1114,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private static boolean looksNumeric(String value) {
+            if (value == null || value.isEmpty()) {
+                return false;
+            }
             int start = (value.charAt(0) == '-') ? 1 : 0;
             if (start >= value.length()) {
                 return false;

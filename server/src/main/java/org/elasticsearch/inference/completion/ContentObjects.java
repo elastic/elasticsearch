@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.inference.completion.ContentObject.ContentObjectType.TEXT;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
 
 public record ContentObjects(List<ContentObject> contentObjects) implements Content, NamedWriteable {
 

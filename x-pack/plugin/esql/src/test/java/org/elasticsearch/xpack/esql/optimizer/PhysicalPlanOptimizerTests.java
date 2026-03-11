@@ -4840,6 +4840,87 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on different geo_shape and geo_point fields.
+     * When each aggregation on different fields with different extractions,
+     * the geo_point field should use DOC_VALUES preference and
+     * the geo_shape field should use either EXTRACT_SPATIAL_BOUNDS or EXTRACT_SPATIAL_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnGeoPointAndGeoShape() {
+        for (String query : new String[] {
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_location), extent = ST_EXTENT_AGG(city_boundary)",
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary), extent = ST_EXTENT_AGG(city_location)" }) {
+            boolean centroidOnShapes = query.contains("ST_CENTROID_AGG(city_boundary)");
+            boolean extentOnShapes = query.contains("ST_EXTENT_AGG(city_boundary)");
+            DataType centroidType = centroidOnShapes ? GEO_SHAPE : GEO_POINT;
+            DataType extentType = extentOnShapes ? GEO_SHAPE : GEO_POINT;
+            for (boolean useDocValues : new Boolean[] { true, false }) {
+                var centroidExtractPreference = useDocValues
+                    ? (centroidOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var extentExtractPreference = useDocValues
+                    ? (extentOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+                var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregations do not use doc-values extraction
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var partialAgg = as(fragment.fragment(), Aggregate.class);
+                as(partialAgg.child(), EsRelation.class);
+
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+                assertAggregation(
+                    agg,
+                    "centroid",
+                    "hasDocValues:" + useDocValues,
+                    SpatialCentroid.class,
+                    centroidType,
+                    centroidExtractPreference
+                );
+                assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, extentType, extentExtractPreference);
+                var fieldExtractExec = as(agg.child(), FieldExtractExec.class);
+                // Check that field extraction of points is from doc-values, and shapes from bounds or centroid depending on test function
+                if (useDocValues) {
+                    assertThat(
+                        fieldExtractExec.docValuesAttributes().stream().map(Node::sourceText).toList(),
+                        equalTo(List.of("city_location"))
+                    );
+                    if (extentOnShapes) {
+                        assertThat(
+                            fieldExtractExec.boundsAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                    if (centroidOnShapes) {
+                        assertThat(
+                            fieldExtractExec.centroidAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                } else {
+                    assertThat(fieldExtractExec.docValuesAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.boundsAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.centroidAttributes(), equalTo(Set.of()));
+                }
+            }
+        }
+    }
+
+    /**
      * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on the same cartesian_shape field.
      * When both aggregations are used on the same shape field with doc-values,
      * both should use EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.

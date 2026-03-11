@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -167,52 +169,28 @@ public class SpatialShapeDocValuesExtraction extends ParameterizedOptimizerRule<
         Set<Attribute> centroidAttributes,
         Set<Attribute> boundsAttributes
     ) {
-        PhysicalPlan result = agg;
-
-        // Transform centroid aggregations
-        if (centroidAttributes.isEmpty() == false) {
-            result = result.transformExpressionsDown(
-                SpatialCentroid.class,
-                spatialCentroid -> centroidAttributes.contains(spatialCentroid.field())
-                    ? spatialCentroid.withFieldExtractPreference(spatialCentroid.fieldExtractPreference().getWithSpatialCentroid())
-                    : spatialCentroid
+        if (centroidAttributes.isEmpty() == false || boundsAttributes.isEmpty() == false) {
+            return agg.transformExpressionsDown(
+                SpatialAggregateFunction.class,
+                a -> transformFieldExtractPreference(a, centroidAttributes, boundsAttributes)
             );
         }
+        return agg;
+    }
 
-        // Transform extent aggregations
-        if (boundsAttributes.isEmpty() == false) {
-            result = result.transformExpressionsDown(
-                SpatialExtent.class,
-                spatialExtent -> boundsAttributes.contains(spatialExtent.field())
-                    ? spatialExtent.withFieldExtractPreference(spatialExtent.fieldExtractPreference().getWithSpatialBounds())
-                    : spatialExtent
-            );
-        }
-
-        // When centroid and extent share a field, ensure both use the combined preference
-        // This handles cases where one was already set by the above transforms
-        Set<Attribute> sharedAttributes = new HashSet<>(centroidAttributes);
-        sharedAttributes.retainAll(boundsAttributes);
-
-        if (sharedAttributes.isEmpty() == false) {
-            // Upgrade centroid aggregations on shared fields to also include bounds
-            result = result.transformExpressionsDown(
-                SpatialCentroid.class,
-                spatialCentroid -> sharedAttributes.contains(spatialCentroid.field())
-                    ? spatialCentroid.withFieldExtractPreference(spatialCentroid.fieldExtractPreference().getWithSpatialBounds())
-                    : spatialCentroid
-            );
-
-            // Upgrade extent aggregations on shared fields to also include centroid
-            result = result.transformExpressionsDown(
-                SpatialExtent.class,
-                spatialExtent -> sharedAttributes.contains(spatialExtent.field())
-                    ? spatialExtent.withFieldExtractPreference(spatialExtent.fieldExtractPreference().getWithSpatialCentroid())
-                    : spatialExtent
-            );
-        }
-
-        return result;
+    private static SpatialAggregateFunction transformFieldExtractPreference(
+        SpatialAggregateFunction agg,
+        Set<Attribute> centroidAttributes,
+        Set<Attribute> boundsAttributes
+    ) {
+        boolean withCentroid = centroidAttributes.contains(agg.field());
+        boolean withBounds = boundsAttributes.contains(agg.field());
+        MappedFieldType.FieldExtractPreference p = agg.fieldExtractPreference();
+        return withCentroid
+            ? (withBounds
+                ? agg.withFieldExtractPreference(p.getWithSpatialCentroid().getWithSpatialBounds())
+                : agg.withFieldExtractPreference(p.getWithSpatialCentroid()))
+            : (withBounds ? agg.withFieldExtractPreference(p.getWithSpatialBounds()) : agg);
     }
 
     /**

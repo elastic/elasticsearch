@@ -1416,6 +1416,10 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
+         */
+        EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
@@ -2115,6 +2119,11 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
+         */
+        TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
          */
         TDIGEST_MEDIAN,
@@ -2159,6 +2168,11 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Support for TBUCKET with numeric bucket count and optional from/to parameters.
+         */
+        TBUCKET_FROM_TO,
 
         /**
          * Supports the REGISTERED_DOMAIN command.
@@ -2224,6 +2238,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142968
          */
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
 
         /**
          * Fix for not including metadata _doc_count in the _timeseries column

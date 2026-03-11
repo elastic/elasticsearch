@@ -22,6 +22,7 @@ package org.elasticsearch.gpu.codec;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -323,12 +324,12 @@ class MergedQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
     }
 
     private static final class OffsetCorrectedQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
-        private final LegacyQuantizedByteVectorValues in;
+        private final ByteVectorValues in;
         private final VectorSimilarityFunction vectorSimilarityFunction;
         private final ScalarQuantizer scalarQuantizer, oldScalarQuantizer;
 
         OffsetCorrectedQuantizedByteVectorValues(
-            LegacyQuantizedByteVectorValues in,
+            ByteVectorValues in,
             VectorSimilarityFunction vectorSimilarityFunction,
             ScalarQuantizer scalarQuantizer,
             ScalarQuantizer oldScalarQuantizer

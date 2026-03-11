@@ -23,6 +23,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
@@ -477,7 +478,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(EUCLIDEAN)) {
-                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                        QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
                         float[] expected = new float[nodes.length];
                         float[] scores = new float[nodes.length];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -526,7 +527,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                        QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
                         float[] expected = new float[nodes.length];
                         float[] scores = new float[nodes.length];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -643,7 +644,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         out.writeInt(correction.quantizedComponentSum());
     }
 
-    LegacyQuantizedByteVectorValues vectorValues(
+    QuantizedByteVectorValues vectorValues(
         int dims,
         int size,
         float[] centroid,
@@ -734,7 +735,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         assertEquals(expected, actual, Math.abs(expected) * delta + delta);
     }
 
-    static RandomVectorScorerSupplier luceneScoreSupplier(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
@@ -777,7 +778,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     static final int TIMES = 100; // a loop iteration times
 
-    static class DenseOffHeapScalarQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
+    static class DenseOffHeapScalarQuantizedVectorValues extends QuantizedByteVectorValues {
         final int dimension;
         final int size;
         final VectorSimilarityFunction similarityFunction;
@@ -840,8 +841,8 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
 
         @Override
-        public LegacyQuantizedByteVectorValues.ScalarEncoding getScalarEncoding() {
-            return LegacyQuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT;
+        public QuantizedByteVectorValues.ScalarEncoding getScalarEncoding() {
+            return QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT;
         }
 
         @Override
@@ -884,7 +885,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
 
         @Override
-        public LegacyQuantizedByteVectorValues copy() throws IOException {
+        public QuantizedByteVectorValues copy() throws IOException {
             return new DenseOffHeapScalarQuantizedVectorValues(dimension, size, similarityFunction, slice.clone(), centroid, centroidDp);
         }
     }

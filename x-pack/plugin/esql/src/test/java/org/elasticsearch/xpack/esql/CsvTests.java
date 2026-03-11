@@ -420,6 +420,12 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
+            assumeFalseLogging(
+                "CSV tests cannot handle replacing approximate count by exact (requires ES filter pushdown)",
+                groupName.equals("approximation")
+                    && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
+            );
+
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",

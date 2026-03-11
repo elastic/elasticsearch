@@ -417,6 +417,9 @@ tests:
 - class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
   method: testDeletesAreBatched
   issue: https://github.com/elastic/elasticsearch/issues/144034
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144022
 
 # Examples:
 #

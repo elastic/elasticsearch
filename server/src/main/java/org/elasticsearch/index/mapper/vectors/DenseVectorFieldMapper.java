@@ -1934,8 +1934,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
@@ -1943,8 +1942,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -1988,11 +1985,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2062,8 +2056,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2079,8 +2072,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2155,8 +2146,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
@@ -2164,8 +2154,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2244,8 +2232,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2261,8 +2248,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2368,16 +2353,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2482,8 +2464,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2496,8 +2477,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2546,14 +2525,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2668,8 +2644,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
             builder.field("flat_index_threshold", flatIndexThreshold);
@@ -2684,8 +2659,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
-            builder.endObject();
-            return builder;
         }
 
         public int getClusterSize() {

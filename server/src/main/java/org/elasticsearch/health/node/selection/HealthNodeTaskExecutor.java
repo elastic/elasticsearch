@@ -42,7 +42,6 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
@@ -63,14 +62,14 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ClusterStateListener taskStarter;
-    private final AtomicBoolean enabled;
+    private volatile boolean enabled;
 
     private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
-        this.enabled = new AtomicBoolean(ENABLED_SETTING.get(settings));
+        this.enabled = ENABLED_SETTING.get(settings);
     }
 
     @Override
@@ -90,18 +89,16 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private void registerListeners(ClusterSettings clusterSettings) {
-        if (this.enabled.get()) {
+        if (this.enabled) {
             clusterService.addListener(taskStarter);
         }
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
     }
 
     private void enable(boolean enabled) {
-        final boolean prevEnabled = this.enabled.getAndSet(enabled);
+        this.enabled = enabled;
         if (enabled) {
-            if (prevEnabled == false) {
-                clusterService.addListener(taskStarter);
-            }
+            clusterService.addListener(taskStarter);
         } else {
             clusterService.removeListener(taskStarter);
             removeTask();

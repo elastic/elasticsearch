@@ -75,7 +75,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         bfloat16VectorFormat
     );
 
-    public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    public static final int DEFAULT_VECTORS_PER_CLUSTER = 256;
     private static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
 
     /**
@@ -89,9 +89,9 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
-    public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
+    public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 128;
     public static final int MIN_CENTROIDS_PER_PARENT_CLUSTER = 2;
-    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
+    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = MAX_VECTORS_PER_CLUSTER;
     public static final int DEFAULT_PRECONDITIONING_BLOCK_DIMENSION = 32;
     public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;

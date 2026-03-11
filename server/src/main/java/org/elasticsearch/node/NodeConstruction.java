@@ -1085,8 +1085,6 @@ class NodeConstruction {
         ActionModule actionModule = new ActionModule(
             environment,
             clusterModule.getIndexNameExpressionResolver(),
-            namedWriteableRegistry,
-            settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
             threadPool,

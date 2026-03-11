@@ -59,7 +59,7 @@ def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeIm
   group = 'build'
   classpath = sourceSets.main.runtimeClasspath
   imageTag = nativeImageImage
-  platform = 'linux/aarch64'
+  platform = 'linux/arm64'
   mainClass = launcherMainClass
   outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
 }

@@ -32,7 +32,9 @@ class JvmActions {
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
     static String setSystemProperty() {
         String previous = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
-        System.clearProperty("es.entitlements.checkSetSystemProperty");
+        if (System.getProperty("es.entitlements.checkSetSystemProperty") != null) {
+            System.clearProperty("es.entitlements.checkSetSystemProperty");
+        }
         return previous;
     }
 

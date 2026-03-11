@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -62,9 +63,9 @@ public class LimitExecSerializationTests extends AbstractPhysicalPlanSerializati
     }
 
     public void testSerializationWithGroupingsOnOldVersion() {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Limit.ESQL_LIMIT_BY);
         Source source = randomSource();
-        PhysicalPlan child = randomChild(0);
+        PhysicalPlan child = new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null);
         Expression limit = randomLimit();
         List<Expression> groupings = randomList(1, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
         LimitExec instance = new LimitExec(source, child, limit, groupings, randomEstimatedRowSize());
@@ -73,9 +74,9 @@ public class LimitExecSerializationTests extends AbstractPhysicalPlanSerializati
     }
 
     public void testSerializationWithoutGroupingsOnOldVersion() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Limit.ESQL_LIMIT_BY);
         Source source = randomSource();
-        PhysicalPlan child = randomChild(0);
+        PhysicalPlan child = new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null);
         Expression limit = randomLimit();
         LimitExec instance = new LimitExec(source, child, limit, List.of(), randomEstimatedRowSize());
         LimitExec deserialized = copyInstance(instance, oldVersion);

@@ -8,15 +8,23 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class LimitSerializationTests extends AbstractLogicalPlanSerializationTests<Limit> {
+    private static Expression randomLimit() {
+        return new Literal(randomSource(), between(0, Integer.MAX_VALUE), DataType.INTEGER);
+    }
+
     @Override
     protected Limit createTestInstance() {
         Source source = randomSource();
@@ -63,10 +71,10 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     }
 
     public void testSerializationWithGroupingsOnOldVersion() {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Limit.ESQL_LIMIT_BY);
         Source source = randomSource();
-        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
-        LogicalPlan child = randomChild(0);
+        Expression limit = randomLimit();
+        LogicalPlan child = new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
         List<Expression> groupings = randomList(1, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
         Limit instance = new Limit(source, limit, child, groupings, false, false);
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(instance, oldVersion));
@@ -74,10 +82,10 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     }
 
     public void testSerializationWithoutGroupingsOnOldVersion() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Limit.ESQL_LIMIT_BY);
         Source source = randomSource();
-        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
-        LogicalPlan child = randomChild(0);
+        Expression limit = randomLimit();
+        LogicalPlan child = new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
         Limit instance = new Limit(source, limit, child, List.of(), false, false);
         Limit deserialized = copyInstance(instance, oldVersion);
         assertEquals(List.of(), deserialized.groupings());

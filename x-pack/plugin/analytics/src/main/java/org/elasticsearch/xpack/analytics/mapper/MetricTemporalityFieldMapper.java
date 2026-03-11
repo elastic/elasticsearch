@@ -14,14 +14,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -36,10 +35,9 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -47,6 +45,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
@@ -136,9 +135,7 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
                 dimension(true);
             }
             if (dimension.getValue() == false) {
-                throw new IllegalArgumentException(
-                    "Field type [" + CONTENT_TYPE + "] requires [" + dimension.name + "] to be [true]"
-                );
+                throw new IllegalArgumentException("Field type [" + CONTENT_TYPE + "] requires [" + dimension.name + "] to be [true]");
             }
             FieldType fieldType = buildFieldType();
             TextSearchInfo textSearchInfo = indexed.get()
@@ -160,7 +157,12 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings().getIndexVersionCreated(), c.getIndexSettings()),
+        (n, c) -> new Builder(
+            n,
+            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+            c.getIndexSettings().getIndexVersionCreated(),
+            c.getIndexSettings()
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -270,60 +272,45 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         if (context.doc().getField(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
-                + fullPath()
-                + "] of type ["
-                + typeName()
-                + "] doesn't support indexing multiple values for the same field in the same document"
+                    + fullPath()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support indexing multiple values for the same field in the same document"
             );
         }
         try {
+            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), context.parser());
             BytesRef normalizedValue = normalizeTemporalityAsBytes(parser.text());
-            indexValue(context, normalizedValue);
+            context.doc().add(new KeywordFieldMapper.KeywordField(fieldType().name(), normalizedValue, fieldType));
+
+            assert fieldType().isDimension();
+            context.getRoutingFields().addString(fieldType().name(), normalizedValue);
         } catch (Exception e) {
             if (ignoreMalformed()) {
-                recordIgnoredMalformedValue(context, parser);
+                if (context.mappingLookup().isSourceSynthetic()) {
+                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), parser);
+                }
+                context.addIgnoredField(fieldType().name());
             } else {
                 throw e;
             }
         }
     }
 
-    private void recordIgnoredMalformedValue(DocumentParserContext context, XContentParser parser) throws IOException {
-        if (context.mappingLookup().isSourceSynthetic()) {
-            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), parser);
-        }
-        if (parser.currentToken() == XContentParser.Token.START_ARRAY || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            parser.skipChildren();
-        }
-        context.addIgnoredField(fieldType().name());
-    }
-
-    private void indexValue(DocumentParserContext context, BytesRef value) {
-        context.doc().add(new KeywordFieldMapper.KeywordField(fieldType().name(), value, fieldType));
-        if (fieldType().isDimension()) {
-            context.getRoutingFields().addString(fieldType().name(), value);
-        }
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(
-            () -> new CompositeSyntheticFieldLoader(
-                leafName(),
-                fullPath(),
-                new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-                    @Override
-                    protected BytesRef convert(BytesRef value) {
-                        return value;
-                    }
+            () -> new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
 
-                    @Override
-                    protected BytesRef preserve(BytesRef value) {
-                        return BytesRef.deepCopyOf(value);
-                    }
-                },
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
-            )
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    return BytesRef.deepCopyOf(value);
+                }
+            }, CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion))
         );
     }
 

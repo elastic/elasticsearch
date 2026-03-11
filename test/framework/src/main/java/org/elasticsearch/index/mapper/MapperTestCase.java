@@ -1952,6 +1952,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
+    protected void enableDocValuesOnMapping(XContentBuilder mapping) throws IOException {
+        mapping.field("doc_values", true);
+    }
+
     public void testDocValuesSkippers() throws IOException {
         assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
 
@@ -1964,7 +1968,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(preSkipperVersion, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
@@ -1973,7 +1977,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(withSkipperVersion, skippersEnabled, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
@@ -1982,7 +1986,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(withSkipperVersion, skippersDisabled, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
@@ -1995,7 +1999,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(statelessNoSkipperVersion, statelessSkipperDefault, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
@@ -2010,7 +2014,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperTSDB, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
@@ -2023,7 +2027,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         {
             MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperEnabled, fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("doc_values", true);
+                enableDocValuesOnMapping(b);
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));

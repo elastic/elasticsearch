@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -55,6 +54,16 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected void enableDocValuesOnMapping(XContentBuilder mapping) throws IOException {
+        // noop, doc values are always enabled for this field type
+    }
+
+    @Override
     public void testMinimalIsInvalidInRoutingPath() throws IOException {
         assumeTrue("metric_temporality field is always a dimension, so it is always valid in the routing path", false);
     }
@@ -78,7 +87,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
-
     @Override
     protected boolean supportsIgnoreMalformed() {
         return true;
@@ -91,7 +99,10 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
                 "Unknown value [unknown] for field [metric_temporality] - accepted values are [delta, cumulative]"
             ),
             exampleMalformedValue(b -> b.value(123)).errorMatches(
-                "Unknown value [123] for field [metric_temporality] - accepted values are [delta, cumulative]"
+                "Failed to parse object: expecting token of type [VALUE_STRING] but found [VALUE_NUMBER]"
+            ),
+            exampleMalformedValue(b -> b.startObject().field("foo", 42).endObject()).errorMatches(
+                "Failed to parse object: expecting token of type [VALUE_STRING] but found [START_OBJECT]"
             )
         );
     }
@@ -144,21 +155,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    @Override
-    protected boolean supportsStoredFields() {
-        return false;
-    }
-
-    @Override
-    protected boolean supportsSearchLookup() {
-        return false;
-    }
-
-    @Override
-    protected boolean dedupAfterFetch() {
-        return true;
-    }
-
     public void testDimensionMustBeExplicitlyTrue() {
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -171,14 +167,14 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisallowNonDimension() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
-                b.field("time_series_dimension", false);
-            }))
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
+            b.field("time_series_dimension", false);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field type [metric_temporality] requires [time_series_dimension] to be [true]")
         );
-        assertThat(e.getCause().getMessage(), containsString("Field type [metric_temporality] requires [time_series_dimension] to be [true]"));
     }
 
     public void testInheritsDimensionFromPassThroughObject() throws IOException {
@@ -234,7 +230,10 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
 
     public void testRejectUnknownValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "gauge"))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "gauge")))
+        );
         assertThat(e.getCause().getMessage(), containsString("accepted values are [delta, cumulative]"));
     }
 
@@ -342,8 +341,4 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 
-    @Override
-    protected boolean supportsDocValuesSkippers() {
-        return false;
-    }
 }

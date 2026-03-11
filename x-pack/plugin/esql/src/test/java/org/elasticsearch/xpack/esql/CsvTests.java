@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -387,6 +388,11 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
                 testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+            );
+            assumeFalseLogging(
+                "CSV tests cannot handle replacing approximate count by exact (requires ES filter pushdown)",
+                groupName.equals("approximation")
+                    && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
             if (Build.current().isSnapshot()) {
@@ -790,14 +796,17 @@ public class CsvTests extends ESTestCase {
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            LogicalPlan optimizedPlan = session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile);
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                statement,
                 esqlExecutionInfo,
                 planRunner(bigArrays, physicalOperationProviders),
-                session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
+                optimizedPlan,
                 configuration,
                 foldCtx,
+                configuration.approximationSettings() != null
+                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
+                    : null,
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(

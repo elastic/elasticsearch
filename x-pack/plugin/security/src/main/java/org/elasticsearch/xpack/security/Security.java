@@ -42,11 +42,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -97,7 +95,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -137,6 +134,7 @@ import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAct
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -236,6 +234,7 @@ import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportGetApiKeyAction;
@@ -359,6 +358,7 @@ import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCloneApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
@@ -1799,6 +1799,7 @@ public class Security extends Plugin
             new ActionHandler(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
             new ActionHandler(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
             new ActionHandler(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
+            new ActionHandler(CloneApiKeyAction.INSTANCE, TransportCloneApiKeyAction.class),
             new ActionHandler(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
             new ActionHandler(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
@@ -1839,19 +1840,14 @@ public class Security extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();
         }
+        Settings settings = restHandlersServices.settings();
         return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
@@ -1898,6 +1894,7 @@ public class Security extends Plugin
             new RestBulkUpdateApiKeyAction(settings, getLicenseState(), bulkUpdateApiKeyRequestTranslator.get()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState(), grantApiKeyRequestTranslator.get()),
+            new RestCloneApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
             new RestQueryApiKeyAction(settings, getLicenseState()),

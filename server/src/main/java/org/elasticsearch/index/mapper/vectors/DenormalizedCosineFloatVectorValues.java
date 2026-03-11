@@ -60,6 +60,11 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
     }
 
     @Override
+    public VectorScorer rescorer(float[] floats) throws IOException {
+        return in.rescorer(floats);
+    }
+
+    @Override
     public int ordToDoc(int ord) {
         return in.ordToDoc(ord);
     }

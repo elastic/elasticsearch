@@ -393,6 +393,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.spi.StoragePathTests
   method: testFileUriFunctionOnUnix
   issue: https://github.com/elastic/elasticsearch/issues/143979
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144001
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144007
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:approximation.Exact total single-valued field count}
+  issue: https://github.com/elastic/elasticsearch/issues/144014
 
 # Examples:
 #

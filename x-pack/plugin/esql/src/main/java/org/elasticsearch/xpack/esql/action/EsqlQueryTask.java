@@ -85,12 +85,6 @@ public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         super.onFailure(e);
     }
 
-    @Override
-    public void setExpirationTime(long expirationTime) {
-        super.setExpirationTime(expirationTime);
-        rescheduleCancellationOnExpiry();
-    }
-
     private void removeScheduledCancellation() {
         var prev = scheduledCancellation.getAndSet(null);
         if (prev != null) {
@@ -108,5 +102,11 @@ public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         if (prev != null) {
             prev.cancel();
         }
+    }
+
+    @Override
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
+        super.setExpirationTime(expirationTime, keepAlive);
+        rescheduleCancellationOnExpiry();
     }
 }

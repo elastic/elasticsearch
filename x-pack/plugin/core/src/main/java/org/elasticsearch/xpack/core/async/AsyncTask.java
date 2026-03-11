@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Map;
@@ -33,7 +34,12 @@ public interface AsyncTask {
     /**
      * Update the expiration time of the (partial) response.
      */
-    void setExpirationTime(long expirationTimeMillis);
+    void setExpirationTime(long expirationTimeMillis, TimeValue keepAlive);
+
+    /**
+     * Returns the currently effective keep-alive for this task.
+     */
+    TimeValue getKeepAlive();
 
     /**
      * Performs necessary checks, cancels the task and calls the runnable upon completion

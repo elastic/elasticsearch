@@ -538,7 +538,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlQueryStatus(asyncExecutionId);
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
             }
 
             @Override

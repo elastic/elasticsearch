@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * Field data implementation for the root flattened field on indices that no longer write
@@ -136,6 +137,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
     static class KeyStrippingDeduplicatingDocValues extends SortedBinaryDocValues {
 
         private final SortedBinaryDocValues delegate;
+        private final TreeSet<BytesRef> sorted = new TreeSet<>();
         private final List<BytesRef> dedupedValues = new ArrayList<>();
         private int index;
 
@@ -145,6 +147,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
 
         @Override
         public boolean advanceExact(int target) throws IOException {
+            sorted.clear();
             dedupedValues.clear();
             index = 0;
 
@@ -156,23 +159,11 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
             for (int i = 0; i < count; i++) {
                 BytesRef keyedValue = delegate.nextValue();
                 BytesRef stripped = FlattenedFieldParser.extractValue(keyedValue);
-                dedupedValues.add(BytesRef.deepCopyOf(stripped));
+                sorted.add(BytesRef.deepCopyOf(stripped));
             }
 
-            dedupedValues.sort(BytesRef::compareTo);
-            deduplicate(dedupedValues);
-
+            dedupedValues.addAll(sorted);
             return dedupedValues.isEmpty() == false;
-        }
-
-        private static void deduplicate(List<BytesRef> values) {
-            int write = 0;
-            for (int read = 0; read < values.size(); read++) {
-                if (read == 0 || values.get(read).equals(values.get(write - 1)) == false) {
-                    values.set(write++, values.get(read));
-                }
-            }
-            values.subList(write, values.size()).clear();
         }
 
         @Override

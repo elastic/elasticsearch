@@ -196,7 +196,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValues;
-        private final boolean hasRootDocValues;
+        private final boolean isLegacyIndex;
+        private final boolean forceStoreRootDocValues;
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
@@ -207,8 +208,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 && indexSettings.useTimeSeriesDocValuesFormat();
         }
 
-        private static boolean hasRootDocValues(IndexSettings indexSettings) {
-            return indexSettings.getIndexVersionCreated().before(IndexVersions.FLATTENED_FIELD_NO_ROOT_DOC_VALUES);
+        /**
+         * Root doc values are written when the index predates the removal version, when the field is indexed
+         * (since the inverted index dominates storage so the saving is marginal), or when the escape-hatch
+         * setting {@link IndexSettings#STORE_FLATTENED_ROOT_DOC_VALUES} is enabled.
+         */
+        private boolean hasRootDocValues() {
+            return isLegacyIndex || indexed.get() || forceStoreRootDocValues;
         }
 
         public Builder(final String name) {
@@ -217,6 +223,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()),
                 IndexMode.STANDARD,
                 IndexVersion.current(),
+                false,
                 false,
                 false
             );
@@ -229,7 +236,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.indexVersionCreated(),
                 usesBinaryDocValues(mappingParserContext.getIndexSettings()),
-                hasRootDocValues(mappingParserContext.getIndexSettings())
+                mappingParserContext.indexVersionCreated().before(IndexVersions.FLATTENED_FIELD_NO_ROOT_DOC_VALUES),
+                IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.get(mappingParserContext.getSettings())
             );
         }
 
@@ -239,7 +247,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexVersion indexCreatedVersion,
             boolean usesBinaryDocValues,
-            boolean hasRootDocValues
+            boolean isLegacyIndex,
+            boolean forceStoreRootDocValues
         ) {
             super(name);
             this.ignoreAboveDefault = ignoreAboveDefault;
@@ -248,7 +257,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
             this.usesBinaryDocValues = usesBinaryDocValues;
-            this.hasRootDocValues = hasRootDocValues;
+            this.isLegacyIndex = isLegacyIndex;
+            this.forceStoreRootDocValues = forceStoreRootDocValues;
         }
 
         @Override
@@ -281,6 +291,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
+            boolean hasRootDocValues = hasRootDocValues();
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
                 IndexType.terms(indexed.get(), hasDocValues.get()),
@@ -1143,7 +1154,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
-            builder.hasRootDocValues
+            builder.hasRootDocValues()
         );
     }
 
@@ -1203,7 +1214,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.indexMode,
             builder.indexCreatedVersion,
             builder.usesBinaryDocValues,
-            builder.hasRootDocValues
+            builder.isLegacyIndex,
+            builder.forceStoreRootDocValues
         ).init(this);
     }
 

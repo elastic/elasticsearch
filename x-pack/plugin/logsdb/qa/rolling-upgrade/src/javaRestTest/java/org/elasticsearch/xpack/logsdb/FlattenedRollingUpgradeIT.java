@@ -315,6 +315,38 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void verifySortByFlattenedField(List<FlattenedData> indexedData) throws IOException {
+        Request request = new Request("GET", "/" + INDEX_NAME + "/_search");
+        request.setJsonEntity("""
+            {
+                "size": 500,
+                "sort": [ { "data": { "order": "asc" } } ]
+            }""");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseMap = entityAsMap(response);
+        Integer totalCount = ObjectPath.evaluate(responseMap, "hits.total.value");
+        assertThat("sort result count", totalCount, equalTo(indexedData.size()));
+
+        List<Map<String, Object>> hits = ObjectPath.evaluate(responseMap, "hits.hits");
+        assertNotNull("sort returned null hits", hits);
+
+        String previousSortValue = null;
+        for (Map<String, Object> hit : hits) {
+            List<Object> sortValues = (List<Object>) hit.get("sort");
+            assertNotNull("hit missing sort values", sortValues);
+            String sortValue = (String) sortValues.get(0);
+            if (previousSortValue != null) {
+                assertTrue(
+                    "sort values not in ascending order: [" + previousSortValue + "] > [" + sortValue + "]",
+                    previousSortValue.compareTo(sortValue) <= 0
+                );
+            }
+            previousSortValue = sortValue;
+        }
+    }
+
     private void indexDocumentsAndVerifyResults(DataGeneratorSpecification spec, Settings.Builder settings, List<FlattenedData> indexedData)
         throws IOException {
         var newDocs = generateFlattenedData(spec, 8);
@@ -326,6 +358,7 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
 
         verifyExistsQuery(indexedData.size());
         verifyTermsAggregation(indexedData);
+        verifySortByFlattenedField(indexedData);
     }
 
     public void testIndexing() throws IOException {

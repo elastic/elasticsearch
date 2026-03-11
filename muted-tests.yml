@@ -378,9 +378,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
-- class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
-  method: testRetrievedFromIdInTimeSeriesMode
-  issue: https://github.com/elastic/elasticsearch/issues/143815
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
@@ -393,15 +390,33 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845
-- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
-  method: testSimpleWithCranky
-  issue: https://github.com/elastic/elasticsearch/issues/143860
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
 - class: org.elasticsearch.xpack.esql.datasources.spi.StoragePathTests
   method: testFileUriFunctionOnUnix
   issue: https://github.com/elastic/elasticsearch/issues/143979
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144001
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144007
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:approximation.Exact total single-valued field count}
+  issue: https://github.com/elastic/elasticsearch/issues/144014
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144022
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
+  issue: https://github.com/elastic/elasticsearch/issues/142964
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteBlobWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/144025
+- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
+  method: testDeletesAreBatched
+  issue: https://github.com/elastic/elasticsearch/issues/144034
 
 # Examples:
 #

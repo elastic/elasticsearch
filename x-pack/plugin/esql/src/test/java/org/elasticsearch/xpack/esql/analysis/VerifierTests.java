@@ -2134,7 +2134,7 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
                 + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
@@ -2955,11 +2955,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
         );
         assertThat(
-            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: argument of [tbucket(\"@tbucket\", 1 hour)] must be [integer, date_period or time_duration],"
+                    + " found value [\"@tbucket\"] type [keyword]"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
@@ -2967,7 +2970,27 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
-            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+            equalTo(
+                "1:42: argument of [tbucket(\"1\")] must be [integer, date_period or time_duration], found value [\"1\"] type [keyword]"
+            )
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error(
+                "from test | stats max(event_duration) by tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")",
+                sampleDataAnalyzer
+            ),
+            equalTo(
+                "1:42: [from] and [to] in [tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")]"
+                    + " cannot be used with a duration or period bucket size"
+            )
         );
 
         /*

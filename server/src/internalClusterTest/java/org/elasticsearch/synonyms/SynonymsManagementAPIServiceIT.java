@@ -28,8 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
+
 
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
@@ -98,60 +97,10 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         getLatch.await(10, TimeUnit.SECONDS);
     }
 
-    public void testGetAllSynonymSetRulesExceedingScrollLimitFails() throws Exception {
-        int scrollLimit = randomIntBetween(2, 10);
-        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymSets, scrollLimit);
-
-        String synonymSetId = randomIdentifier();
-        CountDownLatch putLatch = new CountDownLatch(1);
-        // Use bulkUpdateSynonymsSet to bypass the write cap and insert more rules than the scroll limit
-        synonymsManagementAPIService.bulkUpdateSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(scrollLimit + 1, scrollLimit + 1),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(org.elasticsearch.action.bulk.BulkResponse bulkResponse) {
-                    putLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            }
-        );
-        putLatch.await(5, TimeUnit.SECONDS);
-
-        CountDownLatch getLatch = new CountDownLatch(1);
-        assertBusy(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
-                @Override
-                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                    fail("Expected failure due to scroll limit exceeded");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalArgumentException.class));
-                    assertThat(e.getMessage(), containsString(synonymSetId));
-                    assertThat(e.getMessage(), containsString(String.valueOf(scrollLimit)));
-                    getLatch.countDown();
-                }
-            });
-        }, 5, TimeUnit.SECONDS);
-
-        getLatch.await(10, TimeUnit.SECONDS);
-    }
-
     public void testGetAllSynonymSetRulesViaScroll() throws Exception {
         int scrollBatchSize = randomIntBetween(2, 5);
         int rulesNumber = scrollBatchSize * randomIntBetween(3, 6);
-        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(
-            client(),
-            maxSynonymSets,
-            rulesNumber + 1,
-            scrollBatchSize
-        );
+        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(client(), rulesNumber + 1, scrollBatchSize);
 
         String synonymSetId = randomIdentifier();
         CountDownLatch putLatch = new CountDownLatch(1);

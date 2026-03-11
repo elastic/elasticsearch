@@ -78,7 +78,10 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         } else {
             try {
                 Response result = executeCheck();
-                if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
+                assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+                if ("true".equals(result.getHeader("isExpectedNoOp"))) {
+                    // void method with elseReturnEarly — silent success is expected
+                } else if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
                     assertTrue(
                         "Action [" + actionName + "] expected null default but got a non-null result",
                         "true".equals(result.getHeader("resultIsNull"))
@@ -90,6 +93,14 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                         actualValue,
                         equalTo(result.getHeader("expectedDefaultIfDenied"))
                     );
+                    String expectedType = result.getHeader("expectedDefaultType");
+                    if (expectedType != null) {
+                        assertThat(
+                            "Action [" + actionName + "] returned unexpected default type",
+                            result.getHeader("resultType"),
+                            equalTo(expectedType)
+                        );
+                    }
                 } else {
                     fail("Action [" + actionName + "] was expected to be denied but succeeded");
                 }
@@ -109,6 +120,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                 Response resp = item.getResponse();
                 expectedException = resp.getHeader("expectedException");
                 if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
+                    return false;
+                }
+                String actualException = resp.getHeader("actualException");
+                if (expectedException.equals(actualException) == false) {
+                    mismatchDetail = "expected exception [" + expectedException + "] but got [" + actualException + "]";
                     return false;
                 }
                 String notEntitledCause = resp.getHeader("notEntitledCause");

@@ -460,12 +460,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         count
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    assertArrayEqualsPercent(
-                        Arrays.copyOf(scoresDefault, count),
-                        Arrays.copyOf(scoresPanama, count),
-                        0.05f,
-                        1e-2f
-                    );
+                    assertArrayEqualsPercent(Arrays.copyOf(scoresDefault, count), Arrays.copyOf(scoresPanama, count), 0.05f, 1e-2f);
                     assertEquals(((long) count * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + count) * perVectorBytes), in.getFilePointer());
 

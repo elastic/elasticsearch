@@ -539,6 +539,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
+            case "mv_expand" -> {
+                String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
+                // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
+                // https://github.com/elastic/elasticsearch/issues/142713
+                createdColumns.add(EsqlQueryGenerator.unquote(expanded));
+            }
             case "stats", "inline stats" -> {
                 return newSchema.stream()
                     .map(col -> new Column(col.name(), col.type(), col.originalTypes(), false))

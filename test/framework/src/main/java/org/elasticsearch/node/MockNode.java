@@ -232,6 +232,7 @@ public class MockNode extends Node {
                     taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             }

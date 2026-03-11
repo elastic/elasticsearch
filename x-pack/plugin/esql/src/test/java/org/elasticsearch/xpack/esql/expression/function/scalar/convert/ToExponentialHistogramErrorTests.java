@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
+package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,23 +19,19 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NotEqualsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToExponentialHistogramErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(NotEqualsTests.parameters());
+        return paramsToSuppliers(ToExponentialHistogramTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new NotEquals(source, args.get(0), args.get(1));
+        return new ToExponentialHistogram(source, args.getFirst());
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(errorMessageStringForBinaryOperators(validPerPosition, signature, (l, p) -> TYPE_ERROR));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "exponential_histogram or histogram or tdigest"));
     }
-
-    private static final String TYPE_ERROR =
-        "boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, geohash, geohex, "
-            + "geotile, integer, ip, keyword, long, text, unsigned_long or version";
 }

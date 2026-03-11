@@ -651,11 +651,11 @@ public abstract class MappedFieldType {
 
     public enum FieldExtractPreference {
         /**
-         *  Loads the field by extracting the extent from the binary encoded representation
+         * Loads the field by extracting both the spatial bounds (extent) and the centroid from the binary encoded representation
          */
         EXTRACT_SPATIAL_BOUNDS_AND_CENTROID,
         /**
-         *  Loads the field by extracting the extent from the binary encoded representation
+         * Loads the field by extracting the extent from the binary encoded representation
          */
         EXTRACT_SPATIAL_BOUNDS(null, null, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID),
         /**

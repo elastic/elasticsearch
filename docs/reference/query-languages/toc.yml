@@ -323,6 +323,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohex.md
                   - file: esql/functions-operators/type-conversion-functions/to_geopoint.md

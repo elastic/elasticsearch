@@ -580,7 +580,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         boolean pruneSequenceNumber = randomBoolean();
         assumeTrue(
             "Sequence number pruning requires a feature flag",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || (pruneSequenceNumber == false && pruneIdField == false)
         );
         String pruneStoredFieldName = syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME;
         String pruneNumericDVFieldName = syntheticRecoverySource

@@ -43,11 +43,11 @@ public class DockerSupportPlugin implements Plugin<Project> {
                 params.getIsCI().set(buildParams.getCi());
             }));
 
-        // Ensure that if we are trying to run any Docker-based tasks, we assert an available Docker installation exists
+        // Ensure that if we are trying to run Docker build tasks, we assert an available Docker installation exists
         project.getGradle().getTaskGraph().whenReady(graph -> {
             List<String> dockerTasks = graph.getAllTasks()
                 .stream()
-                .filter(task -> task instanceof DockerBuildTask || task instanceof NativeImageBuildTask)
+                .filter(task -> task instanceof DockerBuildTask)
                 .map(Task::getPath)
                 .collect(Collectors.toList());
 

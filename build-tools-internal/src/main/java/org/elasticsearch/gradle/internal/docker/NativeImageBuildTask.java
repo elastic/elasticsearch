@@ -40,6 +40,10 @@ import javax.inject.Inject;
  * Builds a GraalVM native-image binary by running native-image inside a Docker
  * container. Uses the Gradle worker API so multiple architecture builds can
  * run in parallel, and is cacheable for remote build cache.
+ *
+ * We assume native images to be optional, and a fallback to be available, so
+ * this task will be skipped if Docker is not available or the target platform
+ * is not supported rather than failing.
  */
 @CacheableTask
 public abstract class NativeImageBuildTask extends DefaultTask {
@@ -52,7 +56,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             "Docker supports target platform",
             task -> Architecture.fromDockerPlatform(getPlatform().getOrNull())
                 .map(arch -> getDockerSupport().get().isArchitectureSupported(arch))
-                .orElse(false)
+                .orElse(false) && getDockerSupport().get().getDockerAvailability().isAvailable()
         );
     }
 

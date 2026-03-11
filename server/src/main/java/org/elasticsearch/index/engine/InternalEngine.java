@@ -2837,7 +2837,7 @@ public class InternalEngine extends Engine {
         // sequence numbers are trimmed when doc values only are used
         final boolean pruneSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled()
             && seqNoIndexOptions == SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY;
-        mergePolicy = new RecoverySourcePruneMergePolicy(
+        mergePolicy = new PruningMergePolicy(
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME

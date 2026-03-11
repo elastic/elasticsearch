@@ -9,8 +9,6 @@
 
 package org.elasticsearch.health.node.selection;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,8 +34,10 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -84,26 +84,16 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         clusterService.close();
     }
 
-    public void testTaskCreation() throws Exception {
+    public void testMasterCreatesTask() {
         HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
-        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
-        // Ensure that if the task is gone, it will be recreated.
-        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
-        assertBusy(
-            () -> verify(persistentTasksService, times(2)).sendStartRequest(
-                eq("health-node"),
-                eq("health-node"),
-                eq(new HealthNodeTaskParams()),
-                isNotNull(),
-                any()
-            )
+        HealthNodeTaskExecutorTests.<Void>safeAwait(
+            listener -> clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener)
         );
-    }
-
-    public void testSkippingTaskCreationIfItExists() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
-        executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
-        verify(persistentTasksService, never()).sendStartRequest(
+        // Ensure that if the task is gone, it will be recreated.
+        HealthNodeTaskExecutorTests.<Void>safeAwait(
+            listener -> clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener)
+        );
+        verify(persistentTasksService, times(2)).sendClusterStartRequest(
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
@@ -112,14 +102,94 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         );
     }
 
-    public void testStopTaskOnDisable() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
-        HealthNode task = mock(HealthNode.class);
-        PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
-        clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build());
-        verify(task, times(1)).markAsCompleted();
-        verify(task, never()).markAsLocallyAborted(anyString());
+    public void testTaskCreationSkippedIfAlreadyExists() {
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
+        HealthNodeTaskExecutorTests.<Void>safeAwait(
+            listener -> clusterService.getClusterApplierService()
+                .onNewClusterState("task already exists", () -> stateWithHealthNodeSelectorTask(initialState()), listener)
+        );
+        verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
+    }
+
+    public void testNonMasterDoesNotRequestStartTask() {
+        final var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create(localNodeId))
+                    .add(DiscoveryNodeUtils.create("master"))
+                    .localNodeId(localNodeId)
+                    .masterNodeId("master")
+            )
+            .metadata(Metadata.builder().build())
+            .build();
+
+        clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), true).build());
+        try (ClusterService nonMasterClusterService = createClusterService(state, threadPool, clusterSettings)) {
+            HealthNodeTaskExecutor.create(nonMasterClusterService, persistentTasksService, settings, clusterSettings);
+            setState(nonMasterClusterService, state);
+            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
+        }
+    }
+
+    public void testMasterEnableAndDisable() {
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
+        final var assignedToLocal = new PersistentTasksCustomMetadata.Assignment(localNodeId, "");
+
+        boolean prevEnabled = true;
+        int expectedStartRequests = 0;
+        int expectedRemoveRequests = 0;
+
+        final int cycles = randomIntBetween(5, 10);
+        for (int i = 0; i < cycles; i++) {
+            boolean taskExists = randomBoolean();
+            if (taskExists) {
+                setState(clusterService, stateWithHealthNodeSelectorTask(initialState(), assignedToLocal));
+            } else {
+                setState(clusterService, initialState());
+            }
+            // setState fires the taskStarter listener when it is registered
+            if (prevEnabled && taskExists == false) {
+                expectedStartRequests++;
+            }
+            boolean enabled = randomBoolean();
+            boolean transitionsToDisabled = prevEnabled && enabled == false;
+            if (transitionsToDisabled && taskExists) {
+                expectedRemoveRequests++;
+            }
+            clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), enabled).build());
+            prevEnabled = enabled;
+        }
+        verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(
+            eq("health-node"),
+            eq("health-node"),
+            eq(new HealthNodeTaskParams()),
+            isNotNull(),
+            any()
+        );
+        verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(
+            eq(HealthNode.TASK_NAME),
+            eq(timeValueSeconds(30)),
+            any()
+        );
+    }
+
+    public void testNonMasterDoesNotRemoveTaskOnDisable() {
+        final var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create(localNodeId))
+                    .add(DiscoveryNodeUtils.create("master"))
+                    .localNodeId(localNodeId)
+                    .masterNodeId("master")
+            )
+            .metadata(Metadata.builder().build())
+            .build();
+
+        try (ClusterService nonMasterClusterService = createClusterService(state, threadPool, clusterSettings)) {
+            HealthNodeTaskExecutor.create(nonMasterClusterService, persistentTasksService, settings, clusterSettings);
+            clusterSettings.applySettings(Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build());
+            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
+        }
     }
 
     public void testDoNothingIfNodeShuttingDownButNotYetReassigned() {

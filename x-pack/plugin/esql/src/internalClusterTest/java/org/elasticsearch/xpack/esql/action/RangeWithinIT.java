@@ -23,10 +23,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assume.assumeTrue;
 
 /**
- * Integration tests for RANGE_WITHIN with LOOKUP JOIN.
- * Covers: date from FROM + range from LOOKUP, date from LOOKUP + range from FROM.
+ * Integration tests for RANGE_WITHIN (date ranges).
+ * Covers various layouts: date/range from main index and from joined indices.
  */
-public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
+public class RangeWithinIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndices() {

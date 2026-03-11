@@ -24,13 +24,26 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
 
     private final boolean lenient;
     private final CircuitBreaker circuitBreaker;
+    private final int maxTokens;
 
-    private int ruleCount = 0;
+    private int tokenCount = 0;
 
     public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer, CircuitBreaker circuitBreaker) {
+        this(dedup, expand, lenient, analyzer, circuitBreaker, Integer.MAX_VALUE);
+    }
+
+    public ESWordnetSynonymParser(
+        boolean dedup,
+        boolean expand,
+        boolean lenient,
+        Analyzer analyzer,
+        CircuitBreaker circuitBreaker,
+        int maxTokens
+    ) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
         this.circuitBreaker = circuitBreaker;
+        this.maxTokens = maxTokens;
     }
 
     @Override
@@ -42,8 +55,15 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
-            if ((ruleCount++ & 0x3FF) == 0) {
-                // Check the real memory usage via the parent circuit breaker every 1024 synonym rules
+            tokenCount++;
+            if (tokenCount > maxTokens) {
+                throw new IllegalArgumentException(
+                    "The number of synonym tokens exceeds the limit of " + maxTokens + ". "
+                        + "You can raise this limit using the [synonyms.set.max_token_count] setting."
+                );
+            }
+
+            if ((tokenCount & 0x1FFF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 

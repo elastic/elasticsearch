@@ -238,14 +238,17 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         );
     }
 
+    static final int DEFAULT_MAX_SYNONYM_SET_TOKENS = 100_000;
+
     SynonymMap buildSynonyms(Analyzer analyzer, ReaderWithOrigin rules) {
+        int maxTokens = synonymsSource == SynonymsSource.INDEX ? DEFAULT_MAX_SYNONYM_SET_TOKENS : Integer.MAX_VALUE;
         try {
             SynonymMap.Builder parser;
             if ("wordnet".equalsIgnoreCase(format)) {
-                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
+                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer, circuitBreaker, maxTokens);
                 ((ESWordnetSynonymParser) parser).parse(rules.reader);
             } else {
-                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
+                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer, circuitBreaker, maxTokens);
                 ((ESSolrSynonymParser) parser).parse(rules.reader);
             }
             return parser.build();

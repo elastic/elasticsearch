@@ -93,10 +93,6 @@ public class SearchResponseSections implements Releasable {
         this.topHitsToRelease = topHitsToRelease;
     }
 
-    public final List<SearchHits> topHitsToRelease() {
-        return topHitsToRelease;
-    }
-
     /**
      * Transfers ownership of the top-hits-to-release list to the caller. Call when building a SearchResponse so
      * close() does not release the list. Returns null if the list was already transferred or was never set.

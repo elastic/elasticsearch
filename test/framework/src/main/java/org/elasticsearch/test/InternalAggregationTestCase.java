@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
+
     /**
      * Builds an {@link AggregationReduceContext} that is valid but empty.
      */
@@ -144,7 +145,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
-    private final List<InternalAggregation> aggregationsToRelease = new ArrayList<>();
+    protected final List<InternalAggregation> aggregationsToRelease = new ArrayList<>();
 
     /**
      * Recursively release pooled SearchHits held by InternalTopHits in the aggregation tree.
@@ -284,6 +285,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
         BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
+        aggregationsToRelease.addAll(inputs.toReduce());
         assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
         List<SearchHits> topHitsToRelease = new ArrayList<>();
@@ -356,12 +358,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 T sampled = (T) reduced.finalizeSampling(randomContext);
                 assertSampled(sampled, reduced, randomContext);
             }
+        } finally {
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
-            }
-        } finally {
-            for (InternalAggregation input : inputs.toReduce()) {
-                releaseAggregationResources(input);
             }
             if (partialReducedToRelease != null) {
                 releaseAggregationResources(partialReducedToRelease);

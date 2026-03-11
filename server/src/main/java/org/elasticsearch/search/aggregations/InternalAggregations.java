@@ -166,6 +166,10 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         if (aggs == null) {
             return;
         }
+        addTopHitsToReleaseListImpl(aggs, out, takeRef);
+    }
+
+    private static void addTopHitsToReleaseListImpl(InternalAggregations aggs, List<SearchHits> out, boolean takeRef) {
         for (InternalAggregation agg : aggs.asList()) {
             if (agg instanceof InternalTopHits topHits) {
                 SearchHits h = topHits.getHits();
@@ -174,7 +178,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
                 }
                 out.add(h);
             }
-            agg.forEachBucket(sub -> addTopHitsToReleaseList(sub, out, takeRef));
+            agg.forEachBucket(sub -> addTopHitsToReleaseListImpl(sub, out, takeRef));
         }
     }
 

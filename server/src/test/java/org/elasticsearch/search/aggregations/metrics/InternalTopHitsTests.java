@@ -166,7 +166,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            hits[i] = SearchHit.unpooled(docId, Integer.toString(i));
+            hits[i] = new SearchHit(docId, Integer.toString(i));
             hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
@@ -247,6 +247,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHit[] expectedHitsHits = new SearchHit[min(inputs.get(0).getSize(), allHits.size())];
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
+            expectedHitsHits[i].incRef();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
         SearchHits expectedHits = new SearchHits(
@@ -263,7 +264,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
     public void testGetProperty() {
         // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
-        SearchHit hit = SearchHit.unpooled(0);
+        SearchHit hit = new SearchHit(0);
         hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
         hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
         hit.score(1.0f);
@@ -284,6 +285,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             // Two SearchHit instances are not allowed, only the first will be used without assertion.
             SearchHits hits2 = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
+            hit.incRef();
+            hit.incRef();
             InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits2, null);
             try {
                 expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
@@ -353,7 +356,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
      */
     public void testRoundTripDeserializesWithPooledHits() throws IOException {
         // Build an instance with at least one hit that has source; SearchHit isPooled is true only when pooled && source != null
-        SearchHit hit = SearchHit.unpooled(0, "id");
+        SearchHit hit = new SearchHit(0, "id");
         hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
         hit.score(1.0f);
         SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -396,7 +399,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         );
         fieldDoc.shardIndex = shardIndex;
 
-        SearchHit hit = SearchHit.unpooled(0, "doc" + shardIndex);
+        SearchHit hit = new SearchHit(0, "doc" + shardIndex);
         hit.score(1.0f);
         hit.sortValues(new Object[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
         SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -496,7 +499,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         int from = instance.getFrom();
         int size = instance.getSize();
         TopDocsAndMaxScore topDocs = instance.getTopDocs();
-        SearchHits searchHits = instance.getHits().asUnpooled();
+        SearchHits original = instance.getHits();
+        SearchHit[] originalHits = original.getHits();
+        SearchHit[] hitsCopy = new SearchHit[originalHits.length];
+        for (int i = 0; i < originalHits.length; i++) {
+            originalHits[i].incRef();
+            hitsCopy[i] = originalHits[i];
+        }
+        SearchHits searchHits = new SearchHits(hitsCopy, original.getTotalHits(), original.getMaxScore());
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
             case 0 -> name += randomAlphaOfLength(5);
@@ -514,7 +524,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                     searchHits.getTotalHits().value() + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
-                searchHits = SearchHits.unpooled(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
+                float newMaxScore = searchHits.getMaxScore() + randomFloat();
+                SearchHit[] case4HitsCopy = new SearchHit[hitsCopy.length];
+                for (int i = 0; i < hitsCopy.length; i++) {
+                    hitsCopy[i].incRef();
+                    case4HitsCopy[i] = hitsCopy[i];
+                }
+                searchHits.decRef();
+                searchHits = new SearchHits(case4HitsCopy, totalHits, newMaxScore);
             }
             case 5 -> {
                 if (metadata == null) {
@@ -526,6 +543,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
+
+        InternalTopHits mutated = new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
+        aggregationsToRelease.add(mutated);
+        return mutated;
     }
 }

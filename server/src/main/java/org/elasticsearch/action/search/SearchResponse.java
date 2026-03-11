@@ -32,7 +32,6 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -248,24 +247,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
-    // Collect SearchHits from top_hits aggregations in the tree
     private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs, boolean incRef) {
-        List<SearchHits> out = new ArrayList<>();
-        collectTopHitsFromAggregations(aggs, out, incRef);
-        return out;
-    }
-
-    private static void collectTopHitsFromAggregations(InternalAggregations aggs, List<SearchHits> out, boolean incRef) {
-        for (InternalAggregation agg : aggs.asList()) {
-            if (agg instanceof InternalTopHits topHits) {
-                SearchHits h = topHits.getHits();
-                if (incRef) {
-                    h.incRef();
-                }
-                out.add(h);
-            }
-            agg.forEachBucket(sub -> collectTopHitsFromAggregations(sub, out, incRef));
+        if (aggs == null) {
+            return Collections.emptyList();
         }
+        List<SearchHits> out = new ArrayList<>();
+        InternalAggregations.addTopHitsToReleaseList(aggs, out, incRef);
+        return out;
     }
 
     @Override

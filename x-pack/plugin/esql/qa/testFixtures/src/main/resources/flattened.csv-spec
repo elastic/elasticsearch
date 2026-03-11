@@ -226,16 +226,16 @@ SET unmapped_fields="load"\;
 FROM flattened_otel_logs
 | INLINE STATS count = COUNT(*) BY resource.attributes.host.name
 | DROP attributes, resource.attributes
-| SORT count DESC
+| SORT count DESC, @timestamp ASC
 | LIMIT 5
 ;
 
 @timestamp:date          | count:long | resource.attributes.host.name:keyword
 2020-01-01T00:02:48.461Z | 2          | infra-filebeat-6vjxr
 2020-01-01T11:38:54.751Z | 2          | infra-filebeat-6vjxr
-2020-01-01T11:43:13.255Z | 1          | filebeat-6t7v6
+2020-01-01T00:07:43.000Z | 1          | devops-ci-master-blue.c.elastic-ci-prod.internal
 2020-01-01T00:31:18.303Z | 1          | elasticsearch-ci-immutable-sles-15-1599243844262984968
-2020-01-01T10:12:02.675Z | 1          | filebeat-8pmfj
+2020-01-01T00:58:35.557Z | 1          | infra-filebeat-mdvqm
 ;
 
 // ----------------------------------------------------

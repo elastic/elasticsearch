@@ -640,23 +640,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // Field not found in schema — likely a pipeline artifact; allow the error
             return true;
         }
-
-        // Fallback: blanket check for ENRICH
-        String lowerQuery = query.toLowerCase(Locale.ROOT);
-        if (lowerQuery.contains("| enrich ") || lowerQuery.startsWith("enrich ")) {
-            return true;
-        }
-        // Fallback: walk command history
-        for (var previous : previousCommands) {
-            String name = previous.commandName();
-            if (name == null) {
-                continue;
-            }
-            name = name.toLowerCase(Locale.ROOT);
-            if ("registered_domain".equals(name) || "uri_parts".equals(name)) {
-                return true;
-            }
-        }
         return false;
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -61,14 +60,12 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
-    private final ClusterStateListener taskStarter;
     private volatile boolean enabled;
 
     private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
-        this.taskStarter = this::startTask;
         this.enabled = ENABLED_SETTING.get(settings);
     }
 
@@ -89,20 +86,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private void registerListeners(ClusterSettings clusterSettings) {
-        if (this.enabled) {
-            clusterService.addListener(taskStarter);
-        }
-        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
-    }
-
-    private void enable(boolean enabled) {
-        this.enabled = enabled;
-        if (enabled) {
-            clusterService.addListener(taskStarter);
-        } else {
-            clusterService.removeListener(taskStarter);
-            removeTask();
-        }
+        clusterService.addListener(this::reconcileTask);
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, enabled -> this.enabled = enabled);
     }
 
     @Override
@@ -141,14 +126,20 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private void startTask(ClusterChangedEvent event) {
-        // Wait until master is stable before starting health task
-        if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
+    /**
+     * Reconciles the health node task with the desired state on every cluster state update.
+     * Only the master node triggers the lifecycle update. Other nodes return early.
+     */
+    private void reconcileTask(ClusterChangedEvent event) {
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+        if (enabled && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
             persistentTasksService.sendClusterStartRequest(
                 TASK_NAME,
                 TASK_NAME,
                 new HealthNodeTaskParams(),
-                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
+                TimeValue.THIRTY_SECONDS,
                 ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                     if (e instanceof NodeClosedException) {
                         logger.debug("Failed to create health node task because node is shutting down", e);
@@ -160,28 +151,22 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                     }
                 })
             );
+        } else if (enabled == false && HealthNode.findTask(event.state()) != null) {
+            persistentTasksService.sendClusterRemoveRequest(
+                TASK_NAME,
+                TimeValue.THIRTY_SECONDS,
+                ActionListener.wrap(r -> logger.debug("Removed the health node task"), e -> {
+                    if (e instanceof NodeClosedException) {
+                        logger.debug("Failed to remove health node task because node is shutting down", e);
+                        return;
+                    }
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    if (t instanceof ResourceNotFoundException == false) {
+                        logger.error("Failed to remove the health node task", e);
+                    }
+                })
+            );
         }
-    }
-
-    private void removeTask() {
-        final ClusterState state = clusterService.state();
-        if (state.nodes().isLocalNodeElectedMaster() == false || HealthNode.findTask(state) == null) {
-            return;
-        }
-        persistentTasksService.sendClusterRemoveRequest(
-            TASK_NAME,
-            TimeValue.THIRTY_SECONDS,
-            ActionListener.wrap(r -> logger.debug("Removed the health node task"), e -> {
-                if (e instanceof NodeClosedException) {
-                    logger.debug("Failed to remove health node task because node is shutting down", e);
-                    return;
-                }
-                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                if (t instanceof ResourceNotFoundException == false) {
-                    logger.error("Failed to remove the health node task", e);
-                }
-            })
-        );
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

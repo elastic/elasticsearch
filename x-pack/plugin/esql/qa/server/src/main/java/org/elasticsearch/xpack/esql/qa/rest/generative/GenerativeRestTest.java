@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
 
@@ -527,7 +528,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             case "grok" -> {
                 Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (gm.find()) {
-                    createdColumns.add(EsqlQueryGenerator.unquote(gm.group(1)));
+                    createdColumns.add(unquote(gm.group(1)));
                 }
             }
             case "dissect" -> {
@@ -535,7 +536,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 while (dm.find()) {
                     String generated = dm.group(1);
                     if (generated.startsWith("?") == false) {
-                        createdColumns.add(EsqlQueryGenerator.unquote(generated));
+                        createdColumns.add(unquote(generated));
                     }
                 }
             }
@@ -543,7 +544,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
                 // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
                 // https://github.com/elastic/elasticsearch/issues/142713
-                createdColumns.add(EsqlQueryGenerator.unquote(expanded));
+                createdColumns.add(unquote(expanded));
             }
             case "stats", "inline stats" -> {
                 return newSchema.stream()
@@ -564,13 +565,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             case "uri_parts" -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
-                    return newSchema.stream().map(col -> {
+                    for (Column col : newSchema) {
                         if (col.name().startsWith(prefix + ".")) {
-                            return new Column(col.name(), col.type(), col.originalTypes(), false);
+                            createdColumns.add(col.name());
                         }
-                        Boolean prev = prevMapped.get(col.name());
-                        return new Column(col.name(), col.type(), col.originalTypes(), prev != null && prev);
-                    }).toList();
+                    }
                 }
             }
             default -> {
@@ -579,7 +578,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
         }
 
-        return newSchema.stream().map(col -> {
+        return applyIndexMapped(newSchema, createdColumns, prevMapped);
+    }
+
+    private static List<Column> applyIndexMapped(List<Column> schema, Set<String> createdColumns, Map<String, Boolean> prevMapped) {
+        return schema.stream().map(col -> {
             if (createdColumns.contains(col.name())) {
                 return new Column(col.name(), col.type(), col.originalTypes(), false);
             }
@@ -597,8 +600,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         for (String pair : body.split(",")) {
             Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
             if (m.matches()) {
-                String oldName = EsqlQueryGenerator.unquote(m.group(1).trim());
-                String newName = EsqlQueryGenerator.unquote(m.group(2).trim());
+                String oldName = unquote(m.group(1).trim());
+                String newName = unquote(m.group(2).trim());
                 boolean wasMapped = mapped.getOrDefault(oldName, false);
                 mapped.remove(oldName);
                 mapped.put(newName, wasMapped);
@@ -626,7 +629,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (m.matches() == false) {
             return false;
         }
-        String fieldName = EsqlQueryGenerator.unquote(m.group(1));
+        String fieldName = unquote(m.group(1));
 
         if (currentSchema != null && currentSchema.isEmpty() == false) {
             for (Column col : currentSchema) {
@@ -657,17 +660,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return false;
     }
 
+    private static final Pattern FULL_TEXT_AFTER_SAMPLE_PATTERN = Pattern.compile(
+        ".*\\[(KQL|QSTR)] function cannot be used after SAMPLE.*",
+        Pattern.DOTALL
+    );
+
     /**
      * SAMPLE should not block QSTR/KQL when it appears after the WHERE containing them, but currently it does.
      * See https://github.com/elastic/elasticsearch/issues/142694
      */
     static boolean isFullTextAfterSampleBug(String errorMessage, String query) {
         return FULL_TEXT_AFTER_SAMPLE_PATTERN.matcher(normalizeErrorMessage(errorMessage)).matches()
-            && query.toLowerCase(java.util.Locale.ROOT).contains("| sample");
+            && query.toLowerCase(Locale.ROOT).contains("| sample");
     }
 
-    private static final Pattern FULL_TEXT_AFTER_SAMPLE_PATTERN = Pattern.compile(
-        ".*\\[(KQL|QSTR)] function cannot be used after SAMPLE.*",
+    private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
         Pattern.DOTALL
     );
 
@@ -680,9 +688,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
-        Pattern.DOTALL
+    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
+        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
+    );
+    private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
+        "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
+    );
+    private static final Pattern QSTR_LENIENT_FALSE_PATTERN = Pattern.compile(
+        "(?i)\\bqstr\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
     );
 
     /**
@@ -697,16 +710,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             || MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
             || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
-
-    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
-    private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
-    private static final Pattern QSTR_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bqstr\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
 
     @Override
     @SuppressWarnings("unchecked")
@@ -738,7 +741,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
         return cols.stream()
             .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @SuppressWarnings("unchecked")

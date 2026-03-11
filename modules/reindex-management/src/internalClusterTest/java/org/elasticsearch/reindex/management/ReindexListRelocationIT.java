@@ -22,6 +22,7 @@ import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.XContentTestUtils;
@@ -101,8 +102,7 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
         assertThat("listed start time matches original", beforeTask.get("start_time_in_millis"), equalTo(originalStartTimeMillis));
 
         // Trigger relocation
-        internalCluster().getInstance(ShutdownPrepareService.class, nodeBName).prepareForShutdown();
-        internalCluster().stopNode(nodeBName);
+        shutdownNodeNameAndRelocate(nodeBName);
 
         // Verify listing after relocation preserves original identity
 
@@ -200,5 +200,20 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow(() -> new AssertionError("node with name [" + nodeName + "] not found"));
+    }
+
+    private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
+        // testing assumption: .tasks should not exist yet — it's created when the task result is stored during relocation
+        assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
+
+        // trigger reindex relocation
+        internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
+
+        // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
+        // on nodeA is stale and can't be promoted to primary when nodeB leaves
+        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        ensureGreen(TaskResultsService.TASK_INDEX);
+
+        internalCluster().stopNode(nodeName);
     }
 }

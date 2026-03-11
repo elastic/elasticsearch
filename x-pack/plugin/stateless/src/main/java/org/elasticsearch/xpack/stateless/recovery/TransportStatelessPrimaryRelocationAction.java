@@ -53,6 +53,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -98,7 +98,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationAction.class);
 
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
+    public static final String PREWARM_RELOCATION_ACTION_NAME = TYPE.name() + "/prewarm";
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
+
+    private static final TransportVersion PREWARM_RELOCATION_ACTION = TransportVersion.fromName("prewarm_relocation_action");
 
     public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
@@ -164,6 +167,18 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         );
 
         transportService.registerRequestHandler(
+            PREWARM_RELOCATION_ACTION_NAME,
+            recoveryExecutor,
+            false, // forceExecution
+            false, // canTripCircuitBreaker
+            PrewarmRelocationRequest::new,
+            (request, channel, task) -> handlePrewarmRelocation(
+                request,
+                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
+            )
+        );
+
+        transportService.registerRequestHandler(
             PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
             recoveryExecutor,
             false, // forceExecution
@@ -186,8 +201,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final var indexShard = indexService.getShard(request.shardId().id());
             indexShard.prepareForIndexRecovery();
 
-            // Begin warming the cache immediately
-            indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
+            if (clusterService.state().getMinTransportVersion().supports(PREWARM_RELOCATION_ACTION) == false) {
+                indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
+            }
             transportService.sendChildRequest(
                 recoveryRef.target().sourceNode(),
                 START_RELOCATION_ACTION_NAME,
@@ -200,6 +216,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private void handleStartRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<Void> listener) {
+        // Executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
+        if (clusterService.state().getMinTransportVersion().supports(PREWARM_RELOCATION_ACTION)) {
+            initiatePrewarm(task, request);
+        }
+
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
@@ -221,6 +242,58 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 }
             }
         );
+    }
+
+    private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
+        // TODO(ES-13400): make prewarm conditional on shard not being hollow or about to be hollowed.
+        try {
+            final ShardId shardId = request.shardId();
+            final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
+            if (latestBcc == null) {
+                logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
+                return;
+            }
+
+            transportService.sendChildRequest(
+                request.targetNode(),
+                PREWARM_RELOCATION_ACTION_NAME,
+                new PrewarmRelocationRequest(shardId, new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength())),
+                task,
+                TransportRequestOptions.EMPTY,
+                // The response (whether prewarm succeeded or not) does not affect the relocation listener, so we use a noop listener
+                new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
+                    logger.debug(format("%s ignoring prewarm action failure", shardId), e);
+                    l.onFailure(e);
+                }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
+            );
+        } catch (Exception e) {
+            logger.trace(format("%s ignoring prewarm message failure", request.shardId()), e);
+        }
+    }
+
+    private void handlePrewarmRelocation(PrewarmRelocationRequest request, ActionListener<Void> listener) {
+        // Executed locally on the target node if it receives a prewarm request from the source node
+        ActionListener.completeWith(listener, () -> {
+            logger.trace("{} prewarming due to primary relocation", request.shardId());
+
+            final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            final var indexShard = indexService.getShard(request.shardId().id());
+            final var latestBccBlob = request.latestBccBlob();
+            // We don't need otherBlobs for prewarming
+            final var sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
+                latestBccBlob.blobFile(),
+                latestBccBlob.length(),
+                Set.of()
+            );
+            try {
+                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo);
+            } catch (IndexShardNotRecoveringException e) {
+                // This could happen if the prewarm request is delayed. The caller decides whether to ignore this failure.
+                logger.trace(format("%s not prewarming as shard is not recovering", request.shardId()), e);
+                throw e;
+            }
+            return null;
+        });
     }
 
     private void handleStartRelocationWithFreshClusterState(
@@ -434,16 +507,14 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     // We send info about the latest BCC and blobs, so target node can avoid LISTing the object store.
                     final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
-                    final PrimaryTermAndGeneration latestBccTermAndGen = latestBcc.primaryTermAndGeneration();
-                    final String latestBccBlobName = StatelessCompoundCommit.blobNameFromGeneration(latestBccTermAndGen.generation());
                     final long blobLength = latestBcc.calculateBccBlobLength();
-                    final BlobFile latestBccBlob = new BlobFile(latestBccBlobName, latestBccTermAndGen);
+                    final BlobFile latestBccBlob = latestBcc.toBlobFile();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
-                    // BBCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
+                    // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
                     // Thus, we pass the generation of the last BCC.
                     final Set<BlobFile> otherBlobFiles = statelessCommitService.getTrackedUploadedBlobFilesUpTo(
                         shardId,
-                        latestBccTermAndGen.generation()
+                        latestBcc.primaryTermAndGeneration().generation()
                     );
                     otherBlobFiles.remove(latestBccBlob);
 
@@ -710,6 +781,37 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         @Nullable
+        public BlobFileWithLength latestBccBlob() {
+            return latestBccBlob;
+        }
+    }
+
+    public static class PrewarmRelocationRequest extends AbstractTransportRequest {
+        private final ShardId shardId;
+        private final BlobFileWithLength latestBccBlob;
+
+        public PrewarmRelocationRequest(ShardId shardId, BlobFileWithLength latestBccBlob) {
+            this.shardId = shardId;
+            this.latestBccBlob = latestBccBlob;
+        }
+
+        public PrewarmRelocationRequest(StreamInput in) throws IOException {
+            super(in);
+            this.shardId = new ShardId(in);
+            this.latestBccBlob = new BlobFileWithLength(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            shardId.writeTo(out);
+            latestBccBlob.writeTo(out);
+        }
+
+        public ShardId shardId() {
+            return shardId;
+        }
+
         public BlobFileWithLength latestBccBlob() {
             return latestBccBlob;
         }

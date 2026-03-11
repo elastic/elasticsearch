@@ -603,6 +603,25 @@ public record IndicesOptions(
                 .ignoreThrottled(false)
         )
         .build();
+    public static final IndicesOptions CPS_LENIENT_EXPAND_OPEN = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
+        .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(

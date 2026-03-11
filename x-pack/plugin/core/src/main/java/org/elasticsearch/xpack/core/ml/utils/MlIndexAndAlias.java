@@ -554,6 +554,51 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Checks whether a base-name alias can be created for the given concrete index. The base-name alias
+     * (e.g. {@code .ml-anomalies-shared} for concrete index {@code .ml-anomalies-shared-000001}) cannot be
+     * created if there is already a concrete index with that name (which happens on clusters upgraded from
+     * pre-9.3 where the original unsuffixed index still exists).
+     *
+     * @param concreteIndex The concrete index name (with 6-digit suffix)
+     * @param clusterState  The current cluster state
+     * @return {@code true} if the base-name alias can safely be created
+     */
+    public static boolean canCreateBaseNameAlias(String concreteIndex, ClusterState clusterState) {
+        if (has6DigitSuffix(concreteIndex) == false) {
+            return false;
+        }
+        String baseName = baseIndexName(concreteIndex);
+        return clusterState.getMetadata().getProject().hasIndex(baseName) == false;
+    }
+
+    /**
+     * Adds alias actions to create or maintain a base-name alias across all concrete indices in a series.
+     * The base-name alias (e.g. {@code .ml-anomalies-shared}) spans all suffixed indices
+     * (e.g. {@code .ml-anomalies-shared-000001}, {@code .ml-anomalies-shared-000002}) allowing queries
+     * by the original unsuffixed name to resolve correctly.
+     *
+     * @param aliasRequestBuilder The request builder to add actions to
+     * @param indices             All concrete indices in the series that the alias should span
+     * @param clusterState        The current cluster state, used to check for name conflicts
+     */
+    public static void addBaseNameAliasActions(
+        IndicesAliasesRequestBuilder aliasRequestBuilder,
+        List<String> indices,
+        ClusterState clusterState
+    ) {
+        if (indices.isEmpty()) {
+            return;
+        }
+        String baseName = baseIndexName(indices.get(0));
+        if (clusterState.getMetadata().getProject().hasIndex(baseName)) {
+            return;
+        }
+        aliasRequestBuilder.addAliasAction(
+            IndicesAliasesRequest.AliasActions.add().indices(indices.toArray(new String[0])).alias(baseName).isHidden(true)
+        );
+    }
+
+    /**
      * Returns an array of indices that match the given base index name.
      * @param baseIndexName         The base part of an index name, without the 6 digit suffix.
      * @param expressionResolver    The expression resolver
@@ -808,6 +853,9 @@ public final class MlIndexAndAlias {
                 // 2. Ensure the read alias is correctly applied across the relevant indices.
                 addReadAliasesForResultsIndices(aliasRequestBuilder, jobId, aliasesMap, allJobResultsIndices, readAliasName);
             });
+
+        // 3. Ensure the base-name alias spans all indices in the series (including the new one).
+        addBaseNameAliasActions(aliasRequestBuilder, allJobResultsIndices, clusterState);
 
         return aliasRequestBuilder;
     }

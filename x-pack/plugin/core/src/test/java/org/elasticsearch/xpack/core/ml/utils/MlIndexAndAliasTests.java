@@ -62,10 +62,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -666,5 +668,78 @@ public class MlIndexAndAliasTests extends ESTestCase {
             builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
         }
         return builder.build();
+    }
+
+    public void testCanCreateBaseNameAlias_withSuffixedIndex_noConflict() {
+        ClusterState clusterState = createClusterState(
+            Map.of(".ml-anomalies-shared-000001", createIndexMetadata(".ml-anomalies-shared-000001"))
+        );
+        assertTrue(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-shared-000001", clusterState));
+    }
+
+    public void testCanCreateBaseNameAlias_withSuffixedIndex_conflictingConcreteIndex() {
+        ClusterState clusterState = createClusterState(
+            Map.of(
+                ".ml-anomalies-shared",
+                createIndexMetadata(".ml-anomalies-shared"),
+                ".ml-anomalies-shared-000001",
+                createIndexMetadata(".ml-anomalies-shared-000001")
+            )
+        );
+        assertFalse(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-shared-000001", clusterState));
+    }
+
+    public void testCanCreateBaseNameAlias_withUnsuffixedIndex() {
+        ClusterState clusterState = createClusterState(Map.of(".ml-anomalies-shared", createIndexMetadata(".ml-anomalies-shared")));
+        assertFalse(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-shared", clusterState));
+    }
+
+    public void testCanCreateBaseNameAlias_customIndex() {
+        ClusterState clusterState = createClusterState(
+            Map.of(".ml-anomalies-custom-foo-000001", createIndexMetadata(".ml-anomalies-custom-foo-000001"))
+        );
+        assertTrue(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-custom-foo-000001", clusterState));
+    }
+
+    public void testAddBaseNameAliasActions_addsAlias() {
+        ClusterState clusterState = createClusterState(
+            Map.of(
+                ".ml-anomalies-shared-000001",
+                createIndexMetadata(".ml-anomalies-shared-000001"),
+                ".ml-anomalies-shared-000002",
+                createIndexMetadata(".ml-anomalies-shared-000002")
+            )
+        );
+        IndicesAliasesRequestBuilder builder = mockIndicesAliasesRequestBuilder();
+        MlIndexAndAlias.addBaseNameAliasActions(
+            builder,
+            List.of(".ml-anomalies-shared-000001", ".ml-anomalies-shared-000002"),
+            clusterState
+        );
+        verify(builder).addAliasAction(argThat(action -> {
+            return action.actionType() == AliasActions.Type.ADD
+                && action.aliases()[0].equals(".ml-anomalies-shared")
+                && action.indices().length == 2;
+        }));
+    }
+
+    public void testAddBaseNameAliasActions_skipsWhenConcreteIndexExists() {
+        ClusterState clusterState = createClusterState(
+            Map.of(
+                ".ml-anomalies-shared",
+                createIndexMetadata(".ml-anomalies-shared"),
+                ".ml-anomalies-shared-000001",
+                createIndexMetadata(".ml-anomalies-shared-000001")
+            )
+        );
+        IndicesAliasesRequestBuilder builder = mockIndicesAliasesRequestBuilder();
+        MlIndexAndAlias.addBaseNameAliasActions(builder, List.of(".ml-anomalies-shared-000001"), clusterState);
+        verify(builder, never()).addAliasAction(any());
+    }
+
+    private static IndicesAliasesRequestBuilder mockIndicesAliasesRequestBuilder() {
+        IndicesAliasesRequestBuilder builder = mock(IndicesAliasesRequestBuilder.class);
+        when(builder.addAliasAction(any())).thenReturn(builder);
+        return builder;
     }
 }

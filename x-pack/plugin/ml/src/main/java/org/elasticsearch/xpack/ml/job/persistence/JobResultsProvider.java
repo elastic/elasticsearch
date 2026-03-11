@@ -336,7 +336,7 @@ public class JobResultsProvider {
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request = client.admin()
+            var aliasesBuilder = client.admin()
                 .indices()
                 .prepareAliases(
                     MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
@@ -349,8 +349,12 @@ public class JobResultsProvider {
                         .isHidden(true)
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
                 )
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true))
-                .request();
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true));
+            if (MlIndexAndAlias.canCreateBaseNameAlias(indexName, state)) {
+                String baseName = MlIndexAndAlias.baseIndexName(indexName);
+                aliasesBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(baseName).isHidden(true));
+            }
+            final IndicesAliasesRequest request = aliasesBuilder.request();
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 ML_ORIGIN,

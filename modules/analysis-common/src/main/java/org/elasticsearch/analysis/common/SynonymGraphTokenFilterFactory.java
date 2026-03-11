@@ -26,6 +26,7 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
@@ -35,9 +36,10 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         String name,
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        IntSupplier maxSynonymSetTokens
     ) {
-        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker);
+        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker, maxSynonymSetTokens);
     }
 
     @Override

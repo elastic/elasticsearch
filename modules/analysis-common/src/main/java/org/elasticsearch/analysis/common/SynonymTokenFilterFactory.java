@@ -17,6 +17,7 @@ import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -37,6 +38,7 @@ import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
@@ -138,6 +140,16 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
+    static final int DEFAULT_MAX_SYNONYM_SET_TOKENS = 100_000;
+
+    public static final Setting<Integer> MAX_SYNONYM_SET_TOKENS_SETTING = Setting.intSetting(
+        "synonyms.set.max_token_count",
+        DEFAULT_MAX_SYNONYM_SET_TOKENS,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final String format;
     private final boolean expand;
     private final boolean lenient;
@@ -147,6 +159,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
+    private final IntSupplier maxSynonymSetTokens;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -154,7 +167,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         String name,
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        IntSupplier maxSynonymSetTokens
     ) {
         super(name);
         this.settings = settings;
@@ -171,6 +185,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
         this.circuitBreaker = circuitBreaker;
+        this.maxSynonymSetTokens = maxSynonymSetTokens;
     }
 
     @Override
@@ -238,10 +253,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         );
     }
 
-    static final int DEFAULT_MAX_SYNONYM_SET_TOKENS = 100_000;
-
     SynonymMap buildSynonyms(Analyzer analyzer, ReaderWithOrigin rules) {
-        int maxTokens = synonymsSource == SynonymsSource.INDEX ? DEFAULT_MAX_SYNONYM_SET_TOKENS : Integer.MAX_VALUE;
+        int maxTokens = synonymsSource == SynonymsSource.INDEX ? maxSynonymSetTokens.getAsInt() : Integer.MAX_VALUE;
         try {
             SynonymMap.Builder parser;
             if ("wordnet".equalsIgnoreCase(format)) {

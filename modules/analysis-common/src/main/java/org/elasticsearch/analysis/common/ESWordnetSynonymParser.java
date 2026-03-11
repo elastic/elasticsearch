@@ -58,12 +58,14 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
             tokenCount++;
             if (tokenCount > maxTokens) {
                 throw new IllegalArgumentException(
-                    "The number of synonym tokens exceeds the limit of " + maxTokens + ". "
+                    "The number of synonym tokens exceeds the limit of "
+                        + maxTokens
+                        + ". "
                         + "You can raise this limit using the [synonyms.set.max_token_count] setting."
                 );
             }
 
-            if ((tokenCount & 0x1FFF) == 0) {
+            if (tokenCount == 1 || (tokenCount & 0x1FFF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 

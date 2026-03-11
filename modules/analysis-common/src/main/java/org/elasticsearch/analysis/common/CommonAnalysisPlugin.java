@@ -105,6 +105,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -136,6 +137,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -146,13 +148,22 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
     private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
+    private final AtomicInteger maxSynonymSetTokens = new AtomicInteger(SynonymTokenFilterFactory.DEFAULT_MAX_SYNONYM_SET_TOKENS);
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
+        var clusterSettings = services.clusterService().getClusterSettings();
+        maxSynonymSetTokens.set(clusterSettings.get(SynonymTokenFilterFactory.MAX_SYNONYM_SET_TOKENS_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(SynonymTokenFilterFactory.MAX_SYNONYM_SET_TOKENS_SETTING, maxSynonymSetTokens::set);
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(SynonymTokenFilterFactory.MAX_SYNONYM_SET_TOKENS_SETTING);
     }
 
     @Override
@@ -328,7 +339,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     n,
                     s,
                     synonymsManagementServiceHolder.get(),
-                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA),
+                    maxSynonymSetTokens::get
                 )
             )
         );
@@ -341,7 +353,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     n,
                     s,
                     synonymsManagementServiceHolder.get(),
-                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA),
+                    maxSynonymSetTokens::get
                 )
             )
         );

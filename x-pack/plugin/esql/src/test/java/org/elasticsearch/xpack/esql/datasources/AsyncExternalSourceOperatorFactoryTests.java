@@ -1097,8 +1097,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
         }
 
-        assertTrue("readSplit should be called for parallel parsing", formatReader.readSplitCount.get() > 0);
-        assertEquals("read() should not be called when parallel parsing is used", 0, formatReader.readCount.get());
+        assertTrue("readSplit should be called for non-first segments", formatReader.readSplitCount.get() > 0);
+        assertEquals("read() should be called once for the first segment (handles header)", 1, formatReader.readCount.get());
 
         for (Page p : pages) {
             p.releaseBlocks();

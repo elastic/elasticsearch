@@ -98,13 +98,13 @@ public final class ParallelParsingCoordinator {
         long minSegment = reader.minimumSegmentSize();
 
         if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return reader.readSplit(storageObject, projectedColumns, batchSize, false, true, resolvedAttributes, errorPolicy);
+            return reader.read(storageObject, projectedColumns, batchSize, errorPolicy);
         }
 
         List<long[]> segments = computeSegments(reader, storageObject, fileLength, parallelism, minSegment);
 
         if (segments.size() <= 1) {
-            return reader.readSplit(storageObject, projectedColumns, batchSize, false, true, resolvedAttributes, errorPolicy);
+            return reader.read(storageObject, projectedColumns, batchSize, errorPolicy);
         }
 
         return new OrderedParallelIterator(
@@ -242,17 +242,13 @@ public final class ParallelParsingCoordinator {
                 boolean lastSplit = segmentIndex == totalSegments - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
-                try (
-                    CloseableIterator<Page> pages = reader.readSplit(
-                        segObj,
-                        projectedColumns,
-                        batchSize,
-                        false,
-                        lastSplit,
-                        resolvedAttributes,
-                        errorPolicy
-                    )
-                ) {
+                CloseableIterator<Page> pages;
+                if (segmentIndex == 0) {
+                    pages = reader.read(segObj, projectedColumns, batchSize, errorPolicy);
+                } else {
+                    pages = reader.readSplit(segObj, projectedColumns, batchSize, false, lastSplit, resolvedAttributes, errorPolicy);
+                }
+                try (pages) {
                     while (pages.hasNext()) {
                         if (firstError.get() != null || closed) {
                             break;

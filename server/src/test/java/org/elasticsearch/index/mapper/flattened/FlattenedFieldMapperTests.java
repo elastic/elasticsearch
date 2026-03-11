@@ -14,8 +14,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -130,7 +130,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("doc_values", docValues);
         }));
         withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.startObject("field").field("key", "value").endObject())).rootDoc());
+            iw.addDocument(
+                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("key", "value").endObject())).rootDoc()
+            );
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.nullField("field"))).rootDoc());
         }, reader -> {
             IndexSearcher searcher = newSearcher(reader);

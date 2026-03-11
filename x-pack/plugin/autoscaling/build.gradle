@@ -27,6 +27,7 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('ilm'))
   internalClusterTestImplementation project(xpackModule('slm'))
   internalClusterTestImplementation project(xpackModule('ccr'))
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

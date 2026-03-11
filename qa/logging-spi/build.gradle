@@ -10,6 +10,7 @@ esplugin {
 
 dependencies {
   clusterPlugins project(':qa:logging-spi')
+  clusterModules project(':modules:codecs-common')
 }
 
 tasks.named("javadoc").configure {

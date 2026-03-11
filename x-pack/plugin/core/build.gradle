@@ -75,6 +75,7 @@ dependencies {
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
   testImplementation(testArtifact(project(':server')))
+  clusterModules project(':modules:codecs-common')
 
   // security deps
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"

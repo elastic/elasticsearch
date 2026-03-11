@@ -40,6 +40,7 @@ dependencies {
 
   javaRestTestImplementation project(':modules:apm')
   javaRestTestImplementation project(':test:framework')
+  clusterModules project(':modules:codecs-common')
 }
 
 tasks.named("thirdPartyAudit").configure {

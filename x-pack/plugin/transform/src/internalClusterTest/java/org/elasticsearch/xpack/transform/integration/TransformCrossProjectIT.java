@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -60,7 +61,7 @@ public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
 
         var expectedProjectRouting = "_alias:_origin";
 
-        createDiceTransform(transformId, transformSrc, expectedProjectRouting);
+        createDiceTransform(transformId, transformSrc, IndicesOptions.CPS_LENIENT_EXPAND_OPEN, expectedProjectRouting);
 
         var transformConfig = getTransform(transformId);
         assertThat(transformConfig.getSource().getProjectRouting(), equalTo(expectedProjectRouting));
@@ -75,7 +76,7 @@ public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
 
         var transformId = "transform_update_project_routing";
 
-        createDiceTransform(transformId, transformSrc, null);
+        createDiceTransform(transformId, transformSrc, IndicesOptions.CPS_LENIENT_EXPAND_OPEN, null);
         assertThat(getTransform(transformId).getSource().getProjectRouting(), is(nullValue()));
 
         Consumer<String> updateProjectRouting = projectRouting -> updateTransform(

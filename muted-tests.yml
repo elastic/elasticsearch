@@ -390,9 +390,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845
-- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
-  method: testSimpleWithCranky
-  issue: https://github.com/elastic/elasticsearch/issues/143860
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849

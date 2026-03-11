@@ -100,8 +100,8 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 }
             }
             verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(
-                eq("health-node"),
-                eq("health-node"),
+                eq(HealthNode.TASK_NAME),
+                eq(HealthNode.TASK_NAME),
                 eq(new HealthNodeTaskParams()),
                 isNotNull(),
                 any()

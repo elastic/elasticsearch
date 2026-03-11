@@ -12,6 +12,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +43,7 @@ public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
         String executorNode = null;
         for (int i = 0; i < tasks.size(); i++) {
             String taskId = response.evaluate("metadata.persistent_tasks.tasks." + i + ".id");
-            if ("health-node".equals(taskId)) {
+            if (HealthNode.TASK_NAME.equals(taskId)) {
                 executorNode = response.evaluate("metadata.persistent_tasks.tasks." + i + ".assignment.executor_node");
                 break;
             }

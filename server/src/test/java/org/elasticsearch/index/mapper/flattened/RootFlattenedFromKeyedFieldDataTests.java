@@ -13,8 +13,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -23,7 +23,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,105 +37,129 @@ import java.util.Set;
 
 public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
 
+    private static final String KEYED_FIELD = "field._keyed";
+    private static final String ROOT_FIELD = "field";
+
     public void testSingleKeyedValue() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("key1\0value1");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "key1\0value1");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertTrue(values.advanceExact(0));
-            assertEquals(1, values.docValueCount());
-            assertEquals(new BytesRef("value1"), values.nextValue());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(1, values.docValueCount());
+                    assertEquals(new BytesRef("value1"), values.nextValue());
+                }
+            }
         }
     }
 
     public void testMultipleKeysUniqueValues() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("key1\0alpha", "key2\0beta", "key3\0gamma");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "key1\0alpha", "key2\0beta", "key3\0gamma");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertTrue(values.advanceExact(0));
-            assertEquals(3, values.docValueCount());
-            assertEquals(new BytesRef("alpha"), values.nextValue());
-            assertEquals(new BytesRef("beta"), values.nextValue());
-            assertEquals(new BytesRef("gamma"), values.nextValue());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(3, values.docValueCount());
+                    assertEquals(new BytesRef("alpha"), values.nextValue());
+                    assertEquals(new BytesRef("beta"), values.nextValue());
+                    assertEquals(new BytesRef("gamma"), values.nextValue());
+                }
+            }
         }
     }
 
     public void testDuplicateValuesAcrossKeys() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("key1\0foo", "key2\0foo", "key3\0bar");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "key1\0foo", "key2\0foo", "key3\0bar");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertTrue(values.advanceExact(0));
-            assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("bar"), values.nextValue());
-            assertEquals(new BytesRef("foo"), values.nextValue());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(2, values.docValueCount());
+                    assertEquals(new BytesRef("bar"), values.nextValue());
+                    assertEquals(new BytesRef("foo"), values.nextValue());
+                }
+            }
         }
     }
 
     public void testAllDuplicateValues() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("a\0same", "b\0same", "c\0same");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "a\0same", "b\0same", "c\0same");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertTrue(values.advanceExact(0));
-            assertEquals(1, values.docValueCount());
-            assertEquals(new BytesRef("same"), values.nextValue());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(1, values.docValueCount());
+                    assertEquals(new BytesRef("same"), values.nextValue());
+                }
+            }
         }
     }
 
     public void testValuesAreSorted() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("key1\0zebra", "key2\0apple", "key3\0mango");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "key1\0zebra", "key2\0apple", "key3\0mango");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertTrue(values.advanceExact(0));
-            assertEquals(3, values.docValueCount());
-            assertEquals(new BytesRef("apple"), values.nextValue());
-            assertEquals(new BytesRef("mango"), values.nextValue());
-            assertEquals(new BytesRef("zebra"), values.nextValue());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(3, values.docValueCount());
+                    assertEquals(new BytesRef("apple"), values.nextValue());
+                    assertEquals(new BytesRef("mango"), values.nextValue());
+                    assertEquals(new BytesRef("zebra"), values.nextValue());
+                }
+            }
         }
     }
 
     public void testEmptyDocument() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addEmptyDoc();
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                writer.addDocument(new Document());
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            assertFalse(values.advanceExact(0));
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    assertFalse(values.advanceExact(0));
+                }
+            }
         }
     }
 
     public void testMultipleDocuments() throws IOException {
         boolean binary = randomBoolean();
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            testIndex.addDoc("a\0x", "b\0y");
-            testIndex.addDoc("c\0y", "d\0z");
-            testIndex.build();
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                addDoc(writer, binary, "a\0x", "b\0y");
+                addDoc(writer, binary, "c\0y", "d\0z");
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
 
-            assertTrue(values.advanceExact(0));
-            assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("x"), values.nextValue());
-            assertEquals(new BytesRef("y"), values.nextValue());
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(2, values.docValueCount());
+                    assertEquals(new BytesRef("x"), values.nextValue());
+                    assertEquals(new BytesRef("y"), values.nextValue());
 
-            assertTrue(values.advanceExact(1));
-            assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("y"), values.nextValue());
-            assertEquals(new BytesRef("z"), values.nextValue());
+                    assertTrue(values.advanceExact(1));
+                    assertEquals(2, values.docValueCount());
+                    assertEquals(new BytesRef("y"), values.nextValue());
+                    assertEquals(new BytesRef("z"), values.nextValue());
+                }
+            }
         }
     }
 
@@ -144,106 +167,73 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         boolean binary = randomBoolean();
         int docCount = randomIntBetween(1, 20);
 
-        try (TestIndex testIndex = new TestIndex(binary)) {
-            List<Set<String>> expectedValuesPerDoc = new ArrayList<>();
-            for (int d = 0; d < docCount; d++) {
-                int fieldCount = randomIntBetween(1, 10);
-                String[] keyedValues = new String[fieldCount];
-                Set<String> uniqueValues = new HashSet<>();
-                for (int f = 0; f < fieldCount; f++) {
-                    String key = "key" + randomIntBetween(0, 100);
-                    String value = randomAlphaOfLengthBetween(1, 20);
-                    keyedValues[f] = key + "\0" + value;
-                    uniqueValues.add(value);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+                List<Set<String>> expectedValuesPerDoc = new ArrayList<>();
+                for (int d = 0; d < docCount; d++) {
+                    int fieldCount = randomIntBetween(1, 10);
+                    String[] keyedValues = new String[fieldCount];
+                    Set<String> uniqueValues = new HashSet<>();
+                    for (int f = 0; f < fieldCount; f++) {
+                        String key = "key" + randomIntBetween(0, 100);
+                        String value = randomAlphaOfLengthBetween(1, 20);
+                        keyedValues[f] = key + "\0" + value;
+                        uniqueValues.add(value);
+                    }
+                    addDoc(writer, binary, keyedValues);
+                    expectedValuesPerDoc.add(uniqueValues);
                 }
-                testIndex.addDoc(keyedValues);
-                expectedValuesPerDoc.add(uniqueValues);
-            }
-            testIndex.build();
 
-            SortedBinaryDocValues values = testIndex.loadRootValues(0);
-            for (int d = 0; d < docCount; d++) {
-                assertTrue("doc " + d + " should have values", values.advanceExact(d));
-                Set<String> expected = expectedValuesPerDoc.get(d);
-                assertEquals("doc " + d + " value count", expected.size(), values.docValueCount());
-                Set<String> actual = new HashSet<>();
-                for (int i = 0; i < values.docValueCount(); i++) {
-                    actual.add(values.nextValue().utf8ToString());
+                try (IndexReader reader = openReader(writer)) {
+                    SortedBinaryDocValues values = loadRootValues(reader, binary);
+                    for (int d = 0; d < docCount; d++) {
+                        assertTrue("doc " + d + " should have values", values.advanceExact(d));
+                        Set<String> expected = expectedValuesPerDoc.get(d);
+                        assertEquals("doc " + d + " value count", expected.size(), values.docValueCount());
+                        Set<String> actual = new HashSet<>();
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            actual.add(values.nextValue().utf8ToString());
+                        }
+                        assertEquals("doc " + d + " values", expected, actual);
+                    }
                 }
-                assertEquals("doc " + d + " values", expected, actual);
             }
         }
     }
 
-    /**
-     * Helper that builds a real Lucene index with keyed flattened doc values
-     * (either sorted-set or binary format) and provides access to the derived
-     * root field data via {@link RootFlattenedFromKeyedFieldData}.
-     */
-    private static class TestIndex implements AutoCloseable {
-        private static final String KEYED_FIELD = "field._keyed";
-        private static final String ROOT_FIELD = "field";
+    private static RandomIndexWriter newRandomIndexWriter(Directory dir, boolean binary) throws IOException {
+        if (binary) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            return new RandomIndexWriter(random(), dir, iwc);
+        }
+        return new RandomIndexWriter(random(), dir);
+    }
 
-        private final boolean useBinaryDocValues;
-        private final Directory directory;
-        private final RandomIndexWriter writer;
-        private DirectoryReader reader;
-        private IndexFieldData<?> rootFieldData;
-
-        TestIndex(boolean useBinaryDocValues) throws IOException {
-            this.useBinaryDocValues = useBinaryDocValues;
-            this.directory = newDirectory();
-            if (useBinaryDocValues) {
-                IndexWriterConfig iwc = newIndexWriterConfig();
-                iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
-                this.writer = new RandomIndexWriter(random(), directory, iwc);
-            } else {
-                this.writer = new RandomIndexWriter(random(), directory);
+    private static void addDoc(RandomIndexWriter writer, boolean binary, String... keyedValues) throws IOException {
+        Document doc = new Document();
+        if (binary) {
+            var field = new MultiValuedBinaryDocValuesField.SeparateCount(KEYED_FIELD, false);
+            for (String kv : keyedValues) {
+                field.add(new BytesRef(kv));
+            }
+            doc.add(field);
+            doc.add(NumericDocValuesField.indexedField(KEYED_FIELD + ".counts", field.count()));
+        } else {
+            for (String kv : keyedValues) {
+                doc.add(new SortedSetDocValuesField(KEYED_FIELD, new BytesRef(kv)));
             }
         }
+        writer.addDocument(doc);
+    }
 
-        void addDoc(String... keyedValues) throws IOException {
-            Document doc = new Document();
-            if (useBinaryDocValues) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount(KEYED_FIELD, false);
-                for (String kv : keyedValues) {
-                    field.add(new BytesRef(kv));
-                }
-                doc.add(field);
-                doc.add(NumericDocValuesField.indexedField(KEYED_FIELD + ".counts", field.count()));
-            } else {
-                for (String kv : keyedValues) {
-                    doc.add(new SortedSetDocValuesField(KEYED_FIELD, new BytesRef(kv)));
-                }
-            }
-            writer.addDocument(doc);
-        }
+    private static IndexReader openReader(RandomIndexWriter writer) throws IOException {
+        return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
+    }
 
-        void addEmptyDoc() throws IOException {
-            writer.addDocument(new Document());
-        }
-
-        void build() throws IOException {
-            writer.flush();
-            reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
-
-            var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, useBinaryDocValues);
-            rootFieldData = builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-        }
-
-        SortedBinaryDocValues loadRootValues(int leafIndex) {
-            LeafReaderContext leafCtx = reader.leaves().get(leafIndex);
-            LeafFieldData leafData = rootFieldData.load(leafCtx);
-            return leafData.getBytesValues();
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (reader != null) {
-                reader.close();
-            }
-            writer.close();
-            directory.close();
-        }
+    private static SortedBinaryDocValues loadRootValues(IndexReader reader, boolean binary) {
+        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary);
+        IndexFieldData<?> fieldData = builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        return fieldData.load(reader.leaves().get(0)).getBytesValues();
     }
 }

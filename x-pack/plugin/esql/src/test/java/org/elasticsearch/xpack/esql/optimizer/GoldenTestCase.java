@@ -25,12 +25,12 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -58,7 +58,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -66,6 +70,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
@@ -197,24 +202,30 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
-            Files.createDirectories(PathUtils.get(basePath.toString(), testName));
-            Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
+            EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            LogicalPlan parsedPlan = statement.plan();
+            String[] queryPathParts = new String[nestedPath.length + 2];
+            queryPathParts[0] = testName;
+            System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
+            queryPathParts[queryPathParts.length - 1] = "query.esql";
+            Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
+            Files.createDirectories(queryPath.getParent());
+            Files.writeString(queryPath, esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
                     new EsqlFunctionRegistry(),
-                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedStatement)),
+                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
                     new EnrichResolution(),
                     InferenceResolution.EMPTY,
                     transportVersion,
-                    UnmappedResolution.FAIL
+                    statement.setting(UNMAPPED_FIELDS)
                 ),
                 TEST_VERIFIER
             );
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
-            var analyzed = analyzer.analyze(parsedStatement);
+            var analyzed = analyzer.analyze(parsedPlan);
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
@@ -384,23 +395,64 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
-        Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
-    private static String toString(Node<?> plan) {
-        String planString = plan.toString(Node.NodeStringFormat.FULL);
-        String withoutSyntheticPatterns = SYNTHETIC_PATTERN.matcher(planString).replaceAll("\\$\\$$1");
-        return IDENTIFIER_PATTERN.matcher(withoutSyntheticPatterns).replaceAll("");
+    /**
+     * Rewrites node IDs ({@code #n}) in the plan string to a stable numbering by order of first appearance.
+     * Actual IDs assigned during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     */
+    private static String normalizeNameIds(String planString) {
+        return replaceMatches(planString, IDENTIFIER_PATTERN, (matcher, idMap) -> {
+            int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
+            return "#" + idMap.getId(originalId);
+        });
+    }
+
+    /**
+     * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
+     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     */
+    private static String normalizeSyntheticNames(String full) {
+        return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
+            String firstSegment = matcher.group(1);
+            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+        });
+    }
+
+    private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
+        var idMap = new IdMap<K>();
+        Matcher matcher = pattern.matcher(input);
+        StringBuilder sb = new StringBuilder();
+        int lastEnd = 0;
+        while (matcher.find()) {
+            sb.append(input, lastEnd, matcher.start());
+            sb.append(replacer.apply(matcher, idMap));
+            lastEnd = matcher.end();
+        }
+        sb.append(input, lastEnd, input.length());
+        return sb.toString();
     }
 
     // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
     // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)*(?=[{#])");
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
+    private static class IdMap<K> {
+        private final Map<K, Integer> map = new HashMap<>();
+        private int counter = 0;
+
+        public int getId(K key) {
+            return map.computeIfAbsent(key, k -> counter++);
+        }
+    }
+
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(toString(plan));
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);

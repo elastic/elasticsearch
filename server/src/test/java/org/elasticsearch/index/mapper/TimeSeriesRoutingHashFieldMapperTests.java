@@ -96,7 +96,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
     }
 
     public void testRetrievedFromIdInTimeSeriesMode() throws Exception {
-        boolean syntheticId = randomBoolean();
+        boolean syntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         DocumentMapper docMapper = createMapper(mapping(b -> {
             b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
         }), syntheticId);

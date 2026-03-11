@@ -78,8 +78,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|foo:null
-268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null
+avg_worked_seconds:long|birth_date:date          |emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|foo:null
+268728049              |1953-09-02T00:00:00.000Z |10001         |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null
 ;
 
 
@@ -110,8 +110,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null |null
+avg_worked_seconds:long|birth_date:date          |emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
+268728049              |1953-09-02T00:00:00.000Z |10001         |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
 ;
 
 keepFieldStarEval
@@ -125,8 +125,8 @@ FROM employees
 | LIMIT 1
 ;
 
-emp_no:integer|avg_worked_seconds:long|birth_date:date         |first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date          |is_rehired:boolean|job_positions:keyword                |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-10001         |268728049              |1953-09-02T00:00:00.000Z|Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z|[false, true]     |[Accountant, Senior Python Developer]|2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
+emp_no:integer|avg_worked_seconds:long|birth_date:date          |first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
+10001         |268728049              |1953-09-02T00:00:00.000Z |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
 ;
 
 dropPatternSimpleKeep
@@ -213,7 +213,7 @@ ROW x = 1
 ;
 
 y:integer | bar:null
-1         |null
+1         | null
 ;
 
 fieldRename
@@ -494,7 +494,7 @@ ROW x = 1
 ;
 
 x:integer      |does_not_exist:null |y:keyword | language_name:keyword
-1              |null                |null      |null
+1              |null                |null      | null
 ;
 
 partiallyUnmappedKeywordMultiIndex
@@ -676,7 +676,7 @@ TS k8s_unmapped
 ;
 
 r:double | tbucket:datetime
-null    | 2024-05-10T00:00:00.000Z
+null     | 2024-05-10T00:00:00.000Z
 ;
 
 maxOverTimeOfDoubleNoGroupingUnmappedNullify
@@ -690,16 +690,16 @@ TS k8s_unmapped
 ;
 
 cost:double | time_bucket:datetime
-null       | 2024-05-10T00:00:00.000Z
-null       | 2024-05-10T00:01:00.000Z
-null       | 2024-05-10T00:02:00.000Z
-null       | 2024-05-10T00:03:00.000Z
-null       | 2024-05-10T00:04:00.000Z
-null       | 2024-05-10T00:05:00.000Z
-null       | 2024-05-10T00:06:00.000Z
-null       | 2024-05-10T00:07:00.000Z
-null       | 2024-05-10T00:08:00.000Z
-null       | 2024-05-10T00:09:00.000Z
+null        | 2024-05-10T00:00:00.000Z
+null        | 2024-05-10T00:01:00.000Z
+null        | 2024-05-10T00:02:00.000Z
+null        | 2024-05-10T00:03:00.000Z
+null        | 2024-05-10T00:04:00.000Z
+null        | 2024-05-10T00:05:00.000Z
+null        | 2024-05-10T00:06:00.000Z
+null        | 2024-05-10T00:07:00.000Z
+null        | 2024-05-10T00:08:00.000Z
+null        | 2024-05-10T00:09:00.000Z
 ;
 
 maxOverTimeOfKeyword

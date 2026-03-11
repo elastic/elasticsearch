@@ -254,7 +254,7 @@ TS k8s_unmapped
 | LIMIT 5
 ;
 
-time_bucket:datetime | x:keyword
+time_bucket:datetime     | x:keyword
 2024-05-10T00:00:00.000Z | vulputate s
 2024-05-10T00:10:00.000Z | vulputate q
 2024-05-10T00:20:00.000Z | volutpat ve

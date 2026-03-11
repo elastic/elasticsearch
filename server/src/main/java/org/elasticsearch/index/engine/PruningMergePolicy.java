@@ -39,8 +39,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(
+/**
+ * MergePolicy that will prune _recovery_source, _seq_no and associated supporting fields
+ * once they are no longer needed for replication.
+ */
+public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
+    PruningMergePolicy(
         @Nullable String pruneStoredFieldName,
         String pruneNumericDVFieldName,
         boolean pruneIdField,
@@ -149,52 +153,10 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             this.useSyntheticId = useSyntheticId;
         }
 
-        private boolean shouldPruneNumericDocValues(String fieldName) {
-            if (fieldName.equals(pruneNumericDVFieldName)) {
-                return true;
-            }
-            return pruneSeqNo && fieldName.equals(SeqNoFieldMapper.NAME);
-        }
-
         @Override
         public DocValuesProducer getDocValuesReader() {
             DocValuesProducer docValuesReader = super.getDocValuesReader();
-            return new FilterDocValuesProducer(docValuesReader) {
-                @Override
-                public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-                    NumericDocValues numeric = super.getNumeric(field);
-                    if (shouldPruneNumericDocValues(field.name)) {
-                        assert numeric != null : field.name + " must have numeric doc values but was null";
-                        final DocIdSetIterator intersection;
-                        if (recoverySourceToKeep == null) {
-                            // we can't return null here Lucene's DocIdMerger expects an instance
-                            intersection = DocIdSetIterator.empty();
-                        } else {
-                            intersection = ConjunctionUtils.intersectIterators(
-                                Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
-                            );
-                        }
-                        return new FilterNumericDocValues(numeric) {
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return intersection.nextDoc();
-                            }
-
-                            @Override
-                            public int advance(int target) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            @Override
-                            public boolean advanceExact(int target) {
-                                throw new UnsupportedOperationException();
-                            }
-                        };
-
-                    }
-                    return numeric;
-                }
-            };
+            return new PruningDocValuesProducer(docValuesReader, recoverySourceToKeep, pruneNumericDVFieldName, pruneSeqNo);
         }
 
         @Override
@@ -307,6 +269,74 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public void checkIntegrity() throws IOException {
             in.checkIntegrity();
+        }
+    }
+
+    /**
+     * DocValuesProducer that will filter out _recovery_source and _seq_no values
+     * for documents that are fully replicated.
+     */
+    public static class PruningDocValuesProducer extends FilterDocValuesProducer {
+
+        private final BitSet recoverySourceToKeep;
+        private final String pruneNumericDVFieldName;
+        private final boolean pruneSeqNo;
+
+        protected PruningDocValuesProducer(
+            DocValuesProducer in,
+            BitSet recoverySourceToKeep,
+            String pruneNumericDVFieldName,
+            boolean pruneSeqNo
+        ) {
+            super(in);
+            this.recoverySourceToKeep = recoverySourceToKeep;
+            this.pruneNumericDVFieldName = pruneNumericDVFieldName;
+            this.pruneSeqNo = pruneSeqNo;
+        }
+
+        @Override
+        public NumericDocValues getNumeric(FieldInfo field) throws IOException {
+            NumericDocValues numeric = super.getNumeric(field);
+            if (shouldPruneNumericDocValues(field.name)) {
+                assert numeric != null : field.name + " must have numeric doc values but was null";
+                final DocIdSetIterator intersection;
+                if (recoverySourceToKeep == null) {
+                    // we can't return null here Lucene's DocIdMerger expects an instance
+                    intersection = DocIdSetIterator.empty();
+                } else {
+                    intersection = ConjunctionUtils.intersectIterators(
+                        Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
+                    );
+                }
+                return new FilterNumericDocValues(numeric) {
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return intersection.nextDoc();
+                    }
+
+                    @Override
+                    public int advance(int target) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+
+            }
+            return numeric;
+        }
+
+        /**
+         * Should this field be filtered in the new segment
+         */
+        public boolean shouldPruneNumericDocValues(String fieldName) {
+            if (fieldName.equals(pruneNumericDVFieldName)) {
+                return true;
+            }
+            return pruneSeqNo && fieldName.equals(SeqNoFieldMapper.NAME);
         }
     }
 

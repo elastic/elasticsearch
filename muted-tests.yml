@@ -414,6 +414,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
   issue: https://github.com/elastic/elasticsearch/issues/142964
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteBlobWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/144025
 
 # Examples:
 #

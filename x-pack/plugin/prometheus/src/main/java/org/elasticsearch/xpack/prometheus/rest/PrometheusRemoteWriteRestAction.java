@@ -106,13 +106,17 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                                 ),
                                 e -> {
                                     logger.debug("Remote write transport action failed", e);
-                                    channel.sendResponse(
-                                        new RestResponse(
-                                            ExceptionsHelper.status(e),
-                                            RestResponse.TEXT_CONTENT_TYPE,
-                                            new BytesArray(e.getMessage())
-                                        )
-                                    );
+                                    try {
+                                        channel.sendResponse(
+                                            new RestResponse(
+                                                ExceptionsHelper.status(e),
+                                                RestResponse.TEXT_CONTENT_TYPE,
+                                                new BytesArray(e.getMessage())
+                                            )
+                                        );
+                                    } catch (Exception sendException) {
+                                        logger.warn("failed to send failure response", sendException);
+                                    }
                                 }
                             )
                         )

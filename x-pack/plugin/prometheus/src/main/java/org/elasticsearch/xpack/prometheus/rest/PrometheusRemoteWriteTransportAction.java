@@ -123,21 +123,13 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
 
             final int finalDroppedMissingName = droppedMissingName;
-            bulkRequestBuilder.execute(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkResponse) {
-                    if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
-                        listener.onFailure(buildPartialFailureException(bulkResponse, totalSamples, finalDroppedMissingName));
-                    } else {
-                        listener.onResponse(new RemoteWriteResponse());
-                    }
+            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+                if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
+                    delegate.onFailure(buildPartialFailureException(bulkResponse, totalSamples, finalDroppedMissingName));
+                } else {
+                    delegate.onResponse(new RemoteWriteResponse());
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
 
         } catch (InvalidProtocolBufferException e) {
             listener.onFailure(

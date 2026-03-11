@@ -153,7 +153,7 @@ final class CanMatchPreFilterSearchPhase {
         Map<String, Object> searchRequestAttributes
     ) {
         if (shardsIts.isEmpty()) {
-            return SubscribableListener.newSucceeded(new CanMatchResult(List.of(), HashMap.newHashMap(0)));
+            return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), Collections.emptyMap()));
         }
         final SubscribableListener<CanMatchResult> listener = new SubscribableListener<>();
         long phaseStartTimeInNanos = System.nanoTime();
@@ -488,7 +488,7 @@ final class CanMatchPreFilterSearchPhase {
             iter.reset();
             boolean match = possibleMatches.get(i++);
             if (match) {
-                assert iter.skip() == false;
+                assert iter.skip() == false : "Shard shouldn't be marked skipped if possible to match";
                 canMatchResult.iterators.set(iMatched++, iter);
             } else {
                 canMatchResult.skippedByClusterAlias.compute(

@@ -123,10 +123,9 @@ public class ToExponentialHistogram extends AbstractConvertFunction {
             centroids.add(centroid.mean());
             counts.add(centroid.count());
         }
-        var conversion = TDigestToExponentialHistogramConverter.convertLazy(
+        TDigestToExponentialHistogramConverter.LazyConversion conversion = TDigestToExponentialHistogramConverter.convertLazy(
             new TDigestToExponentialHistogramConverter.ArrayBasedCentroidIterator(centroids, counts)
         );
-
         resultBuilder.append(
             conversion.getScale(),
             conversion.negativeBuckets(),

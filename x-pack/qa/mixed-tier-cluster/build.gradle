@@ -13,7 +13,6 @@ apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
-  clusterModules project(':modules:codecs-common')
 }
 
 // Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0

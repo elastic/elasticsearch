@@ -384,6 +384,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.cluster.routing.allocation.allocator.NotPreferredAllocationRebalancingIT
+  method: testAllocatorDoesNotMoveShardsToNotPreferredNode
+  issue: https://github.com/elastic/elasticsearch/issues/143831
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845

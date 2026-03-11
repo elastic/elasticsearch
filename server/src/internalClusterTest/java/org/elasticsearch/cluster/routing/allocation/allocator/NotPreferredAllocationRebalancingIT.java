@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.After;
 
@@ -63,7 +62,6 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.metadata.MetadataDeleteIndexService:TRACE", reason = "details when wiping indices")
     public void testAllocatorDoesNotMoveShardsToNotPreferredNode() {
         final Settings settings = Settings.builder()
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)

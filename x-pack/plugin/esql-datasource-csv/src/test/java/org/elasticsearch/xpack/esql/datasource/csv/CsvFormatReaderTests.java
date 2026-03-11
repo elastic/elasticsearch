@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -1498,6 +1499,43 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Bracket-aware line splitting: escaped delimiter ({@code \,}) is treated as literal,
+     * so the comma does not split the column. The cell value preserves the escape sequence.
+     */
+    public void testEscapedDelimiterInLine() throws IOException {
+        String csv = "id:long,data:keyword\n1,a\\,b\n2,normal\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("a\\,b"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("normal"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    /**
+     * Escaped delimiter inside quoted field: {@code "a\,b"} yields literal comma in the cell.
+     */
+    public void testEscapedDelimiterInQuotedField() throws IOException {
+        String csv = "id:long,data:keyword\n1,\"a\\,b\"\n2,normal\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("a,b"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("normal"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
     public void testMultiValueEscapedComma() throws IOException {
         String csv = "id:integer,data:keyword\n1,\"[a\\\\,b,c]\"\n";
         CsvFormatOptions options = new CsvFormatOptions(
@@ -1578,11 +1616,105 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
             assertEquals(2, namesBlock.getValueCount(0));
-            assertEquals(new BytesRef("\"foo\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
-            assertEquals(new BytesRef("\"bar\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+            assertEquals(new BytesRef("foo"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("bar"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
             assertEquals(2, namesBlock.getValueCount(1));
-            assertEquals(new BytesRef("\"hello world\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1), new BytesRef()));
-            assertEquals(new BytesRef("\"test\""), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1) + 1, new BytesRef()));
+            assertEquals(new BytesRef("hello world"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1), new BytesRef()));
+            assertEquals(new BytesRef("test"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(1) + 1, new BytesRef()));
+        }
+    }
+
+    /**
+     * Loads employees.csv from ESQL test fixtures. Verifies 23 columns in header and each row.
+     * The file has multi-value fields like {@code [Senior Python Developer,Accountant]}.
+     */
+    public void testEmployeesCsvWithMultiValues() throws IOException {
+        String csv = new String(CsvTestsDataLoader.getResourceStream("/data/employees.csv").readAllBytes(), StandardCharsets.UTF_8);
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(23, schema.size());
+
+        int rowCount = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 100)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals(23, page.getBlockCount());
+                rowCount += page.getPositionCount();
+            }
+        }
+        assertEquals(100, rowCount);
+    }
+
+    /**
+     * CSV with comma delimiter: {@code a,[hello,world],c} parses the middle cell as one column
+     * whose value {@code [hello,world]} yields two multi-values: hello and world.
+     */
+    public void testMultiValueBracketsInMultiColumnRow() throws IOException {
+        String csv = "prefix:keyword,tags:keyword,suffix:keyword\nx,[hello,world],y\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock prefixBlock = page.getBlock(0);
+            BytesRefBlock tagsBlock = page.getBlock(1);
+            BytesRefBlock suffixBlock = page.getBlock(2);
+            assertEquals(new BytesRef("x"), prefixBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(2, tagsBlock.getValueCount(0));
+            assertEquals(new BytesRef("hello"), tagsBlock.getBytesRef(tagsBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("world"), tagsBlock.getBytesRef(tagsBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+            assertEquals(new BytesRef("y"), suffixBlock.getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testMultiValueBracketsQuotedElements() throws IOException {
+        String csv = "id:integer,names:keyword\n1,\"[\"\"hello\"\",\"\"world\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, namesBlock.getValueCount(0));
+            assertEquals(new BytesRef("hello"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("world"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+        }
+    }
+
+    public void testMultiValueBracketsMixedQuotedUnquoted() throws IOException {
+        String csv = "id:integer,data:keyword\n1,\"[hello,\"\"world,world\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock dataBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, dataBlock.getValueCount(0));
+            assertEquals(new BytesRef("hello"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("world,world"), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+        }
+    }
+
+    public void testMultiValueBracketsQuotedWithEscapedQuote() throws IOException {
+        String csv = "id:integer,data:keyword\n1,\"[\"\"say \"\"\"\"hi\"\"\"\"\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock dataBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(1, dataBlock.getValueCount(0));
+            assertEquals(new BytesRef("say \"hi\""), dataBlock.getBytesRef(dataBlock.getFirstValueIndex(0), new BytesRef()));
         }
     }
 

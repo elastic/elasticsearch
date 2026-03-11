@@ -2226,7 +2226,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
-                    case ROUND_TO -> type == NumberType.LONG;
+                    case ROUND_TO -> type == NumberType.LONG && indexType.hasDocValuesSkipper();
                     default -> false;
                 };
             }

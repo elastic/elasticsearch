@@ -43,7 +43,10 @@ public class BulkByScrollTaskTests extends ESTestCase {
         String description = randomAlphaOfLengthBetween(0, 20);
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(5), randomLong());
         Map<String, String> headers = randomBoolean() ? Collections.emptyMap() : Map.of("header", randomAlphaOfLength(5));
-        return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown);
+        ResumeInfo.RelocationOrigin origin = randomBoolean()
+            ? null
+            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong());
+        return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
     }
 
     public void testStatusHatesNegatives() {

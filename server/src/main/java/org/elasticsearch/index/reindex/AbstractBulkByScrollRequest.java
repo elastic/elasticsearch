@@ -497,7 +497,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers, eligibleForRelocationOnShutdown);
+        return new BulkByScrollTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            resumeInfo == null ? null : resumeInfo.relocationOrigin()
+        );
     }
 
     @Override

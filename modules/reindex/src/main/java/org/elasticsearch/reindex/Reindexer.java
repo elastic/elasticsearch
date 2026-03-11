@@ -403,8 +403,6 @@ public class Reindexer {
         if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
-        // only present on the leader task, or worker if single-sliced reindex
-        request.getResumeInfo().map(ResumeInfo::relocationOrigin).ifPresent(task::setRelocationOrigin);
         // set up reindex relocation, specifically the supplier which says which node to relocate to.
         // we have 3 states to handle:
         // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.

@@ -36,7 +36,18 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap(), false);
+        task = new BulkByScrollTask(
+            1,
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorkerCount(slices);
         taskState = task.getLeaderState();
     }
@@ -264,7 +275,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            true
+            true,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
         );
         task.setWorkerCount(sliceCount);
         task.requestRelocation();

@@ -185,7 +185,8 @@ public class ReindexerTests extends ESTestCase {
             "test",
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap(),
-            true
+            true,
+            randomOrigin()
         );
         leaderTask.setWorkerCount(2);
 
@@ -323,7 +324,8 @@ public class ReindexerTests extends ESTestCase {
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            randomOrigin()
         );
         task.setWorker(Float.POSITIVE_INFINITY, null);
         return task;
@@ -337,7 +339,8 @@ public class ReindexerTests extends ESTestCase {
             randomAlphaOfLength(10),
             new TaskId("node", 1),
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            randomOrigin()
         );
         task.setWorker(randomFloat(), 0);
         return task;
@@ -351,14 +354,15 @@ public class ReindexerTests extends ESTestCase {
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            randomOrigin()
         );
         task.setWorkerCount(randomIntBetween(2, 10));
         return task;
     }
 
     private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {
-        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true);
+        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true, randomOrigin());
     }
 
     private static Reindexer reindexerWithRelocation() {
@@ -404,5 +408,11 @@ public class ReindexerTests extends ESTestCase {
 
     private static ReindexRequest reindexRequest() {
         return new ReindexRequest();
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return randomBoolean()
+            ? null
+            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong());
     }
 }

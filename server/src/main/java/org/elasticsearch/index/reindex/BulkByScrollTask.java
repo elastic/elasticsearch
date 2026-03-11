@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,10 +57,11 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class BulkByScrollTask extends CancellableTask {
 
     private final boolean eligibleForRelocationOnShutdown;
+    @Nullable
+    private final ResumeInfo.RelocationOrigin relocationOrigin;
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
-    private final SetOnce<ResumeInfo.RelocationOrigin> relocationOrigin = new SetOnce<>();
 
     public BulkByScrollTask(
         long id,
@@ -70,10 +70,12 @@ public class BulkByScrollTask extends CancellableTask {
         String description,
         TaskId parentTaskId,
         Map<String, String> headers,
-        boolean eligibleForRelocationOnShutdown
+        boolean eligibleForRelocationOnShutdown,
+        @Nullable ResumeInfo.RelocationOrigin relocationOrigin
     ) {
         super(id, type, action, description, parentTaskId, headers);
         this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.relocationOrigin = relocationOrigin;
     }
 
     @Override
@@ -225,14 +227,9 @@ public class BulkByScrollTask extends CancellableTask {
         return relocationRequested;
     }
 
-    /** Sets the identity of the original task that this task is a relocation of. */
-    public void setRelocationOrigin(ResumeInfo.RelocationOrigin origin) {
-        this.relocationOrigin.set(Objects.requireNonNull(origin));
-    }
-
     /** Returns the relocation origin if this task is a relocated continuation. */
     public Optional<ResumeInfo.RelocationOrigin> getRelocationOrigin() {
-        return Optional.ofNullable(relocationOrigin.get());
+        return Optional.ofNullable(relocationOrigin);
     }
 
     /**

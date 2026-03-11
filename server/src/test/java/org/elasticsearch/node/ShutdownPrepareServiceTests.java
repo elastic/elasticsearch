@@ -10,6 +10,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +29,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             "description",
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            false
+            false,
+            randomOrigin()
         );
         task.setWorkerCount(randomIntBetween(1, 20));
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
@@ -43,7 +45,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             "description",
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            true
+            true,
+            randomOrigin()
         );
         task.setWorkerCount(randomIntBetween(1, 20));
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
@@ -58,7 +61,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             "description",
             new TaskId("localNode", randomLong()),
             Map.of(),
-            false
+            false,
+            randomOrigin()
         );
         task.setWorker(randomFloat(), randomInt());
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
@@ -73,7 +77,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             "description",
             new TaskId("localNode", randomLong()),
             Map.of(),
-            true
+            true,
+            randomOrigin()
         );
         task.setWorker(randomFloat(), randomInt());
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
@@ -84,5 +89,11 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         Task task = new Task(randomInt(), "transport", "test:action/name", "description", new TaskId("localNode", randomLong()), Map.of());
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
         // No assertion, just check it doesn't blow up
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return randomBoolean()
+            ? null
+            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong());
     }
 }

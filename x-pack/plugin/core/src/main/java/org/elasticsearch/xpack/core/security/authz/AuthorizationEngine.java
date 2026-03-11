@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -120,7 +119,7 @@ public interface AuthorizationEngine {
      * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
      * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
      * authorizing a specific request, i.e.
-     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, Executor, ActionListener)}
+     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
      *
      * @param subject object representing the effective user
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
@@ -227,15 +226,12 @@ public interface AuthorizationEngine {
      *                          using {@link #resolveAuthorizationInfo(Subject, ActionListener)}
      * @param privilegesToCheck the object that contains the privileges to check for the Subject
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
-     * @param privilegeCheckExecutor executor to dispatch expensive privilege-check work to, so that the calling thread is not blocked.
-     *                               This is important to ensure that transport threads are not blocked by calls to this method.
      * @param listener the listener to be notified of the check privileges response
      */
     void checkPrivileges(
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-        Executor privilegeCheckExecutor,
         ActionListener<PrivilegesCheckResult> listener
     );
 

@@ -113,7 +113,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.Executor;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -607,7 +606,6 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        Executor privilegeCheckExecutor,
         ActionListener<PrivilegesCheckResult> originalListener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
@@ -654,20 +652,6 @@ public class RBACEngine implements AuthorizationEngine {
             listener = originalListener;
         }
 
-        // Privilege checks can trigger expensive automaton operations (Automatons.minimize, subsetOf)
-        // whose cost scales with index privilege groups and pattern complexity. Fork to a throttled
-        // executor to avoid blocking transport threads and to bound concurrent CPU-bound work.
-        privilegeCheckExecutor.execute(
-            ActionRunnable.wrap(listener, l -> doCheckPrivileges(userRole, privilegesToCheck, applicationPrivileges, l))
-        );
-    }
-
-    private void doCheckPrivileges(
-        Role userRole,
-        PrivilegesToCheck privilegesToCheck,
-        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        ActionListener<PrivilegesCheckResult> listener
-    ) {
         boolean allMatch = true;
 
         final Map<String, Boolean> clusterPrivilegesCheckResults = new HashMap<>();

@@ -65,7 +65,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
-            context
+            context,
+            transportService.getThreadPool()
         );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -107,7 +108,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
-            context
+            context,
+            transportService.getThreadPool()
         );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -161,7 +163,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             authorizationService,
             privilegeStore,
-            context
+            context,
+            transportService.getThreadPool()
         );
 
         final String username = randomAlphaOfLengthBetween(5, 10);

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -483,7 +483,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
                 )
             );
             // Configure the index writer for time-series indices
@@ -503,41 +503,36 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * Builds time-series index settings.
      */
     private static IndexSettings buildIndexSettings(final String indexName) {
-        return new IndexSettings(
-            IndexMetadata.builder(indexName)
-                .settings(
-                    indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                        .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"))
-                        .build()
-                )
-                .putMapping("""
-                    {
+        var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"));
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+        return new IndexSettings(IndexMetadata.builder(indexName).settings(settings.build()).putMapping("""
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
                         "properties": {
-                            "@timestamp": {
-                                "type": "date"
-                            },
-                            "hostname": {
+                            "field": {
                                 "type": "keyword",
                                 "time_series_dimension": true
                             },
-                            "metric": {
-                                "properties": {
-                                    "field": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                    },
-                                    "value": {
-                                        "type": "integer",
-                                        "time_series_metric": "counter"
-                                    }
-                                }
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
                             }
                         }
-                    }""")
-                .build(),
-            Settings.EMPTY
-        );
+                    }
+                }
+            }""").build(), Settings.EMPTY);
     }
 
     /**

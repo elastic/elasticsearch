@@ -3289,6 +3289,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
      * Unmapped fields with dotted names (e.g. host.entity.id) should be nullified in STATS WHERE, even when an EVAL before the STATS
      * creates a field whose name is a suffix of the unmapped field name (e.g. entity.id).
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[entity.id{r}#6],[FilteredExpression[VALUES(host.entity.id{r}#13,true[BOOLEAN],PT0S[TIME_DURATION]),
+     *                               ISNOTNULL(host.entity.id{r}#13)] AS host.entity.id#10, entity.id{r}#6]]
+     *   \_Eval[[foo[KEYWORD] AS entity.id#6, null[NULL] AS host.entity.id#13]]
+     *     \_Row[[1[INTEGER] AS x#4]]
      */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -3298,26 +3304,61 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """));
 
         var limit = as(plan, Limit.class);
+
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.output()), hasItems("host.entity.id", "entity.id"));
-        assertTrue(agg.resolved());
+        assertThat(Expressions.names(agg.output()), is(List.of("host.entity.id", "entity.id")));
+        assertThat(agg.groupings(), hasSize(1));
+        assertThat(Expressions.name(agg.groupings().getFirst()), is("entity.id"));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), hasItems("entity.id", "host.entity.id"));
+        var hostEntityIdAlias = eval.fields().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow();
+        assertThat(hostEntityIdAlias.child(), instanceOf(Literal.class));
+        assertThat(hostEntityIdAlias.child().dataType(), is(DataType.NULL));
+
+        as(eval.child(), Row.class);
     }
 
     /**
      * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
      * Same as {@link #testStatsFilteredAggAfterEvalWithDottedUnmappedField()} but with FROM instead of ROW.
+     * Tests both nullify and load modes: the plan shape is the same, only the field type in the EsRelation differs.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[entity.id{r}#4],[FilteredExpression[VALUES(host.entity.id{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]),
+     *                               ISNOTNULL(host.entity.id{f}#22)] AS host.entity.id#8, entity.id{r}#4]]
+     *   \_Eval[[foo[KEYWORD] AS entity.id#4]]
+     *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() {
-        var plan = analyzeStatement(setUnmappedNullify("""
+        boolean load = randomBoolean();
+        String query = """
             FROM test
             | EVAL entity.id = "foo"
             | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
-            """));
+            """;
+        var plan = analyzeStatement(load? setUnmappedLoad(query) : setUnmappedNullify(query));
 
         var limit = as(plan, Limit.class);
+
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.output()), hasItems("host.entity.id", "entity.id"));
-        assertTrue(agg.resolved());
+        assertThat(Expressions.names(agg.output()), is(List.of("host.entity.id", "entity.id")));
+        assertThat(agg.groupings(), hasSize(1));
+        assertThat(Expressions.name(agg.groupings().getFirst()), is("entity.id"));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("entity.id")));
+
+        var relation = as(eval.child(), EsRelation.class);
+        var dneAttr = as(
+            relation.output().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow(),
+            FieldAttribute.class
+        );
+        if (load) {
+            as(dneAttr.field(), PotentiallyUnmappedKeywordEsField.class);
+        } else {
+            assertThat(dneAttr.dataType(), is(DataType.NULL));
+        }
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

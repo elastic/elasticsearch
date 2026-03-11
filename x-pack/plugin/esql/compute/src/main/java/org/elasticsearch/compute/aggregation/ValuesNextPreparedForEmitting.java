@@ -56,7 +56,6 @@ public class ValuesNextPreparedForEmitting implements Releasable {
         }
     }
 
-
     private final BlockFactory blockFactory;
     private final IntVector selected;
     private final int min;

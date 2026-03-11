@@ -40,9 +40,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestMultiSearchTemplateAction(Settings settings) {
+    public RestMultiSearchTemplateAction(Settings settings, CrossProjectModeDecider crossProjectModeDecider) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

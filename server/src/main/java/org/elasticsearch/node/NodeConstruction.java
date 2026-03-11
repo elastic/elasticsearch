@@ -217,6 +217,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
@@ -1011,6 +1012,8 @@ class NodeConstruction {
             }
         };
 
+        final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1038,7 +1041,8 @@ class NodeConstruction {
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver,
-            remoteTransportClient
+            remoteTransportClient,
+            crossProjectModeDecider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1079,6 +1083,7 @@ class NodeConstruction {
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
+        modules.bindToInstance(CrossProjectModeDecider.class, crossProjectModeDecider);
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
@@ -1100,6 +1105,7 @@ class NodeConstruction {
             buildReservedProjectStateHandlers(reservedStateHandlerProviders, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
+            crossProjectModeDecider,
             projectResolver
         );
         modules.add(actionModule);
@@ -1158,6 +1164,7 @@ class NodeConstruction {
             telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
+            crossProjectModeDecider,
             projectResolver
         );
         transportServiceRef.set(transportService);

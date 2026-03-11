@@ -39,7 +39,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -308,14 +307,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var transformNode = new TransformNode(clusterStateListener);
 
         transformServices.set(
-            new TransformServices(
-                configManager,
-                checkpointService,
-                auditor,
-                scheduler,
-                transformNode,
-                new CrossProjectModeDecider(settings)
-            )
+            new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode, services.crossProjectModeDecider())
         );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());

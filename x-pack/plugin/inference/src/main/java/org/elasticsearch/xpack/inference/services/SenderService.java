@@ -204,11 +204,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsMultimodalCompletions() == false && request.containsMultimodalContent()) {
                 throwUnsupportedMultimodalUnifiedCompletionOperation(name());
             }
-    
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-    
             doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
         }).addListener(listener);
     }

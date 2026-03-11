@@ -22,13 +22,13 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
-import org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils;
-import org.elasticsearch.inference.completion.Reasoning;
-import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,15 +41,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_COMPLETION_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MESSAGES_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MODEL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.STOP_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOP_P_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -72,8 +74,8 @@ public record UnifiedCompletionRequest(
      */
     private static final String MODEL_ID_PARAM = "model_id_value";
     /**
-     * Some providers only support the now-deprecated {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, others have migrated to
-     * {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
+     * Some providers only support the now-deprecated {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, others have migrated to
+     * {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
      */
     private static final String MAX_TOKENS_PARAM = "max_tokens_field";
     /**
@@ -87,8 +89,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxTokens(@Nullable String modelId, Params params) {
         Map<String, String> entries = modelId != null
@@ -99,8 +101,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
      */
     public static Params withMaxTokensAndSkipStreamOptionsField(@Nullable String modelId, Params params) {
@@ -119,8 +121,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxCompletionTokens(String modelId, Params params) {
         return new DelegatingMapParams(
@@ -131,7 +133,7 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
@@ -154,19 +156,19 @@ public record UnifiedCompletionRequest(
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField("stop"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
+        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField(MESSAGES_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(MODEL_FIELD));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(MAX_COMPLETION_TOKENS_FIELD));
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(STOP_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TEMPERATURE_FIELD));
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseToolChoice(p),
-            new ParseField("tool_choice"),
+            new ParseField(TOOL_CHOICE_FIELD),
             ObjectParser.ValueType.OBJECT_OR_STRING
         );
-        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
+        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField(TOOL_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TOP_P_FIELD));
         PARSER.declareObject(optionalConstructorArg(), Reasoning.PARSER::apply, new ParseField(REASONING_FIELD));
     }
 
@@ -180,12 +182,40 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(Reasoning.class, Reasoning.NAME, Reasoning::new),
             new NamedWriteableRegistry.Entry(ReasoningDetail.class, ReasoningDetail.NAME, ReasoningDetail::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
-            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.EncryptedReasoningDetail.NAME,
+                ReasoningDetail.EncryptedReasoningDetail::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.SummaryReasoningDetail.NAME,
+                ReasoningDetail.SummaryReasoningDetail::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.TextReasoningDetail.NAME,
+                ReasoningDetail.TextReasoningDetail::new
+            )
         );
     }
 
     public static UnifiedCompletionRequest of(List<Message> messages) {
         return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null);
+    }
+
+    public UnifiedCompletionRequest(
+        List<Message> messages,
+        @Nullable String model,
+        @Nullable Long maxCompletionTokens,
+        @Nullable List<String> stop,
+        @Nullable Float temperature,
+        @Nullable ToolChoice toolChoice,
+        @Nullable List<Tool> tools,
+        @Nullable Float top
+    ) {
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null);
     }
 
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
@@ -198,7 +228,9 @@ public record UnifiedCompletionRequest(
             in.readOptionalNamedWriteable(ToolChoice.class),
             in.readOptionalCollectionAsList(Tool::new),
             in.readOptionalFloat(),
-            in.readOptionalWriteable(Reasoning::new)
+            in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                ? in.readOptionalNamedWriteable(Reasoning.class)
+                : null
         );
     }
 
@@ -212,7 +244,9 @@ public record UnifiedCompletionRequest(
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tools);
         out.writeOptionalFloat(topP);
-        out.writeOptionalWriteable(reasoning);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+            out.writeOptionalNamedWriteable(reasoning);
+        }
     }
 
     @Override
@@ -244,6 +278,9 @@ public record UnifiedCompletionRequest(
         // so we allow implementations to pass in the model id via the params
         if (params.param(MODEL_ID_PARAM) != null) {
             builder.field(MODEL_FIELD, params.param(MODEL_ID_PARAM));
+        }
+        if (reasoning != null) {
+            builder.field(REASONING_FIELD, reasoning);
         }
         return builder;
     }

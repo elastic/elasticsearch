@@ -11,7 +11,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -25,12 +25,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -76,18 +78,19 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         ThreadPool threadPool,
         Client client
     ) {
-        super(NAME, transportService, actionFilters, RemoteWriteRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
+        super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, RemoteWriteRequest request, ActionListener<RemoteWriteResponse> listener) {
-        try {
+        try (request) {
             RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
+            request.releaseBody();
 
             int totalSamples = countTotalSamples(writeRequest);
             if (totalSamples == 0) {
-                listener.onResponse(new RemoteWriteResponse(RestStatus.NO_CONTENT));
+                listener.onResponse(new RemoteWriteResponse());
                 return;
             }
 
@@ -115,33 +118,25 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
-                listener.onResponse(new RemoteWriteResponse(RestStatus.BAD_REQUEST, message));
+                listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
                 return;
             }
 
             final int finalDroppedMissingName = droppedMissingName;
-            bulkRequestBuilder.execute(new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkResponse) {
-                    if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
-                        handlePartialSuccess(bulkResponse, totalSamples, finalDroppedMissingName, listener);
-                    } else {
-                        listener.onResponse(new RemoteWriteResponse(RestStatus.NO_CONTENT));
-                    }
+            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+                if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
+                    delegate.onFailure(buildPartialFailureException(bulkResponse, totalSamples, finalDroppedMissingName));
+                } else {
+                    delegate.onResponse(new RemoteWriteResponse());
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onResponse(new RemoteWriteResponse(ExceptionsHelper.status(e)));
-                }
-            });
+            }));
 
         } catch (InvalidProtocolBufferException e) {
-            // Invalid protobuf is a client error - return 400 so clients don't retry
-            listener.onResponse(new RemoteWriteResponse(RestStatus.BAD_REQUEST));
+            listener.onFailure(
+                new ElasticsearchStatusException("Invalid Prometheus remote write payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
+            );
         } catch (Exception e) {
-            logger.error("Failed to process Prometheus remote write request", e);
-            listener.onResponse(new RemoteWriteResponse(ExceptionsHelper.status(e)));
+            listener.onFailure(e);
         }
     }
 
@@ -197,15 +192,13 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
     }
 
-    private static void handlePartialSuccess(
+    private static ElasticsearchStatusException buildPartialFailureException(
         BulkResponse bulkResponse,
         int totalSamples,
-        int droppedMissingName,
-        ActionListener<RemoteWriteResponse> listener
+        int droppedMissingName
     ) {
-        // Count failures and group by status
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = null;
-        // Default to returning 400 per the remote write spec for requests that should not be retried.
+        // Default to 400 per the remote write spec for requests that should not be retried.
         RestStatus responseStatus = RestStatus.BAD_REQUEST;
         int failures = droppedMissingName;
 
@@ -228,7 +221,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
 
         String message = buildFailureSummary(totalSamples, droppedMissingName, failures, failureGroups);
-        listener.onResponse(new RemoteWriteResponse(responseStatus, message));
+        return new ElasticsearchStatusException(message, responseStatus);
     }
 
     private static String buildFailureSummary(
@@ -268,22 +261,24 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
 
-    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest {
-        private final BytesReference remoteWriteRequest;
-        private final String dataset;
-        private final String namespace;
+    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest, Releasable {
+        final ReleasableBytesReference remoteWriteRequest;
+        final String dataset;
+        final String namespace;
+        private final Releasable releaseBody;
+        private final Releasable releasePressure;
 
-        public RemoteWriteRequest(StreamInput in) throws IOException {
-            super(in);
-            remoteWriteRequest = in.readBytesReference();
-            dataset = in.readString();
-            namespace = in.readString();
-        }
-
-        public RemoteWriteRequest(BytesReference remoteWriteRequest, String dataset, String namespace) {
+        public RemoteWriteRequest(
+            ReleasableBytesReference remoteWriteRequest,
+            String dataset,
+            String namespace,
+            Releasable indexingPressureRelease
+        ) {
             this.remoteWriteRequest = remoteWriteRequest;
             this.dataset = dataset;
             this.namespace = namespace;
+            this.releaseBody = Releasables.releaseOnce(remoteWriteRequest);
+            this.releasePressure = Releasables.releaseOnce(indexingPressureRelease);
         }
 
         @Override
@@ -291,41 +286,26 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             return null;
         }
 
+        void releaseBody() {
+            releaseBody.close();
+        }
+
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBytesReference(remoteWriteRequest);
-            out.writeString(dataset);
-            out.writeString(namespace);
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public void close() {
+            releaseBody.close();
+            releasePressure.close();
         }
     }
 
     public static class RemoteWriteResponse extends ActionResponse {
-        private final RestStatus status;
-        @Nullable
-        private final String message;
-
-        public RemoteWriteResponse(RestStatus status) {
-            this(status, null);
-        }
-
-        public RemoteWriteResponse(RestStatus status, @Nullable String message) {
-            this.status = status;
-            this.message = message;
-        }
-
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(status);
-        }
-
-        public RestStatus getStatus() {
-            return status;
-        }
-
-        @Nullable
-        public String getMessage() {
-            return message;
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
     }
 }

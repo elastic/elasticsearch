@@ -80,11 +80,9 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         DataStream.validateDataset(dataset);
         DataStream.validateNamespace(namespace);
 
-        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSizeBytes, false);
-
         return new IndexingPressureAwareContentAggregator(
             request,
-            coordinating,
+            indexingPressure,
             maxRequestSizeBytes,
             new IndexingPressureAwareContentAggregator.CompletionHandler() {
                 @Override

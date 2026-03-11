@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -54,13 +55,13 @@ import java.util.function.Predicate;
  */
 public final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
-    private final IndexRouting indexRouting;
+    private final BiPredicate<String, String> shardMatcher;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
     public ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
         this.indexMetadata = indexMetadata;
-        this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        this.shardMatcher = IndexRouting.fromIndexMetadata(indexMetadata).shardMatcherForSplit(shardId);
         this.shardId = shardId;
         this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion()) : null;
     }
@@ -78,10 +79,10 @@ public final class ShardSplittingQuery extends Query {
                 LeafReader leafReader = context.reader();
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
-                Predicate<BytesRef> includeInShard = ref -> {
+                Predicate<BytesRef> idOnlyPredicate = ref -> {
                     // TODO IndexRouting should build the query somehow
-                    int targetShardId = indexRouting.getShard(Uid.decodeId(ref.bytes, ref.offset, ref.length), null);
-                    return shardId == targetShardId;
+                    String id = Uid.decodeId(ref.bytes, ref.offset, ref.length);
+                    return shardMatcher.test(id, null);
                 };
 
                 return new ScorerSupplier() {
@@ -92,7 +93,7 @@ public final class ShardSplittingQuery extends Query {
                             // in this case we also don't do anything special with regards to nested docs since we basically delete
                             // by ID and parent and nested all have the same id.
                             assert indexMetadata.isRoutingPartitionedIndex() == false;
-                            findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, bitSet::set);
+                            findSplitDocs(IdFieldMapper.NAME, (idOnlyPredicate), leafReader, bitSet::set);
                         } else {
                             final BitSet parentBitSet;
                             if (nestedParentBitSetProducer == null) {
@@ -127,10 +128,13 @@ public final class ShardSplittingQuery extends Query {
                                 };
                                 // in the _routing case we first go and find all docs that have a routing value and mark the ones we have to
                                 // delete
-                                findSplitDocs(RoutingFieldMapper.NAME, ref -> {
-                                    int targetShardId = indexRouting.getShard(null, ref.utf8ToString());
-                                    return shardId == targetShardId;
-                                }, leafReader, maybeWrapConsumer.apply(bitSet::set));
+                                Predicate<BytesRef> routingOnlyPredicate = bytes -> shardMatcher.test(null, bytes.utf8ToString());
+                                findSplitDocs(
+                                    RoutingFieldMapper.NAME,
+                                    routingOnlyPredicate,
+                                    leafReader,
+                                    maybeWrapConsumer.apply(bitSet::set)
+                                );
 
                                 // TODO have the IndexRouting build the query and pass routingRequired in
                                 boolean routingRequired = indexMetadata.mapping() == null
@@ -158,7 +162,7 @@ public final class ShardSplittingQuery extends Query {
                                         maybeWrapConsumer.apply(hasRoutingValue::set)
                                     );
                                     IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
-                                    findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
+                                    findSplitDocs(IdFieldMapper.NAME, idOnlyPredicate, leafReader, docId -> {
                                         if (hasRoutingValue.get(docId) == false) {
                                             bitSetConsumer.accept(docId);
                                         }
@@ -295,8 +299,7 @@ public final class ShardSplittingQuery extends Query {
             leftToVisit = 2;
             storedFields.document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
-            int targetShardId = indexRouting.getShard(id, routing);
-            return targetShardId != shardId;
+            return shardMatcher.test(id, routing) == false;
         }
     }
 

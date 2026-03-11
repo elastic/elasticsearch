@@ -238,9 +238,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (field == null) {
             return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
-            if (isScroll == false) {
-                throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");
-            }
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
         } else {
             MappedFieldType type = context.getFieldType(field);

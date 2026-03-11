@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -89,27 +90,63 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         return encodedHistogramsBuilder;
     }
 
+    @Override
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
-        valueCountsBuilder.appendDouble(data.count());
-        if (Double.isNaN(data.min())) {
+        doAppend(data);
+        return this;
+    }
+
+    /**
+     * Append histogram components directly to the block builder.
+     * This bypasses materializing an {@link ExponentialHistogram} instance and encodes buckets directly.
+     */
+    @Override
+    public ExponentialHistogramBlockBuilder append(
+        int scale,
+        BucketIterator negativeBuckets,
+        BucketIterator positiveBuckets,
+        double zeroThreshold,
+        long zeroCount,
+        long count,
+        double sum,
+        double min,
+        double max
+    ) {
+        ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(
+            scale,
+            negativeBuckets,
+            positiveBuckets,
+            zeroThreshold,
+            zeroCount,
+            count,
+            sum,
+            min,
+            max
+        );
+        doAppend(data);
+        return this;
+    }
+
+    private void doAppend(ExponentialHistogramArrayBlock.EncodedHistogramData encodedHistogram) {
+        valueCountsBuilder.appendDouble(encodedHistogram.count());
+        if (Double.isNaN(encodedHistogram.min())) {
             minimaBuilder.appendNull();
         } else {
-            minimaBuilder.appendDouble(data.min());
+            minimaBuilder.appendDouble(encodedHistogram.min());
         }
-        if (Double.isNaN(data.max())) {
+        if (Double.isNaN(encodedHistogram.max())) {
             maximaBuilder.appendNull();
         } else {
-            maximaBuilder.appendDouble(data.max());
+            maximaBuilder.appendDouble(encodedHistogram.max());
         }
-        if (Double.isNaN(data.sum())) {
+        if (Double.isNaN(encodedHistogram.sum())) {
             sumsBuilder.appendNull();
         } else {
-            sumsBuilder.appendDouble(data.sum());
+            sumsBuilder.appendDouble(encodedHistogram.sum());
         }
-        zeroThresholdsBuilder.appendDouble(data.zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(data.encodedHistogram());
-        return this;
+        zeroThresholdsBuilder.appendDouble(encodedHistogram.zeroThreshold());
+        encodedHistogramsBuilder.appendBytesRef(encodedHistogram.encodedHistogram());
     }
 
     /**

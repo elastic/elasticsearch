@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
@@ -222,6 +223,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneFilters(),
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
+            new PruneLiteralsInLimitBy(),
             new PushDownAndCombineLimits(),
             new PushLimitToKnn(),
             new PushDownAndCombineFilters(),

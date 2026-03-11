@@ -797,10 +797,10 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
 
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
         assertThat(hits, notNullValue());
-        if(false == isUpgradedCluster()) {
+        if (false == isUpgradedCluster()) {
             assertThat(hits.size(), equalTo(3));
             assertThat(hits.getFirst().get("_id"), equalTo("1"));
-        }else{
+        } else {
             // this awaits fix so that we still fetch only k results at the end despite overrsampling
             assertThat(hits.size(), greaterThanOrEqualTo(3));
             assertThat(hits.size(), lessThanOrEqualTo(6));

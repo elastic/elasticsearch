@@ -40,6 +40,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -152,7 +153,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         RemoteWriteRequest request = createWriteRequest(new byte[] { 0x00, 0x01, 0x02, 0x03 }, "generic", "default");
 
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         action.doExecute(null, request, responseListener);
 
         ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
@@ -204,7 +205,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         }).when(client).execute(any(), any(), bulkResponseListener.capture());
 
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         action.doExecute(null, request, responseListener);
 
         assertRegisteredIndexingPressureReleased("indexing pressure should be released after bulk execute");
@@ -215,7 +216,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         RemoteWriteRequest request = createWriteRequest(new byte[] { 0x00, 0x01, 0x02, 0x03 }, "generic", "default");
 
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         action.doExecute(null, request, responseListener);
 
         assertRegisteredIndexingPressureReleased("indexing pressure should be released on invalid protobuf");
@@ -242,7 +243,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         shortCircuitingAction.execute(null, request, ActionListener.runBefore(responseListener, request::close));
 
         verify(responseListener).onFailure(any(Exception.class));
@@ -260,7 +261,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
     private void executeRequest(RemoteWriteRequest request, Consumer<ActionListener<BulkResponse>> bulkResponseConsumer) {
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         doExecuteRequest(request, bulkResponseConsumer, responseListener);
         verify(responseListener).onResponse(any());
     }
@@ -282,7 +283,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         Consumer<ActionListener<BulkResponse>> bulkResponseConsumer
     ) {
         @SuppressWarnings("unchecked")
-        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class);
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
         doExecuteRequest(request, bulkResponseConsumer, responseListener);
         ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
         verify(responseListener).onFailure(exception.capture());

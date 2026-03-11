@@ -58,7 +58,9 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
             tokenCount++;
             if (tokenCount > maxTokens) {
                 throw new IllegalArgumentException(
-                    "The number of synonym tokens exceeds the limit of " + maxTokens + ". "
+                    "The number of synonym tokens exceeds the limit of "
+                        + maxTokens
+                        + ". "
                         + "You can raise this limit using the [synonyms.set.max_token_count] setting."
                 );
             }

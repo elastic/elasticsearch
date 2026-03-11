@@ -1,3 +1,4 @@
+# These can be removed once the APM Agent is fully deprecated
 org.elasticsearch.telemetry.apm:
   - create_class_loader
   - write_system_properties:
@@ -83,3 +84,17 @@ org.elasticsearch.telemetry.apm:
         - elastic.apm.application_packages
         - elastic.apm.stack_trace_limit
         - elastic.apm.span_stack_trace_min_duration
+io.opentelemetry.sdk.metrics:
+  - manage_threads
+
+io.opentelemetry.exporter.sender.jdk.internal:
+  - outbound_network
+
+io.opentelemetry.instrumentation.runtime_telemetry_java17:
+  - manage_threads
+
+io.opentelemetry.instrumentation.runtime_telemetry_java8:
+  - manage_threads
+
+io.opentelemetry.sdk.common:
+  - manage_threads

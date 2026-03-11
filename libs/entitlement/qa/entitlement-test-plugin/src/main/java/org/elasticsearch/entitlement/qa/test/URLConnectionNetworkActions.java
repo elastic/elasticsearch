@@ -365,9 +365,9 @@ class URLConnectionNetworkActions {
         return callJdkHttpConnection(conn -> conn.getHeaderField("date"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
-    static void sunHttpURLConnectionGetHeaderFields() throws Exception {
-        withJdkHttpConnection(HttpURLConnection::getHeaderFields);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "{}", expectedDefaultType = java.util.Map.class)
+    static java.util.Map<String, java.util.List<String>> sunHttpURLConnectionGetHeaderFields() throws Exception {
+        return callJdkHttpConnection(HttpURLConnection::getHeaderFields);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
@@ -409,9 +409,9 @@ class URLConnectionNetworkActions {
         return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField("date"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
-    static void sunHttpsURLConnectionImplGetHeaderFields() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getHeaderFields);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "{}", expectedDefaultType = java.util.Map.class)
+    static java.util.Map<String, java.util.List<String>> sunHttpsURLConnectionImplGetHeaderFields() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getHeaderFields);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)

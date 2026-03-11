@@ -258,7 +258,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied()[0]);
                 }
                 if (checkAction.expectedDefaultType() != void.class) {
-                    response.addHeader("expectedDefaultType", checkAction.expectedDefaultType().getName());
+                    response.addHeader(
+                        "defaultTypeMatch",
+                        String.valueOf(result != null && checkAction.expectedDefaultType().isInstance(result))
+                    );
                 }
                 if (checkAction.isExpectedDefaultNull()) {
                     response.addHeader("isExpectedDefaultNull", "true");

@@ -72,9 +72,9 @@ class URLConnectionFileActions {
         withJdkFileConnection(URLConnection::connect);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
-    static void sunFileURLConnectionGetHeaderFields() throws Exception {
-        withJdkFileConnection(URLConnection::getHeaderFields);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "{}", expectedDefaultType = java.util.Map.class)
+    static java.util.Map<String, java.util.List<String>> sunFileURLConnectionGetHeaderFields() throws Exception {
+        return callJdkFileConnection(URLConnection::getHeaderFields);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)

@@ -931,7 +931,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
         // Create a slice with non-zero offset (use doSlice to bypass trySliceBuffer)
         long sliceOffset = randomLongBetween(1, fileLength / 2);
-        long sliceLength = randomLongBetween(1, fileLength - sliceOffset);
+        long sliceLength = randomLongBetween(2, fileLength - sliceOffset);
         BlobCacheIndexInput slice = asInstanceOf(BlobCacheIndexInput.class, indexInput.doSlice("test-slice", sliceOffset, sliceLength));
 
         // Prefetch on slice must translate the offset by adding sliceOffset

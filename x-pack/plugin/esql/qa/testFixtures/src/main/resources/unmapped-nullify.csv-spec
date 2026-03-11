@@ -12,6 +12,7 @@ null
 null
 ;
 
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141870
 keepMapped
 required_capability: optional_fields_fix_unmapped_field_detection
 

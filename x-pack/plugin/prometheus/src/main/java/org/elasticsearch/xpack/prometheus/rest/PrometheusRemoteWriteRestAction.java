@@ -122,7 +122,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                         new RestResponse(ExceptionsHelper.status(e), RestResponse.TEXT_CONTENT_TYPE, new BytesArray(e.getMessage()))
                     );
                 }
-            }
+            },
+            IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP
         );
     }
 }

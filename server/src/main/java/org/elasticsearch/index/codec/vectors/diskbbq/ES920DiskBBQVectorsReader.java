@@ -44,7 +44,18 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     private static final byte QUERY_BITS = 4;
 
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
-        super(state, getFormatReader);
+        super(
+            state,
+            getFormatReader,
+            ES920DiskBBQVectorsFormat.NAME,
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES920DiskBBQVectorsFormat.VERSION_START,
+            ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+        );
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)

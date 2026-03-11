@@ -119,6 +119,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     "Entitlement test method [" + method + "] expectedDefaultType requires expectedDefaultIfDenied to be set"
                 );
             }
+            if (expectedDefaultType != void.class && expectedDefaultType != method.getReturnType()) {
+                throw new AssertionError(
+                    "Entitlement test method ["
+                        + method
+                        + "] expectedDefaultType ["
+                        + expectedDefaultType.getName()
+                        + "] does not match return type ["
+                        + method.getReturnType().getName()
+                        + "]"
+                );
+            }
             int denialStrategyCount = (hasDefaultValue ? 1 : 0) + (isExpectedDefaultNull ? 1 : 0) + (isExpectedNoOp ? 1 : 0);
             if (denialStrategyCount > 1) {
                 throw new AssertionError(

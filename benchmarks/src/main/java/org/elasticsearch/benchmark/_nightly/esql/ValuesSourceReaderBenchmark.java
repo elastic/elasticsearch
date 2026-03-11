@@ -319,7 +319,8 @@ public class ValuesSourceReaderBenchmark {
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
             0,
-            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
         long sum = 0;
         for (Page page : pages) {

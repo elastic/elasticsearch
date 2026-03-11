@@ -203,24 +203,41 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         return readers.get(indexKey);
     }
 
-    @Override
-    protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return factory(initShardContexts(), mapperService("index1").fieldType("long"), ElementType.LONG);
+    protected int docSequenceBytesRefFieldThreshold() {
+        return 500;
     }
 
-    public static Operator.OperatorFactory factory(
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return factory(
+            initShardContexts(),
+            mapperService("index1").fieldType("long"),
+            ElementType.LONG,
+            docSequenceBytesRefFieldThreshold()
+        );
+    }
+
+    static Operator.OperatorFactory factory(
         List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         MappedFieldType ft,
-        ElementType elementType
+        ElementType elementType,
+        int docSequenceThreshold
     ) {
-        return factory(shardContexts, ft.name(), elementType, ValuesSourceReaderOperator.load(ft.blockLoader(blContext())));
+        return factory(
+            shardContexts,
+            ft.name(),
+            elementType,
+            ValuesSourceReaderOperator.load(ft.blockLoader(blContext())),
+            docSequenceThreshold
+        );
     }
 
     private static Operator.OperatorFactory factory(
         List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         String name,
         ElementType elementType,
-        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter
+        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter,
+        int docSequenceThreshold
     ) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
@@ -233,7 +250,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             new IndexedByShardIdFromList<>(shardContexts),
             randomBoolean(),
             0,
-            randomDoubleBetween(0.1, 10.0, true)
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceThreshold
         );
     }
 
@@ -482,7 +500,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
                 0,
-                randomDoubleBetween(0.1, 10.0, true)
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -559,7 +578,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
                 0,
-                randomDoubleBetween(0.1, 10.0, true)
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -574,7 +594,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
                     0,
-                    randomDoubleBetween(0.1, 10.0, true)
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold()
                 ).get(driverContext)
             );
         }
@@ -660,7 +681,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
                     0,
-                    randomDoubleBetween(0.1, 10.0, true)
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold()
                 ).get(driverContext)
             )
             .toList();
@@ -851,10 +873,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
-                    factory(List.of(vsShardContext), intFt, ElementType.INT).get(driverContext),
-                    factory(List.of(vsShardContext), longFt, ElementType.LONG).get(driverContext),
-                    factory(List.of(vsShardContext), doubleFt, ElementType.DOUBLE).get(driverContext),
-                    factory(List.of(vsShardContext), kwFt, ElementType.BYTES_REF).get(driverContext)
+                    factory(List.of(vsShardContext), intFt, ElementType.INT, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), longFt, ElementType.LONG, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), doubleFt, ElementType.DOUBLE, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), kwFt, ElementType.BYTES_REF, docSequenceBytesRefFieldThreshold()).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
                     try {
@@ -938,7 +960,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                         new IndexedByShardIdFromList<>(shardContexts),
                         randomBoolean(),
                         0,
-                        randomDoubleBetween(0.1, 10.0, true)
+                        randomDoubleBetween(0.1, 10.0, true),
+                        docSequenceBytesRefFieldThreshold()
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -974,7 +997,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             ),
             randomBoolean(),
             0,
-            randomDoubleBetween(0.1, 10.0, true)
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold()
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1026,7 +1050,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
                 0,
-                randomDoubleBetween(0.1, 10.0, true)
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(

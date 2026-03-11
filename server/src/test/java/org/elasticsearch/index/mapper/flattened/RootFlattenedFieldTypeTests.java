@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -98,7 +99,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             null,
             false
         );
-        assertEquals(new FieldExistsQuery("field._keyed"), noDv.existsQuery(null));
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
@@ -107,7 +108,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
-            false,
+            true,
             randomBoolean(),
             null,
             false

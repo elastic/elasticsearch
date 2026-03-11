@@ -974,7 +974,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new FieldExistsQuery(name() + KEYED_FIELD_SUFFIX);
+            if (hasDocValues()) {
+                return new FieldExistsQuery(name() + KEYED_FIELD_SUFFIX);
+            }
+            return super.existsQuery(context);
         }
 
         @Override

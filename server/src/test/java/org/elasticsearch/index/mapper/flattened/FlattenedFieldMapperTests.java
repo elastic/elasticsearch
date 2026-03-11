@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -103,9 +104,40 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        assertThat(query, instanceOf(FieldExistsQuery.class));
-        FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        assertEquals("field._keyed", fieldExistsQuery.getField());
+        if (fieldType.hasDocValues()) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
+            assertEquals("field._keyed", fieldExistsQuery.getField());
+        } else {
+            super.assertExistsQuery(fieldType, query, fields);
+        }
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+    }
+
+    public void testExistsQueryMatchesDocuments() throws IOException {
+        boolean indexed = randomBoolean();
+        boolean docValues = indexed ? randomBoolean() : true;
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", indexed);
+            b.field("doc_values", docValues);
+        }));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.startObject("field").field("key", "value").endObject())).rootDoc());
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.nullField("field"))).rootDoc());
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            Query existsQuery = ft.existsQuery(null);
+            assertEquals(1, searcher.count(existsQuery));
+        });
     }
 
     @Override

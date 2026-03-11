@@ -390,9 +390,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/143845
-- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestAggregatorFunctionTests
-  method: testSimpleWithCranky
-  issue: https://github.com/elastic/elasticsearch/issues/143860
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
@@ -414,6 +411,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
   issue: https://github.com/elastic/elasticsearch/issues/142964
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteBlobWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/144025
+- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
+  method: testDeletesAreBatched
+  issue: https://github.com/elastic/elasticsearch/issues/144034
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144022
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with stats where}
+  issue: https://github.com/elastic/elasticsearch/issues/144051
 
 # Examples:
 #

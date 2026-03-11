@@ -64,6 +64,7 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -655,22 +656,18 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new SyntheticSourceSupport.Native(
-                () -> new SortedNumericDocValuesSyntheticFieldLoader(
-                    fullPath(),
-                    leafName(),
-                    ignoreMalformed(),
-                    indexSettings.getIndexVersionCreated()
-                ) {
-                    final GeoPoint point = new GeoPoint();
-
-                    @Override
-                    protected void writeValue(XContentBuilder b, long value) throws IOException {
-                        point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                        point.toXContent(b, ToXContent.EMPTY_PARAMS);
-                    }
+            return new SyntheticSourceSupport.Native(() -> {
+                final GeoPoint point = new GeoPoint();
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+                layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> {
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                }));
+                if (ignoreMalformed()) {
+                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
-            );
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+            });
         }
 
         return super.syntheticSourceSupport();

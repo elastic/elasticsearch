@@ -115,10 +115,7 @@ public final class TransformIndex {
         ActionListener<Boolean> listener
     ) {
         if (DestConfig.WRITE_ACTION_CREATE.equals(config.getDestination().getWriteAction())) {
-            logger.debug(
-                "[{}] Skip destination index creation and alias setup because write_action is [create]",
-                config.getId()
-            );
+            logger.debug("[{}] Skip destination index creation and alias setup because write_action is [create]", config.getId());
             listener.onResponse(false);
             return;
         }

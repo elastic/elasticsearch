@@ -111,10 +111,7 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     public void testInvalidWriteAction() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DestConfig("my-index", null, null, "invalid")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DestConfig("my-index", null, null, "invalid"));
         assertThat(e.getMessage(), containsString("invalid write_action [invalid]"));
     }
 

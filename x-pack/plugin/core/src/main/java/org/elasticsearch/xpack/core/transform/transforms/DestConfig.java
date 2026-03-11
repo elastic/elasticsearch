@@ -78,9 +78,7 @@ public class DestConfig implements Writeable, ToXContentObject {
         this.aliases = aliases;
         this.pipeline = pipeline;
         if (writeAction != null && VALID_WRITE_ACTIONS.contains(writeAction) == false) {
-            throw new IllegalArgumentException(
-                "invalid write_action [" + writeAction + "], must be one of " + VALID_WRITE_ACTIONS
-            );
+            throw new IllegalArgumentException("invalid write_action [" + writeAction + "], must be one of " + VALID_WRITE_ACTIONS);
         }
         this.writeAction = writeAction;
     }

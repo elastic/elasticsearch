@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -1056,6 +1057,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         Stream<IndexRequest> indexRequestStream = indexRequestStreamAndCursor.v1();
+        DocWriteRequest.OpType opType = getConfig().getDestination().getWriteOpType();
+        if (opType != DocWriteRequest.OpType.INDEX) {
+            indexRequestStream = indexRequestStream.map(req -> {
+                req.opType(opType);
+                return req;
+            });
+        }
         TransformIndexerPosition oldPosition = getPosition();
         TransformIndexerPosition newPosition = new TransformIndexerPosition(
             indexRequestStreamAndCursor.v2(),

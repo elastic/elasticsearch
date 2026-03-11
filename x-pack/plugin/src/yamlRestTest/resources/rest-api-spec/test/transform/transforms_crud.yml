@@ -915,3 +915,47 @@ setup:
   - match: { transforms.0.latest.unique_key.0: "airline" }
   - match: { transforms.0.latest.sort: "time" }
   - match: { transforms.0.description: "yaml test latest transform on airline-data" }
+
+---
+"Test put transform with write_action create":
+  - do:
+      transform.put_transform:
+        transform_id: "transform-with-write-action-create"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-airline-data", "write_action": "create" },
+            "pivot": {
+              "group_by": { "airline": { "terms": { "field": "airline" } } },
+              "aggregations": { "avg_response": { "avg": { "field": "responsetime" } } }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "transform-with-write-action-create"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "transform-with-write-action-create" }
+  - match: { transforms.0.dest.index: "dest-airline-data" }
+  - match: { transforms.0.dest.write_action: "create" }
+
+---
+"Test put transform with invalid write_action":
+  - do:
+      catch: bad_request
+      transform.put_transform:
+        transform_id: "transform-with-invalid-write-action"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-airline-data", "write_action": "invalid" },
+            "pivot": {
+              "group_by": { "airline": { "terms": { "field": "airline" } } },
+              "aggregations": { "avg_response": { "avg": { "field": "responsetime" } } }
+            }
+          }

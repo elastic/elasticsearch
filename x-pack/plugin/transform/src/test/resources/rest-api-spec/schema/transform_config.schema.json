@@ -176,6 +176,13 @@
           "title": "Pipeline",
           "type": "string",
           "pattern": "^.*$"
+        },
+        "write_action": {
+          "$id": "#root/dest/write_action",
+          "title": "Write action",
+          "type": "string",
+          "enum": ["index", "create"],
+          "default": "index"
         }
       }
     },

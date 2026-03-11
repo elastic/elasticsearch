@@ -697,7 +697,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) {
                 super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
@@ -2906,6 +2906,72 @@ public class InternalEngineTests extends EngineTestCase {
                 prevMaxSeqNo = maxSeqNo;
             }
             IOUtils.close(commits);
+        }
+    }
+
+    public void testAcquireLastIndexCommitWithConcurrentFlush() throws Exception {
+        engine.close();
+        final var interceptFlush = new AtomicBoolean(false);
+        final var flushBarrier = new CyclicBarrier(2);
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) {
+                final FlushActionListener effectiveListener;
+                if (interceptFlush.compareAndSet(true, false)) {
+                    effectiveListener = new FlushActionListener() {
+                        @Override
+                        public void afterFlushWithLock(long generation) {
+                            safeAwait(flushBarrier);
+                            listener.afterFlushWithLock(generation);
+                        }
+
+                        @Override
+                        public void onResponse(FlushResult flushResult) {
+                            listener.onResponse(flushResult);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    };
+                } else {
+                    effectiveListener = listener;
+                }
+                super.flushHoldingLock(force, waitIfOngoing, effectiveListener);
+            }
+        };
+        recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+        engine.ensureCanFlush();
+
+        final int nIterations = between(1, 10);
+        for (int i = 0; i < nIterations; i++) {
+            final String docA = Integer.toString(2 * i + 1);
+            final String docB = Integer.toString(2 * i + 2);
+            engine.index(indexForDoc(testParsedDocument(docA, null, testDocumentWithTextField(), SOURCE, null)));
+            final long genBeforeFlush = engine.getLastCommittedSegmentInfos().getGeneration();
+
+            final var concurrentFlushThread = new Thread(() -> {
+                try {
+                    safeAwait(flushBarrier);
+                    engine.index(indexForDoc(testParsedDocument(docB, null, testDocumentWithTextField(), SOURCE, null)));
+                    engine.flush(randomBoolean(), true);
+                } catch (Exception e) {
+                    fail(e);
+                }
+            });
+            concurrentFlushThread.start();
+
+            interceptFlush.set(true);
+            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(true)) {
+                safeJoin(concurrentFlushThread);
+                final long acquiredGen = commitRef.getIndexCommit().getGeneration();
+                // The first flush creates generation genBeforeFlush + 1.
+                // The concurrent flush creates genBeforeFlush + 2.
+                // The acquired commit must be from the first flush, not the concurrent one.
+                assertThat(acquiredGen, equalTo(genBeforeFlush + 1));
+                assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), equalTo(genBeforeFlush + 2));
+            }
         }
     }
 

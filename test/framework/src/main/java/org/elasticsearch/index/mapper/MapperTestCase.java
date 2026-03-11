@@ -1115,7 +1115,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public final void testMinimalIsInvalidInRoutingPath() throws IOException {
+    public void testMinimalIsInvalidInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
         try {
             IndexSettings settings = createIndexSettings(

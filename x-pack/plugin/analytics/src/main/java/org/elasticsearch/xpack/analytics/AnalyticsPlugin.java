@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardina
 import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLongValue;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.MetricTemporalityFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
@@ -148,7 +149,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             TDigestFieldMapper.CONTENT_TYPE,
             TDigestFieldMapper.PARSER,
             ExponentialHistogramFieldMapper.CONTENT_TYPE,
-            ExponentialHistogramFieldMapper.PARSER
+            ExponentialHistogramFieldMapper.PARSER,
+            MetricTemporalityFieldMapper.CONTENT_TYPE,
+            MetricTemporalityFieldMapper.PARSER
         );
     }
 

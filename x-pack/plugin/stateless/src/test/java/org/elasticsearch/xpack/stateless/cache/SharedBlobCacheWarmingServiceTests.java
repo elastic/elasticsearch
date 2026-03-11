@@ -939,6 +939,59 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         assertEquals(0, warmingRatio, 0);
     }
 
+    public void testWarmingRatioWithHighSearchPower() {
+        long boostWindowMillis = TimeUnit.DAYS.toMillis(7);
+
+        // SP=200: fully warmed across the entire boost window
+        long now = System.currentTimeMillis();
+        assertEquals(1.0, SharedBlobCacheWarmingService.calculateWarmingRatio(now, now, boostWindowMillis, 200), 1e-9);
+        assertEquals(
+            1.0,
+            SharedBlobCacheWarmingService.calculateWarmingRatio(
+                now,
+                now - TimeUnit.DAYS.toMillis(randomIntBetween(1, 6)),
+                boostWindowMillis,
+                200
+            ),
+            1e-9
+        );
+        assertEquals(1.0, SharedBlobCacheWarmingService.calculateWarmingRatio(now, now - boostWindowMillis, boostWindowMillis, 200), 1e-9);
+
+        // SP=150: fully warmed for recent data, partially warmed towards the end of the boost window
+        assertEquals(1.0, SharedBlobCacheWarmingService.calculateWarmingRatio(now, now, boostWindowMillis, 150), 0);
+        assertEquals(
+            1.0,
+            SharedBlobCacheWarmingService.calculateWarmingRatio(
+                now,
+                now - TimeUnit.DAYS.toMillis(randomIntBetween(1, 2)),
+                boostWindowMillis,
+                150
+            ),
+            1e-9
+        );
+        assertEquals(
+            0.5,
+            SharedBlobCacheWarmingService.calculateWarmingRatio(
+                now,
+                now - TimeUnit.DAYS.toMillis(randomIntBetween(5, 6)),
+                boostWindowMillis,
+                150
+            ),
+            1e-9
+        );
+        assertEquals(0.5, SharedBlobCacheWarmingService.calculateWarmingRatio(now, now - boostWindowMillis, boostWindowMillis, 150), 1e-9);
+        assertEquals(
+            0.0,
+            SharedBlobCacheWarmingService.calculateWarmingRatio(
+                now,
+                now - boostWindowMillis - between(1, 1000),
+                boostWindowMillis,
+                randomIntBetween(10, 300)
+            ),
+            0
+        );
+    }
+
     private FakeStatelessNode createFakeNodeForMinimisingRange(long rangeSize, long stepSize) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override

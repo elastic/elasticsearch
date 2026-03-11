@@ -8,14 +8,28 @@
  */
 
 /**
- * Payload encoder/decoder contracts for numeric pipeline stages.
+ * Encoder/decoder contracts for numeric pipeline stages.
  *
- * <p>{@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder} and
- * {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder} define
- * the terminal stage contract: serialize transformed {@code long[]} values to bytes
- * and read them back. Each implementation corresponds to a
- * {@link org.elasticsearch.index.codec.tsdb.pipeline.StageSpec.PayloadSpec} and is
- * identified by a {@link org.elasticsearch.index.codec.tsdb.pipeline.StageId} for
- * wire-format lookup during decoding.
+ * <p>This package defines two families of stage contracts:
+ * <ul>
+ *   <li><strong>Transform stages</strong>:
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder} and
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder}
+ *       (combined as {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecStage})
+ *       modify {@code long[]} values in-place and exchange metadata through the
+ *       encoding/decoding context. Concrete implementations live in the
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages} subpackage.</li>
+ *   <li><strong>Payload stages</strong>:
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder} and
+ *       {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder}
+ *       (combined as {@link org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadCodecStage})
+ *       serialize transformed values to bytes and read them back as the terminal
+ *       pipeline step.</li>
+ * </ul>
+ *
+ * <p>Each stage implementation corresponds to a
+ * {@link org.elasticsearch.index.codec.tsdb.pipeline.StageSpec} and is identified by a
+ * {@link org.elasticsearch.index.codec.tsdb.pipeline.StageId} for wire-format lookup
+ * during decoding.
  */
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;

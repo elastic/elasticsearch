@@ -963,7 +963,8 @@ public final class IndexSettings {
         settings -> {
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)) {
+                && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
+                    || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             } else {
                 return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();

@@ -326,16 +326,14 @@ class NetworkAccessCheckActions {
         });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String setDefaultResponseCache() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void setDefaultResponseCache() {
         ResponseCache.setDefault(null);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String setDefaultProxySelector() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void setDefaultProxySelector() {
         ProxySelector.setDefault(null);
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
@@ -363,10 +361,9 @@ class NetworkAccessCheckActions {
         DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String httpURLConnection$$setFollowRedirects() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void httpURLConnection$$setFollowRedirects() {
         HttpURLConnection.setFollowRedirects(HttpURLConnection.getFollowRedirects());
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
@@ -384,10 +381,9 @@ class NetworkAccessCheckActions {
         URL.setURLStreamHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String urlConnection$$setFileNameMap() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void urlConnection$$setFileNameMap() {
         URLConnection.setFileNameMap(__ -> { throw new IllegalStateException(); });
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

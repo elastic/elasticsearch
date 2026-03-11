@@ -20,6 +20,15 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 
 class URLConnectionFileActions {
 
+    private static boolean isCausedByNotEntitledException(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void withJdkFileConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
         var conn = EntitledActions.createFileURLConnection();
         // Be sure we got the connection implementation we want
@@ -27,7 +36,9 @@ class URLConnectionFileActions {
         try {
             connectionConsumer.accept(conn);
         } catch (IOException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to perform some operation
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
         }
     }
 
@@ -43,46 +54,39 @@ class URLConnectionFileActions {
         withJdkFileConnection(URLConnection::connect);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFields() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFields() throws Exception {
         withJdkFileConnection(URLConnection::getHeaderFields);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFieldWithName() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFieldWithName() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderField("date"));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFieldWithIndex() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFieldWithIndex() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderField(0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContentLength() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetContentLength() throws Exception {
         withJdkFileConnection(URLConnection::getContentLength);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContentLengthLong() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetContentLengthLong() throws Exception {
         withJdkFileConnection(URLConnection::getContentLengthLong);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFieldKey() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFieldKey() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderFieldKey(0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetLastModified() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetLastModified() throws Exception {
         withJdkFileConnection(URLConnection::getLastModified);
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -90,52 +94,44 @@ class URLConnectionFileActions {
         withJdkFileConnection(URLConnection::getInputStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContentType() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetContentType() throws Exception {
         withJdkFileConnection(URLConnection::getContentType);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContentEncoding() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetContentEncoding() throws Exception {
         withJdkFileConnection(URLConnection::getContentEncoding);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetExpiration() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetExpiration() throws Exception {
         withJdkFileConnection(URLConnection::getExpiration);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetDate() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetDate() throws Exception {
         withJdkFileConnection(URLConnection::getDate);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFieldInt() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFieldInt() throws Exception {
         withJdkFileConnection(conn -> conn.getHeaderFieldInt("field", 0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetHeaderFieldLong() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void sunFileURLConnectionGetHeaderFieldLong() throws Exception {
         withJdkFileConnection(conn -> conn.getHeaderFieldLong("field", 0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContent() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunFileURLConnectionGetContent() throws Exception {
         withJdkFileConnection(URLConnection::getContent);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String sunFileURLConnectionGetContentWithClasses() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunFileURLConnectionGetContentWithClasses() throws Exception {
         withJdkFileConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -208,46 +204,39 @@ class URLConnectionFileActions {
         withJarConnection(conn -> conn.getHeaderField("field"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetContentEncoding() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetContentEncoding() throws Exception {
         withJarConnection(URLConnection::getContentEncoding);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetExpiration() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetExpiration() throws Exception {
         withJarConnection(URLConnection::getExpiration);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetDate() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetDate() throws Exception {
         withJarConnection(URLConnection::getDate);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetLastModified() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetLastModified() throws Exception {
         withJarConnection(URLConnection::getLastModified);
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetHeaderFieldInt() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetHeaderFieldInt() throws Exception {
         withJarConnection(conn -> conn.getHeaderFieldInt("field", 0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetHeaderFieldLong() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetHeaderFieldLong() throws Exception {
         withJarConnection(conn -> conn.getHeaderFieldLong("field", 0));
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String netJarURLConnectionGetHeaderFieldDate() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
+    static void netJarURLConnectionGetHeaderFieldDate() throws Exception {
         withJarConnection(conn -> conn.getHeaderFieldDate("field", 0));
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)

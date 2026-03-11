@@ -1008,6 +1008,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
+
+            if (hasRootDocValues) {
+                if (usesBinaryDocValues) {
+                    return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, FlattenedDocValuesField::new);
+                } else {
+                    return new SortedSetOrdinalsIndexFieldData.Builder(
+                        name(),
+                        CoreValuesSourceType.KEYWORD,
+                        (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
+                    );
+                }
+            }
             return new RootFlattenedFromKeyedFieldData.Builder(name(), name() + KEYED_FIELD_SUFFIX, usesBinaryDocValues);
         }
 

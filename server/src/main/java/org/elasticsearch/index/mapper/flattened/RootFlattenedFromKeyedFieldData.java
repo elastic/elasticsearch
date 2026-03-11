@@ -42,7 +42,7 @@ import java.util.List;
  * root doc values. Derives root values by reading the keyed doc values column and stripping
  * the key prefix from each entry, with deduplication.
  */
-public class RootFlattenedFromKeyedFieldData implements IndexFieldData<LeafFieldData> {
+public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<LeafFieldData> {
 
     private final IndexFieldData<?> keyedDelegate;
     private final String rootFieldName;

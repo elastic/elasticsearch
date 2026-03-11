@@ -602,14 +602,14 @@ Documents are always written to the destination index on the origin project.
 
 There are two ways to reindex in {{cps-init}}:
 
-* [**Reindex across linked projects**](#reindex-cps-linked): reindex from projects that are linked to the origin project in the {{ecloud}} UI. This mode does not use `source.remote` and works like other {{cps}}-enabled endpoints.
+* [**Reindex across linked projects**](#reindex-cps-linked): reindex from projects that are linked to the origin project.
 * [**Reindex from a remote project**](#reindex-cps-remote): reindex from a {{serverless-short}} project or {{ech}} deployment that is not linked to the origin project, by specifying `source.remote.host`.
 
 ### Reindex across linked projects [reindex-cps-linked]
 
-Without `source.remote`, the Reindex API works like other {{cps}}-enabled endpoints:
+Without using `source.remote`, the Reindex API pulls documents from linked projects:
 
-* Only projects [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) in the {{ecloud}} UI can be targeted.
+* Only [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) projects can be targeted.
 * The `source.index` field resolves across the origin project and all linked projects.
 * You can use `project_routing` in the `source` section to limit which projects are included.
 * Qualified index expressions (for example, `project1:logs`) are supported.
@@ -631,7 +631,7 @@ POST _reindex
 
 ### Reindex from a remote project [reindex-cps-remote]
 
-When using `source.remote.host`, you can reindex from {{serverless-short}} projects or {{ech}} deployments that are not linked to the origin project via the {{ecloud}} UI.
+When using `source.remote.host`, you can reindex from {{serverless-short}} projects or {{ech}} deployments that are not linked to the origin project.
 
 The `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
 

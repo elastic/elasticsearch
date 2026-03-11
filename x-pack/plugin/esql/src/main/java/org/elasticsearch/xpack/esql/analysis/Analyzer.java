@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -65,6 +66,8 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
@@ -86,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -105,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -164,6 +169,7 @@ import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -240,6 +246,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
+            new ResolveTStepAnchors(),
+            new ResolveTimestampBoundsAware(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
@@ -1719,6 +1727,147 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return ca.withConfiguration(configuration);
             }
             return expression;
+        }
+    }
+
+    private static class ResolveTStepAnchors extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformUp(Aggregate.class, ResolveTStepAnchors::resolveAggregate);
+        }
+
+        private static Aggregate resolveAggregate(Aggregate aggregate) {
+            if (Expressions.anyMatch(aggregate.groupings(), ResolveTStepAnchors::containsUnresolvedTStep) == false
+                && Expressions.anyMatch(aggregate.aggregates(), ResolveTStepAnchors::containsUnresolvedTStep) == false) {
+                return aggregate;
+            }
+
+            List<Expression> newGroupings = rewriteTSteps(aggregate.groupings(), aggregate.child());
+            List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
+            boolean changed = newGroupings != aggregate.groupings();
+
+            for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+                NamedExpression rewritten = (NamedExpression) rewriteTSteps(aggregateExpression, aggregate.child());
+                changed |= rewritten != aggregateExpression;
+                newAggregates.add(rewritten);
+            }
+
+            return changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
+        }
+
+        private static boolean containsUnresolvedTStep(Expression expression) {
+            return expression.anyMatch(e -> e instanceof TStep tstep && tstep.end() == null);
+        }
+
+        private static List<Expression> rewriteTSteps(List<Expression> expressions, LogicalPlan child) {
+            List<Expression> rewritten = new ArrayList<>(expressions.size());
+            boolean changed = false;
+            for (Expression expression : expressions) {
+                Expression newExpression = rewriteTSteps(expression, child);
+                changed |= newExpression != expression;
+                rewritten.add(newExpression);
+            }
+            return changed ? rewritten : expressions;
+        }
+
+        private static Expression rewriteTSteps(Expression expression, LogicalPlan child) {
+            Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+            Expression rewritten = expression.transformUp(TStep.class, tstep -> {
+                TStep resolved = resolveTStep(tstep, child);
+                if (resolved != tstep) {
+                    changed.set(Boolean.TRUE);
+                }
+                return resolved;
+            });
+            return Boolean.TRUE.equals(changed.get()) ? rewritten : expression;
+        }
+
+        private static TStep resolveTStep(TStep tstep, LogicalPlan child) {
+            if (tstep.end() != null) {
+                return tstep;
+            }
+
+            TRange trange = matchingTRange(child, tstep.timestamp());
+            if (trange == null) {
+                return tstep;
+            }
+
+            return tstep.withEnd(trange.rangeEndLiteral(FoldContext.small(), tstep.dataType()));
+        }
+
+        private static TRange matchingTRange(LogicalPlan child, Expression timestamp) {
+            Holder<TRange> match = new Holder<>();
+            child.forEachExpressionDown(TRange.class, trange -> {
+                if (match.get() == null && matchesTimestamp(trange.timestamp(), timestamp)) {
+                    match.set(trange);
+                }
+            });
+            return match.get();
+        }
+
+        private static boolean matchesTimestamp(Expression left, Expression right) {
+            if (left.semanticEquals(right)) {
+                return true;
+            }
+            Attribute leftAttribute = Expressions.attribute(left);
+            Attribute rightAttribute = Expressions.attribute(right);
+            return leftAttribute != null && rightAttribute != null && leftAttribute.name().equals(rightAttribute.name());
+        }
+    }
+
+    private static class ResolveTimestampBoundsAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            var bounds = context.timestampBounds();
+            if (bounds == null) {
+                return plan;
+            }
+            if (plan instanceof TimestampBoundsAware.OfLogicalPlan tba && tba.needsTimestampBounds()) {
+                plan = tba.withTimestampBounds(timestampBoundLiteral(plan, bounds.start()), timestampBoundLiteral(plan, bounds.end()));
+            }
+            return plan.transformExpressionsUp(Expression.class, expression -> {
+                if (expression instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
+                    return tba.withTimestampBounds(
+                        timestampBoundLiteral(expression, bounds.start()),
+                        timestampBoundLiteral(expression, bounds.end())
+                    );
+                }
+                return expression;
+            });
+        }
+
+        private static Literal timestampBoundLiteral(Expression expression, Instant instant) {
+            return timestampBoundLiteral(expression.source(), timestampDataType(expression), instant);
+        }
+
+        private static Literal timestampBoundLiteral(LogicalPlan plan, Instant instant) {
+            return timestampBoundLiteral(plan.source(), timestampDataType(plan), instant);
+        }
+
+        private static Literal timestampBoundLiteral(Source source, DataType dataType, Instant instant) {
+            if (dataType == DATE_NANOS) {
+                return new Literal(source, DateUtils.toLong(instant), DATE_NANOS);
+            }
+            return Literal.dateTime(source, instant);
+        }
+
+        private static DataType timestampDataType(Object node) {
+            if (node instanceof TimestampAware ta && ta.timestamp().resolved()) {
+                return ta.timestamp().dataType();
+            }
+            return DATETIME;
         }
     }
 

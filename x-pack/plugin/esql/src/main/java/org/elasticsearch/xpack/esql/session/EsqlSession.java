@@ -1237,7 +1237,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1283,10 +1283,19 @@ public class EsqlSession {
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         PreAnalysisResult r,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, unmappedResolution, projectMetadata, r);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(requestFilter);
+        AnalyzerContext analyzerContext = new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            unmappedResolution,
+            projectMetadata,
+            r,
+            timestampBounds
+        );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();

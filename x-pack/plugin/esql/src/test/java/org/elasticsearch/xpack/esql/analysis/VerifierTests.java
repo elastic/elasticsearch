@@ -2913,6 +2913,27 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testInvalidTStepCalls() {
+        assertThat(
+            error("from test | stats max(emp_no) by tstep(1 hour)"),
+            containsString("[tstep(1 hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tstep()", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tstep]: expects exactly one argument")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tstep(\"@tstep\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tstep]: expects exactly one argument")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tstep(\"1 hour\")", oddSampleDataAnalyzer),
+            equalTo(
+                "1:42: implicit argument of [tstep(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+            )
+        );
+    }
+
     public void testFuse() {
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 

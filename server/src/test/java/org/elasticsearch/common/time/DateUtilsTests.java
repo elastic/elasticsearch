@@ -233,6 +233,39 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(rounded, is(result.toInstant().toEpochMilli()));
     }
 
+    public void testFloorRemainder() {
+        assertThat(DateUtils.floorRemainder(0L, 5_000L), is(0L));
+        assertThat(DateUtils.floorRemainder(12_002L, 5_000L), is(2_002L));
+
+        // -1 / 5000: floor is -5000, remainder is 4999
+        assertThat(DateUtils.floorRemainder(-1L, 5_000L), is(4_999L));
+        // -7 / 5: floor is -10, remainder is 3
+        assertThat(DateUtils.floorRemainder(-7L, 5L), is(3L));
+        // -10 / 5: exactly on boundary, remainder is 0
+        assertThat(DateUtils.floorRemainder(-10L, 5L), is(0L));
+
+        // 2024-01-01T12:00:15Z = 1704110415000 ms; 1704110415000 % 13000 = 7000
+        long anchorMillis = Instant.parse("2024-01-01T12:00:15Z").toEpochMilli();
+        assertThat(anchorMillis, is(1_704_110_415_000L));
+        assertThat(DateUtils.floorRemainder(anchorMillis, 13_000L), is(7_000L));
+    }
+
+    public void testRoundWithOffset() {
+        long anchorMillis = Instant.parse("2024-01-01T12:00:15Z").toEpochMilli();
+        long unitMillis = 13_000L;
+        long offsetMillis = DateUtils.floorRemainder(anchorMillis, unitMillis);
+
+        assertThat(offsetMillis, is(7_000L));
+        assertThat(DateUtils.roundFloor(anchorMillis, unitMillis, offsetMillis), is(anchorMillis));
+        assertThat(DateUtils.roundFloor(anchorMillis - 1, unitMillis, offsetMillis), is(anchorMillis - unitMillis));
+        assertThat(DateUtils.roundCeil(anchorMillis, unitMillis, offsetMillis), is(anchorMillis));
+        assertThat(DateUtils.roundCeil(anchorMillis - 1, unitMillis, offsetMillis), is(anchorMillis));
+        assertThat(DateUtils.roundCeil(anchorMillis + 1, unitMillis, offsetMillis), is(anchorMillis + unitMillis));
+
+        assertThat(DateUtils.roundFloor(-1L, 5L, 2L), is(-3L));
+        assertThat(DateUtils.roundCeil(-1L, 5L, 2L), is(2L));
+    }
+
     public void testRoundQuarterOfYear() {
         assertThat(DateUtils.roundQuarterOfYear(0), is(0L));
         long lastQuarter1969 = ZonedDateTime.of(1969, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();

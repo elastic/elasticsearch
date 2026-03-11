@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +44,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -67,31 +68,32 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         TwoOptionalArguments,
         ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+    public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
-    private static final Function<ZoneId, Rounding> LARGEST_HUMAN_DATE_ROUNDING = (zoneId) -> Rounding.builder(
+    private static final BiFunction<ZoneId, Long, Rounding> LARGEST_HUMAN_DATE_ROUNDING = (zoneId, offset) -> Rounding.builder(
         Rounding.DateTimeUnit.YEAR_OF_CENTURY
-    ).timeZone(zoneId).build();
-    private static final List<Function<ZoneId, Rounding>> HUMAN_DATE_ROUNDINGS = List.of(
-        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(12)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(3)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueHours(1)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(30)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(10)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(5)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMinutes(1)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(30)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(10)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(5)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueSeconds(1)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(100)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(50)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(10)).timeZone(zoneId).build(),
-        (zoneId) -> Rounding.builder(TimeValue.timeValueMillis(1)).timeZone(zoneId).build()
+    ).timeZone(zoneId).offset(offset).build();
+    private static final List<BiFunction<ZoneId, Long, Rounding>> HUMAN_DATE_ROUNDINGS = List.of(
+        (zoneId, offset) -> Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueHours(12)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueHours(3)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueHours(1)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMinutes(30)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMinutes(10)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMinutes(5)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMinutes(1)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueSeconds(30)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueSeconds(10)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueSeconds(5)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueSeconds(1)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMillis(100)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMillis(50)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMillis(10)).timeZone(zoneId).offset(offset).build(),
+        (zoneId, offset) -> Rounding.builder(TimeValue.timeValueMillis(1)).timeZone(zoneId).offset(offset).build()
     );
 
     private final Configuration configuration;
@@ -99,6 +101,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     private final Expression buckets;
     private final Expression from;
     private final Expression to;
+    private final long offset;
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
@@ -220,12 +223,25 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression to,
         Configuration configuration
     ) {
+        this(source, field, buckets, from, to, configuration, 0L);
+    }
+
+    public Bucket(
+        Source source,
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        Configuration configuration,
+        long offset
+    ) {
         super(source, fields(field, buckets, from, to));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
         this.configuration = configuration;
+        this.offset = offset;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -235,7 +251,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            ((PlanStreamInput) in).configuration(),
+            in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L
         );
     }
 
@@ -259,6 +276,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         out.writeNamedWriteable(buckets);
         out.writeOptionalNamedWriteable(from);
         out.writeOptionalNamedWriteable(to);
+        TransportVersion transportVersion = out.getTransportVersion();
+        if (transportVersion.supports(ESQL_BUCKET_OFFSET)) {
+            out.writeZLong(offset);
+        } else if (offset != 0L) {
+            throw new EsqlIllegalArgumentException(
+                "bucket with offset is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_BUCKET_OFFSET
+            );
+        }
     }
 
     @Override
@@ -320,20 +347,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
             if (min != null && max != null) {
-                return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepare(min, max);
+                return new DateRoundingPicker(b, f, t, configuration.zoneId(), offset).pickRounding().prepare(min, max);
             }
-            return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepareForUnknown();
+            return new DateRoundingPicker(b, f, t, configuration.zoneId(), offset).pickRounding().prepareForUnknown();
         } else {
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-            return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max);
+            return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset);
         }
     }
 
-    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
+    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
         Rounding pickRounding() {
-            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING.apply(zoneId);
-            for (Function<ZoneId, Rounding> roundingMaker : HUMAN_DATE_ROUNDINGS) {
-                Rounding r = roundingMaker.apply(zoneId);
+            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING.apply(zoneId, offset);
+            for (BiFunction<ZoneId, Long, Rounding> roundingMaker : HUMAN_DATE_ROUNDINGS) {
+                Rounding r = roundingMaker.apply(zoneId, offset);
                 if (roundingIsOk(r)) {
                     prev = r;
                 } else {
@@ -477,12 +504,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
         Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration);
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration, offset);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration, offset);
     }
 
     public Expression field() {
@@ -501,14 +528,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return to;
     }
 
+    public long offset() {
+        return offset;
+    }
+
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + ", offset=" + offset + '}';
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration);
+        return Objects.hash(getClass(), children(), configuration, offset);
     }
 
     @Override
@@ -518,6 +549,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         Bucket other = (Bucket) obj;
 
-        return configuration.equals(other.configuration);
+        return configuration.equals(other.configuration) && offset == other.offset;
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -95,10 +96,16 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             try {
                 next.evaluateIntermediate(intermediateBlocks, 0, selected);
                 Page page = new Page(intermediateBlocks);
-                finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
+                GroupingAggregatorFunction finalAggFunction = finalAgg.aggregatorFunction();
+                boolean hasNullIntermediateState = hasNullIntermediateState(page);
+                if (hasNullIntermediateState) {
+                    addNonNullIntermediateInput(finalAggFunction, selected, page);
+                } else {
+                    finalAggFunction.addIntermediateInput(0, selected, page);
+                }
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
+                    mergeBucketsFromWindow(groupId, backwards, page, finalAggFunction, evaluationContext, hasNullIntermediateState);
                 }
             } finally {
                 Releasables.close(intermediateBlocks);
@@ -148,7 +155,8 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         int[] groupIdToPositions,
         Page page,
         GroupingAggregatorFunction fn,
-        TimeSeriesGroupingAggregatorEvaluationContext context
+        TimeSeriesGroupingAggregatorEvaluationContext context,
+        boolean hasNullIntermediateState
     ) {
         var groupIds = context.groupIdsFromWindow(startingGroupId, window);
         if (groupIds.size() > 1) {
@@ -156,9 +164,68 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 for (int g : groupIds) {
                     if (g != startingGroupId) {
                         int position = groupIdToPositions[g];
-                        fn.addIntermediateInput(position, oneGroup, page);
+                        if (hasNullIntermediateState == false) {
+                            fn.addIntermediateInput(position, oneGroup, page);
+                            continue;
+                        }
+                        if (hasIntermediateState(page, position) == false) {
+                            continue;
+                        }
+                        try (Page singlePositionPage = filterPage(page, position)) {
+                            fn.addIntermediateInput(0, oneGroup, singlePositionPage);
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    private static void addNonNullIntermediateInput(GroupingAggregatorFunction fn, IntVector groups, Page page) {
+        int[] positions = positionsWithIntermediateState(page);
+        if (positions.length == 0) {
+            return;
+        }
+        try (IntVector filteredGroups = groups.filter(false, positions); Page filteredPage = filterPage(page, positions)) {
+            fn.addIntermediateInput(0, filteredGroups, filteredPage);
+        }
+    }
+
+    private static int[] positionsWithIntermediateState(Page page) {
+        int[] positions = new int[page.getPositionCount()];
+        int count = 0;
+        for (int position = 0; position < page.getPositionCount(); position++) {
+            if (hasIntermediateState(page, position)) {
+                positions[count++] = position;
+            }
+        }
+        return Arrays.copyOf(positions, count);
+    }
+
+    private static boolean hasNullIntermediateState(Page page) {
+        return positionsWithIntermediateState(page).length != page.getPositionCount();
+    }
+
+    private static boolean hasIntermediateState(Page page, int position) {
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (page.getBlock(i).isNull(position)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Page filterPage(Page page, int... positions) {
+        Block[] filteredBlocks = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < filteredBlocks.length; i++) {
+                filteredBlocks[i] = page.getBlock(i).filter(false, positions);
+            }
+            success = true;
+            return new Page(positions.length, filteredBlocks);
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
             }
         }
     }

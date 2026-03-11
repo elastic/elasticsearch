@@ -9,6 +9,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,8 +47,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
-public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
+public class NotPreferredAllocationRebalancing3IT extends ESIntegTestCase {
 
     private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -64,7 +70,13 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.metadata.MetadataDeleteIndexService:TRACE", reason = "details when wiping indices")
-    public void testAllocatorDoesNotMoveShardsToNotPreferredNode() {
+    @SuppressForbidden(reason = "run the stress test on CI")
+    @Repeat(iterations = 50)
+    public void testAllocatorDoesNotMoveShardsToNotPreferredNode3() {
+        runTestAllocatorDoesNotMoveShardsToNotPreferredNode();
+    }
+
+    protected void runTestAllocatorDoesNotMoveShardsToNotPreferredNode() {
         final Settings settings = Settings.builder()
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
             .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
@@ -149,6 +161,8 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
             // wait until at least half of the shards have been moved off the source node
             return countOnPreferred > numberOfIndices / 2.0;
         });
+
+        NOT_PREFERRED_NODES.clear();
     }
 
     public static class TestPlugin extends Plugin implements ClusterPlugin {

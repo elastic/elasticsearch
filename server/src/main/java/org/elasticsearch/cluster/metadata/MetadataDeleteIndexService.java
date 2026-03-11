@@ -124,6 +124,7 @@ public class MetadataDeleteIndexService {
 
         @Override
         public void onAckFailure(Exception e) {
+            logger.trace("at least one node did not ack", e);
             listener.onResponse(AcknowledgedResponse.FALSE);
         }
 

@@ -115,10 +115,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // All UAs (multiple per name) for refreshPlan (which needs to refresh every occurrence in the plan).
         AttributeSet.Builder allUnresolved = AttributeSet.builder(unresolvedByName.size());
         for (var entry : unresolvedByName.entrySet()) {
-            unresolved.add(entry.getValue().getFirst());
-            for (var ua : entry.getValue()) {
-                allUnresolved.add(ua);
-            }
+            List<UnresolvedAttribute> uas = entry.getValue();
+            unresolved.add(uas.getFirst());
+            allUnresolved.addAll(uas);
         }
 
         var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);

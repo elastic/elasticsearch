@@ -91,9 +91,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
             // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection.
-            boolean hasTimeSeriesReplacingTsId = optimizedPlan.output()
-                .stream()
-                .anyMatch(MetadataAttribute::isTimeSeriesAttribute)
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
                 && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute);
             // Query approximation can add columns to the output with the confidence intervals.
             boolean hasQueryApproximationAddingColumns = optimizedPlan.anyMatch(plan -> plan instanceof SampledAggregate)

@@ -98,7 +98,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
         // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
         // ResolveRefs will wire them up in the next iteration of the resolution batch.
-        Set<String> childOutputNames = new java.util.HashSet<>();
+        Set<String> childOutputNames = new HashSet<>();
         for (LogicalPlan child : plan.children()) {
             for (Attribute attr : child.output()) {
                 childOutputNames.add(attr.name());

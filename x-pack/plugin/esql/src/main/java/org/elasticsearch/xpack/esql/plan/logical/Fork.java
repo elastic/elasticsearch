@@ -105,13 +105,11 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     public Fork refreshOutput() {
-        // We don't want to keep the same attributes that are outputted by the FORK branches.
-        // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
         return new Fork(source(), children(), refreshedOutput());
     }
 
     protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributes(outputUnion(children()));
+        return toReferenceAttributes(outputUnion(children()), this.output());
     }
 
     @Override

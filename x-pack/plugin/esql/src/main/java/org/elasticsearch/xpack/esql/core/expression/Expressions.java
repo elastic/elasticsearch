@@ -41,7 +41,7 @@ public final class Expressions {
         if (named.isEmpty()) {
             return emptyList();
         }
-        Map<String, Attribute> existingByName = new HashMap<>(existingOutput.size());
+        Map<String, Attribute> existingByName = HashMap.newHashMap(existingOutput.size());
         for (Attribute attr : existingOutput) {
             existingByName.put(attr.name(), attr);
         }

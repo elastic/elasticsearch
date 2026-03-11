@@ -3350,23 +3350,25 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Expects
      * <pre>{@code
      * Limit[1000[INTEGER],false,false]
-     * \_Eval[[COALESCE(bar{r}#70,baz{r}#71) AS y#23]]
-     *   \_Project[[_meta_field{r}#49, emp_no{r}#50, ..., foo{r}#60, bar{r}#70, baz{r}#71]]
-     *     \_Filter[_fork{r}#61 == fork1[KEYWORD]]
-     *       \_Fork[[..., foo{r}#60, _fork{r}#61, bar{r}#70, baz{r}#71]]
+     * \_Eval[[COALESCE(bar{r}#59,baz{r}#60) AS y#11]]
+     *   \_Project[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44, l
+     * anguages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48, foo{r}#49, bar{r}#59, baz{r}#60]]
+     *     \_Filter[_fork{r}#50 == fork1[KEYWORD]]
+     *       \_Fork[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44, l
+     * anguages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48, foo{r}#49, _fork{r}#50, bar{r}#59, baz{r}#60]]
      *         |_Limit[1000[INTEGER],false,false]
-     *         | \_Project[[..., foo{r}#46, _fork{r}#17, bar{r}#62, baz{r}#63]]
-     *         |   \_Eval[[fork1[KEYWORD] AS _fork#17]]
-     *         |     \_Filter[NOT(foo{r}#46 == 84[INTEGER])]
-     *         |       \_Eval[[null[NULL] AS foo#46, null[NULL] AS bar#62, null[NULL] AS baz#63]]
-     *         |         \_EsRelation[employees][...]
+     *         | \_Project[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22, l
+     * anguages{f}#16, last_name{f}#17, long_noidx{f}#23, salary{f}#18, foo{f}#35, _fork{r}#4, bar{f}#51, baz{f}#52]]
+     *         |   \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *         |     \_Filter[NOT(foo{f}#35 == 84[INTEGER])]
+     *         |       \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, .., foo{f}#35, bar{f}#51, baz{f}#52]
      *         \_Limit[1000[INTEGER],false,false]
-     *           \_Project[[..., foo{r}#48, _fork{r}#17, bar{r}#64, baz{r}#65]]
-     *             \_Eval[[null[NULL] AS foo#48]]
-     *               \_Eval[[fork2[KEYWORD] AS _fork#17]]
+     *           \_Project[[_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, gender{f}#26, hire_date{f}#31, job{f}#32, job.raw{f}#33, l
+     * anguages{f}#27, last_name{f}#28, long_noidx{f}#34, salary{f}#29, foo{r}#37, _fork{r}#5, bar{f}#53, baz{f}#54]]
+     *             \_Eval[[null[NULL] AS foo#37]]
+     *               \_Eval[[fork2[KEYWORD] AS _fork#5]]
      *                 \_Filter[true[BOOLEAN]]
-     *                   \_Eval[[null[NULL] AS bar#64, null[NULL] AS baz#65]]
-     *                     \_EsRelation[employees][...]
+     *                   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, .., bar{f}#53, baz{f}#54]
      * }</pre>
      */
     public void testForkWithFrom() {
@@ -3400,7 +3402,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var fork = as(filterFork.child(), Fork.class);
         assertThat(fork.children(), hasSize(2));
 
-        // Branch 0: (where foo != 84) -> unmapped foo/bar/baz resolved as null
+        // Branch 0: (where foo != 84) -> unmapped foo/bar/baz added as MissingEsField in EsRelation
         var b0Limit = as(fork.children().getFirst(), Limit.class);
         var b0Project = as(b0Limit.child(), Project.class);
         assertThat(Expressions.names(b0Project.projections()), hasItems("foo", "_fork", "bar", "baz"));
@@ -3412,21 +3414,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Filter foo != 84
         var b0Filter = as(b0EvalFork.child(), Filter.class);
 
-        // Eval introducing nulls for unmapped foo, bar, baz
-        var b0EvalNulls = as(b0Filter.child(), Eval.class);
-        assertThat(Expressions.names(b0EvalNulls.fields()), hasItems("foo", "bar", "baz"));
-        for (var field : b0EvalNulls.fields()) {
-            var alias = as(field, Alias.class);
-            assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
-        }
-        as(b0EvalNulls.child(), EsRelation.class);
+        // foo, bar, baz are FieldAttributes with MissingEsField/DataType.NULL directly in EsRelation
+        var b0EsRelation = as(b0Filter.child(), EsRelation.class);
+        assertThat(Expressions.names(b0EsRelation.output()), hasItems("foo", "bar", "baz"));
 
-        // Branch 1: (where true) -> unmapped foo/bar/baz resolved as null
+        // Branch 1: (where true) -> bar/baz added as MissingEsField in EsRelation, foo null-aliased via Eval
         var b1Limit = as(fork.children().get(1), Limit.class);
         var b1Project = as(b1Limit.child(), Project.class);
         assertThat(Expressions.names(b1Project.projections()), hasItems("foo", "_fork", "bar", "baz"));
 
-        // Eval for null foo (its own copy in branch 1)
+        // foo is not referenced in this branch's filter, so it's introduced as null-Eval by the Fork patching mechanism
         var b1EvalFoo = as(b1Project.child(), Eval.class);
         assertThat(Expressions.names(b1EvalFoo.fields()), hasItems("foo"));
 
@@ -3436,11 +3433,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var b1FilterTrue = as(b1EvalFork.child(), Filter.class);
 
-        // Eval introducing bar, baz as null
-        var b1EvalNulls = as(b1FilterTrue.child(), Eval.class);
-        assertThat(b1EvalNulls.fields(), hasSize(2));
-        assertThat(Expressions.names(b1EvalNulls.fields()), hasItems("bar", "baz"));
-        as(b1EvalNulls.child(), EsRelation.class);
+        // bar, baz are FieldAttributes with MissingEsField/DataType.NULL directly in EsRelation
+        var b1EsRelation = as(b1FilterTrue.child(), EsRelation.class);
+        assertThat(Expressions.names(b1EsRelation.output()), hasItems("bar", "baz"));
     }
 
     /**

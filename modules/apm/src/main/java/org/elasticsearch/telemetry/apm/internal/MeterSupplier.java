@@ -9,16 +9,12 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import org.elasticsearch.common.settings.Settings;
+import io.opentelemetry.api.metrics.Meter;
 
-public class TestAPMMeterService extends APMMeterService {
+import java.util.function.Supplier;
 
-    public TestAPMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
-        super(settings, otelMeterSupplier, noopMeterSupplier);
-    }
+public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
 
-    public void setEnabled(boolean enabled) {
-        // expose pkg private for testing
-        super.setEnabled(enabled);
-    }
+    @Override
+    default void close() {}
 }

@@ -67,8 +67,13 @@ final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsSc
         return false;
     }
 
-    private void nativeQuantizeScoreBulkOffsets(MemorySegment querySegment, MemorySegment offsetsSegment, MemorySegment scoresSegment, int offsetsCount, int totalCount)
-        throws IOException {
+    private void nativeQuantizeScoreBulkOffsets(
+        MemorySegment querySegment,
+        MemorySegment offsetsSegment,
+        MemorySegment scoresSegment,
+        int offsetsCount,
+        int totalCount
+    ) throws IOException {
         var datasetLengthInBytes = (long) length * totalCount;
         IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
             dotProductI7uBulkWithOffsets(datasetSegment, querySegment, length, length, offsetsSegment, offsetsCount, scoresSegment);

@@ -51,6 +51,7 @@ dependencies {
   testImplementation project(':modules:rest-root')
 
   clusterModules project(':modules:rest-root')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

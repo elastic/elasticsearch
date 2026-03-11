@@ -14,5 +14,6 @@ addQaCheckDependencies(project)
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
+  clusterModules project(':modules:codecs-common')
 }
 

@@ -11,6 +11,7 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterModules project(':modules:lang-painless')
   clusterModules project(xpackModule('searchable-snapshots'))
+  clusterModules project(':modules:codecs-common')
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation(project(':test:fixtures:gcs-fixture'))
 }

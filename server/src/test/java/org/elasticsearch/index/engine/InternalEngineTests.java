@@ -697,7 +697,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) {
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                 super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
@@ -2915,10 +2915,10 @@ public class InternalEngineTests extends EngineTestCase {
         final var flushBarrier = new CyclicBarrier(2);
         engine = new InternalEngine(engine.config()) {
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) {
-                final FlushActionListener effectiveListener;
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                final FlushResultListener effectiveListener;
                 if (interceptFlush.compareAndSet(true, false)) {
-                    effectiveListener = new FlushActionListener() {
+                    effectiveListener = new FlushResultListener() {
                         @Override
                         public void afterFlushWithLock(long generation) {
                             safeAwait(flushBarrier);

@@ -1542,25 +1542,25 @@ public abstract class Engine implements Closeable {
      *                      indicating no flush and unknown generation.
      */
     public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        flush(force, waitIfOngoing, FlushActionListener.wrap(listener));
+        flush(force, waitIfOngoing, FlushResultListener.wrap(listener));
     }
 
     /**
      * Flushes the state of the engine, same as {@link #flush(boolean, boolean, ActionListener)}, but accepts a
-     * {@link FlushActionListener} whose {@link FlushActionListener#afterFlushWithLock(long)} method is called after the commit
+     * {@link FlushResultListener} whose {@link FlushResultListener#afterFlushWithLock(long)} method is called after the commit
      * succeeds and before the flush lock is released.
      */
-    public final void flush(boolean force, boolean waitIfOngoing, FlushActionListener listener) throws EngineException {
+    public final void flush(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         try (var ignored = acquireEnsureOpenRef()) {
             flushHoldingLock(force, waitIfOngoing, listener);
         }
     }
 
     /**
-     * The actual implementation of {@link #flush(boolean, boolean, FlushActionListener)}, to be called either when holding a ref that
+     * The actual implementation of {@link #flush(boolean, boolean, FlushResultListener)}, to be called either when holding a ref that
      * ensures the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
      */
-    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) throws EngineException;
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -2308,7 +2308,7 @@ public abstract class Engine implements Closeable {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
                     // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                    flushHoldingLock(false, false, FlushActionListener.NOOP);
+                    flushHoldingLock(false, false, FlushResultListener.NOOP);
                 } catch (AlreadyClosedException ex) {
                     logger.debug("engine already closed - skipping flushAndClose");
                 }
@@ -2625,9 +2625,9 @@ public abstract class Engine implements Closeable {
      * This allows callers to perform operations such as acquiring an index commit that is guaranteed to be the one created
      * by the flush.
      */
-    public interface FlushActionListener extends ActionListener<FlushResult> {
+    public interface FlushResultListener extends ActionListener<FlushResult> {
 
-        FlushActionListener NOOP = new FlushActionListener() {
+        FlushResultListener NOOP = new FlushResultListener() {
             @Override
             public void onResponse(FlushResult result) {}
 
@@ -2636,7 +2636,7 @@ public abstract class Engine implements Closeable {
 
             @Override
             public String toString() {
-                return "NoopFlushActionListener";
+                return "NoopFlushResultListener";
             }
         };
 
@@ -2647,16 +2647,16 @@ public abstract class Engine implements Closeable {
          */
         default void afterFlushWithLock(long generation) {}
 
-        static FlushActionListener wrap(ActionListener<FlushResult> delegate) {
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate) {
             return wrap(delegate, NOOP::afterFlushWithLock);
         }
 
         /**
-         * Wraps a plain {@link ActionListener} into a {@link FlushActionListener} with the given callback
+         * Wraps a plain {@link ActionListener} into a {@link FlushResultListener} with the given callback
          * for {@link #afterFlushWithLock(long)}.
          */
-        static FlushActionListener wrap(ActionListener<FlushResult> delegate, LongConsumer afterFlushWithLock) {
-            return new FlushActionListener() {
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate, LongConsumer afterFlushWithLock) {
+            return new FlushResultListener() {
                 @Override
                 public void afterFlushWithLock(long generation) {
                     afterFlushWithLock.accept(generation);

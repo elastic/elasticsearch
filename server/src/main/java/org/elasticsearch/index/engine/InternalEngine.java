@@ -2302,7 +2302,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushActionListener listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         ensureOpen(); // best-effort, a concurrent failEngine() can still happen but that's ok
         if (force && waitIfOngoing == false) {
             final String message = "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2628,7 +2628,7 @@ public class InternalEngine extends Engine {
             // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
             PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
             try {
-                flush(false, true, FlushActionListener.wrap(future, generation -> {
+                flush(false, true, FlushResultListener.wrap(future, generation -> {
                     acquiredCommit.set(acquireIndexCommitRef(() -> indexDeletionPolicy.acquireIndexCommit(false)));
                     assert acquiredCommit.get().getIndexCommit().getGeneration() == generation
                         : "acquired commit generation ["

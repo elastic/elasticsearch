@@ -28,14 +28,14 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "LimitExec",
-        LimitExec::new
+        LimitExec::readFrom
     );
 
     private static final TransportVersion ESQL_LIMIT_ROW_SIZE = TransportVersion.fromName("esql_limit_row_size");
 
     private final Expression limit;
     private final Integer estimatedRowSize;
-    private List<Expression> groupings;
+    private final List<Expression> groupings;
 
     public LimitExec(Source source, PhysicalPlan child, Expression limit, List<Expression> groupings, Integer estimatedRowSize) {
         super(source, child);
@@ -44,22 +44,15 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    public LimitExec(Source source, PhysicalPlan child, Expression limit, Integer estimatedRowSize) {
-        this(source, child, limit, List.of(), estimatedRowSize);
-    }
-
-    private LimitExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Expression.class),
-            List.of(),
-            in.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE) ? in.readOptionalVInt() : null
-        );
-
-        if (in.getTransportVersion().supports(ESQL_LIMIT_BY)) {
-            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        }
+    private static LimitExec readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
+        Expression limit = in.readNamedWriteable(Expression.class);
+        Integer estimatedRowSize = in.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE) ? in.readOptionalVInt() : null;
+        List<Expression> groupings = in.getTransportVersion().supports(ESQL_LIMIT_BY)
+            ? in.readNamedWriteableCollectionAsList(Expression.class)
+            : List.of();
+        return new LimitExec(source, child, limit, groupings, estimatedRowSize);
     }
 
     @Override

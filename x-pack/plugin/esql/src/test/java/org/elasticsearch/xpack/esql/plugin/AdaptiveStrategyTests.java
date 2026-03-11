@@ -81,7 +81,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
     public void testLimitOnlyReturnsCoordinator() {
         PhysicalPlan source = createExternalSourceExec();
         Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
-        PhysicalPlan planWithLimit = new LimitExec(Source.EMPTY, source, limitExpr, null);
+        PhysicalPlan planWithLimit = new LimitExec(Source.EMPTY, source, limitExpr, List.of(), null);
 
         ExternalDistributionContext context = new ExternalDistributionContext(
             planWithLimit,

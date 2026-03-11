@@ -569,12 +569,7 @@ public class LocalExecutionPlanner {
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
-            int sortByChannel;
-            if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.get(a.id()).channel();
-            } else {
-                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
-            }
+            int sortByChannel = getAttributeChannel(order.child(), source.layout, "order by expression must be an attribute");
 
             return new TopNOperator.SortOrder(
                 sortByChannel,

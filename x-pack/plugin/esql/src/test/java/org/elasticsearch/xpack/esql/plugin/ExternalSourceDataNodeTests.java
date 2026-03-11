@@ -51,7 +51,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
 
     public void testDistributionResultNotDistributedWhenNoSplits() {
         ExternalSourceExec source = createExternalSourceExec();
-        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         List<ExternalSplit> splits = collectExternalSplits(limit);
         assertTrue("No splits expected on source without splits", splits.isEmpty());
@@ -127,7 +127,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(3);
         ExternalSourceExec source = createExternalSourceExec().withSplits(splits);
         ExchangeExec exchange = new ExchangeExec(SRC, source);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         var result = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(limit, null);
 
@@ -294,7 +294,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
 
     public void testHandleExternalSourcePlanTransformationWithNestedPlan() {
         ExternalSourceExec source = createExternalSourceExec();
-        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 100, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 100, DataType.INTEGER), List.of(), null);
         ExchangeSinkExec sink = new ExchangeSinkExec(SRC, source.output(), false, limit);
 
         List<ExternalSplit> splits = createSplits(3);
@@ -367,7 +367,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(6);
         ExternalSourceExec source = createExternalSourceExec().withSplits(splits);
         ExchangeExec exchange = new ExchangeExec(SRC, source);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 50, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 50, DataType.INTEGER), List.of(), null);
 
         var result = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(limit, null);
         PhysicalPlan coordinatorPlan = result.v1();
@@ -430,7 +430,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
         List<ExternalSplit> splits = createSplits(3);
         ExternalSourceExec source = createExternalSourceExec().withSplits(splits);
         ExchangeExec exchange = new ExchangeExec(SRC, source);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(limit);
 
@@ -444,7 +444,7 @@ public class ExternalSourceDataNodeTests extends ESTestCase {
 
     public void testCollapseExternalSourceExchangesLeavesNonExternalExchange() {
         ExternalSourceExec source = createExternalSourceExec();
-        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, source, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
         ExchangeExec exchange = new ExchangeExec(SRC, limit);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(exchange);

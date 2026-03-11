@@ -28,7 +28,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     private final Expression limit;
 
-    private List<Expression> groupings;
+    private final List<Expression> groupings;
     /**
      * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
      * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
@@ -47,7 +47,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
      * and {@link Limit#local} to {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {
-        this(source, limit, child, false, false);
+        this(source, limit, child, List.of(), false, false);
     }
 
     /**
@@ -66,10 +66,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         this.groupings = groupings;
     }
 
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
-        this(source, limit, child, List.of(), duplicated, local);
-    }
-
     /**
      * Omits reading {@link Limit#duplicated}, c.f. {@link Limit#writeTo}.
      */
@@ -78,14 +74,10 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
-            List.of(),
+            in.getTransportVersion().supports(ESQL_LIMIT_BY) ? in.readNamedWriteableCollectionAsList(Expression.class) : List.of(),
             false,
             false
         );
-
-        if (in.getTransportVersion().supports(ESQL_LIMIT_BY)) {
-            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        }
     }
 
     /**

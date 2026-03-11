@@ -33,7 +33,7 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
         ExternalSourceExec ext = externalSource();
         assertEquals(FormatReader.NO_LIMIT, ext.pushedLimit());
 
-        LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), null);
+        LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), List.of(), null);
         PhysicalPlan result = applyRule(limitExec);
 
         assertThat(result, instanceOf(LimitExec.class));
@@ -45,8 +45,8 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
 
     public void testLimitNotPushedToNonExternalSource() {
         ExternalSourceExec ext = externalSource();
-        LimitExec innerLimit = new LimitExec(Source.EMPTY, ext, literal(100), null);
-        LimitExec outerLimit = new LimitExec(Source.EMPTY, innerLimit, literal(10), null);
+        LimitExec innerLimit = new LimitExec(Source.EMPTY, ext, literal(100), List.of(), null);
+        LimitExec outerLimit = new LimitExec(Source.EMPTY, innerLimit, literal(10), List.of(), null);
 
         PhysicalPlan result = applyRule(outerLimit);
 

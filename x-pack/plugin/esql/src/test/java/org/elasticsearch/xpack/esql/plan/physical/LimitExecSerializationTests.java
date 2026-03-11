@@ -77,7 +77,7 @@ public class LimitExecSerializationTests extends AbstractPhysicalPlanSerializati
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
         Expression limit = randomLimit();
-        LimitExec instance = new LimitExec(source, child, limit, randomEstimatedRowSize());
+        LimitExec instance = new LimitExec(source, child, limit, List.of(), randomEstimatedRowSize());
         LimitExec deserialized = copyInstance(instance, oldVersion);
         assertEquals(List.of(), deserialized.groupings());
     }

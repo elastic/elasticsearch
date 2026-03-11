@@ -54,7 +54,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     public void testNoExternalSourceUnchanged() {
         PhysicalPlan leaf = createExternalSourceExec(FileSet.UNRESOLVED, "parquet");
-        LimitExec limit = new LimitExec(SRC, leaf, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, leaf, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
 
@@ -85,7 +85,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         ExternalSourceExec exec1 = createExternalSourceExec(fileSet1, "parquet");
         ExternalSourceExec exec2 = createExternalSourceExec(fileSet2, "csv");
 
-        LimitExec limit = new LimitExec(SRC, exec1, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exec1, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         Map<String, ExternalSourceFactory> factories = Map.of(
             "parquet",
@@ -173,7 +173,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     public void testNoFiltersWhenNoFilterExecInPlan() {
         FileSet fileSet = createFileSet(2);
         ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
-        LimitExec limit = new LimitExec(SRC, exec, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exec, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         RecordingSplitProvider recorder = new RecordingSplitProvider();
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));

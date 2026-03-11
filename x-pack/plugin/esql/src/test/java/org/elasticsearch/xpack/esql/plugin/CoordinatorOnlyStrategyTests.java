@@ -61,7 +61,7 @@ public class CoordinatorOnlyStrategyTests extends ESTestCase {
             Map.of(),
             null
         );
-        return new LimitExec(Source.EMPTY, source, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+        return new LimitExec(Source.EMPTY, source, new Literal(Source.EMPTY, 10, DataType.INTEGER), List.of(), null);
     }
 
     private static List<ExternalSplit> createSplits(int count) {

@@ -192,7 +192,7 @@ public class ExternalDistributionTests extends ESTestCase {
     public void testCollapseExternalSourceExchangeRemovesExchange() {
         ExternalSourceExec externalSource = createExternalSourceExec();
         ExchangeExec exchange = new ExchangeExec(SRC, externalSource);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(limit);
 
@@ -216,7 +216,7 @@ public class ExternalDistributionTests extends ESTestCase {
 
     public void testCollapseDoesNothingWhenNoExchanges() {
         ExternalSourceExec externalSource = createExternalSourceExec();
-        LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, externalSource, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(limit);
 
@@ -232,7 +232,7 @@ public class ExternalDistributionTests extends ESTestCase {
         );
         ExternalSourceExec externalSource = createExternalSourceExec().withSplits(splits);
         ExchangeExec exchange = new ExchangeExec(SRC, externalSource);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(limit);
 
@@ -247,7 +247,7 @@ public class ExternalDistributionTests extends ESTestCase {
         ExternalRelation external = createExternalRelation();
         FragmentExec fragment = new FragmentExec(external);
         ExchangeExec exchange = new ExchangeExec(SRC, fragment);
-        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), null);
+        LimitExec limit = new LimitExec(SRC, exchange, new Literal(SRC, 10, DataType.INTEGER), List.of(), null);
 
         PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(limit);
 

@@ -2435,6 +2435,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                             plan.source(),
                             limit.child(),
                             new Literal(Source.EMPTY, 1000, INTEGER),
+                            List.of(),
                             randomEstimatedRowSize()
                         ) {
                             @Override

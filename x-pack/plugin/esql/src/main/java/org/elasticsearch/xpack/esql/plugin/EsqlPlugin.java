@@ -61,12 +61,15 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlCursorAction;
+import org.elasticsearch.xpack.esql.action.EsqlDeleteCursorAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlCursorAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
@@ -248,6 +251,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
+        EsqlCursorStore cursorStore = new EsqlCursorStore(services.threadPool());
+        cursorStore.start();
+
         List<Object> components = new ArrayList<>(
             List.of(
                 new PlanExecutor(
@@ -266,7 +272,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     blockFactoryProvider.blockFactory()
                 ),
                 blockFactoryProvider,
-                dataSourceModule
+                dataSourceModule,
+                cursorStore
             )
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
@@ -336,7 +343,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(EsqlCursorAction.INSTANCE, TransportEsqlCursorAction.class),
+            new ActionHandler(EsqlDeleteCursorAction.INSTANCE, TransportEsqlDeleteCursorAction.class)
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             List<ActionHandler> actions = new ArrayList<>(releasedActions);
@@ -370,7 +379,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction()
+            new RestEsqlListQueriesAction(),
+            new RestEsqlCursorAction()
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);

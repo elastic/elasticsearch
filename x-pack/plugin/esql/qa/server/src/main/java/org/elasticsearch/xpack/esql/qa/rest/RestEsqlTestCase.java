@@ -236,6 +236,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return allowPartialResults;
         }
 
+        public RequestObjectBuilder pageSize(int pageSize) throws IOException {
+            builder.field("page_size", pageSize);
+            return this;
+        }
+
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (profile != null) {
@@ -1510,6 +1515,54 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, assertWarnings, json);
 
         return json;
+    }
+
+    /**
+     * If the response contains a {@code cursor}, fetches all remaining pages via {@code POST /_query/cursor},
+     * combines all values into a single list, and deletes the cursor. Returns the combined result map
+     * with the same shape as a non-paginated response ({@code columns} + {@code values}).
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> fetchAllPages(Map<String, Object> firstPage) throws IOException {
+        String cursor = (String) firstPage.get("cursor");
+        if (cursor == null) {
+            return firstPage;
+        }
+        List<List<Object>> allValues = new ArrayList<>((List<List<Object>>) firstPage.get("values"));
+        String lastCursor = cursor;
+        try {
+            while (cursor != null) {
+                Map<String, Object> nextPage = fetchNextPage(cursor);
+                allValues.addAll((List<List<Object>>) nextPage.get("values"));
+                String nextCursor = (String) nextPage.get("cursor");
+                if (nextCursor != null) {
+                    lastCursor = nextCursor;
+                }
+                cursor = nextCursor;
+            }
+        } finally {
+            deleteCursor(lastCursor);
+        }
+        Map<String, Object> combined = new HashMap<>(firstPage);
+        combined.put("values", allValues);
+        combined.remove("cursor");
+        return combined;
+    }
+
+    private static Map<String, Object> fetchNextPage(String cursor) throws IOException {
+        Request request = new Request("POST", "/_query/cursor");
+        request.setJsonEntity("{\"cursor\": \"" + cursor + "\"}");
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).addHeader("Accept", "application/json")
+        );
+        Response response = performRequest(request);
+        return entityToMap(response.getEntity(), XContentType.JSON);
+    }
+
+    private static void deleteCursor(String cursor) throws IOException {
+        Request request = new Request("DELETE", "/_query/cursor/" + cursor);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        client().performRequest(request);
     }
 
     public static Map<String, Object> runEsqlAsync(

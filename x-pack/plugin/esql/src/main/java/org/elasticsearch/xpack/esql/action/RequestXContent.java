@@ -87,6 +87,8 @@ final class RequestXContent {
     private static final ParseField INCLUDE_EXECUTION_METADATA_FIELD = new ParseField("include_execution_metadata");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
+    static final ParseField PAGE_SIZE_FIELD = new ParseField("page_size");
+
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
@@ -123,6 +125,7 @@ final class RequestXContent {
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
         parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
+        parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

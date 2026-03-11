@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlCursor;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -107,6 +109,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final EsqlCursorStore cursorStore;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -132,7 +135,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        EsqlCursorStore cursorStore
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -226,6 +230,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             logWriterProvider,
             fieldProvider
         );
+        this.cursorStore = cursorStore;
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -440,7 +445,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
-                // Sort the original types so they are easier to test against and prettier.
                 originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
             } else {
@@ -455,11 +459,40 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.minimumVersion()
             )
             : null;
+
+        List<Page> allPages = innerResult.pages();
+        Integer pageSize = request.pageSize();
+        String cursor = null;
+
+        List<Page> responsePages;
+        if (pageSize != null) {
+            int totalRows = allPages.stream().mapToInt(Page::getPositionCount).sum();
+            if (totalRows > pageSize) {
+                long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorStore.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
+                String cursorId = cursorStore.store(
+                    new EsqlCursorStore.CursorState(
+                        columns,
+                        allPages,
+                        totalRows,
+                        expirationMillis,
+                        result.inner().configuration().zoneId(),
+                        request.columnar()
+                    )
+                );
+                cursor = new EsqlCursor(cursorId, pageSize, pageSize).encode();
+                responsePages = slicePages(allPages, 0, pageSize);
+            } else {
+                responsePages = allPages;
+            }
+        } else {
+            responsePages = allPages;
+        }
+
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                innerResult.pages(),
+                responsePages,
                 innerResult.completionInfo().documentsFound(),
                 innerResult.completionInfo().valuesLoaded(),
                 profile,
@@ -470,22 +503,64 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.inner().configuration().zoneId(),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
-                innerResult.executionInfo()
+                innerResult.executionInfo(),
+                cursor
             );
         }
         return new EsqlQueryResponse(
             columns,
-            innerResult.pages(),
+            responsePages,
             innerResult.completionInfo().documentsFound(),
             innerResult.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
+            null,
+            false,
             request.async(),
             result.inner().configuration().zoneId(),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
-            innerResult.executionInfo()
+            innerResult.executionInfo(),
+            cursor
         );
+    }
+
+    /**
+     * Extracts a window of rows [fromRow, fromRow + maxRows) from the given pages,
+     * returning new Page objects that share the underlying block data via shallow copies.
+     */
+    static List<Page> slicePages(List<Page> pages, int fromRow, int maxRows) {
+        List<Page> result = new ArrayList<>();
+        int remaining = maxRows;
+        int skipped = 0;
+
+        for (Page page : pages) {
+            int pageRows = page.getPositionCount();
+            if (skipped + pageRows <= fromRow) {
+                skipped += pageRows;
+                continue;
+            }
+
+            int startInPage = Math.max(0, fromRow - skipped);
+            int endInPage = Math.min(pageRows, startInPage + remaining);
+            int take = endInPage - startInPage;
+
+            if (take > 0) {
+                {
+                    int[] positions = new int[take];
+                    for (int i = 0; i < take; i++) {
+                        positions[i] = startInPage + i;
+                    }
+                    result.add(page.shallowCopy().filter(false, positions));
+                }
+                remaining -= take;
+                if (remaining <= 0) {
+                    break;
+                }
+            }
+            skipped += pageRows;
+        }
+        return result;
     }
 
     /**

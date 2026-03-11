@@ -362,6 +362,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         addPragmas(builder);
 
+        boolean paginate = randomBoolean();
+        if (paginate) {
+            builder.pageSize(randomIntBetween(1, 50));
+        }
+
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),
@@ -370,6 +375,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         );
 
         assertNotPartial(answer);
+
+        if (paginate) {
+            answer = RestEsqlTestCase.fetchAllPages(answer);
+        }
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

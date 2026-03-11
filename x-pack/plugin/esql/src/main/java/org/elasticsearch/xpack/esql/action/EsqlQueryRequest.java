@@ -64,6 +64,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
     private String projectRouting;
+    private Integer pageSize;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -94,6 +95,10 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
+        }
+
+        if (pageSize != null && pageSize <= 0) {
+            validationException = addValidationError("[page_size] must be greater than 0", validationException);
         }
 
         if (onSnapshotBuild == false) {
@@ -268,6 +273,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public Map<String, Map<String, Column>> tables() {
         return tables;
+    }
+
+    public Integer pageSize() {
+        return pageSize;
+    }
+
+    public EsqlQueryRequest pageSize(Integer pageSize) {
+        this.pageSize = pageSize;
+        return this;
     }
 
     public Boolean allowPartialResults() {

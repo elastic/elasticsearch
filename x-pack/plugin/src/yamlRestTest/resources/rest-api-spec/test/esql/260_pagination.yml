@@ -1,0 +1,190 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+  - do:
+      indices.create:
+        index: pagination_test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              value:
+                type: long
+              name:
+                type: keyword
+  - do:
+      bulk:
+        index: pagination_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value": 1, "name": "a" }
+          - { "index": { } }
+          - { "value": 2, "name": "b" }
+          - { "index": { } }
+          - { "value": 3, "name": "c" }
+          - { "index": { } }
+          - { "value": 4, "name": "d" }
+          - { "index": { } }
+          - { "value": 5, "name": "e" }
+
+---
+"Paginated query returns cursor and first page":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 2
+
+  - length: {columns: 2}
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+  - is_true: cursor
+  - set: { cursor: cursor_token }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token
+
+---
+"Fetch second page via cursor":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 2
+
+  - set: { cursor: cursor_token }
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $cursor_token
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - is_true: cursor
+  - set: { cursor: cursor_token2 }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token2
+
+---
+"Last page has no cursor":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 2
+
+  - set: { cursor: c1 }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - set: { cursor: c2 }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c2
+
+  - length: {values: 1}
+  - match: {values.0.1: 5}
+  - is_false: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c1
+
+---
+"No cursor when results fit in one page":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 10
+
+  - length: {values: 5}
+  - is_false: cursor
+
+---
+"Re-fetch a previous page using an earlier cursor":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 2
+
+  - set: { cursor: c1 }
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+
+  # Fetch page 2
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - set: { cursor: c2 }
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+
+  # Fetch page 3
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c2
+
+  - length: {values: 1}
+  - match: {values.0.1: 5}
+  - is_false: cursor
+
+  # Re-fetch page 2 using the earlier cursor c1
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - is_true: cursor
+
+  # Re-fetch page 1 using the initial query's cursor (offset 0 is encoded as page_size)
+  # c1 points to row offset 2, c2 points to row offset 4 — re-sending c1 gives page 2 again
+  # This confirms cursors are reusable and stateless with respect to forward progress
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c1
+
+---
+"Delete cursor releases resources":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test | sort value | limit 5'
+          page_size: 2
+
+  - set: { cursor: cursor_token }
+  - is_true: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token
+
+  - match: { acknowledged: true }

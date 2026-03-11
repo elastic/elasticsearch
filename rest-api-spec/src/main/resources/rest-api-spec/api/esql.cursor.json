@@ -1,0 +1,32 @@
+{
+  "esql.cursor": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/explore-analyze/query-filter/languages/esql-rest",
+      "description": "Fetch the next page of a paginated ES|QL query result"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/cursor",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "Provide the cursor token to fetch the next page",
+      "required": true
+    }
+  }
+}

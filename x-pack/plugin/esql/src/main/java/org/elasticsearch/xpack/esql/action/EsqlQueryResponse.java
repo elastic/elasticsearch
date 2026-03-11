@@ -54,6 +54,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
+    private static final TransportVersion ESQL_PAGINATION_CURSOR = TransportVersion.fromName("esql_pagination_cursor");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -74,6 +75,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
+    @Nullable
+    private final String cursor;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -89,6 +93,40 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            asyncExecutionId,
+            isRunning,
+            isAsync,
+            zoneId,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo,
+            null
+        );
+    }
+
+    public EsqlQueryResponse(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        long documentsFound,
+        long valuesLoaded,
+        @Nullable Profile profile,
+        boolean columnar,
+        @Nullable String asyncExecutionId,
+        boolean isRunning,
+        boolean isAsync,
+        ZoneId zoneId,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        EsqlExecutionInfo executionInfo,
+        @Nullable String cursor
+    ) {
         this.columns = columns;
         this.pages = pages;
         this.valuesLoaded = valuesLoaded;
@@ -102,6 +140,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
         this.executionInfo = executionInfo;
+        this.cursor = cursor;
     }
 
     public EsqlQueryResponse(
@@ -169,6 +208,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+
+        String cursor = null;
+        if (in.getTransportVersion().supports(ESQL_PAGINATION_CURSOR)) {
+            cursor = in.readOptionalString();
+        }
+
         return new EsqlQueryResponse(
             columns,
             pages,
@@ -182,7 +227,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            executionInfo
+            executionInfo,
+            cursor
         );
     }
 
@@ -210,6 +256,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         out.writeOptionalWriteable(executionInfo);
+
+        if (out.getTransportVersion().supports(ESQL_PAGINATION_CURSOR)) {
+            out.writeOptionalString(cursor);
+        }
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
@@ -265,6 +315,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public boolean isRunning() {
         return isRunning;
+    }
+
+    @Nullable
+    public String cursor() {
+        return cursor;
     }
 
     public boolean isAsync() {
@@ -343,6 +398,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, zoneId)
             )
         );
+        if (cursor != null) {
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> builder.field("cursor", cursor)));
+        }
         if (executionInfo != null && executionInfo.hasMetadataToReport()) {
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
         }

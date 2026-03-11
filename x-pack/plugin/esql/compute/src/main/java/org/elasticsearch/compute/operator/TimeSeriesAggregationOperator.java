@@ -132,7 +132,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     @Override
     public Page getOutput() {
         Page page = super.getOutput();
-        if (page != null && aggregatorMode.isOutputPartial() == false && outputTimeBucket != null && blockHash instanceof TimeSeriesBlockHash) {
+        if (page != null
+            && aggregatorMode.isOutputPartial() == false
+            && outputTimeBucket != null
+            && blockHash instanceof TimeSeriesBlockHash) {
             page = filterOutputPage(page);
         }
         return page;

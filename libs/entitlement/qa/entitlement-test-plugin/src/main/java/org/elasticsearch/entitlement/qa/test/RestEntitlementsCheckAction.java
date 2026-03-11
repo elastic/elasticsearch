@@ -209,6 +209,29 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             .collect(Collectors.toSet());
     }
 
+    private static final java.util.Map<Class<?>, Class<?>> PRIMITIVE_TO_BOXED = java.util.Map.of(
+        boolean.class,
+        Boolean.class,
+        int.class,
+        Integer.class,
+        long.class,
+        Long.class,
+        double.class,
+        Double.class,
+        float.class,
+        Float.class,
+        short.class,
+        Short.class,
+        byte.class,
+        Byte.class,
+        char.class,
+        Character.class
+    );
+
+    private static Class<?> boxed(Class<?> type) {
+        return PRIMITIVE_TO_BOXED.getOrDefault(type, type);
+    }
+
     private static final String NOT_ENTITLED_EXCEPTION_NAME = "org.elasticsearch.entitlement.bridge.NotEntitledException";
 
     private static boolean hasCause(Throwable e, String className) {
@@ -258,7 +281,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied()[0]);
                 }
                 if (checkAction.expectedDefaultType() != void.class) {
-                    response.addHeader("expectedDefaultType", checkAction.expectedDefaultType().getName());
+                    Class<?> expectedType = boxed(checkAction.expectedDefaultType());
+                    response.addHeader("defaultTypeMatch", String.valueOf(result != null && expectedType.isInstance(result)));
                 }
                 if (checkAction.isExpectedDefaultNull()) {
                     response.addHeader("isExpectedDefaultNull", "true");

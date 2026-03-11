@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
@@ -71,7 +72,8 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
     }
 
-    public void testuUeTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+    public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
+        assumeTrue("requires feature flag enabled", ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled());
         String indexName = "standard-larger-binary-db-block-size-dv-test";
         Settings settings = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)

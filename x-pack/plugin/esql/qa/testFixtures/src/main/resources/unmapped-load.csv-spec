@@ -149,6 +149,46 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 ;
 
+fieldUnmappedInSourceButExcludedSingleIndex
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
+fieldUnmappedInSourceButSourceDisabledSingleIndex
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_no_source_sample_data
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
 statsByUnmappedFieldExistsInSource
 required_capability: optional_fields_v2
 
@@ -203,10 +243,8 @@ FROM k8s_unmapped
 2024-05-10T00:01:25.000Z   | qa              | null
 ;
 
-
 statsImplicitLastOverTimeUnmappedTsIndex
 required_capability: optional_fields_v2
-required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -224,7 +262,6 @@ time_bucket:datetime | x:keyword
 
 statsByUnmappedFieldTsIndex
 required_capability: optional_fields_v2
-required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -236,20 +273,19 @@ TS k8s_unmapped
 
 s:long | c:long | event_log:keyword
 6      | 1      | Aenean hime
-3      | 1      | Cubilia lac
-2      | 1      | Lorem ipsum
-3      | 1      | Lorem ipsum
-2      | 1      | Nunc
-4      | 1      | Nunc tortor
-7      | 1      | Placerat mi
-4      | 1      | Scelerisque
+6      | 1      | Cubilia lac
+6      | 1      | Lorem ipsum
+6      | 1      | Lorem ipsum
+6      | 1      | Nunc
+6      | 1      | Nunc tortor
+6      | 1      | Placerat mi
 6      | 1      | Scelerisque
-1      | 1      | Sed ultrici
+6      | 1      | Scelerisque
+6      | 1      | Sed ultrici
 ;
 
 explicitLastOverTimeUnmappedTsIndex
 required_capability: optional_fields_v2
-required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -260,11 +296,11 @@ TS k8s_unmapped
 ;
 
 cluster:keyword | time_bucket:datetime     | x:keyword
-prod            | 2024-05-10T00:00:00.000Z | vivamus, soc
-prod            | 2024-05-10T00:10:00.000Z | vivamus, soc
+prod            | 2024-05-10T00:00:00.000Z | vulputate su
+prod            | 2024-05-10T00:10:00.000Z | vulputate qu
 prod            | 2024-05-10T00:20:00.000Z | volutpat ves
-qa              | 2024-05-10T00:00:00.000Z | vulputate qu
-qa              | 2024-05-10T00:10:00.000Z | volutpat hac
+qa              | 2024-05-10T00:00:00.000Z | vulputate su
+qa              | 2024-05-10T00:10:00.000Z | vulputate qu
 ;
 
 fieldIsNestedAndUnmapped
@@ -842,4 +878,25 @@ FROM partial_mapping_sample_data
 
 @timestamp:date          | message:keyword   | unmapped_event_duration:keyword
 2024-10-23T13:51:54.732Z | Connection error? | 725449
+;
+
+maxOverTimeOfKeyword
+SET unmapped_fields="load"\;
+required_capability: optional_fields_nullify_tech_preview
+TS k8s,k8s_unmapped METADATA _index
+| STATS pod = min(max_over_time(region)) BY time_bucket = bucket(@timestamp,1minute), _index
+| SORT time_bucket, _index
+| LIMIT 10;
+
+pod:keyword | time_bucket:datetime     | _index:keyword
+us          | 2024-05-10T00:00:00.000Z | k8s
+us          | 2024-05-10T00:00:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:01:00.000Z | k8s
+us          | 2024-05-10T00:01:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:02:00.000Z | k8s
+us          | 2024-05-10T00:02:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:03:00.000Z | k8s
+us          | 2024-05-10T00:03:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:04:00.000Z | k8s
+us          | 2024-05-10T00:04:00.000Z | k8s_unmapped
 ;

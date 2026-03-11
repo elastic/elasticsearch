@@ -743,7 +743,7 @@ public class SearchTransportService {
 
                     @Override
                     public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return transportService.newNetworkBytesStream(null);
+                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
                     }
                 };
             }

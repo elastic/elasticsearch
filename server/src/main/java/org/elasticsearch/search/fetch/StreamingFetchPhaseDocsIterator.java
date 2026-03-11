@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -50,10 +49,13 @@ import java.util.function.Supplier;
  * Lucene's thread-affinity requirements. Send tasks run inline (DIRECT_EXECUTOR) when
  * under capacity; ACK handling occurs asynchronously on network threads.
  * <p>
- * <b>Memory Management:</b> The circuit breaker tracks accumulated chunk bytes. If the
- * breaker trips, the producer fails immediately with a
+ * <b>Memory Management:</b> The circuit breaker tracks recycler page allocations via the
+ * {@link RecyclerBytesStreamOutput} passed from the chunk writer. If the breaker trips
+ * during serialization, the producer fails immediately with a
  * {@link org.elasticsearch.common.breaker.CircuitBreakingException}, preventing unbounded
- * memory growth.
+ * memory growth. Pages are released (and the breaker decremented) when the
+ * {@link ReleasableBytesReference} from {@link RecyclerBytesStreamOutput#moveToBytesReference()}
+ * is closed — either on ACK for intermediate chunks or when the last chunk is consumed.
  * <p>
  * <b>Backpressure:</b> {@link ThrottledTaskRunner} limits concurrent in-flight sends to
  * {@code maxInFlightChunks}. The circuit breaker provides the memory limit.
@@ -69,21 +71,15 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     static final int DEFAULT_TARGET_CHUNK_BYTES = 256 * 1024;
 
     /**
-     * Label for circuit breaker reservations.
-     */
-    static final String CIRCUIT_BREAKER_LABEL = "fetch_phase_streaming_chunks";
-
-    /**
      * Asynchronous iteration using {@link ThrottledTaskRunner} for streaming mode.
      *
      * @param shardTarget         the shard being fetched from
      * @param indexReader         the index reader
      * @param docIds              document IDs to fetch (in score order)
-     * @param chunkWriter         writer for sending chunks (also provides buffer allocation)
+     * @param chunkWriter         writer for sending chunks (also provides buffer allocation with CB tracking)
      * @param targetChunkBytes    target size in bytes for each chunk
      * @param chunkCompletionRefs ref-counting listener for tracking chunk ACKs
      * @param maxInFlightChunks   maximum concurrent unacknowledged chunks
-     * @param circuitBreaker      circuit breaker for memory management
      * @param sendFailure         atomic reference to capture send failures
      * @param isCancelled         supplier for cancellation checking
      * @param listener            receives the result with the last chunk bytes
@@ -96,7 +92,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         int targetChunkBytes,
         RefCountingListener chunkCompletionRefs,
         int maxInFlightChunks,
-        CircuitBreaker circuitBreaker,
         AtomicReference<Throwable> sendFailure,
         Supplier<Boolean> isCancelled,
         ActionListener<IterateResult> listener
@@ -117,20 +112,20 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
             final Throwable pError = producerError.get();
             if (pError != null) {
-                cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                cleanupLastChunk(lastChunkHolder);
                 listener.onFailure(pError instanceof Exception ? (Exception) pError : new RuntimeException(pError));
                 return;
             }
 
             final Throwable sError = sendFailure.get();
             if (sError != null) {
-                cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                cleanupLastChunk(lastChunkHolder);
                 listener.onFailure(sError instanceof Exception ? (Exception) sError : new RuntimeException(sError));
                 return;
             }
 
             if (isCancelled.get()) {
-                cleanupLastChunk(lastChunkHolder, circuitBreaker);
+                cleanupLastChunk(lastChunkHolder);
                 listener.onFailure(new TaskCancelledException("cancelled"));
                 return;
             }
@@ -142,16 +137,13 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             }
 
             try {
-                listener.onResponse(
-                    new IterateResult(lastChunk.bytes, lastChunk.hitCount, lastChunk.sequenceStart, lastChunk.byteSize, circuitBreaker)
-                );
+                listener.onResponse(new IterateResult(lastChunk.bytes, lastChunk.hitCount, lastChunk.sequenceStart));
             } catch (Exception e) {
                 lastChunk.close();
-                circuitBreaker.addWithoutBreaking(-lastChunk.byteSize);
                 throw e;
             }
         }, e -> {
-            cleanupLastChunk(lastChunkHolder, circuitBreaker);
+            cleanupLastChunk(lastChunkHolder);
             listener.onFailure(e);
         }));
 
@@ -165,7 +157,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 sendRunner,
                 completionRefs,
                 lastChunkHolder,
-                circuitBreaker,
                 sendFailure,
                 chunkCompletionRefs,
                 isCancelled
@@ -182,8 +173,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
      * <p>
      * For each chunk:
      * <ol>
-     *   <li>Fetch documents and serialize to bytes</li>
-     *   <li>Reserve circuit breaker memory</li>
+     *   <li>Fetch documents and serialize to bytes (page allocations tracked by the CB in the stream)</li>
      *   <li>For intermediate chunks: acquire ref and enqueue send task to ThrottledTaskRunner</li>
      *   <li>For last chunk: store in lastChunkHolder (returned via listener after all ACKs)</li>
      * </ol>
@@ -197,7 +187,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         ThrottledTaskRunner sendRunner,
         RefCountingListener completionRefs,
         AtomicReference<PendingChunk> lastChunkHolder,
-        CircuitBreaker circuitBreaker,
         AtomicReference<Throwable> sendFailure,
         RefCountingListener chunkCompletionRefs,
         Supplier<Boolean> isCancelled
@@ -249,14 +238,8 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                     final ReleasableBytesReference chunkBytes = chunkBuffer.moveToBytesReference();
                     chunkBuffer = null;
 
-                    final long byteSize = chunkBytes.length();
-                    boolean reserved = false;
-
                     try {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(byteSize, CIRCUIT_BREAKER_LABEL);
-                        reserved = true;
-
-                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, chunkStartIndex, byteSize, isLast);
+                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, chunkStartIndex, isLast);
 
                         if (isLast) {
                             lastChunkHolder.set(chunk);
@@ -271,7 +254,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                                         chunkWriter,
                                         shardId,
                                         totalDocs,
-                                        circuitBreaker,
                                         sendFailure,
                                         chunkCompletionRefs,
                                         isCancelled
@@ -281,7 +263,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                             } finally {
                                 if (completionRef != null) {
                                     completionRef.onResponse(null);
-                                    releaseChunk(chunk, circuitBreaker);
+                                    chunk.close();
                                 }
                             }
                         }
@@ -293,9 +275,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         }
                     } catch (Exception e) {
                         Releasables.closeWhileHandlingException(chunkBytes);
-                        if (reserved) {
-                            circuitBreaker.addWithoutBreaking(-byteSize);
-                        }
                         throw e;
                     }
                 }
@@ -317,7 +296,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         private final FetchPhaseResponseChunk.Writer writer;
         private final ShardId shardId;
         private final int totalDocs;
-        private final CircuitBreaker circuitBreaker;
         private final AtomicReference<Throwable> sendFailure;
         private final RefCountingListener chunkCompletionRefs;
         private final Supplier<Boolean> isCancelled;
@@ -328,7 +306,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             FetchPhaseResponseChunk.Writer writer,
             ShardId shardId,
             int totalDocs,
-            CircuitBreaker circuitBreaker,
             AtomicReference<Throwable> sendFailure,
             RefCountingListener chunkCompletionRefs,
             Supplier<Boolean> isCancelled
@@ -338,7 +315,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             this.writer = writer;
             this.shardId = shardId;
             this.totalDocs = totalDocs;
-            this.circuitBreaker = circuitBreaker;
             this.sendFailure = sendFailure;
             this.chunkCompletionRefs = chunkCompletionRefs;
             this.isCancelled = isCancelled;
@@ -353,7 +329,6 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 writer,
                 shardId,
                 totalDocs,
-                circuitBreaker,
                 sendFailure,
                 chunkCompletionRefs,
                 isCancelled
@@ -362,7 +337,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
         @Override
         public void onFailure(Exception e) {
-            releaseChunk(chunk, circuitBreaker);
+            chunk.close();
             sendFailure.compareAndSet(null, e);
             completionRef.onFailure(e);
         }
@@ -373,6 +348,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
      * <p>
      * The send is asynchronous - this method initiates the network write and returns immediately.
      * The ACK callback handles cleanup and signals task completion to ThrottledTaskRunner.
+     * Page-level CB tracking is released when the {@link ReleasableBytesReference} is closed.
      */
     private static void sendChunk(
         PendingChunk chunk,
@@ -381,13 +357,12 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         FetchPhaseResponseChunk.Writer writer,
         ShardId shardId,
         int totalDocs,
-        CircuitBreaker circuitBreaker,
         AtomicReference<Throwable> sendFailure,
         RefCountingListener chunkCompletionRefs,
         Supplier<Boolean> isCancelled
     ) {
         if (isCancelled.get()) {
-            releaseChunk(chunk, circuitBreaker);
+            chunk.close();
             completionRef.onResponse(null);
             throttleReleasable.close();
             return;
@@ -396,7 +371,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         // Check for prior failure before sending
         final Throwable failure = sendFailure.get();
         if (failure != null) {
-            releaseChunk(chunk, circuitBreaker);
+            chunk.close();
             completionRef.onResponse(null);
             throttleReleasable.close();
             return;
@@ -416,20 +391,17 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
             );
 
             final FetchPhaseResponseChunk chunkToClose = responseChunk;
-            final long chunkByteSize = chunk.byteSize;
 
             ackRef = chunkCompletionRefs.acquire();
             final ActionListener<Void> finalAckRef = ackRef;
 
             writer.writeResponseChunk(responseChunk, ActionListener.wrap(v -> {
                 chunkToClose.close();
-                circuitBreaker.addWithoutBreaking(-chunkByteSize);
                 finalAckRef.onResponse(null);
                 completionRef.onResponse(null);
                 throttleReleasable.close();
             }, e -> {
                 chunkToClose.close();
-                circuitBreaker.addWithoutBreaking(-chunkByteSize);
                 sendFailure.compareAndSet(null, e);
                 finalAckRef.onFailure(e);
                 completionRef.onFailure(e);
@@ -438,12 +410,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
 
             responseChunk = null;
         } catch (Exception e) {
-            // Handle unexpected errors during send setup
             if (responseChunk != null) {
                 responseChunk.close();
-                circuitBreaker.addWithoutBreaking(-chunk.byteSize);
             } else {
-                releaseChunk(chunk, circuitBreaker);
+                chunk.close();
             }
             sendFailure.compareAndSet(null, e);
             if (ackRef != null) {
@@ -454,20 +424,10 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         }
     }
 
-    private static void releaseChunk(PendingChunk chunk, CircuitBreaker circuitBreaker) {
-        chunk.close();
-        if (chunk.byteSize > 0) {
-            circuitBreaker.addWithoutBreaking(-chunk.byteSize);
-        }
-    }
-
-    private static void cleanupLastChunk(AtomicReference<PendingChunk> lastChunkHolder, CircuitBreaker circuitBreaker) {
+    private static void cleanupLastChunk(AtomicReference<PendingChunk> lastChunkHolder) {
         PendingChunk lastChunk = lastChunkHolder.getAndSet(null);
         if (lastChunk != null) {
             lastChunk.close();
-            if (lastChunk.byteSize > 0) {
-                circuitBreaker.addWithoutBreaking(-lastChunk.byteSize);
-            }
         }
     }
 
@@ -499,22 +459,21 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     }
 
     /**
-     * Represents a chunk ready to be sent. Tracks byte size for circuit breaker accounting.
+     * Represents a chunk ready to be sent. The underlying {@link ReleasableBytesReference} carries
+     * the page-level circuit breaker release callback from {@link RecyclerBytesStreamOutput#moveToBytesReference()}.
      */
     static class PendingChunk implements AutoCloseable {
         final ReleasableBytesReference bytes;
         final int hitCount;
         final int fromIndex;
         final long sequenceStart;
-        final long byteSize;
         final boolean isLast;
 
-        PendingChunk(ReleasableBytesReference bytes, int hitCount, int fromIndex, long sequenceStart, long byteSize, boolean isLast) {
+        PendingChunk(ReleasableBytesReference bytes, int hitCount, int fromIndex, long sequenceStart, boolean isLast) {
             this.bytes = bytes;
             this.hitCount = hitCount;
             this.fromIndex = fromIndex;
             this.sequenceStart = sequenceStart;
-            this.byteSize = byteSize;
             this.isLast = isLast;
         }
 

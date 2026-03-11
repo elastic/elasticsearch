@@ -12,7 +12,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasables;
@@ -199,15 +198,15 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Result of iteration.
      * For non-streaming: contains hits array.
-     * For streaming: contains last chunk bytes to be sent after all ACKs.
+     * For streaming: contains last chunk bytes to be sent after all ACKs. The bytes carry
+     * page-level circuit breaker tracking from the {@link org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput};
+     * releasing the bytes automatically decrements the breaker.
      */
     static class IterateResult implements AutoCloseable {
         final SearchHit[] hits;  // Non-streaming mode only
         final ReleasableBytesReference lastChunkBytes;
         final int lastChunkHitCount;
         final long lastChunkSequenceStart;
-        final long lastChunkByteSize;
-        final CircuitBreaker circuitBreaker;
         private boolean closed = false;
         private boolean bytesOwnershipTransferred = false;
 
@@ -217,24 +216,20 @@ abstract class FetchPhaseDocsIterator {
             this.lastChunkBytes = null;
             this.lastChunkHitCount = 0;
             this.lastChunkSequenceStart = -1;
-            this.lastChunkByteSize = 0;
-            this.circuitBreaker = null;
         }
 
         // Streaming constructor
-        IterateResult(ReleasableBytesReference lastChunkBytes, int hitCount, long seqStart, long byteSize, CircuitBreaker circuitBreaker) {
+        IterateResult(ReleasableBytesReference lastChunkBytes, int hitCount, long seqStart) {
             this.hits = null;
             this.lastChunkBytes = lastChunkBytes;
             this.lastChunkHitCount = hitCount;
             this.lastChunkSequenceStart = seqStart;
-            this.lastChunkByteSize = byteSize;
-            this.circuitBreaker = circuitBreaker;
         }
 
         /**
          * Takes ownership of the last chunk bytes.
-         * After calling, close() will not release the bytes, but the caller
-         * becomes responsible for releasing circuit breaker memory.
+         * After calling, close() will not release the bytes. The caller becomes responsible
+         * for eventually releasing the {@link ReleasableBytesReference} (which decrements the circuit breaker).
          *
          * @return the last chunk bytes, or null if none
          */
@@ -250,9 +245,6 @@ abstract class FetchPhaseDocsIterator {
 
             if (bytesOwnershipTransferred == false) {
                 Releasables.closeWhileHandlingException(lastChunkBytes);
-                if (circuitBreaker != null && lastChunkByteSize > 0) {
-                    circuitBreaker.addWithoutBreaking(-lastChunkByteSize);
-                }
             }
         }
     }

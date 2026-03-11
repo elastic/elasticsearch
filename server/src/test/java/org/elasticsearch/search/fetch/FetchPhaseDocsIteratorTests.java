@@ -159,7 +159,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     public void testIterateAsyncNullOrEmptyDocIds() throws Exception {
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -177,7 +177,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             1024,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -197,7 +196,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncSingleDocument() throws Exception {
         LuceneDocs docs = createDocs(1);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -213,7 +212,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             1024,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -227,13 +225,12 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         assertThat(result.hits, nullValue());
         assertThat(result.lastChunkBytes, notNullValue());
         assertThat(result.lastChunkHitCount, equalTo(1));
-        assertThat(result.lastChunkByteSize, greaterThan(0L));
 
         // No intermediate chunks sent
         assertThat(chunkWriter.getSentChunks().size(), equalTo(0));
 
-        // Circuit breaker has the last chunk reserved
-        assertThat(circuitBreaker.getUsed(), equalTo(result.lastChunkByteSize));
+        // Pages for the last chunk are reserved on the CB
+        assertThat(circuitBreaker.getUsed(), greaterThan(0L));
 
         result.close();
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
@@ -245,7 +242,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncAllDocsInSingleChunk() throws Exception {
         LuceneDocs docs = createDocs(5);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -261,7 +258,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             1024 * 1024,  // Large chunk size
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -286,7 +282,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncMultipleChunks() throws Exception {
         LuceneDocs docs = createDocs(100);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -302,7 +298,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,  // Small chunk size to force multiple chunks
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -329,11 +324,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         int totalHits = chunkWriter.getSentChunks().stream().mapToInt(c -> c.hitCount).sum() + result.lastChunkHitCount;
         assertThat(totalHits, equalTo(100));
 
-        // Only last chunk's bytes should be reserved
-        assertThat(circuitBreaker.getUsed(), equalTo(result.lastChunkByteSize));
+        // Only last chunk's pages should remain reserved
+        assertThat(circuitBreaker.getUsed(), greaterThan(0L));
 
         result.close();
-        // Last chunk's bytes released after the listener (future for the test) is closed
         assertThat(circuitBreaker.getUsed(), equalTo(0L));
 
         docs.reader.close();
@@ -343,7 +337,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncCircuitBreakerTrips() throws Exception {
         LuceneDocs docs = createDocs(100);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker(100);
-        TestChunkWriter chunkWriter = new TestChunkWriter(true);
+        TestChunkWriter chunkWriter = new TestChunkWriter(true, circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -359,7 +353,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -382,7 +375,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncCancellationBeforeFetchStart() throws Exception {
         LuceneDocs docs = createDocs(100);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(true);  // Already cancelled
 
@@ -398,7 +391,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -422,7 +414,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncCancellationDuringDocProduction() throws Exception {
         LuceneDocs docs = createDocs(1000);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -453,7 +445,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -477,7 +468,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncDocProducerException() throws Exception {
         LuceneDocs docs = createDocs(100);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>();
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -509,7 +500,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -530,7 +520,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     public void testIterateAsyncPreExistingSendFailure() throws Exception {
         LuceneDocs docs = createDocs(100);
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
-        TestChunkWriter chunkWriter = new TestChunkWriter();
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker);
         AtomicReference<Throwable> sendFailure = new AtomicReference<>(new IOException("Pre-existing failure")); // Send Failure
         AtomicBoolean cancelled = new AtomicBoolean(false);
 
@@ -546,7 +536,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -570,7 +559,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         // Chunk writer that fails after first chunk
         AtomicInteger chunkCount = new AtomicInteger(0);
-        TestChunkWriter chunkWriter = new TestChunkWriter() {
+        TestChunkWriter chunkWriter = new TestChunkWriter(circuitBreaker) {
             @Override
             public void writeResponseChunk(FetchPhaseResponseChunk chunk, ActionListener<Void> listener) {
                 if (chunkCount.incrementAndGet() > 1) {
@@ -596,7 +585,6 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             50,
             refs,
             4,
-            circuitBreaker,
             sendFailure,
             cancelled::get,
             future
@@ -750,19 +738,20 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     private static class TestChunkWriter implements FetchPhaseResponseChunk.Writer {
 
-        // This is for testing, to track chunks sent over the network
         protected final List<SentChunkInfo> sentChunks = new CopyOnWriteArrayList<>();
         private final List<ActionListener<Void>> pendingAcks = new CopyOnWriteArrayList<>();
         private final boolean delayAcks;
+        private final CircuitBreaker circuitBreaker;
 
         private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
 
-        TestChunkWriter() {
-            this(false);
+        TestChunkWriter(CircuitBreaker circuitBreaker) {
+            this(false, circuitBreaker);
         }
 
-        TestChunkWriter(boolean delayAcks) {
+        TestChunkWriter(boolean delayAcks, CircuitBreaker circuitBreaker) {
             this.delayAcks = delayAcks;
+            this.circuitBreaker = circuitBreaker;
         }
 
         @Override
@@ -784,7 +773,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         @Override
         public RecyclerBytesStreamOutput newNetworkBytesStream() {
-            return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler));
+            return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler), circuitBreaker);
         }
 
         public List<SentChunkInfo> getSentChunks() {

@@ -423,7 +423,7 @@ public final class FetchPhase {
     /**
      * Streaming fetch: iterates documents and streams them in chunks to reduce peak memory usage.
      * Each chunk is sent via the writer and ACKed by the coordinator; backpressure is applied
-     * through circuit breakers and in-flight chunk limits.
+     * through page-level circuit breaker tracking in the network byte stream and in-flight chunk limits.
      */
     private void buildSearchHitsStreaming(
         SearchContext context,
@@ -437,7 +437,6 @@ public final class FetchPhase {
         final AtomicReference<ReleasableBytesReference> lastChunkBytesRef = new AtomicReference<>();
         final AtomicLong lastChunkHitCountRef = new AtomicLong(0);
         final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
-        final AtomicLong lastChunkByteSizeRef = new AtomicLong(0);
 
         final int targetChunkBytes = StreamingFetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
@@ -453,12 +452,10 @@ public final class FetchPhase {
                     context.fetchResult().setLastChunkSequenceStart(seqStart);
                 }
 
-                long lastSize = lastChunkByteSizeRef.getAndSet(0L);
                 long countLong = lastChunkHitCountRef.get();
                 if (lastChunkBytes != null && countLong > 0) {
                     int hitCount = Math.toIntExact(countLong);
                     context.fetchResult().setLastChunkBytes(lastChunkBytes, hitCount);
-                    context.circuitBreaker().addWithoutBreaking(-lastSize);
                     lastChunkBytes = null;
                 }
 
@@ -483,7 +480,6 @@ public final class FetchPhase {
             targetChunkBytes,
             chunkCompletionRefs,
             maxInFlightChunks,
-            context.circuitBreaker(),
             sendFailure,
             context::isCancelled,
             new ActionListener<>() {
@@ -499,7 +495,6 @@ public final class FetchPhase {
                             lastChunkBytesRef.set(result.takeLastChunkBytes());
                             lastChunkHitCountRef.set(result.lastChunkHitCount);
                             lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
-                            lastChunkByteSizeRef.set(result.lastChunkByteSize);
                         }
                     } catch (Exception e) {
                         onFailure(e);
@@ -513,11 +508,6 @@ public final class FetchPhase {
                 public void onFailure(Exception e) {
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
-
-                    long bytesSize = lastChunkByteSizeRef.getAndSet(0);
-                    if (bytesSize > 0) {
-                        context.circuitBreaker().addWithoutBreaking(-bytesSize);
-                    }
 
                     buildListener.onFailure(e);
                     mainBuildListener.onFailure(e);

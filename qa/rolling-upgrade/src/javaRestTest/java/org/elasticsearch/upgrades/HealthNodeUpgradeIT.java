@@ -10,8 +10,8 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
-import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +36,8 @@ public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     private void assertHealthNodeTaskAssigned() throws IOException {
-        ObjectPath response = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
-        List<?> tasks = response.evaluate("metadata.persistent_tasks.tasks");
+        final var response = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
+        final List<?> tasks = response.evaluate("metadata.persistent_tasks.tasks");
         assertThat("persistent tasks must exist", tasks, notNullValue());
         String executorNode = null;
         for (int i = 0; i < tasks.size(); i++) {

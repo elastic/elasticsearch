@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +59,7 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -110,6 +112,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -155,6 +158,7 @@ public class AuthorizationService {
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
 
+    private final Executor privilegeCheckExecutor;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
@@ -180,7 +184,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        Executor privilegeCheckExecutor
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -198,6 +203,7 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
+        this.privilegeCheckExecutor = privilegeCheckExecutor;
         this.rbacEngine = new RBACEngine(
             settings,
             rolesStore,
@@ -224,17 +230,18 @@ public class AuthorizationService {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         authorizationEngine.resolveAuthorizationInfo(
             subject,
-            wrapPreservingContext(
-                listener.delegateFailure(
-                    (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
-                        authorizationInfo,
-                        privilegesToCheck,
-                        applicationPrivilegeDescriptors,
-                        wrapPreservingContext(delegateListener, threadContext)
-                    )
-                ),
-                threadContext
-            )
+            wrapPreservingContext(listener.delegateFailure((delegateListener, authorizationInfo) -> {
+                final Executor executor = Transports.isTransportThread(Thread.currentThread())
+                    ? privilegeCheckExecutor
+                    : EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                authorizationEngine.checkPrivileges(
+                    authorizationInfo,
+                    privilegesToCheck,
+                    applicationPrivilegeDescriptors,
+                    executor,
+                    wrapPreservingContext(delegateListener, threadContext)
+                );
+            }), threadContext)
         );
     }
 

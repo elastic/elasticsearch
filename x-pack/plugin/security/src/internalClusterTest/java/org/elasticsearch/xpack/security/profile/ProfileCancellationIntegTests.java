@@ -56,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -442,6 +443,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     AuthorizationInfo authorizationInfo,
                     PrivilegesToCheck privilegesToCheck,
                     Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                    Executor privilegeCheckExecutor,
                     ActionListener<PrivilegesCheckResult> listener
                 ) {
                     try {

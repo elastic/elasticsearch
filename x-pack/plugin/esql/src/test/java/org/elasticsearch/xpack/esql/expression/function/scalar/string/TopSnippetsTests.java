@@ -277,7 +277,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         MapExpression optionsMap = createOptions(numSnippets, numWords);
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 new TopSnippets(
                     Source.EMPTY,
                     field("field", DataType.KEYWORD),

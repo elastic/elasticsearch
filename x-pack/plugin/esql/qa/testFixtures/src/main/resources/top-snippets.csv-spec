@@ -210,7 +210,7 @@ snippets:keyword
 ;
 
 topSnippetsWithFoldableConcatQuery
-required_capability: top_snippets_function
+required_capability: top_snippets_foldable_query_check
 
 FROM books
 | EVAL snippets = TOP_SNIPPETS(description, CONCAT("Tol", "kien"))

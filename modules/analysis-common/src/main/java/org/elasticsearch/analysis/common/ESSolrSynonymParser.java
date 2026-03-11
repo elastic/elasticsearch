@@ -65,7 +65,7 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
                 );
             }
 
-            if ((tokenCount & 0x1FFF) == 0) {
+            if (tokenCount == 1 || (tokenCount & 0x1FFF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 

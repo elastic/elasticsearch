@@ -387,6 +387,27 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    public void testRoundToLong() throws IOException {
+        long value = randomLongBetween(11, 99);
+        test(
+            justType("long"),
+            b -> b.field("test", value),
+            "| EVAL test = ROUND_TO(test, 0, 10, 100)",
+            matchesList().item(10),
+            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1)
+        );
+    }
+
+    public void testRoundToLongExactMatch() throws IOException {
+        test(
+            justType("long"),
+            b -> b.field("test", 100),
+            "| EVAL test = ROUND_TO(test, 0, 10, 100)",
+            matchesList().item(100),
+            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1)
+        );
+    }
+
     //
     // Tests without STATS at the end - check that node_reduce phase works correctly
     //

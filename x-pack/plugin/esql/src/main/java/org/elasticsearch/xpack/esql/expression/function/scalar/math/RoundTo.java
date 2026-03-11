@@ -12,7 +12,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,10 +28,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +52,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 /**
  * Round down to one of a list of values.
  */
-public class RoundTo extends EsqlScalarFunction {
+public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
 
     private final Expression field;
@@ -220,5 +226,40 @@ public class RoundTo extends EsqlScalarFunction {
                 .collect(java.util.stream.Collectors.toList());
             default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
         };
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (field instanceof FieldAttribute f) {
+            DataType dt = dataType();
+            if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
+                return null;
+            }
+            long[] sortedPoints = sortedLongPoints();
+            if (sortedPoints == null) {
+                return null;
+            }
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
+        }
+        return null;
+    }
+
+    private long[] sortedLongPoints() {
+        long[] result = new long[points.size()];
+        int count = 0;
+        for (Expression p : points) {
+            if (p instanceof Literal lit) {
+                Object value = lit.value();
+                if (value == null) {
+                    continue;
+                }
+                result[count++] = DataTypeConverter.safeToLong((Number) value);
+            } else {
+                return null;
+            }
+        }
+        long[] trimmed = count == result.length ? result : Arrays.copyOf(result, count);
+        Arrays.sort(trimmed);
+        return trimmed;
     }
 }

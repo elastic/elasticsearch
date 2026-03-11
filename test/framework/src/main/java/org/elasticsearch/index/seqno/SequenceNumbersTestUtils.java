@@ -97,6 +97,55 @@ public final class SequenceNumbersTestUtils {
     }
 
     /**
+     * Asserts that the total number of {@code _seq_no} doc values across all shards of the given index equals the expected count.
+     *
+     * @param cluster         the cluster to check
+     * @param indexName       the index to check
+     * @param expectedCount   the expected total number of doc values per shard
+     * @param expectedShards  the exact number of shards expected to be verified
+     */
+    public static void assertShardsSeqNoDocValuesCount(
+        InternalTestCluster cluster,
+        String indexName,
+        long expectedCount,
+        int expectedShards
+    ) {
+        int checked = 0;
+        for (IndicesService indicesService : cluster.getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesService) {
+                if (indexService.index().getName().equals(indexName)) {
+                    for (var indexShard : indexService) {
+                        Long count = indexShard.withEngineOrNull(engine -> {
+                            if (engine == null) {
+                                return null;
+                            }
+                            try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
+                                long total = 0;
+                                for (var leaf : searcher.getLeafContexts()) {
+                                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                                    if (seqNoDV != null) {
+                                        while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                            total++;
+                                        }
+                                    }
+                                }
+                                return total;
+                            } catch (IOException e) {
+                                throw new AssertionError(e);
+                            }
+                        });
+                        if (count != null) {
+                            assertThat("retained seq_no doc values count", count, equalTo(expectedCount));
+                            checked++;
+                        }
+                    }
+                }
+            }
+        }
+        assertThat("expected to verify " + expectedShards + " shard(s)", checked, equalTo(expectedShards));
+    }
+
+    /**
      * Waits until all retention leases on all shards of the given index have their retaining sequence number
      * equal to the expected value.
      *

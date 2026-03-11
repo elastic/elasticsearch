@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
@@ -20,14 +18,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseUtils;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,6 +31,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsSeqNoDocValuesCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -219,7 +216,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         assertShardsHaveSeqNoDocValues(getLeaderCluster(), leaderIndex, true, numberOfShards);
 
         final long expectedRetainedDocs = newMaxSeqNo + 1 - leaseSeqNoBeforePause;
-        assertLeaderShardsRetainedSeqNoDocValuesCount(leaderIndex, expectedRetainedDocs, numberOfShards);
+        assertShardsSeqNoDocValuesCount(getLeaderCluster(), leaderIndex, expectedRetainedDocs, numberOfShards);
 
         followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow(followerIndex)).actionGet();
         assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
@@ -261,39 +258,4 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         return client.admin().indices().prepareStats(index).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
     }
 
-    private void assertLeaderShardsRetainedSeqNoDocValuesCount(String indexName, long expectedCount, int expectedShards) {
-        int checked = 0;
-        for (IndicesService indicesService : getLeaderCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesService) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (var indexShard : indexService) {
-                        Long count = indexShard.withEngineOrNull(engine -> {
-                            if (engine == null) {
-                                return null;
-                            }
-                            try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
-                                long total = 0;
-                                for (var leaf : searcher.getLeafContexts()) {
-                                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                                    if (seqNoDV != null) {
-                                        while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                            total++;
-                                        }
-                                    }
-                                }
-                                return total;
-                            } catch (IOException e) {
-                                throw new AssertionError(e);
-                            }
-                        });
-                        if (count != null) {
-                            assertThat("retained seq_no doc values count", count, equalTo(expectedCount));
-                            checked++;
-                        }
-                    }
-                }
-            }
-        }
-        assertThat("expected to verify " + expectedShards + " shard(s)", checked, equalTo(expectedShards));
-    }
 }

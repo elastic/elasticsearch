@@ -69,10 +69,10 @@ public class SystemInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(ProcessBuilder.class, rule -> {
-            rule.calling(ProcessBuilder::start).enforce(Policies::startProcess).elseThrow(e -> new IOException(e));
+            rule.calling(ProcessBuilder::start).enforce(Policies::startProcess).elseThrow(IOException::new);
             rule.callingStatic(ProcessBuilder::startPipeline, new TypeToken<List<ProcessBuilder>>() {})
                 .enforce(Policies::startProcess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(Jlink.class, rule -> { rule.protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled(); });

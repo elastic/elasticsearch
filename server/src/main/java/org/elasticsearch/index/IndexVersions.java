@@ -228,6 +228,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_075_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion UPGRADE_DISKBBQ_ES940 = def(9_076_00_0, Version.LUCENE_10_4_0);
 
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_0 = def(9_200_00_0, Version.LUCENE_10_5_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

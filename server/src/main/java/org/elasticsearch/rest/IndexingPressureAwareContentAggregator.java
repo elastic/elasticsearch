@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexingPressure;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * Accumulates a streamed HTTP request body while tracking memory usage via {@link IndexingPressure}.
@@ -99,7 +100,7 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         this.coordinating = coordinating;
         this.maxRequestSize = maxRequestSize;
         this.completionHandler = completionHandler;
-        this.bodyPostProcessor = bodyPostProcessor;
+        this.bodyPostProcessor = Objects.requireNonNull(bodyPostProcessor);
     }
 
     @Override

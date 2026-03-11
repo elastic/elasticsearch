@@ -251,7 +251,7 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
     }
 
     private void initAggregator(long maxSize) {
-        initAggregator(maxSize, null);
+        initAggregator(maxSize, IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP);
     }
 
     private void initAggregator(long maxSize, IndexingPressureAwareContentAggregator.BodyPostProcessor postProcessor) {

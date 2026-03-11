@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:approximation.Approximate stats with stats where}
   issue: https://github.com/elastic/elasticsearch/issues/144051
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/144066
 
 # Examples:
 #

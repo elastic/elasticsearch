@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
@@ -268,6 +269,9 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
+        }
+        if (parser.currentToken().isValue() == false) {
+            throw new DocumentParsingException(parser.getTokenLocation(), "Expected a value, but got [" + parser.currentToken() + "]");
         }
         if (context.doc().getField(fieldType().name()) != null) {
             throw new IllegalArgumentException(

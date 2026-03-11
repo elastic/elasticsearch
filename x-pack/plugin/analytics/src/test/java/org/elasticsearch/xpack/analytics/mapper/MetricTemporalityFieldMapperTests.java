@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +76,7 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForQuery() {
-        return randomBoolean() ? "DELTA" : "CUMULATIVE";
+        return getSampleValueForDocument();
     }
 
     @Override
@@ -100,9 +101,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
             ),
             exampleMalformedValue(b -> b.value(123)).errorMatches(
                 "Failed to parse object: expecting token of type [VALUE_STRING] but found [VALUE_NUMBER]"
-            ),
-            exampleMalformedValue(b -> b.startObject().field("foo", 42).endObject()).errorMatches(
-                "Failed to parse object: expecting token of type [VALUE_STRING] but found [START_OBJECT]"
             )
         );
     }
@@ -118,7 +116,7 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxValues) throws IOException {
                 String input = randomCaseTemporality();
-                String canonical = input.toLowerCase();
+                String canonical = input.toLowerCase(Locale.ENGLISH);
                 return new SyntheticSourceExample(input, canonical, this::mapping);
             }
 
@@ -266,6 +264,16 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertThat(e.getCause().getMessage(), containsString("doesn't support indexing multiple values for the same field"));
+    }
+
+    public void testRejectsObjectValues() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field("foo", "bar");
+            b.endObject();
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Expected a value, but got [START_OBJECT]"));
     }
 
     public void testRejectsArrayValuesWhenIgnoreMalformedIsTrue() throws IOException {

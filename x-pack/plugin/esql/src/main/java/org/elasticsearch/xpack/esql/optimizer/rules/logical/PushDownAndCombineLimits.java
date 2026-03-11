@@ -79,10 +79,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // To avoid repeating this infinitely, we have to set duplicated = true.
                 return duplicateLimitAsFirstGrandchild(limit, false);
             } else if (unary instanceof Enrich enrich) {
+                if (groupingsReferenceAttributeDefinedByChild(limit, enrich)) {
+                    return limit;
+                }
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
                     return duplicateLimitAsFirstGrandchild(limit, true);
                 } else {
-                    // We can push past local enrich because it does not increase the number of rows
                     return enrich.replaceChild(limit.replaceChild(enrich.child()));
                 }
             }
@@ -109,7 +111,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // And the verifier checks that there are no non-synthetic limits before the join.
             // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
             return duplicateLimitAsFirstGrandchild(limit, false);
-        } else if (limit.child() instanceof Fork fork) {
+        } else if (limit.child() instanceof Fork fork && limit.groupings().isEmpty()) {
             return maybePushDownLimitToFork(limit, fork, ctx);
         }
         return limit;

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -370,7 +370,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
-            return ConstantExpressions.CONSTANT_NULL_FACTORY;
+            return ConstantEvaluators.CONSTANT_NULL_FACTORY;
         }
         throw EsqlIllegalArgumentException.illegalDataType(commonType);
     }

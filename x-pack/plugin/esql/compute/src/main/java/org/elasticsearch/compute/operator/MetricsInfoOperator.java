@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -411,10 +412,17 @@ public class MetricsInfoOperator implements Operator {
      * If the name matches the standard format produced by
      * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
      * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     * <p>
+     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
+     * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
     static String resolveDataStreamName(String indexName) {
-        Matcher m = BACKING_INDEX_PATTERN.matcher(indexName);
-        return m.matches() ? m.group(1) : indexName;
+        String[] split = RemoteClusterAware.splitIndexName(indexName);
+        String clusterAlias = split[0];
+        String localName = split[1];
+        Matcher m = BACKING_INDEX_PATTERN.matcher(localName);
+        String resolved = m.matches() ? m.group(1) : localName;
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {

@@ -60,6 +60,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -3403,6 +3405,120 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         changeSourceShardStateAttempts.await();
 
         waitForReshardCompletion(indexName);
+    }
+
+    public void testSourceSearchShardNotAwareOfSplit() throws InterruptedException {
+        String masterNode = startMasterOnlyNode(Settings.builder().put("cluster.publish.timeout", TimeValue.timeValueMillis(100)).build());
+        startIndexNodes(2);
+        startSearchNodes(2);
+        ensureStableCluster(5);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        Index index = resolveIndex(indexName);
+
+        checkNumberOfShardsSetting(masterNode, indexName, 1);
+
+        var sourceSearchShardNode = clusterService().state()
+            .nodes()
+            .getNodes()
+            .get(findSearchShard(index, 0).routingEntry().currentNodeId())
+            .getName();
+        var sourceIndexShardNode = clusterService().state()
+            .nodes()
+            .getNodes()
+            .get(findIndexShard(index, 0).routingEntry().currentNodeId())
+            .getName();
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        var splitAttempted = new CountDownLatch(1);
+        var splitBlocked = new CountDownLatch(1);
+        // Shard 1 doesn't exist yet so we have to do this based on nodes.
+        var targetIndexShardNode = clusterService().state()
+            .nodes()
+            .getAllNodes()
+            .stream()
+            .filter(node -> node.getName().equals(sourceIndexShardNode) == false && node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()))
+            .map(DiscoveryNode::getName)
+            .findFirst()
+            .get();
+        var targetIndexShardNodeTransportService = MockTransportService.getInstance(targetIndexShardNode);
+        targetIndexShardNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    try {
+                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                            splitAttempted.countDown();
+                            splitBlocked.await();
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait for HANDOFF to complete normally and then start delaying cluster state updates on one node.
+        splitAttempted.await();
+
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(6);
+
+        var clusterStateApplicationBlock = new CountDownLatch(1);
+        var sourceSearchShardNodeTransportService = MockTransportService.getInstance(sourceSearchShardNode);
+        sourceSearchShardNodeTransportService.addRequestHandlingBehavior(
+            PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+            (handler, req, channel, task) -> {
+                clusterStateApplicationBlock.await();
+                handler.messageReceived(req, channel, task);
+            }
+        );
+
+        try {
+            // Unblock application of SPLIT state - it will not succeed because we are waiting for an ack from all nodes.
+            // But it will be applied on the coordinator.
+            splitBlocked.countDown();
+
+            awaitClusterState(
+                coordinator,
+                state -> state.metadata()
+                    .lookupProject(index)
+                    .map(p -> p.index(index))
+                    .get()
+                    .getReshardingMetadata()
+                    .getSplit()
+                    .getTargetShardState(1)
+                    .equals(IndexReshardingState.Split.TargetShardState.SPLIT)
+            );
+
+            // At this point coordinator is aware of SPLIT target state and will produce current shard count summary.
+            // However, the source search shard is not aware of SPLIT target state.
+            // We should still apply correct search filters here.
+            assertResponse(prepareSearchAll(client(coordinator), indexName), r -> {
+                var ids = Arrays.stream(r.getHits().getHits()).map(h -> h.getId()).collect(Collectors.toSet());
+                assertEquals(r.getHits().getHits().length, ids.size());
+            });
+        } finally {
+            // Unblock stuck node to receive the update.
+            clusterStateApplicationBlock.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
     }
 
     @Override

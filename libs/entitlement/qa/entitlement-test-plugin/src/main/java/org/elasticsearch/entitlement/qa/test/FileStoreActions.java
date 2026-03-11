@@ -59,7 +59,7 @@ class FileStoreActions {
         fileStore().getUsableSpace();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedDefaultIfDenied = "true")
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedDefaultIfDenied = "true", expectedDefaultType = boolean.class)
     static boolean checkIsReadOnly() throws IOException {
         return fileStore().isReadOnly();
     }

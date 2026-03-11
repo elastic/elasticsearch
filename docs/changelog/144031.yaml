@@ -1,4 +1,4 @@
-area: "ES|QL, TSDB, ES|QL"
+area: ES|QL
 issues:
  - 144024
 pr: 144031

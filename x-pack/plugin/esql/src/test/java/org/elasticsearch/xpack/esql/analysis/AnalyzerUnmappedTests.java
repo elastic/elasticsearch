@@ -3337,7 +3337,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL entity.id = "foo"
             | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
             """;
-        var plan = analyzeStatement(load? setUnmappedLoad(query) : setUnmappedNullify(query));
+        var plan = analyzeStatement(load ? setUnmappedLoad(query) : setUnmappedNullify(query));
 
         var limit = as(plan, Limit.class);
 

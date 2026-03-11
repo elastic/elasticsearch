@@ -718,9 +718,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (cols == null) {
             return null;
         }
-        return cols.stream()
-            .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
-            .toList();
+        return cols.stream().map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x))).toList();
     }
 
     @SuppressWarnings("unchecked")

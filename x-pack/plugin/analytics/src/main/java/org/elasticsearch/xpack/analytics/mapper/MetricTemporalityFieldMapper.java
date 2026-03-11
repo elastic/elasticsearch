@@ -175,14 +175,6 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        //TODO: is this needed
-        /*
-        @Override
-        public String familyTypeName() {
-            return KeywordFieldMapper.CONTENT_TYPE;
-        }
-        */
-
         @Override
         public boolean isDimension() {
             return true;

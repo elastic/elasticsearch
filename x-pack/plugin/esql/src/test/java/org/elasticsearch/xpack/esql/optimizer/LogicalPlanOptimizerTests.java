@@ -10508,4 +10508,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(innerTopN.child(), EsRelation.class);
     }
 
+    /**
+     * A foldable eval alias used in LIMIT BY should be propagated by {@code PropagateEvalFoldables}
+     * and then pruned by {@code PruneLiteralsInLimitBy}, degenerating the LIMIT BY into a plain LIMIT.
+     * The two plain limits are then combined. The Eval remains because {@code x} is still in the output.
+     * <pre>{@code
+     * Eval[[5[INTEGER] AS x]]
+     * \_Limit[1[INTEGER],[],false,false]
+     *   \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testLimitByFoldableEvalAlias() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5
+            | LIMIT 1 BY x
+            """);
+
+        var eval = as(plan, Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings(), empty());
+        as(limit.child(), EsRelation.class);
+    }
+
 }

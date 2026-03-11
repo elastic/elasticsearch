@@ -50,8 +50,8 @@ class JvmActions {
         System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String setDefaultLocale() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void setDefaultLocale() {
         Locale original = Locale.getDefault();
         Locale target = original.equals(Locale.CANADA_FRENCH) ? Locale.GERMAN : Locale.CANADA_FRENCH;
         Locale.setDefault(target);
@@ -59,11 +59,11 @@ class JvmActions {
         if (unchanged == false) {
             Locale.setDefault(original);
         }
-        return String.valueOf(unchanged);
+        assert unchanged : "Locale.setDefault should have been a no-op when denied";
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String setDefaultLocaleForCategory() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static void setDefaultLocaleForCategory() {
         Locale original = Locale.getDefault(Locale.Category.DISPLAY);
         Locale target = original.equals(Locale.CANADA_FRENCH) ? Locale.GERMAN : Locale.CANADA_FRENCH;
         Locale.setDefault(Locale.Category.DISPLAY, target);
@@ -71,7 +71,7 @@ class JvmActions {
         if (unchanged == false) {
             Locale.setDefault(Locale.Category.DISPLAY, original);
         }
-        return String.valueOf(unchanged);
+        assert unchanged : "Locale.setDefault for category should have been a no-op when denied";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

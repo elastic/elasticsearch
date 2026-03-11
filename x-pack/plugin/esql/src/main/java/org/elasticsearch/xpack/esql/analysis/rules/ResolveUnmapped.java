@@ -363,9 +363,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
                 && aliasedGroupings.contains(ua.name()) == false
-                // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
-                // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
-                // ResolveRefs will wire them up in the next iteration of the resolution batch.
+            // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
+            // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
+            // ResolveRefs will wire them up in the next iteration of the resolution batch.
                 && childOutputNames.contains(ua.name()) == false) {
                 unresolved.putIfAbsent(ua.name(), ua);
             }

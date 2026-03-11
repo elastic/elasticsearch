@@ -63,8 +63,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         super(state, getFormatReader);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, PREFETCH_DEPTH);
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth) throws IOException {
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, depth);
     }
 
     static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
@@ -168,7 +168,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        int docBits = ((NextFieldEntry) fieldEntry).quantEncoding.bits();
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, depthFromBudget(visitRatio, docBits));
+    }
+
+    private int depthFromBudget(float visitRatio, int docBits) {
+        if (visitRatio >= 0.75f || docBits >= 4) {
+            return 1;
+        } else if (visitRatio >= 0.5f && docBits <= 2) {
+            return 2;
+        } else if (visitRatio >= 0.25f && docBits <= 2) {
+            return 3;
+        } else {
+            return PREFETCH_DEPTH;
+        }
     }
 
     @Override

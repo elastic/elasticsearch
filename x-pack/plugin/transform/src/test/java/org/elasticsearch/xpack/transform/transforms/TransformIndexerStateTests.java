@@ -840,7 +840,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                () -> false
+                projectId -> false
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1060,7 +1060,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            () -> false
+            projectId -> false
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1097,7 +1097,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            () -> false
+            projectId -> false
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

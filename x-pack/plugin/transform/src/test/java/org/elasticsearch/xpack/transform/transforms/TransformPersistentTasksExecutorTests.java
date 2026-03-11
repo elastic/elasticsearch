@@ -673,7 +673,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             scheduler,
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            () -> false
+            projectId -> false
         );
     }
 

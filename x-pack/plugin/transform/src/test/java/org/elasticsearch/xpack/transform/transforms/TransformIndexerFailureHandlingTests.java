@@ -149,7 +149,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
-                    () -> false
+                    projectId -> false
                 ),
                 checkpointProvider,
                 initialState,

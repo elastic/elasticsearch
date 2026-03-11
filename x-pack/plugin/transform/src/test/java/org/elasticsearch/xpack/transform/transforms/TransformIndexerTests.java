@@ -739,7 +739,7 @@ public class TransformIndexerTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            () -> false
+            projectId -> false
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

@@ -224,7 +224,7 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            () -> false
+            projectId -> false
         );
     }
 

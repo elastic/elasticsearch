@@ -315,7 +315,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 scheduler,
                 transformNode,
                 new CrossProjectModeDecider(settings),
-                () -> false
+                projectId -> false
             )
         );
 

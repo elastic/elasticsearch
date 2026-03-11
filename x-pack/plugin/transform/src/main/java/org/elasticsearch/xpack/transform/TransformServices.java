@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -14,7 +15,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Holder for all transform services that need to get injected via guice.
@@ -29,7 +30,7 @@ public record TransformServices(
     TransformScheduler scheduler,
     TransformNode transformNode,
     CrossProjectModeDecider crossProjectModeDecider,
-    Supplier<Boolean> hasLinkedProjects
+    Function<ProjectId, Boolean> hasLinkedProjects
 ) {
     public TransformServices {
         Objects.requireNonNull(configManager);

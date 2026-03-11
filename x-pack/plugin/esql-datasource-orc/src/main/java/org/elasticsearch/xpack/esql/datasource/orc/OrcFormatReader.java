@@ -15,9 +15,13 @@ import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.orc.ColumnStatistics;
+import org.apache.orc.DoubleColumnStatistics;
+import org.apache.orc.IntegerColumnStatistics;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.RecordReader;
+import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TypeDescription;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -44,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * {@link FormatReader} implementation for Apache ORC files.
@@ -71,18 +78,98 @@ public class OrcFormatReader implements FormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        List<Attribute> schema = readSchema(object);
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
-    }
-
-    private static List<Attribute> readSchema(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
         OrcFile.ReaderOptions options = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
         try (Reader reader = OrcFile.createReader(path, options)) {
             TypeDescription schema = reader.getSchema();
-            return convertOrcSchemaToAttributes(schema);
+            List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
+            SourceStatistics statistics = extractStatistics(reader, schema);
+            return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
         }
+    }
+
+    private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
+        long rowCount = reader.getNumberOfRows();
+        long sizeInBytes = reader.getContentLength();
+        ColumnStatistics[] orcStats = reader.getStatistics();
+        List<String> fieldNames = schema.getFieldNames();
+        List<TypeDescription> children = schema.getChildren();
+
+        Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            String name = fieldNames.get(i);
+            int colId = children.get(i).getId();
+            if (colId >= orcStats.length) {
+                continue;
+            }
+            ColumnStatistics cs = orcStats[colId];
+            long totalValues = cs.getNumberOfValues();
+            long nullCount = rowCount - totalValues;
+            Object minVal = extractOrcMin(cs);
+            Object maxVal = extractOrcMax(cs);
+
+            columnStats.put(name, new SourceStatistics.ColumnStatistics() {
+                @Override
+                public OptionalLong nullCount() {
+                    return OptionalLong.of(nullCount);
+                }
+
+                @Override
+                public OptionalLong distinctCount() {
+                    return OptionalLong.empty();
+                }
+
+                @Override
+                public Optional<Object> minValue() {
+                    return Optional.ofNullable(minVal);
+                }
+
+                @Override
+                public Optional<Object> maxValue() {
+                    return Optional.ofNullable(maxVal);
+                }
+            });
+        }
+
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(sizeInBytes);
+            }
+
+            @Override
+            public Optional<Map<String, SourceStatistics.ColumnStatistics>> columnStatistics() {
+                return columnStats.isEmpty() ? Optional.empty() : Optional.of(columnStats);
+            }
+        };
+    }
+
+    private static Object extractOrcMin(ColumnStatistics cs) {
+        if (cs instanceof IntegerColumnStatistics intStats) {
+            return intStats.getMinimum();
+        } else if (cs instanceof DoubleColumnStatistics dblStats) {
+            return dblStats.getMinimum();
+        } else if (cs instanceof StringColumnStatistics strStats) {
+            return strStats.getMinimum();
+        }
+        return null;
+    }
+
+    private static Object extractOrcMax(ColumnStatistics cs) {
+        if (cs instanceof IntegerColumnStatistics intStats) {
+            return intStats.getMaximum();
+        } else if (cs instanceof DoubleColumnStatistics dblStats) {
+            return dblStats.getMaximum();
+        } else if (cs instanceof StringColumnStatistics strStats) {
+            return strStats.getMaximum();
+        }
+        return null;
     }
 
     @Override

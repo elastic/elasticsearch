@@ -62,8 +62,11 @@ import static org.hamcrest.Matchers.containsString;
 public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
 
     @After
-    public void resetSearchInterceptor() {
+    public void cleanupInterceptors() {
         SearchInterceptorPlugin.searchRequestConsumer.set(null);
+        for (var transportService : internalCluster().getInstances(MockTransportService.class)) {
+            transportService.clearAllRules();
+        }
     }
 
     @Override
@@ -182,10 +185,14 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         refresh("test-index-*");
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
-            "test-index-1",
-            seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
-        );
+        List<CountDownLatch> bulkLatches = new ArrayList<>();
+        for (String index : List.of("test-index-1", "test-index-2")) {
+            CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
+                index,
+                seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
+            );
+            bulkLatches.add(bulkLatch);
+        }
         var updateByQuery = updateByQuery().source("test-index-*");
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
@@ -193,7 +200,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         BulkByScrollResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(2));
         safeAwait(searchLatch);
-        safeAwait(bulkLatch);
+        bulkLatches.forEach(ESTestCase::safeAwait);
     }
 
     public void testDataStreamWithSeqNoDisabledOnAllBackingIndices() throws Exception {

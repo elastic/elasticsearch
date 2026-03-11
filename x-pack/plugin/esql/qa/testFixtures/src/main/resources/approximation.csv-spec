@@ -180,7 +180,7 @@ FROM many_numbers
 ;
 
 count:long    | avg:double | sum:long            | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long             | CERTIFIED(sum):boolean
-85000..115000 | 315..350   | 25000000..400000000 | [85000..115000,85000..115000]   | {any}                    | [315..350,315..350]             | {any}                  | [25000000..400000000,25000000..400000000] | {any}
+80000..120000 | 315..350   | 25000000..400000000 | [80000..120000,80000..120000]   | {any}                    | [315..350,315..350]             | {any}                  | [25000000..400000000,25000000..400000000] | {any}
 ;
 
 

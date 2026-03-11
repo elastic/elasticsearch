@@ -196,7 +196,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValues;
-        private final boolean isLegacyIndex;
+        private final boolean isLegacyIndexWithRootValues;
         private final boolean forceStoreRootDocValues;
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
@@ -214,7 +214,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
          * setting {@link IndexSettings#STORE_FLATTENED_ROOT_DOC_VALUES} is enabled.
          */
         private boolean hasRootDocValues() {
-            return isLegacyIndex || indexed.get() || forceStoreRootDocValues;
+            return isLegacyIndexWithRootValues || indexed.get() || forceStoreRootDocValues;
         }
 
         public Builder(final String name) {
@@ -247,7 +247,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexVersion indexCreatedVersion,
             boolean usesBinaryDocValues,
-            boolean isLegacyIndex,
+            boolean isLegacyIndexWithRootValues,
             boolean forceStoreRootDocValues
         ) {
             super(name);
@@ -257,7 +257,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
             this.usesBinaryDocValues = usesBinaryDocValues;
-            this.isLegacyIndex = isLegacyIndex;
+            this.isLegacyIndexWithRootValues = isLegacyIndexWithRootValues;
             this.forceStoreRootDocValues = forceStoreRootDocValues;
         }
 
@@ -1214,7 +1214,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.indexMode,
             builder.indexCreatedVersion,
             builder.usesBinaryDocValues,
-            builder.isLegacyIndex,
+            builder.isLegacyIndexWithRootValues,
             builder.forceStoreRootDocValues
         ).init(this);
     }

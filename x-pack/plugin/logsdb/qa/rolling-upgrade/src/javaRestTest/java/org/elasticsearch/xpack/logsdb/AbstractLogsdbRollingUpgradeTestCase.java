@@ -81,10 +81,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             try {
                 initClient();
                 onNodeUpgradeComplete.accept(count[0]++);
+                closeClients();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
+        initClient();
     }
 
     protected ElasticsearchCluster getCluster() {

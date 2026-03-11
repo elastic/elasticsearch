@@ -741,6 +741,7 @@ public final class EsqlTestUtils {
     public static Eval assertEvalFields(Eval eval, String[] names, Object[] values) {
         var fields = eval.fields();
         Assert.assertEquals(names.length, fields.size());
+        Assert.assertEquals(names.length, values.length);
         for (int i = 0; i < names.length; i++) {
             assertThat(fields.get(i).name(), equalTo(names[i]));
             assertThat(as(fields.get(i).child(), Literal.class).value(), equalTo(values[i]));

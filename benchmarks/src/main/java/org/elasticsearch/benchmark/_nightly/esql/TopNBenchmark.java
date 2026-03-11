@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -227,7 +228,7 @@ public class TopNBenchmark {
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 1).boxed()).forEach(i -> builder.appendBoolean(i == 1));
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 2).boxed()).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
@@ -265,11 +266,15 @@ public class TopNBenchmark {
             }
             operator.finish();
             List<Page> results = new ArrayList<>();
-            Page p;
-            while ((p = operator.getOutput()) != null) {
-                results.add(p);
+            try {
+                Page p;
+                while ((p = operator.getOutput()) != null) {
+                    results.add(p);
+                }
+                checkExpected(topCount, results);
+            } finally {
+                Releasables.close(results);
             }
-            checkExpected(topCount, results);
         }
     }
 }

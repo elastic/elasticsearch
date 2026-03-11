@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.core.Releasables;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -236,7 +237,7 @@ public class GroupedTopNBenchmark {
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                new Random().ints(BLOCK_LENGTH, 0, 1).forEach(i -> builder.appendBoolean(i == 1));
+                new Random().ints(BLOCK_LENGTH, 0, 2).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
@@ -287,11 +288,15 @@ public class GroupedTopNBenchmark {
             }
             operator.finish();
             List<Page> results = new ArrayList<>();
-            Page p;
-            while ((p = operator.getOutput()) != null) {
-                results.add(p);
+            try {
+                Page p;
+                while ((p = operator.getOutput()) != null) {
+                    results.add(p);
+                }
+                checkExpected(topCount, groupCount, numPages, results);
+            } finally {
+                Releasables.close(results);
             }
-            checkExpected(topCount, groupCount, numPages, results);
         }
     }
 }

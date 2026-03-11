@@ -3144,7 +3144,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL nanos = MV_MIN(nanos)
             """;
         boolean useNullify = randomBoolean();
-        var plan = analyzeStatement(useNullify? setUnmappedNullify(query) : setUnmappedLoad(query));
+        var plan = analyzeStatement(useNullify ? setUnmappedNullify(query) : setUnmappedLoad(query));
 
         var limit = asLimit(plan, 1000);
         var eval = as(limit.child(), Eval.class);

@@ -1302,10 +1302,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         String indexName = randomIndexName();
 
-        // Don't set IndexSettings.SYNTHETIC_ID
+        // Don't set IndexSettings.SYNTHETIC_ID to test default behavior.
+        // Use default codec so the SYNTHETIC_ID default is true
+        // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC);
         final var mapping = """
             {
                 "properties": {

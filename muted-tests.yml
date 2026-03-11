@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:approximation.Exact total single-valued field count}
   issue: https://github.com/elastic/elasticsearch/issues/144014
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144022
 
 # Examples:
 #

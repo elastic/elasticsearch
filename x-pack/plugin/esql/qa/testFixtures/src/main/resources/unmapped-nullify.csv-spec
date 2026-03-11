@@ -313,6 +313,57 @@ s:long | bar:null
 0      | null
 ;
 
+statsByMissing
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS c = COUNT(*) BY does_not_exist
+;
+
+c:long         |does_not_exist:null
+4              |null
+;
+
+statsGroupAliasShadowingSourceColumnNoFilter
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS c = COUNT(*) BY language_code = does_not_exist
+;
+
+c:long         |language_code:null
+4              |null
+;
+
+statsGroupAliasShadowingSourceColumnWithFilter
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) BY language_code = does_not_exist, language_name
+;
+
+c:long         |language_code:null |language_name :keyword
+1              |null               |English
+;
+
+statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| WHERE language_code == 1
+| STATS c = COUNT(*) + COALESCE(language_code, 0)
+        BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
+;
+
+c:long         |language_code:integer |language_name :keyword
+1              |null                  |English
+;
+
 inlinestatsSum
 required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
@@ -379,6 +430,7 @@ x:integer | foo:null
 
 mvExpand
 required_capability: optional_fields_nullify_tech_preview
+
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | MV_EXPAND foo
@@ -386,6 +438,21 @@ ROW x = 1
 
 x:integer | foo:null
 1         | null
+;
+
+mvExpandMissing
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL does_not_exist = does_not_exist2
+| MV_EXPAND does_not_exist
+| KEEP does_not_exist*
+| STATS COUNT(*)
+;
+
+COUNT(*):long
+100
 ;
 
 # TODO. FROMx: this fails in parsing with just FROM even if -Ignore'd(!), in bwc tests only(!)
@@ -481,6 +548,22 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 1              |null                |null                  |null
 ;
 
+// https://github.com/elastic/elasticsearch/issues/141978
+lookupJoinWithMissingAttributeInKeep
+required_capability: optional_fields_nullify_skip_group_aliases
+required_capability: join_lookup_v12
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, foobar
+| WHERE language_code == 1
+;
+
+language_code:integer | language_name:keyword | foobar:null
+1                     | English               | null
+;
+
 enrich
 required_capability: optional_fields_nullify_tech_preview
 required_capability: enrich_load
@@ -494,6 +577,7 @@ ROW x = 1
 x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;
+
 
 kqlWithUnmappedField
 required_capability: optional_fields_nullify_tech_preview
@@ -537,4 +621,47 @@ book_no:keyword | author:text                                        | does_not_
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
 2713            | William Faulkner                                   | null                      | null
 2847            | Colleen Faulkner                                   | null                      | null
+;
+
+tsImplicitTimestampSortBasicWithMissing
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+TS k8s | WHERE cluster == "qa" | KEEP @timestamp, cluster, pod, does_not_exist | LIMIT 5
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | does_not_exist:null
+2024-05-10T00:22:59.000Z | qa              | one         | null
+2024-05-10T00:22:54.000Z | qa              | three       | null
+2024-05-10T00:21:56.000Z | qa              | one         | null
+2024-05-10T00:21:26.000Z | qa              | one         | null
+2024-05-10T00:20:46.000Z | qa              | two         | null
+;
+
+tsWithAggsAndMissing
+required_capability: ts_command_v0
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+TS "k8s" | STATS max_bytes=max(to_long(does_not_exist)) BY cluster | SORT cluster ASC
+;
+
+max_bytes:long | cluster: keyword
+null           | prod
+null           | qa
+null           | staging
+;
+
+tsWithAggsByMissing
+required_capability: ts_command_v0
+required_capability: optional_fields_nullify_skip_group_aliases
+
+SET unmapped_fields="nullify"\;
+TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = does_not_exist
+;
+
+max_bytes:long | cluster:null
+10797          | null
 ;

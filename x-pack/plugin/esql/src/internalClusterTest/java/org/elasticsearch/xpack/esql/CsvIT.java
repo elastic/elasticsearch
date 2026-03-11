@@ -277,6 +277,11 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+        }
+
+        @Override
         public Collection<ActionFilter> getActionFilters() {
             return List.of(new ActionFilter.Simple() {
                 @Override

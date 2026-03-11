@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 143883
+summary: Ensure DLM only runs one general loop at a time
+type: enhancement

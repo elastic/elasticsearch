@@ -14,25 +14,25 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Chicken}.
+ * {@link ExpressionEvaluator} implementation for {@link Chicken}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ChickenEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChickenEvaluator.class);
 
   private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
-  private final EvalOperator.ExpressionEvaluator message;
+  private final ExpressionEvaluator message;
 
   private final ChickenArtBuilder chickenStyle;
 
@@ -43,7 +43,7 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
   private Warnings warnings;
 
   public ChickenEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator message, ChickenArtBuilder chickenStyle, int width,
+      ExpressionEvaluator message, ChickenArtBuilder chickenStyle, int width,
       DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
@@ -121,20 +121,19 @@ public final class ChickenEvaluator implements EvalOperator.ExpressionEvaluator 
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory message;
+    private final ExpressionEvaluator.Factory message;
 
     private final ChickenArtBuilder chickenStyle;
 
     private final int width;
 
     public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
-        EvalOperator.ExpressionEvaluator.Factory message, ChickenArtBuilder chickenStyle,
-        int width) {
+        ExpressionEvaluator.Factory message, ChickenArtBuilder chickenStyle, int width) {
       this.source = source;
       this.scratch = scratch;
       this.message = message;

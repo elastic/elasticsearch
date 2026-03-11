@@ -206,9 +206,9 @@ public class CsvTestsDataLoader {
             "histogram_standard_index.csv",
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset("many_numbers"),
+        new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
+        new TestDataset("json_logs")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(

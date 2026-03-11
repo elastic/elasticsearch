@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -283,6 +284,42 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * An eval alias used alongside an expression in LIMIT BY: {@code x} is already an attribute
+     * and left alone, while {@code salary * 2} is extracted into a synthetic Eval.
+     * The optimizer merges the user Eval and the synthetic Eval into a single node.
+     * <pre>{@code
+     * Project[[_meta_field{f}#N, emp_no{f}#M, ..., x{r}#A]]
+     * \_Limit[10000[INTEGER],[],false,false]
+     *   \_Limit[1[INTEGER],[x{r}#A, salary * 2{r}#B],false,false]
+     *     \_Eval[[emp_no{f}#M + 5[INTEGER] AS x, salary{f}#M * 2[INTEGER] AS salary * 2#B]]
+     *       \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testEvalAliasAndExpressionMixedInLimitBy() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = emp_no + 5
+            | LIMIT 1 BY x, salary * 2
+            """);
+
+        var project = as(plan, Project.class);
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(defaultLimit.groupings(), empty());
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(Expressions.names(limit.groupings()), contains("x", "salary * 2"));
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        var xAlias = as(eval.fields().get(0), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        assertThat(xAlias.child(), instanceOf(Add.class));
+        var salaryAlias = as(eval.fields().get(1), Alias.class);
+        assertThat(salaryAlias.name(), equalTo("salary * 2"));
+        assertThat(salaryAlias.child(), instanceOf(Mul.class));
+        as(eval.child(), EsRelation.class);
     }
 
     /**

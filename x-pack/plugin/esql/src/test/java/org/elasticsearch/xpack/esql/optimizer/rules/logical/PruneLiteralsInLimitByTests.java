@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -101,6 +103,55 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
         assertThat(x.name(), equalTo("x"));
         assertThat(y.name(), equalTo("y"));
 
+        var limit = as(eval.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings(), empty());
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * A foldable eval alias mixed with a non-foldable attribute: the alias is propagated and pruned,
+     * the attribute grouping survives.
+     * <pre>{@code
+     * Eval[[5[INTEGER] AS x]]
+     * \_Limit[10000[INTEGER],[],false,false]
+     *   \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
+     *     \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testFoldableEvalAliasAndAttributeMixed() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5
+            | LIMIT 1 BY x, emp_no
+            """);
+
+        var eval = as(plan, Eval.class);
+        var defaultLimit = as(eval.child(), Limit.class);
+        assertThat(defaultLimit.groupings(), empty());
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * A foldable eval alias mixed with a foldable literal: both are pruned, degenerating to a plain LIMIT.
+     * <pre>{@code
+     * Eval[[5[INTEGER] AS x]]
+     * \_Limit[1[INTEGER],[],false,false]
+     *   \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testFoldableEvalAliasAndLiteralBothPruned() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5
+            | LIMIT 1 BY x, 3
+            """);
+
+        var eval = as(plan, Eval.class);
         var limit = as(eval.child(), Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(limit.groupings(), empty());

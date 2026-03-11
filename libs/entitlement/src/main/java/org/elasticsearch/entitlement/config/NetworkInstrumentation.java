@@ -108,20 +108,20 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.callingVoidStatic(URL::setURLStreamHandlerFactory, URLStreamHandlerFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrowNotEntitled();
-            rule.calling(URL::openConnection).enforce(Policies::entitlementForUrl).elseThrow(e -> new IOException(e));
+            rule.calling(URL::openConnection).enforce(Policies::entitlementForUrl).elseThrow(IOException::new);
             rule.calling(URL::openConnection, Proxy.class).enforce((url, proxy) -> {
                 if (proxy.type() != Proxy.Type.DIRECT) {
                     return Policies.outboundNetworkAccess().and(Policies.entitlementForUrl(url));
                 }
                 return Policies.entitlementForUrl(url);
-            }).elseThrow(e -> new IOException(e));
-            rule.calling(URL::openStream).enforce(Policies::entitlementForUrl).elseThrow(e -> new IOException(e));
-            rule.calling(URL::getContent).enforce(Policies::entitlementForUrl).elseThrow(e -> new IOException(e));
-            rule.calling(URL::getContent, Class[].class).enforce(Policies::entitlementForUrl).elseThrow(e -> new IOException(e));
+            }).elseThrow(IOException::new);
+            rule.calling(URL::openStream).enforce(Policies::entitlementForUrl).elseThrow(IOException::new);
+            rule.calling(URL::getContent).enforce(Policies::entitlementForUrl).elseThrow(IOException::new);
+            rule.calling(URL::getContent, Class[].class).enforce(Policies::entitlementForUrl).elseThrow(IOException::new);
         });
 
         builder.on(URLConnection.class, rule -> {
-            rule.callingVoid(URLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.callingVoid(URLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.callingVoidStatic(URLConnection::setContentHandlerFactory, ContentHandlerFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrowNotEntitled();
@@ -144,18 +144,18 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(URLConnection::getHeaderFieldDate, String.class, Long.class)
                 .enforce(Policies::entitlementForUrlConnection)
                 .elseReturnArg(1);
-            rule.calling(URLConnection::getContent).enforce(Policies::entitlementForUrlConnection).elseThrow(e -> new IOException(e));
+            rule.calling(URLConnection::getContent).enforce(Policies::entitlementForUrlConnection).elseThrow(IOException::new);
             rule.calling(URLConnection::getContent, Class[].class)
                 .enforce(Policies::entitlementForUrlConnection)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(HttpURLConnection.class, rule -> {
             rule.callingVoidStatic(HttpURLConnection::setFollowRedirects, Boolean.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseReturnEarly();
-            rule.calling(HttpURLConnection::getResponseCode).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.calling(HttpURLConnection::getResponseMessage).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.calling(HttpURLConnection::getResponseCode).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(HttpURLConnection::getResponseMessage).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(HttpURLConnection::getHeaderFieldDate, String.class, Long.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturnArg(1);
@@ -188,14 +188,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseThrowNotEntitled();
             rule.callingVoidStatic(Socket::setSocketImplFactory, SocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseThrow(e -> new IOException(e));
-            rule.callingVoid(Socket::bind, SocketAddress.class).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.callingVoid(Socket::connect, SocketAddress.class)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.callingVoid(Socket::bind, SocketAddress.class).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.callingVoid(Socket::connect, SocketAddress.class).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.callingVoid(Socket::connect, SocketAddress.class, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(ServerSocket.class, rule -> {
@@ -209,14 +207,12 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseThrowNotEntitled();
             rule.callingVoidStatic(ServerSocket::setSocketFactory, SocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseThrow(e -> new IOException(e));
-            rule.callingVoid(ServerSocket::bind, SocketAddress.class)
-                .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.callingVoid(ServerSocket::bind, SocketAddress.class).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
             rule.callingVoid(ServerSocket::bind, SocketAddress.class, Integer.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.calling(ServerSocket::accept).enforce(Policies::inboundNetworkAccess).elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.calling(ServerSocket::accept).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
         });
 
         builder.on(URLClassLoader.class, rule -> {
@@ -277,7 +273,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.callingStatic(DatagramSocket::new, SocketAddress.class).enforce(Policies::allNetworkAccess).elseThrowNotEntitled();
             rule.callingVoidStatic(DatagramSocket::setDatagramSocketImplFactory, DatagramSocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramSocket::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
                 .elseThrow(e -> new SocketException(e.getMessage()));
@@ -289,32 +285,30 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseThrow(e -> new SocketException(e.getMessage()));
             rule.callingVoid(DatagramSocket::receive, DatagramPacket.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramSocket::send, DatagramPacket.class)
                 .enforce(
                     (socket, packet) -> packet.getAddress().isMulticastAddress()
                         ? Policies.allNetworkAccess()
                         : Policies.outboundNetworkAccess()
                 )
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramSocket::joinGroup, SocketAddress.class, NetworkInterface.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramSocket::leaveGroup, SocketAddress.class, NetworkInterface.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(MulticastSocket.class, rule -> {
-            rule.callingVoid(MulticastSocket::joinGroup, InetAddress.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+            rule.callingVoid(MulticastSocket::joinGroup, InetAddress.class).enforce(Policies::allNetworkAccess).elseThrow(IOException::new);
             rule.callingVoid(MulticastSocket::joinGroup, SocketAddress.class, NetworkInterface.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(MulticastSocket::leaveGroup, InetAddress.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(MulticastSocket::leaveGroup, SocketAddress.class, NetworkInterface.class)
                 .enforce(Policies::allNetworkAccess)
                 .elseThrowNotEntitled();
@@ -323,67 +317,63 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(SocketChannel.class, rule -> {
             rule.callingStatic(SocketChannel::open, SocketAddress.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingStatic(SocketChannel::open, ProtocolFamily.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.callingStatic(SocketChannel::open).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.callingVoid(SocketChannel::bind, SocketAddress.class)
-                .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.callingStatic(SocketChannel::open).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.callingVoid(SocketChannel::bind, SocketAddress.class).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
         });
 
         builder.on("sun.nio.ch.SocketChannelImpl", SocketChannel.class, rule -> {
-            rule.callingVoid(SocketChannel::bind, SocketAddress.class)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+            rule.callingVoid(SocketChannel::bind, SocketAddress.class).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.callingVoid(SocketChannel::connect, SocketAddress.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(ServerSocketChannel.class, rule -> {
             rule.callingVoid(ServerSocketChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on("sun.nio.ch.ServerSocketChannelImpl", ServerSocketChannel.class, rule -> {
             rule.callingVoid(ServerSocketChannel::bind, SocketAddress.class, Integer.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.calling(ServerSocketChannel::accept).enforce(Policies::inboundNetworkAccess).elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.calling(ServerSocketChannel::accept).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
         });
 
         builder.on(DatagramChannel.class, rule -> {
             rule.callingVoid(DatagramChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on("sun.nio.ch.DatagramChannelImpl", DatagramChannel.class, rule -> {
             rule.callingVoid(DatagramChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramChannel::connect, SocketAddress.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingVoid(DatagramChannel::send, ByteBuffer.class, SocketAddress.class).enforce((_, _, target) -> {
                 if (target instanceof InetSocketAddress isa && isa.getAddress().isMulticastAddress()) {
                     return Policies.allNetworkAccess();
                 } else {
                     return Policies.outboundNetworkAccess();
                 }
-            }).elseThrow(e -> new IOException(e));
+            }).elseThrow(IOException::new);
             rule.callingVoid(DatagramChannel::receive, ByteBuffer.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(AsynchronousServerSocketChannel.class, rule -> {
             rule.callingVoid(AsynchronousServerSocketChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on("sun.nio.ch.AsynchronousSocketChannelImpl", AsynchronousSocketChannel.class, rule -> {
@@ -398,13 +388,13 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             ).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
             rule.callingVoid(AsynchronousSocketChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on("sun.nio.ch.AsynchronousServerSocketChannelImpl", AsynchronousServerSocketChannel.class, rule -> {
             rule.callingVoid(AsynchronousServerSocketChannel::bind, SocketAddress.class, Integer.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(AsynchronousServerSocketChannel::accept).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
             rule.callingVoid(
                 AsynchronousServerSocketChannel::accept,
@@ -416,7 +406,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(AsynchronousSocketChannel.class, rule -> {
             rule.callingVoid(AsynchronousSocketChannel::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(
@@ -461,9 +451,9 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(FtpURLConnection.class, rule -> {
-            rule.callingVoid(FtpURLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.calling(FtpURLConnection::getInputStream).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.calling(FtpURLConnection::getOutputStream).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.callingVoid(FtpURLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(FtpURLConnection::getInputStream).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(FtpURLConnection::getOutputStream).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
         });
 
         builder.on(sun.net.www.protocol.http.HttpURLConnection.class, rule -> {
@@ -473,13 +463,13 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             // .elseThrowNotEntitled()
             rule.callingVoid(sun.net.www.protocol.http.HttpURLConnection::connect)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getInputStream)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getOutputStream)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getErrorStream)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(null);
@@ -498,14 +488,10 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(HttpsURLConnectionImpl.class, rule -> {
-            rule.callingVoid(HttpsURLConnectionImpl::connect).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.calling(HttpsURLConnectionImpl::getInputStream)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+            rule.callingVoid(HttpsURLConnectionImpl::connect).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(HttpsURLConnectionImpl::getInputStream).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(HttpsURLConnectionImpl::getErrorStream).enforce(Policies::outboundNetworkAccess).elseReturn(null);
-            rule.calling(HttpsURLConnectionImpl::getOutputStream)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+            rule.calling(HttpsURLConnectionImpl::getOutputStream).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(HttpsURLConnectionImpl::getHeaderField, String.class).enforce(Policies::outboundNetworkAccess).elseReturn(null);
             rule.calling(HttpsURLConnectionImpl::getHeaderField, Integer.class).enforce(Policies::outboundNetworkAccess).elseReturn(null);
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldKey, Integer.class)
@@ -514,12 +500,8 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpsURLConnectionImpl::getHeaderFields)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(Collections.emptyMap());
-            rule.calling(HttpsURLConnectionImpl::getResponseCode)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.calling(HttpsURLConnectionImpl::getResponseMessage)
-                .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+            rule.calling(HttpsURLConnectionImpl::getResponseCode).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(HttpsURLConnectionImpl::getResponseMessage).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(HttpsURLConnectionImpl::getContentLength).enforce(Policies::outboundNetworkAccess).elseReturn(-1);
             rule.calling(HttpsURLConnectionImpl::getContentLengthLong).enforce(Policies::outboundNetworkAccess).elseReturn(-1L);
             rule.calling(HttpsURLConnectionImpl::getContentType).enforce(Policies::outboundNetworkAccess).elseReturn(null);
@@ -536,27 +518,27 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldLong, String.class, Long.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturnArg(1);
-            rule.calling(HttpsURLConnectionImpl::getContent).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.calling(HttpsURLConnectionImpl::getContent).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(HttpsURLConnectionImpl::getContent, Class[].class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(AbstractDelegateHttpsURLConnection.class, rule -> {
             rule.callingVoid(AbstractDelegateHttpsURLConnection::connect)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(MailToURLConnection.class, rule -> {
-            rule.callingVoid(MailToURLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
-            rule.calling(MailToURLConnection::getOutputStream).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.callingVoid(MailToURLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
+            rule.calling(MailToURLConnection::getOutputStream).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
         });
 
         builder.on("jdk.internal.net.http.HttpClientImpl", HttpClient.class, rule -> {
             rule.calling(HttpClient::send, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(HttpClient::sendAsync, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
                 .enforce(Policies::outboundNetworkAccess)
                 .elseThrowNotEntitled();
@@ -571,7 +553,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(HttpClientFacade.class, rule -> {
             rule.calling(HttpClientFacade::send, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.calling(HttpClientFacade::sendAsync, TypeToken.of(HttpRequest.class), new TypeToken<HttpResponse.BodyHandler<?>>() {})
                 .enforce(Policies::outboundNetworkAccess)
                 .elseThrowNotEntitled();

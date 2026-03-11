@@ -247,11 +247,11 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         var dataStream = getDataStream(dsName);
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(false);
-        Map<String, LongPredicate> indexPredicates = new HashMap<>();
+        Map<String, LongPredicate> indexSeqNoPredicates = new HashMap<>();
         for (Index index : dataStream.getIndices()) {
-            indexPredicates.put(index.getName(), seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO);
+            indexSeqNoPredicates.put(index.getName(), seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(indexPredicates);
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(indexSeqNoPredicates);
         var updateByQuery = updateByQuery().source(dsName);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
@@ -366,23 +366,23 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
      * avoid overriding previous handlers when multiple indices share a primary node. Returns a latch
      * that counts down once per index when a matching bulk request has been observed.
      */
-    private CountDownLatch assertBulkShardRequestsMatch(Map<String, LongPredicate> indexPredicates) {
-        CountDownLatch latch = new CountDownLatch(indexPredicates.size());
+    private CountDownLatch assertBulkShardRequestsMatch(Map<String, LongPredicate> indexSeqNoPredicates) {
+        CountDownLatch latch = new CountDownLatch(indexSeqNoPredicates.size());
         Map<String, Map<String, LongPredicate>> byNode = new HashMap<>();
-        for (var entry : indexPredicates.entrySet()) {
+        for (var entry : indexSeqNoPredicates.entrySet()) {
             String nodeName = primaryNodeName(entry.getKey());
             byNode.computeIfAbsent(nodeName, k -> new HashMap<>()).put(entry.getKey(), entry.getValue());
         }
         for (var nodeEntry : byNode.entrySet()) {
-            var nodePredicates = nodeEntry.getValue();
+            var nodeSeqNoPredicatesByIndes = nodeEntry.getValue();
             MockTransportService.getInstance(nodeEntry.getKey())
                 .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
                     if (request instanceof TransportReplicationAction.ConcreteShardRequest<?> concreteShardRequest
                         && concreteShardRequest.getRequest() instanceof BulkShardRequest bulkShardRequest) {
-                        LongPredicate predicate = nodePredicates.get(bulkShardRequest.index());
-                        assertThat(predicate, is(notNullValue()));
+                        LongPredicate seqNoPredicate = nodeSeqNoPredicatesByIndes.get(bulkShardRequest.index());
+                        assertThat(seqNoPredicate, is(notNullValue()));
                         boolean allMatch = Arrays.stream(bulkShardRequest.items())
-                            .allMatch(item -> predicate.test(item.request().ifSeqNo()));
+                            .allMatch(item -> seqNoPredicate.test(item.request().ifSeqNo()));
                         assertTrue("ifSeqNo on bulk item did not match expected predicate", allMatch);
                         latch.countDown();
                     }

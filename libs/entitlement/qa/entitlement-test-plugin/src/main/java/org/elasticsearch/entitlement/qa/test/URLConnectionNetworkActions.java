@@ -207,12 +207,12 @@ class URLConnectionNetworkActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
     static int baseUrlConnectionGetContentLength() throws Exception {
         return callPlainNetworkConnection(URLConnection::getContentLength);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
     static int sunHttpConnectionGetContentLength() throws Exception {
         return callJdkHttpConnection(URLConnection::getContentLength);
     }
@@ -237,52 +237,52 @@ class URLConnectionNetworkActions {
         return callJdkHttpConnection(URLConnection::getContentEncoding);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long baseUrlConnectionGetExpiration() throws Exception {
         return callPlainNetworkConnection(URLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpConnectionGetExpiration() throws Exception {
         return callJdkHttpConnection(URLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long baseUrlConnectionGetDate() throws Exception {
         return callPlainNetworkConnection(URLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpConnectionGetDate() throws Exception {
         return callJdkHttpConnection(URLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long baseUrlConnectionGetLastModified() throws Exception {
         return callPlainNetworkConnection(URLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpConnectionGetLastModified() throws Exception {
         return callJdkHttpConnection(URLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = int.class)
     static int baseUrlConnectionGetHeaderFieldInt() throws Exception {
         return callPlainNetworkConnection(conn -> conn.getHeaderFieldInt("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = int.class)
     static int sunHttpConnectionGetHeaderFieldInt() throws Exception {
         return callJdkHttpConnection(conn -> conn.getHeaderFieldInt("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long baseUrlConnectionGetHeaderFieldLong() throws Exception {
         return callPlainNetworkConnection(conn -> conn.getHeaderFieldLong("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpConnectionGetHeaderFieldLong() throws Exception {
         return callJdkHttpConnection(conn -> conn.getHeaderFieldLong("field", 0));
     }
@@ -332,7 +332,7 @@ class URLConnectionNetworkActions {
         withPlainNetworkConnection(HttpURLConnection::getResponseMessage);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long baseHttpURLConnectionGetHeaderFieldDate() throws Exception {
         return callPlainNetworkConnection(conn -> conn.getHeaderFieldDate("date", 0));
     }
@@ -434,12 +434,12 @@ class URLConnectionNetworkActions {
         withJdkHttpsConnection(HttpsURLConnection::getResponseMessage);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
     static int sunHttpsURLConnectionImplGetContentLength() throws Exception {
         return callJdkHttpsConnection(HttpsURLConnection::getContentLength);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImpl$getContentLengthLong() throws Exception {
         return callJdkHttpsConnection(HttpsURLConnection::getContentLengthLong);
     }
@@ -454,32 +454,32 @@ class URLConnectionNetworkActions {
         return callJdkHttpsConnection(HttpsURLConnection::getContentEncoding);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImplGetExpiration() throws Exception {
         return callJdkHttpsConnection(HttpsURLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImplGetDate() throws Exception {
         return callJdkHttpsConnection(HttpsURLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImplGetLastModified() throws Exception {
         return callJdkHttpsConnection(HttpsURLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
     static int sunHttpsURLConnectionImplGetHeaderFieldInt() throws Exception {
         return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldInt("content-length", -1));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImplGetHeaderFieldLong() throws Exception {
         return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldLong("content-length", -1));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
     static long sunHttpsURLConnectionImplGetHeaderFieldDate() throws Exception {
         return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldDate("date", 0));
     }

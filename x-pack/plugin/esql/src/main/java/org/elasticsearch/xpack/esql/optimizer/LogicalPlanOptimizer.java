@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CanonicalizeExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.CanonicalizeExpressions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;

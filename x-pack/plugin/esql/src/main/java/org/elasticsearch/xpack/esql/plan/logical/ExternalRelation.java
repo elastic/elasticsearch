@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -143,13 +144,16 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalSourceExec toPhysicalExec() {
+        Map<String, Object> enrichedMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
         return new ExternalSourceExec(
             source(),
             sourcePath,
             metadata.sourceType(),
             output,
             metadata.config(),
-            metadata.sourceMetadata(),
+            enrichedMetadata,
             null,
             null,
             fileSet

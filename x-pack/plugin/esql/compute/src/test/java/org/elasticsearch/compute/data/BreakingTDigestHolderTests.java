@@ -111,6 +111,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
                 }
             }
         });
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     private TDigestHolder randomStandaloneTDigestHolder() {

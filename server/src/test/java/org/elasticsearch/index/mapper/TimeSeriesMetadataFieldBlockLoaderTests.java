@@ -47,15 +47,27 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         """;
 
     public void testDimensionsOnly() throws IOException {
-        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(false));
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of()));
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
         assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
     }
 
     public void testDimensionsAndMetrics() throws IOException {
-        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(true));
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of()));
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
         assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region", "cpu", "request_count")));
+    }
+
+    public void testExcludedDimensions() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "region")));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("env")));
+    }
+
+    public void testExcludedDimensionsWithMetrics() throws IOException {
+        BlockLoader loader = createBlockLoader(new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("env")));
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "region", "cpu", "request_count")));
     }
 
     public void testNoConfigReturnSourceBlockLoader() throws IOException {

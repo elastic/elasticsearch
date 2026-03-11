@@ -14,7 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
-import org.elasticsearch.index.engine.RecoverySourcePruneMergePolicy;
+import org.elasticsearch.index.engine.PruningMergePolicy;
 
 /**
  * Contains logic to determine whether optimized merge can occur.
@@ -49,7 +49,7 @@ class DocValuesConsumerUtil {
             }
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
 
-            if (docValuesProducer instanceof RecoverySourcePruneMergePolicy.PruningDocValuesProducer pdv) {
+            if (docValuesProducer instanceof PruningMergePolicy.PruningDocValuesProducer pdv) {
                 if (pdv.shouldPruneNumericDocValues(mergedFieldInfo.name)) {
                     return UNSUPPORTED;
                 }

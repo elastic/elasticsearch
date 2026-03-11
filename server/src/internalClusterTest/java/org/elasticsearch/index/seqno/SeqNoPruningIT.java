@@ -315,7 +315,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         });
     }
 
-    public void testSeqNoPrunedAfterMergeWithTsdbCodecFails() throws Exception {
+    public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         internalCluster().startMasterOnlyNode();

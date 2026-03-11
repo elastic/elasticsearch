@@ -43,8 +43,8 @@ import java.util.function.Supplier;
  * MergePolicy that will prune _recovery_source, _seq_no and associated supporting fields
  * once they are no longer needed for replication.
  */
-public final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
-    RecoverySourcePruneMergePolicy(
+public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
+    PruningMergePolicy(
         @Nullable String pruneStoredFieldName,
         String pruneNumericDVFieldName,
         boolean pruneIdField,

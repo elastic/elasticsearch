@@ -618,7 +618,9 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
-                    try (var ignore = ContextConstrainedAction.openContext(threadContext, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT)) {
+                    try (
+                        var ignore = ContextConstrainedAction.openContext(threadContext, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT)
+                    ) {
                         client.execute(
                             connection,
                             GetInferenceFieldsInternalAction.REMOTE_TYPE,

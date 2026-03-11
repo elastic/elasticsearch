@@ -329,7 +329,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         int filtered = random().nextInt(0, bulkSize);
         final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
         var offsetsCount = bulkSize - filtered;
-        doTestScoreBulkOffsets(offsets, offsetsCount);
+        doTestScoreBulkOffsets(offsets, offsetsCount, bulkSize);
     }
 
     public void testScoreBulkOffsetsOneVector() throws Exception {
@@ -337,7 +337,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         int filtered = bulkSize - 1;
         final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
         assert offsets.length == 1;
-        doTestScoreBulkOffsets(offsets, 1);
+        doTestScoreBulkOffsets(offsets, 1, bulkSize);
     }
 
     public void testScoreBulkOffsetsAllVectors() throws Exception {
@@ -345,7 +345,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         int filtered = 0;
         final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
         assert offsets.length == bulkSize;
-        doTestScoreBulkOffsets(offsets, bulkSize);
+        doTestScoreBulkOffsets(offsets, bulkSize, bulkSize);
     }
 
     public void testScoreBulkOffsetsAllVectorsButOne() throws Exception {
@@ -353,14 +353,23 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         int filtered = 1;
         final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), bulkSize, filtered);
         assert offsets.length == bulkSize - 1;
-        doTestScoreBulkOffsets(offsets, bulkSize - 1);
+        doTestScoreBulkOffsets(offsets, bulkSize - 1, bulkSize);
     }
 
-    private void doTestScoreBulkOffsets(int[] offsets, int offsetsCount) throws Exception {
+    public void testScoreBulkOffsetsTail() throws Exception {
+        final int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
+        int tailSize = random().nextInt(1, bulkSize);
+        int filtered = random().nextInt(0, tailSize);
+        final int[] offsets = VectorScorerTestUtils.generateFilteredOffsets(random(), tailSize, filtered);
+        var offsetsCount = tailSize - filtered;
+        doTestScoreBulkOffsets(offsets, offsetsCount, tailSize);
+    }
+
+    private void doTestScoreBulkOffsets(int[] offsets, int offsetsCount, int count) throws Exception {
         final int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
-        final int numVectors = bulkSize * random().nextInt(1, 10);
+        final int numVectors = count * random().nextInt(1, 10);
 
         final int indexVectorPackedLengthInBytes = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits)
             .getDocPackedLength(dimensions);
@@ -376,15 +385,15 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
 
-                var vectors = new VectorScorerTestUtils.OSQVectorData[bulkSize];
+                var vectors = new VectorScorerTestUtils.OSQVectorData[count];
 
-                for (int i = 0; i < numVectors; i += bulkSize) {
-                    for (int j = 0; j < bulkSize; j++) {
+                for (int i = 0; i < numVectors; i += count) {
+                    for (int j = 0; j < count; j++) {
                         var vector = new float[dimensions];
                         randomVector(random(), vector, similarityFunction);
                         vectors[j] = createOSQIndexData(vector, centroid, quantizer, dimensions, indexBits, indexVectorPackedLengthInBytes);
                     }
-                    writeBulkOSQVectorData(bulkSize, out, vectors);
+                    writeBulkOSQVectorData(count, out, vectors);
                 }
                 CodecUtil.writeFooter(out);
             }
@@ -406,8 +415,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
-                for (int i = 0; i < numVectors; i += bulkSize) {
-                    final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * bulkSize);
+                for (int i = 0; i < numVectors; i += count) {
+                    final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * count);
                     final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                         slice,
                         queryBits,
@@ -435,7 +444,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         offsets,
                         offsetsCount,
                         scoresDefault,
-                        bulkSize
+                        count
                     );
                     float panamaMaxScore = panamaScorer.scoreBulkOffsets(
                         queryData.quantizedVector(),
@@ -448,21 +457,26 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         offsets,
                         offsetsCount,
                         scoresPanama,
-                        bulkSize
+                        count
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f, 1e-2f);
-                    assertEquals(((long) bulkSize * perVectorBytes), slice.getFilePointer());
-                    assertEquals(padding + ((long) (i + bulkSize) * perVectorBytes), in.getFilePointer());
+                    assertArrayEqualsPercent(
+                        Arrays.copyOf(scoresDefault, count),
+                        Arrays.copyOf(scoresPanama, count),
+                        0.05f,
+                        1e-2f
+                    );
+                    assertEquals(((long) count * perVectorBytes), slice.getFilePointer());
+                    assertEquals(padding + ((long) (i + count) * perVectorBytes), in.getFilePointer());
 
-                    assertFilteredNotScored(bulkSize, offsets, scoresDefault);
+                    assertFilteredNotScored(count, offsets, scoresDefault);
                 }
             }
         }
     }
 
-    private static void assertFilteredNotScored(int bulkSize, int[] offsets, float[] scoresDefault) {
-        for (int j = 0; j < bulkSize; j++) {
+    private static void assertFilteredNotScored(int count, int[] offsets, float[] scoresDefault) {
+        for (int j = 0; j < count; j++) {
             if (Arrays.binarySearch(offsets, j) < 0) {
                 assertEquals(0.0f, scoresDefault[j], 0.0f);
             }

@@ -324,15 +324,15 @@ public class ESNextOSQVectorsScorer {
         assert offsetsCount <= this.bulkSize : "supplied offsets length > this scorer's bulkSize";
         assert count <= this.bulkSize : "supplied count > this scorer's bulkSize";
         quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
-        in.readFloats(lowerIntervals, 0, bulkSize);
-        in.readFloats(upperIntervals, 0, bulkSize);
-        for (int i = 0; i < bulkSize; i++) {
+        in.readFloats(lowerIntervals, 0, count);
+        in.readFloats(upperIntervals, 0, count);
+        for (int i = 0; i < count; i++) {
             targetComponentSums[i] = in.readInt();
         }
-        in.readFloats(additionalCorrections, 0, bulkSize);
+        in.readFloats(additionalCorrections, 0, count);
         float maxScore = Float.NEGATIVE_INFINITY;
         int offsetIndex = 0;
-        for (int i = 0; i < bulkSize; i++) {
+        for (int i = 0; i < count; i++) {
             if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
                 offsetIndex++;
                 scores[i] = applyCorrectionsIndividually(

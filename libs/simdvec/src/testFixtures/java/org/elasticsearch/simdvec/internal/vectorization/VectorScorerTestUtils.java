@@ -28,7 +28,7 @@ public class VectorScorerTestUtils {
         var allOffsets = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
         for (int i = 0; i < filteredVectors; i++) {
             int allOffsetsLength = allOffsets.size();
-            allOffsets.remove(random.nextInt(0, allOffsetsLength - 1));
+            allOffsets.remove(random.nextInt(0, allOffsetsLength));
         }
         return allOffsets.stream().mapToInt(i -> i).toArray();
     }

@@ -58,13 +58,6 @@ public class StatelessSigtermPlugin extends ShutdownPlugin {
         Setting.Property.NodeScope
     );
 
-    // will be removed after next release, required for rolling upgrade tests
-    public static final Setting<TimeValue> SERVERLESS_POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "serverless.sigterm.poll_interval",
-        POLL_INTERVAL_SETTING,
-        Setting.Property.NodeScope
-    );
-
     @Override
     public Collection<?> createComponents(PluginServices services) {
         ClusterService clusterService = services.clusterService();
@@ -74,7 +67,7 @@ public class StatelessSigtermPlugin extends ShutdownPlugin {
             services.threadPool(),
             services.clusterService(),
             services.remoteTransportClient(),
-            SERVERLESS_POLL_INTERVAL_SETTING.get(clusterService.getSettings()),
+            POLL_INTERVAL_SETTING.get(clusterService.getSettings()),
             TIMEOUT_SETTING.get(clusterService.getSettings()),
             services.nodeEnvironment().nodeId()
         );
@@ -97,7 +90,7 @@ public class StatelessSigtermPlugin extends ShutdownPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(TIMEOUT_SETTING, POLL_INTERVAL_SETTING, SERVERLESS_POLL_INTERVAL_SETTING);
+        return List.of(TIMEOUT_SETTING, POLL_INTERVAL_SETTING);
     }
 
     TerminationHandler getTerminationHandler() {

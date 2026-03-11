@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiCompletionServiceSettings> {
 
-    private static AzureOpenAiCompletionServiceSettings createRandom() {
+    public static AzureOpenAiCompletionServiceSettings createRandom() {
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);

@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,14 +126,7 @@ public class RetryingHttpSender implements RequestSender {
                 return;
             }
 
-            /*
-             * This listener handles failures from the http client level such as an IOException or UnknownHostException
-             * as well as more generic failures.
-             * We will try to determine if the exception is retryable and if so wrap it in a
-             * RetryException so that when we pass the failure to the tryAction original listener it will
-             * get passed to shouldRetry() and be retried.
-             */
-            var failureListener = listener.delegateResponse((delegateListener, e) -> {
+            var logFailureListener = listener.delegateResponse((delegateListener, e) -> {
                 var exceptionToUse = e;
                 if (e instanceof AlreadyLoggedException alreadyLoggedException) {
                     exceptionToUse = alreadyLoggedException.getOriginalException();
@@ -140,21 +134,50 @@ public class RetryingHttpSender implements RequestSender {
                     logException(logger, request, responseHandler.getRequestType(), exceptionToUse);
                 }
 
-                delegateListener.onFailure(wrapWithElasticsearchException(exceptionToUse, request.getInferenceEntityId()));
+                delegateListener.onFailure(exceptionToUse);
             });
 
             SubscribableListener.<HttpRequest>newForked(
-                httpRequestActionListener -> request.createHttpRequestAsync(httpRequestActionListener)
+                httpRequestActionListener -> wrapThrownException(
+                    () -> request.createHttpRequestAsync(httpRequestActionListener),
+                    httpRequestActionListener
+                )
             )
                 .<InferenceServiceResults>andThen(
-                    (inferenceServiceResultsActionListener, httpRequest) -> sendRequest(httpRequest, inferenceServiceResultsActionListener)
+                    (inferenceServiceResultsActionListener, httpRequest) -> wrapThrownException(
+                        () -> sendRequest(httpRequest, inferenceServiceResultsActionListener),
+                        inferenceServiceResultsActionListener
+                    )
                 )
-                .addListener(failureListener);
+                .addListener(logFailureListener);
+        }
+
+        /**
+         * Catches exceptions thrown by the provided runnable and passes them to the listener
+         * after wrapping them in an ElasticsearchException if necessary. This is necessary because we don't want to wrap all exception
+         * in the final listener used by {@link #tryAction(ActionListener)} because we'd lose the suppressed stack trace.
+         */
+        private void wrapThrownException(CheckedRunnable<Exception> runnable, ActionListener<?> listener) {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
+            }
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
+            /*
+             * This listener handles failures from the http client level such as an IOException or UnknownHostException. We will try
+             * to determine if the exception is retryable and if so wrap it in a RetryException so that when we pass the failure to the
+             * tryAction original listener it will get passed to shouldRetry() and be retried.
+             */
+            var httpClientFailureListener = listener.delegateResponse((l, e) -> {
+                logException(logger, request, responseHandler.getRequestType(), e);
+                l.onFailure(transformIfRetryable(e));
+            });
+
             if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                httpClient.stream(httpRequest, context, listener.delegateFailure((l, r) -> {
+                httpClient.stream(httpRequest, context, httpClientFailureListener.delegateFailureAndWrap((l, r) -> {
                     if (r.isSuccessfulResponse()) {
                         l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
                     } else {
@@ -169,7 +192,7 @@ public class RetryingHttpSender implements RequestSender {
                 httpClient.send(
                     httpRequest,
                     context,
-                    listener.delegateFailure(
+                    httpClientFailureListener.delegateFailureAndWrap(
                         (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
                     )
                 );

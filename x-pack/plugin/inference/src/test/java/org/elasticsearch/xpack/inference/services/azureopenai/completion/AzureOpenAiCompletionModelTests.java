@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
+import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +36,11 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
     }
 
     public void testOverrideWith_UpdatedTaskSettings_OverridesUser() {

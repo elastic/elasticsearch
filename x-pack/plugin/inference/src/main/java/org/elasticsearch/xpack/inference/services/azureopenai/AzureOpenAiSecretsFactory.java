@@ -123,16 +123,18 @@ public final class AzureOpenAiSecretsFactory {
         AzureOpenAiSecretSettings secretSettings,
         AzureOpenAiServiceSettings serviceSettings
     ) {
-        switch (secretSettings) {
+        return switch (secretSettings) {
+            // This will be called with null if the model is being retrieved without the secrets (e.g. for a GET request)
+            case null -> null;
             case AzureOpenAiEntraIdApiKeySecrets apiKeySecretSettings -> {
                 if (serviceSettings.oAuth2Settings() != null) {
                     throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);
                 }
 
                 if (isDefined(apiKeySecretSettings.apiKey())) {
-                    return new SimpleHeaderApplier(() -> new BasicHeader(API_KEY_HEADER, apiKeySecretSettings.apiKey().toString()));
+                    yield new SimpleHeaderApplier(() -> new BasicHeader(API_KEY_HEADER, apiKeySecretSettings.apiKey().toString()));
                 } else if (isDefined(apiKeySecretSettings.entraId())) {
-                    return new SimpleHeaderApplier(() -> createAuthBearerHeader(apiKeySecretSettings.entraId()));
+                    yield new SimpleHeaderApplier(() -> createAuthBearerHeader(apiKeySecretSettings.entraId()));
                 }
 
                 throw new IllegalArgumentException(EXACTLY_ONE_SECRETS_FIELD_ERROR);
@@ -142,12 +144,12 @@ public final class AzureOpenAiSecretsFactory {
                     throw new ValidationException().addValidationError(REQUIRED_FIELDS_DESCRIPTION);
                 }
 
-                return OAuth2Applier.of(inferenceId, threadPool, oauth2Secrets, serviceSettings);
+                yield OAuth2Applier.of(inferenceId, threadPool, oauth2Secrets, serviceSettings);
             }
             default -> throw new IllegalArgumentException(
                 "Unsupported Azure OpenAI secret settings type: " + secretSettings.getClass().getName()
             );
-        }
+        };
     }
 
     private static boolean isDefined(SecureString str) {

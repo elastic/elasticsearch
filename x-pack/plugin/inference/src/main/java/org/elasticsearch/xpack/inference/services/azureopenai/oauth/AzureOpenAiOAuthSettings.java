@@ -55,12 +55,24 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        validateFields(clientId, tenantId, scopes, validationException);
+        var hasFields = validateFields(clientId, tenantId, scopes, validationException);
 
-        return new AzureOpenAiOAuthSettings(clientId, tenantId, scopes);
+        if (hasFields) {
+            return new AzureOpenAiOAuthSettings(clientId, tenantId, scopes);
+
+        }
+
+        return null;
     }
 
-    private static void validateFields(
+    /**
+     * Validates that either all or none of the fields are provided. If any field is provided, then all fields must be provided.
+     * This is because OAuth2 requires all fields to be set together.
+     *
+     * @return true if all fields are provided or false it no fields are provided. If some but not all fields are provided,
+     * a ValidationException is thrown.
+     */
+    private static boolean validateFields(
         @Nullable String clientId,
         @Nullable String tenantId,
         @Nullable List<String> scopes,
@@ -68,7 +80,7 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
     ) {
         boolean anyFieldProvided = clientId != null || tenantId != null || scopes != null;
         if (anyFieldProvided == false) {
-            return;
+            return false;
         }
 
         var missingFields = new ArrayList<String>();
@@ -93,6 +105,7 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         }
 
         validationException.throwIfValidationErrorsExist();
+        return true;
     }
 
     AzureOpenAiOAuthSettings(String clientId, String tenantId, List<String> scopes) {

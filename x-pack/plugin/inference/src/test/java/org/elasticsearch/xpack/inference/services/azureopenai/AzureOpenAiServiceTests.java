@@ -1012,7 +1012,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues();
+            var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues(threadPool);
             assertThrows(
                 ElasticsearchStatusException.class,
                 () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
@@ -1291,7 +1291,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1341,7 +1342,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             var latch = new CountDownLatch(1);
@@ -1408,7 +1410,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1477,7 +1480,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             var listener = new PlainActionFuture<InferenceServiceResults>();
@@ -1534,7 +1538,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                             "task_types": ["text_embedding", "completion", "chat_completion"],
                             "configurations": {
                                 "api_key": {
-                                    "description": "You must provide either an API key or an Entra ID.",
+                                    "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
                                     "label": "API Key",
                                     "required": false,
                                     "sensitive": true,
@@ -1552,7 +1556,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                                     "supported_task_types": ["text_embedding"]
                                 },
                                 "entra_id": {
-                                    "description": "You must provide either an API key or an Entra ID.",
+                                    "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
                                     "label": "Entra ID",
                                     "required": false,
                                     "sensitive": true,
@@ -1725,7 +1729,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             case CHAT_COMPLETION -> AzureOpenAiCompletionModelTests.createChatCompletionModel(
                 RESOURCE_NAME_VALUE,
@@ -1734,7 +1739,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };

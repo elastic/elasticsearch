@@ -172,6 +172,18 @@ l:long
 1
 ;
 
+absMinLong
+required_capability: fn_abs_min_warning
+
+ROW a=-9223372036854775808 | EVAL a = ABS(a) | limit 3;
+
+warning:Line 1:39: evaluation of [ABS(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:39: java.lang.ArithmeticException: Overflow to represent absolute value of Long.MIN_VALUE
+
+a:LONG
+null
+;
+
 absInt
 from employees | eval s = abs(0-salary) | keep s | sort s asc | limit 3;
 

@@ -13,9 +13,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -53,7 +55,6 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
     private final List<Closeable> managedCloseables;
-    private final Settings settings;
     private final DataSourceCapabilities capabilities;
 
     public DataSourceModule(
@@ -63,10 +64,16 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor
     ) {
-        this.settings = settings;
         this.capabilities = capabilities;
         this.storageProviderRegistry = new StorageProviderRegistry(settings);
-        this.formatReaderRegistry = new FormatReaderRegistry();
+
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        for (DataSourcePlugin plugin : dataSourcePlugins) {
+            for (DecompressionCodec codec : plugin.decompressionCodecs(settings)) {
+                codecRegistry.register(codec);
+            }
+        }
+        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -118,8 +125,10 @@ public final class DataSourceModule implements Closeable {
                 storageProviderRegistry.registerFactory(scheme, delegating);
             }
 
-            // Format readers: register a delegating factory per declared format
-            for (String format : plugin.supportedFormats()) {
+            // Format readers: register a delegating factory per declared format,
+            // and pre-register extensions so hasExtension() works without triggering lazy init.
+            for (FormatSpec spec : plugin.formatSpecs()) {
+                String format = spec.format();
                 FormatReaderFactory delegating = (s, bf) -> {
                     Map<String, FormatReaderFactory> factories = state.formatFactories();
                     FormatReaderFactory real = factories.get(format);
@@ -135,25 +144,7 @@ public final class DataSourceModule implements Closeable {
                     return real.create(s, bf);
                 };
                 formatReaderRegistry.registerLazy(format, delegating, settings, blockFactory);
-            }
-
-            // Pre-register extensions from capabilities so hasExtension() works without triggering lazy init.
-            // Each extension maps to a single format; cross-product with multiple formats is not supported.
-            Set<String> pluginFormats = plugin.supportedFormats();
-            Set<String> pluginExtensions = plugin.supportedExtensions();
-            if (pluginFormats.size() > 1 && pluginExtensions.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "Plugin "
-                        + plugin.getClass().getName()
-                        + " declares multiple formats "
-                        + pluginFormats
-                        + " with extensions "
-                        + pluginExtensions
-                        + "; each plugin must declare at most one format when extensions are present"
-                );
-            }
-            for (String ext : pluginExtensions) {
-                for (String format : pluginFormats) {
+                for (String ext : spec.extensions()) {
                     formatReaderRegistry.registerExtension(ext, format);
                 }
             }
@@ -190,7 +181,7 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
-        FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, settings);
+        FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, codecRegistry, settings);
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
         // by the sourceType returned from FormatReader.formatName() (e.g. "parquet", "csv").

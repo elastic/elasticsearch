@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -339,6 +341,148 @@ public class AnalyzerTests extends ESTestCase {
         Row row = (Row) eval.child();
         ReferenceAttribute rowEmpNo = (ReferenceAttribute) row.output().get(0);
         assertEquals(rowEmpNo.id(), empNo.id());
+    }
+
+    public void testRowWithForwardReferences() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
+                    new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
+                    new Alias(
+                        EMPTY,
+                        "z",
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"), EsqlTestUtils.TEST_CFG)
+                    )
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(3, row.fields().size());
+
+        Alias xField = row.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Literal.class));
+        assertEquals(4, ((Literal) xField.child()).value());
+
+        Alias yField = row.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(Literal.class));
+        assertEquals(2, ((Literal) yField.child()).value());
+
+        Alias zField = row.fields().get(2);
+        assertEquals("z", zField.name());
+        assertThat(zField.child(), instanceOf(Add.class));
+        Add addExpr = (Add) zField.child();
+        assertThat(addExpr.left(), instanceOf(ReferenceAttribute.class));
+        assertThat(addExpr.right(), instanceOf(ReferenceAttribute.class));
+        assertEquals("x", ((ReferenceAttribute) addExpr.left()).name());
+        assertEquals("y", ((ReferenceAttribute) addExpr.right()).name());
+        assertEquals(xField.id(), ((ReferenceAttribute) addExpr.left()).id());
+        assertEquals(yField.id(), ((ReferenceAttribute) addExpr.right()).id());
+    }
+
+    public void testRowWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(5), b = a
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 5, INTEGER))),
+                    new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(2, row.fields().size());
+
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals("a", ((ReferenceAttribute) bField.child()).name());
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+    }
+
+    public void testRowAndEvalWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(100), b = a | eval x = random(100), y = x
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Eval(
+                EMPTY,
+                new Row(
+                    EMPTY,
+                    List.of(
+                        new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                        new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "x", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                    new Alias(EMPTY, "y", new UnresolvedAttribute(EMPTY, "x"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var row = as(eval.child(), Row.class);
+
+        // ROW part: b must reference a (same id guarantees same value at runtime)
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+
+        // EVAL part: y must reference x (same id guarantees same value at runtime)
+        Alias xField = eval.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Random.class));
+
+        Alias yField = eval.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(xField.id(), ((ReferenceAttribute) yField.child()).id());
+    }
+
+    public void testRowWithUnresolvableForwardReferences() {
+        verifyUnsupported("""
+            ROW a = b + c, b = 1, c = 2
+            """, """
+            Found 2 problems
+            line 1:9: Unknown column [b]
+            line 1:13: Unknown column [c]""");
+    }
+
+    public void testRowWithSelfReference() {
+        verifyUnsupported("""
+            ROW a = a
+            """, """
+            line 1:9: Unknown column [a]""");
     }
 
     public void testUnresolvableAttribute() {
@@ -3476,7 +3620,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3487,7 +3631,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3511,7 +3655,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3525,13 +3669,108 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
+    }
+
+    /**
+     * A field that is a dimension in one index and a metric in another does not prevent a FROM query from succeeding,
+     * because the time series merge is only enforced when a time series aggregation (TS + STATS) is present.
+     */
+    public void testFromQueryWithConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("FROM test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * When a TS source is followed by STATS, the time series merge is enforced and conflicting
+     * dimension/metric types across indices produce an {@link InvalidMappedField}. The field
+     * resolves as {@link DataType#UNSUPPORTED} rather than the original KEYWORD type.
+     */
+    public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("TS test | STATS avg(rate(bytes_in)) BY status", analyzer(resolution, TEST_VERIFIER));
+        var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
+        assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
+    }
+
+    /**
+     * TS without STATS does not produce a TimeSeriesAggregate, so conflicting
+     * dimension/metric types are ignored and the field resolves as KEYWORD.
+     */
+    public void testTsWithoutStatsAndConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("TS test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * PROMQL queries operate on time series data and should enforce time series field type merging,
+     * just like TS + STATS.
+     */
+    public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("""
+            PROMQL index=test
+                step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
+                avg(rate(bytes_in[5m]))""", analyzer(resolution, TEST_VERIFIER));
+        assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
+    }
+
+    private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
+        IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
+        IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();
+        IndexFieldCapabilities metricField = new IndexFieldCapabilitiesBuilder("status", "keyword").metricType(
+            TimeSeriesParams.MetricType.GAUGE
+        ).build();
+        IndexFieldCapabilities counter = new IndexFieldCapabilitiesBuilder("bytes_in", "long").metricType(
+            TimeSeriesParams.MetricType.COUNTER
+        ).build();
+        Map<String, IndexFieldCapabilities> tsFields = Map.of("@timestamp", timestamp, "status", dimensionField, "bytes_in", counter);
+        Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
+        return new FieldCapabilitiesResponse(
+            List.of(
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
+            ),
+            List.of()
+        );
     }
 
     public void testBasicFork() {
@@ -6306,12 +6545,17 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return fieldsInfoOnCurrentVersion(caps, false);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
     }
 
     // ===== ResolveExternalRelations + FileSet tests =====
 
     public void testResolveExternalRelationPassesFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         var entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
@@ -6373,6 +6617,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveExternalRelationUnresolvedFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         List<Attribute> schema = List.of(
             new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );

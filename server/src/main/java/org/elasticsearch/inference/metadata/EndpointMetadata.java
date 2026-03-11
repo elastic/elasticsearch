@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Endpoint metadata contains descriptive information for an inference endpoint. This information allows an upstream service to communicate
@@ -102,6 +103,16 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
 
     public boolean isEmpty() {
         return this.equals(EMPTY_INSTANCE);
+    }
+
+    public boolean fingerprintMatches(EndpointMetadata other) {
+        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
+    }
+
+    public boolean hasNewerVersionThan(EndpointMetadata other) {
+        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
+        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
+        return thisVersion > otherVersion;
     }
 
     public Params getXContentParamsExcludeInternalFields() {

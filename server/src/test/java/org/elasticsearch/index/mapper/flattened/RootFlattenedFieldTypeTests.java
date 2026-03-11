@@ -45,8 +45,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             new Mapper.IgnoreAbove(ignoreAbove),
-            false,
             true,
+            false,
             null,
             false
         );
@@ -76,8 +76,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
-            false,
             true,
+            randomBoolean(),
             null,
             false
         );
@@ -93,8 +93,8 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IGNORE_ABOVE,
-            false,
             true,
+            randomBoolean(),
             null,
             false
         );
@@ -108,7 +108,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             false,
-            true,
+            randomBoolean(),
             null,
             false
         );

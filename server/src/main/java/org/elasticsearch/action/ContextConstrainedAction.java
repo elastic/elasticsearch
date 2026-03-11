@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
 /**
  * An interface for {@link ActionType} subclasses that restricts when the action
  * can be executed. Actions implementing this interface declare a required
@@ -27,4 +29,22 @@ public interface ContextConstrainedAction {
      * with this value before dispatching the action.
      */
     String requiredInvocationContext();
+
+    /**
+     * Sets the invocation context marker header and returns a {@link ThreadContext.StoredContext}
+     * that restores the original context (without the marker) when closed. Unlike
+     * {@link ThreadContext#stashContext()}, this preserves the existing context (including
+     * authentication headers) and only adds the marker on top.
+     *
+     * <pre>{@code
+     * try (var ignore = ContextConstrainedAction.openContext(threadContext, REQUIRED_CONTEXT)) {
+     *     client.execute(action, request, listener);
+     * }
+     * }</pre>
+     */
+    static ThreadContext.StoredContext openContext(ThreadContext threadContext, String requiredContext) {
+        ThreadContext.StoredContext stored = threadContext.newStoredContext();
+        threadContext.putHeader(HEADER_KEY, requiredContext);
+        return stored;
+    }
 }

@@ -618,15 +618,16 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
-                    threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT);
-                    client.execute(
-                        connection,
-                        GetInferenceFieldsInternalAction.REMOTE_TYPE,
-                        request,
-                        l1.delegateFailureAndWrap((l2, resp) -> {
-                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        })
-                    );
+                    try (var ignore = ContextConstrainedAction.openContext(threadContext, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT)) {
+                        client.execute(
+                            connection,
+                            GetInferenceFieldsInternalAction.REMOTE_TYPE,
+                            request,
+                            l1.delegateFailureAndWrap((l2, resp) -> {
+                                l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                            })
+                        );
+                    }
                 }
             }));
         }

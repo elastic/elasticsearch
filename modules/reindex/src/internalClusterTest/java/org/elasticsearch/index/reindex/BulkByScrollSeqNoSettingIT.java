@@ -64,8 +64,8 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     @After
     public void cleanupInterceptors() {
         SearchInterceptorPlugin.searchRequestConsumer.set(null);
-        for (var transportService : internalCluster().getInstances(MockTransportService.class)) {
-            transportService.clearAllRules();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node).clearAllRules();
         }
     }
 
@@ -112,17 +112,18 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testUpdateByQueryOnRegularIndex() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
+        String indexName = randomIdentifier();
         boolean disableSequenceNumbers = randomBoolean();
-        createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
-        indexDoc("test-index", "1", "field", "value");
-        refresh("test-index");
+        createIndex(indexName, disableSeqNoSettings(disableSequenceNumbers));
+        indexDoc(indexName, "1", "field", "value");
+        refresh(indexName);
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
-            "test-index",
+            indexName,
             seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
         );
-        var updateByQuery = updateByQuery().source("test-index");
+        var updateByQuery = updateByQuery().source(indexName);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
@@ -135,23 +136,24 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testDeleteByQueryOnRegularIndex() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
+        String indexName = randomIdentifier();
         boolean disableSequenceNumbers = randomBoolean();
-        createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
-        indexDoc("test-index", "1", "field", "value");
-        refresh("test-index");
+        createIndex(indexName, disableSeqNoSettings(disableSequenceNumbers));
+        indexDoc(indexName, "1", "field", "value");
+        refresh(indexName);
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
-            "test-index",
+            indexName,
             seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
         );
-        var deleteByQuery = deleteByQuery().source("test-index").filter(QueryBuilders.matchAllQuery());
+        var deleteByQuery = deleteByQuery().source(indexName).filter(QueryBuilders.matchAllQuery());
         if (randomBoolean()) {
             deleteByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
         BulkByScrollResponse response = deleteByQuery.get();
         assertThat(response, matcher().deleted(1));
-        refresh("test-index");
+        refresh(indexName);
         safeAwait(searchLatch);
         safeAwait(bulkLatch);
     }
@@ -159,13 +161,17 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testPatternMatchingMultipleIndicesWithMixedSettingsRejects() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        createIndex("test-index-1", disableSeqNoSettings(true));
-        createIndex("test-index-2", indexSettings(1, 0).build());
-        indexDoc("test-index-1", "1", "field", "value");
-        indexDoc("test-index-2", "1", "field", "value");
-        refresh("test-index-*");
+        String prefix = randomIdentifier();
+        String index1 = prefix + "-1";
+        String index2 = prefix + "-2";
+        String pattern = prefix + "-*";
+        createIndex(index1, disableSeqNoSettings(true));
+        createIndex(index2, indexSettings(1, 0).build());
+        indexDoc(index1, "1", "field", "value");
+        indexDoc(index2, "1", "field", "value");
+        refresh(pattern);
 
-        var updateByQuery = updateByQuery().source("test-index-*");
+        var updateByQuery = updateByQuery().source(pattern);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
@@ -176,24 +182,28 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testPatternMatchingMultipleIndicesWithSameSeqNoDisabledSetting() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
+        String prefix = randomIdentifier();
+        String index1 = prefix + "-1";
+        String index2 = prefix + "-2";
+        String pattern = prefix + "-*";
         boolean disableSequenceNumbers = randomBoolean();
         Settings seqNoSettings = disableSeqNoSettings(disableSequenceNumbers);
-        createIndex("test-index-1", seqNoSettings);
-        createIndex("test-index-2", seqNoSettings);
-        indexDoc("test-index-1", "1", "field", "value");
-        indexDoc("test-index-2", "1", "field", "value");
-        refresh("test-index-*");
+        createIndex(index1, seqNoSettings);
+        createIndex(index2, seqNoSettings);
+        indexDoc(index1, "1", "field", "value");
+        indexDoc(index2, "1", "field", "value");
+        refresh(pattern);
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
         List<CountDownLatch> bulkLatches = new ArrayList<>();
-        for (String index : List.of("test-index-1", "test-index-2")) {
+        for (String index : List.of(index1, index2)) {
             CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
                 index,
                 seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
             );
             bulkLatches.add(bulkLatch);
         }
-        var updateByQuery = updateByQuery().source("test-index-*");
+        var updateByQuery = updateByQuery().source(pattern);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
@@ -206,7 +216,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testDataStreamWithSeqNoDisabledOnAllBackingIndices() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        String dsName = "my-data-stream";
+        String dsName = randomIdentifier();
         createDataStreamWithTemplate(dsName, disableSeqNoTemplateSettings(true));
 
         int numDocs = between(1, 5);
@@ -238,7 +248,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testDataStreamWithMixedBackingIndices() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        String dsName = "my-data-stream";
+        String dsName = randomIdentifier();
         createDataStreamWithTemplate(dsName, Settings.EMPTY);
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
@@ -275,7 +285,10 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testMixedDataStreamAndRegularIndexWithSameResolvedSetting() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        String dsName = "test-ds";
+        String prefix = randomIdentifier();
+        String dsName = prefix + "-ds";
+        String regularIndex = prefix + "-regular";
+        String pattern = prefix + "-*";
         createDataStreamWithTemplate(dsName, Settings.EMPTY);
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
@@ -285,13 +298,13 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         int numDocs2 = between(1, 5);
         indexDocs(dsName, numDocs2);
 
-        createIndex("test-regular", disableSeqNoSettings(true));
-        indexDoc("test-regular", "1", "field", "value");
-        refresh("test-*");
+        createIndex(regularIndex, disableSeqNoSettings(true));
+        indexDoc(regularIndex, "1", "field", "value");
+        refresh(pattern);
 
         CountDownLatch searchLatch = assertSearchSeqNoFlag(false);
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch("test-regular", seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO);
-        var updateByQuery = updateByQuery().source("test-*");
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(regularIndex, seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO);
+        var updateByQuery = updateByQuery().source(pattern);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
@@ -308,7 +321,10 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     public void testMixedDataStreamAndRegularIndexWithDifferentResolvedSettingRejects() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        String dsName = "test-ds";
+        String prefix = randomIdentifier();
+        String dsName = prefix + "-ds";
+        String regularIndex = prefix + "-regular";
+        String pattern = prefix + "-*";
         createDataStreamWithTemplate(dsName, Settings.EMPTY);
         indexDocs(dsName, between(1, 5));
 
@@ -316,11 +332,11 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         rolloverDataStream(dsName);
         indexDocs(dsName, between(1, 5));
 
-        createIndex("test-regular", indexSettings(1, 0).build());
-        indexDoc("test-regular", "1", "field", "value");
-        refresh("test-*");
+        createIndex(regularIndex, indexSettings(1, 0).build());
+        indexDoc(regularIndex, "1", "field", "value");
+        refresh(pattern);
 
-        var updateByQuery = updateByQuery().source("test-*");
+        var updateByQuery = updateByQuery().source(pattern);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
@@ -359,7 +375,8 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         MockTransportService.getInstance(nodeName)
             .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
                 if (request instanceof TransportReplicationAction.ConcreteShardRequest<?> concreteShardRequest
-                    && concreteShardRequest.getRequest() instanceof BulkShardRequest bulkShardRequest) {
+                    && concreteShardRequest.getRequest() instanceof BulkShardRequest bulkShardRequest
+                    && bulkShardRequest.index().equals(indexName)) {
                     boolean allMatch = Arrays.stream(bulkShardRequest.items())
                         .allMatch(item -> seqNoPredicate.test(item.request().ifSeqNo()));
                     assertTrue("ifSeqNo on bulk item did not match expected predicate", allMatch);

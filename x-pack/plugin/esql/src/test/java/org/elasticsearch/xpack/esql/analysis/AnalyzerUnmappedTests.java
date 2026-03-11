@@ -19,8 +19,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -36,6 +39,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -56,9 +63,15 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
@@ -3792,6 +3805,58 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             as(dneAttr.field(), PotentiallyUnmappedKeywordEsField.class);
         } else {
             assertThat(dneAttr.dataType(), is(DataType.NULL));
+        }
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field (e.g. "foo.bar" when "foo" is flattened) is rejected
+     */
+    public void testFlattenedSubFieldRejection() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        String errorMessage = "Cannot load subfield [%s] from a flattened field type";
+
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a"), index, String.format(Locale.ROOT, errorMessage, "field.a"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | STATS x = SAMPLE(field.a, 1)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | EVAL x = TO_STRING(field.a)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a")
+        );
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a.b"), index, String.format(Locale.ROOT, errorMessage, "field.a.b"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a.b.c"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a.b.c")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x, field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x"),
+            String.format(Locale.ROOT, errorMessage, "field.z")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x | KEEP field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x"),
+            String.format(Locale.ROOT, errorMessage, "field.z")
+        );
+    }
+
+    private void verificationFailure(String query, EsIndex index, String... expectedFailures) {
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, index.name()),
+            IndexResolution.valid(index)
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
+        for (String expectedFailure : expectedFailures) {
+            assertThat(e.getMessage(), containsString(expectedFailure));
         }
     }
 

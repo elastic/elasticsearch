@@ -23,7 +23,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
@@ -101,7 +101,7 @@ class BenchmarkUtils {
         return new OffHeapByteVectorValues.DenseOffHeapVectorValues(dims, size, slice, dims, null, sim);
     }
 
-    static QuantizedByteVectorValues quantizedVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim)
+    static LegacyQuantizedByteVectorValues quantizedVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim)
         throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
@@ -116,7 +116,7 @@ class BenchmarkUtils {
         return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorerSupplier(sim, values);
     }
 
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    static RandomVectorScorerSupplier luceneScoreSupplier(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
@@ -129,7 +129,7 @@ class BenchmarkUtils {
         return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorer(sim, values, queryVec);
     }
 
-    static RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
+    static RandomVectorScorer luceneScorer(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }

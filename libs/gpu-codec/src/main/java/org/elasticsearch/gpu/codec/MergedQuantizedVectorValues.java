@@ -30,7 +30,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
@@ -44,7 +44,7 @@ import static org.apache.lucene.codecs.KnnVectorsWriter.MergedVectorValues.hasVe
  * A copy from Lucene99ScalarQuantizedVectorsWriter to access mergeQuantizedByteVectorValues
  * during segment merge.
  */
-class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
+class MergedQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
     private static final float REQUANTIZATION_LIMIT = 0.2f;
 
     private final List<QuantizedByteVectorValueSub> subs;
@@ -195,10 +195,10 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
     }
 
     private static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final KnnVectorValues.DocIndexIterator iterator;
 
-        QuantizedByteVectorValueSub(MergeState.DocMap docMap, QuantizedByteVectorValues values) {
+        QuantizedByteVectorValueSub(MergeState.DocMap docMap, LegacyQuantizedByteVectorValues values) {
             super(docMap);
             this.values = values;
             iterator = values.iterator();
@@ -215,7 +215,7 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
         }
     }
 
-    private static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
+    private static class QuantizedFloatVectorValues extends LegacyQuantizedByteVectorValues {
         private final FloatVectorValues values;
         private final ScalarQuantizer quantizer;
         private final byte[] quantizedVector;
@@ -322,13 +322,13 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
         }
     }
 
-    private static final class OffsetCorrectedQuantizedByteVectorValues extends QuantizedByteVectorValues {
-        private final QuantizedByteVectorValues in;
+    private static final class OffsetCorrectedQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
+        private final LegacyQuantizedByteVectorValues in;
         private final VectorSimilarityFunction vectorSimilarityFunction;
         private final ScalarQuantizer scalarQuantizer, oldScalarQuantizer;
 
         OffsetCorrectedQuantizedByteVectorValues(
-            QuantizedByteVectorValues in,
+            LegacyQuantizedByteVectorValues in,
             VectorSimilarityFunction vectorSimilarityFunction,
             ScalarQuantizer scalarQuantizer,
             ScalarQuantizer oldScalarQuantizer

@@ -17,7 +17,8 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsWriter;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -40,7 +41,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final Lucene104ScalarQuantizedVectorScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(ES93FlatVectorScorer.INSTANCE);
     private final FlatVectorsFormat rawVectorFormat;
-    private final Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding;
+    private final QuantizedByteVectorValues.ScalarEncoding encoding;
 
     public ES94ScalarQuantizedVectorsFormat() {
         this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false);
@@ -59,10 +60,10 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
         this.encoding = switch (bits) {
-            case 1 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
-            case 2 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.DIBIT_QUERY_NIBBLE;
-            case 4 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
-            case 7 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT;
+            case 1 -> QuantizedByteVectorValues.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
+            case 2 -> QuantizedByteVectorValues.ScalarEncoding.DIBIT_QUERY_NIBBLE;
+            case 4 -> QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
+            case 7 -> QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT;
             default -> throw new IllegalArgumentException("bits must be one of: 1, 2, 4, 7; bits=" + bits);
         };
     }
@@ -112,7 +113,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             if (values instanceof QuantizedByteVectorValues quantizedValues && quantizedValues.getSlice() != null) {
                 // TODO: optimize int4, 2, and single bit quantization
-                if (quantizedValues.getScalarEncoding() != Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT) {
+                if (quantizedValues.getScalarEncoding() != QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT) {
                     return super.getRandomVectorScorerSupplier(sim, values);
                 }
                 if (factory != null) {
@@ -134,7 +135,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             if (values instanceof QuantizedByteVectorValues quantizedValues && quantizedValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
-                if (quantizedValues.getScalarEncoding() != Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT) {
+                if (quantizedValues.getScalarEncoding() != QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT) {
                     return super.getRandomVectorScorer(sim, values, query);
                 }
                 if (factory != null) {

@@ -60,7 +60,7 @@ class SortedSetDocValuesTerms extends Terms {
         if (termsPerLeaf.isEmpty()) {
             return null;
         } else {
-            return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
+            return new MultiTerms(termsPerLeaf.toArray(Terms[]::new), slicePerLeaf.toArray(ReaderSlice[]::new));
         }
     }
 

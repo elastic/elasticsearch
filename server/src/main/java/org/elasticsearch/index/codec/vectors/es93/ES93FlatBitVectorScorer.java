@@ -17,7 +17,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 
 import java.io.IOException;
 
@@ -39,7 +39,7 @@ class ES93FlatBitVectorScorer implements FlatVectorsScorer {
         assert vectorValues instanceof ByteVectorValues;
         assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-            assert byteVectorValues instanceof QuantizedByteVectorValues == false;
+            assert byteVectorValues instanceof LegacyQuantizedByteVectorValues == false;
             return new HammingScorerSupplier(byteVectorValues);
         }
         throw new IllegalArgumentException("Unsupported vector type or similarity function");

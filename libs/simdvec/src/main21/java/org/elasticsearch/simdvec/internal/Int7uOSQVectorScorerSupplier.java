@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;

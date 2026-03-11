@@ -15,7 +15,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 
 import java.util.Optional;
 
@@ -61,7 +61,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         throw new UnsupportedOperationException("should not reach here");
@@ -70,7 +70,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float[] queryVector
     ) {
         throw new UnsupportedOperationException("should not reach here");
@@ -80,7 +80,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values
     ) {
         throw new UnsupportedOperationException("should not reach here");
     }
@@ -88,7 +88,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
         VectorSimilarityFunction sim,
-        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values,
         byte[] quantizedQuery,
         float lowerInterval,
         float upperInterval,

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;

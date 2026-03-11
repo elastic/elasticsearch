@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +54,9 @@ import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeries
  * In addition, it doesn't allow multiple values for the same field in the same document.
  */
 public class MetricTemporalityFieldMapper extends FieldMapper {
+
+    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("metric_temporality_field_type");
+
     public static final String CONTENT_TYPE = "metric_temporality";
     private static final String DELTA = "delta";
     private static final String CUMULATIVE = "cumulative";

@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -33,6 +34,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetricTemporalityFieldMapperTests extends MapperTestCase {
+
+    @BeforeClass
+    public static void checkFeatureFlag() {
+        assumeTrue(
+            "metric_temporality field mapper is only available when the feature flag is enabled",
+            MetricTemporalityFieldMapper.FEATURE_FLAG.isEnabled()
+        );
+    }
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalyticsPlugin());

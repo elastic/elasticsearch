@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -143,16 +144,19 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(
+        Map<String, Mapper.TypeParser> result = Map.of(
             HistogramFieldMapper.CONTENT_TYPE,
             HistogramFieldMapper.PARSER,
             TDigestFieldMapper.CONTENT_TYPE,
             TDigestFieldMapper.PARSER,
             ExponentialHistogramFieldMapper.CONTENT_TYPE,
-            ExponentialHistogramFieldMapper.PARSER,
-            MetricTemporalityFieldMapper.CONTENT_TYPE,
-            MetricTemporalityFieldMapper.PARSER
+            ExponentialHistogramFieldMapper.PARSER
         );
+        if (MetricTemporalityFieldMapper.FEATURE_FLAG.isEnabled()) {
+            result = new HashMap<>(result);
+            result.put(MetricTemporalityFieldMapper.CONTENT_TYPE, MetricTemporalityFieldMapper.PARSER);
+        }
+        return result;
     }
 
     @Override

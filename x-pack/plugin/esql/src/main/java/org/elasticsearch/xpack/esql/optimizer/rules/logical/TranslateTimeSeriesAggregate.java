@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -492,7 +493,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     long windowMillis = d.toMillis();
                     if (windowMillis > 0) {
-                        gcdMillis = gcd(gcdMillis, windowMillis);
+                        gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
                         hasWindow = true;
                     }
                 }
@@ -503,15 +504,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
         return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
-    }
-
-    static long gcd(long a, long b) {
-        while (b != 0) {
-            long t = b;
-            b = a % b;
-            a = t;
-        }
-        return a;
     }
 
     private long getBucketInMillis(Bucket bucket) {

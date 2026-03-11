@@ -368,7 +368,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
-     * Tests that we prefer to throttle rather than allocate to a not-preferred node when both
+     * Tests that we prefer to throttle rather than allocate to a not-preferred node when both exist.
      */
     public void testThrottleBeforeNotPreferredNode() {
         final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.THROTTLE, Decision.NOT_PREFERRED);

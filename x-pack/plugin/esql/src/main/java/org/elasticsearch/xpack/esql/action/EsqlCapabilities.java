@@ -2231,6 +2231,11 @@ public class EsqlCapabilities {
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
 
         /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
+        /**
          * Fix for not including metadata _doc_count in the _timeseries column
          * https://github.com/elastic/elasticsearch/issues/143464
          */

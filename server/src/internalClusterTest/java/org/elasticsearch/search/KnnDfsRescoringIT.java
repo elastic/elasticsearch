@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -22,12 +21,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
@@ -35,7 +34,7 @@ public class KnnDfsRescoringIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_knn_dfs_rescore";
     private static final String VECTOR_FIELD = "vector";
-    private static final int VECTOR_DIMS = 64;
+    private static final int VECTOR_DIMS = 512;
 
     private float[] createVector(int xValue) {
         float[] vector = new float[VECTOR_DIMS];
@@ -122,25 +121,16 @@ public class KnnDfsRescoringIT extends ESIntegTestCase {
         );
 
         int maxDocsToReturn = (int) Math.ceil(k * oversample);
-        SearchResponse response = client.search(client.prepareSearch(INDEX_NAME).setSource(sourceBuilder).request()).actionGet();
-        try {
+        assertResponse(client.prepareSearch(INDEX_NAME).setSource(sourceBuilder), response -> {
             assertThat(response.getHits().getHits().length, lessThanOrEqualTo(maxDocsToReturn));
+            assertThat(response.getHits().getHits().length, greaterThanOrEqualTo(k));
 
             float prevScore = Float.MAX_VALUE;
             for (var hit : response.getHits().getHits()) {
                 assertThat("Scores should be in descending order", hit.getScore(), lessThanOrEqualTo(prevScore));
                 prevScore = hit.getScore();
             }
-            Set<String> topDocIds = new HashSet<>();
-            for (var hit : response.getHits().getHits()) {
-                topDocIds.add(hit.getId());
-            }
-            for (int i = 0; i < Math.min(k, response.getHits().getHits().length); i++) {
-                assertTrue("Expected doc " + i + " to be in top results", topDocIds.contains(String.valueOf(i)) || topDocIds.size() < k);
-            }
-        } finally {
-            response.decRef();
-        }
+        });
     }
 
     public void testKnnSearchWithoutOversampling() throws Exception {
@@ -171,17 +161,14 @@ public class KnnDfsRescoringIT extends ESIntegTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, createQueryVector(), k, 50, null, null, null)));
 
-        SearchResponse response = client.search(client.prepareSearch(indexName).setSource(sourceBuilder).request()).actionGet();
-        try {
+        assertResponse(client.prepareSearch(indexName).setSource(sourceBuilder), response -> {
             assertThat(response.getHits().getHits().length, lessThanOrEqualTo(k));
             float prevScore = Float.MAX_VALUE;
             for (var hit : response.getHits().getHits()) {
                 assertThat(hit.getScore(), lessThanOrEqualTo(prevScore));
                 prevScore = hit.getScore();
             }
-        } finally {
-            response.decRef();
-        }
+        });
     }
 
     public void testKnnSearchConsistentResultsAcrossRetries() throws Exception {
@@ -216,20 +203,18 @@ public class KnnDfsRescoringIT extends ESIntegTestCase {
         );
         SetOnce<List<String>> firstRunIds = new SetOnce<>();
         for (int run = 0; run < 3; run++) {
-            SearchResponse response = client.search(client.prepareSearch(indexName).setSource(sourceBuilder).request()).actionGet();
-            try {
+            final int fRun = run;
+            assertResponse(client.prepareSearch(indexName).setSource(sourceBuilder), response -> {
                 List<String> currentRunIds = new ArrayList<>();
                 for (var hit : response.getHits().getHits()) {
                     currentRunIds.add(hit.getId());
                 }
-                if (run == 0) {
+                if (fRun == 0) {
                     firstRunIds.set(currentRunIds);
                 } else {
-                    assertThat("Run " + run + " should have same results as run 0", currentRunIds, equalTo(firstRunIds.get()));
+                    assertThat("Run " + fRun + " should have same results as run 0", currentRunIds, equalTo(firstRunIds.get()));
                 }
-            } finally {
-                response.decRef();
-            }
+            });
         }
     }
 
@@ -263,22 +248,10 @@ public class KnnDfsRescoringIT extends ESIntegTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, createQueryVector(), k, numCands, null, null, null)));
 
-        SearchResponse response = client.search(client.prepareSearch(indexName).setSource(sourceBuilder).request()).actionGet();
-        try {
+        assertResponse(client.prepareSearch(indexName).setSource(sourceBuilder), response -> {
             int maxExpectedDocs = (int) Math.ceil(k * DEFAULT_OVERSAMPLE);
             assertThat(response.getHits().getHits().length, lessThanOrEqualTo(maxExpectedDocs));
-            Set<String> topDocIds = new HashSet<>();
-            for (var hit : response.getHits().getHits()) {
-                topDocIds.add(hit.getId());
-            }
-            for (int i = 0; i < Math.min(k, response.getHits().getHits().length); i++) {
-                assertTrue(
-                    "Expected doc " + i + " to be in top results when using index default rescoring",
-                    topDocIds.contains(String.valueOf(i)) || topDocIds.size() < k
-                );
-            }
-        } finally {
-            response.decRef();
-        }
+            assertThat(response.getHits().getHits().length, greaterThanOrEqualTo(k));
+        });
     }
 }

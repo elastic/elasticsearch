@@ -139,9 +139,9 @@ public class GcsRepositoryStatsCollector {
     }
 
     /**
-     * Continue collecting metrics with given OperationStats. Useful for readers and writers.
+     * Continue collecting metrics for an IOSupplier with given OperationStats. Useful for readers and writers.
      */
-    public <T> T continueWithStats(OperationStats stats, IOSupplier<T> blobFn) throws IOException {
+    public <T> T continueWithIOSupplier(OperationStats stats, IOSupplier<T> blobFn) throws IOException {
         setThreadLocal(stats);
         var t = timer.absoluteTimeInMillis();
         try {
@@ -152,10 +152,32 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
+    public <T> T continueWithSupplier(OperationStats stats, Supplier<T> blobFn) {
+        setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
+        try {
+            return blobFn.get();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            clearThreadLocal();
+        }
+    }
+
+    public void continueWithRunnable(OperationStats stats, Runnable runnable) {
+        setThreadLocal(stats);
+        var t = timer.absoluteTimeInMillis();
+        try {
+            runnable.run();
+        } finally {
+            stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            clearThreadLocal();
+        }
+    }
+
     /**
      * Final step in continual collection
      */
-    public void finishRunnable(OperationStats stats, IORunnable runnable) throws IOException {
+    public void finishIORunnable(OperationStats stats, IORunnable runnable) throws IOException {
         setThreadLocal(stats);
         var t = timer.absoluteTimeInMillis();
         try {
@@ -174,6 +196,7 @@ public class GcsRepositoryStatsCollector {
             runnable.run();
         } finally {
             stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            collect(stats);
             clearThreadLocal();
         }
     }
@@ -226,7 +249,7 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
-    private void collect(OperationStats stats) {
+    public void collect(OperationStats stats) {
         if (stats.requestAttempts == 0) {
             return; // nothing happened
         }

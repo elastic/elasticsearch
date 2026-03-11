@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.cloud.storage.BlobId;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -110,6 +112,25 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void copyBlob(
+        final OperationPurpose purpose,
+        final BlobContainer sourceBlobContainer,
+        final String sourceBlobName,
+        final String blobName,
+        final long blobSize
+    ) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, sourceBlobName);
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        if (sourceBlobContainer instanceof GoogleCloudStorageBlobContainer == false) {
+            throw new IllegalArgumentException("source blob container must be a GoogleCloudStorageBlobContainer");
+        }
+        var source = (GoogleCloudStorageBlobContainer) sourceBlobContainer;
+        BlobId sourceBlobId = BlobId.of(source.blobStore.bucketName, source.buildKey(sourceBlobName));
+        BlobId blobId = BlobId.of(blobStore.bucketName, buildKey(blobName));
+        blobStore.client().copy(purpose, sourceBlobId, blobId, blobStore.getMegabytesCopiedPerChunk());
     }
 
     @Override

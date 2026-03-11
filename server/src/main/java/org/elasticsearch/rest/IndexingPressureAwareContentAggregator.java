@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexingPressure;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 /**
@@ -34,6 +35,26 @@ import java.util.ArrayList;
  * (as a {@link Releasable}) for the caller to release when appropriate.
  */
 public class IndexingPressureAwareContentAggregator implements BaseRestHandler.RequestBodyChunkConsumer {
+
+    /**
+     * Transforms the accumulated request body before it is handed to the {@link CompletionHandler}.
+     * Implementations must release the input reference when they produce new output.
+     */
+    @FunctionalInterface
+    public interface BodyPostProcessor {
+
+        BodyPostProcessor NOOP = (body, size) -> body;
+
+        /**
+         * Post-processes the accumulated request body (e.g. decompression).
+         *
+         * @param body the accumulated raw body
+         * @param maxSize the maximum permitted size for the result
+         * @return the post-processed body; must not exceed {@code maxSize}
+         * @throws IOException on processing failure
+         */
+        ReleasableBytesReference process(ReleasableBytesReference body, long maxSize) throws IOException;
+    }
 
     /**
      * Callback for request body accumulation lifecycle events.
@@ -61,6 +82,7 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
     private final IndexingPressure.Coordinating coordinating;
     private final long maxRequestSize;
     private final CompletionHandler completionHandler;
+    private final BodyPostProcessor bodyPostProcessor;
 
     private ArrayList<ReleasableBytesReference> chunks;
     private long accumulatedSize;
@@ -70,12 +92,14 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         RestRequest request,
         IndexingPressure.Coordinating coordinating,
         long maxRequestSize,
-        CompletionHandler completionHandler
+        CompletionHandler completionHandler,
+        BodyPostProcessor bodyPostProcessor
     ) {
         this.request = request;
         this.coordinating = coordinating;
         this.maxRequestSize = maxRequestSize;
         this.completionHandler = completionHandler;
+        this.bodyPostProcessor = bodyPostProcessor;
     }
 
     @Override
@@ -91,21 +115,10 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         }
 
         accumulatedSize += chunk.length();
-        if (accumulatedSize > maxRequestSize) {
-            chunk.close();
-            closed = true;
-            if (chunks != null) {
-                Releasables.close(chunks);
-                chunks = null;
-            }
-            coordinating.close();
-            completionHandler.onFailure(
-                channel,
-                new ElasticsearchStatusException(
-                    "request body too large, max [" + maxRequestSize + "] bytes",
-                    RestStatus.REQUEST_ENTITY_TOO_LARGE
-                )
-            );
+        try {
+            assertBelowLimit();
+        } catch (Exception e) {
+            closeOnFailure(channel, e, chunk);
             return;
         }
 
@@ -126,14 +139,42 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
             }
             chunks = null;
 
+            try {
+                fullBody = bodyPostProcessor.process(fullBody, maxRequestSize);
+                accumulatedSize = fullBody.length();
+                assertBelowLimit();
+            } catch (Exception e) {
+                closeOnFailure(channel, e, fullBody);
+                return;
+            }
+
             long excess = maxRequestSize - accumulatedSize;
             if (excess > 0) {
                 coordinating.reduceBytes(excess);
             }
-
             closed = true;
             completionHandler.onComplete(channel, fullBody, coordinating);
         }
+    }
+
+    private void assertBelowLimit() {
+        if (accumulatedSize > maxRequestSize) {
+            throw new ElasticsearchStatusException(
+                "request body too large, max [" + maxRequestSize + "] bytes",
+                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            );
+        }
+    }
+
+    private void closeOnFailure(RestChannel channel, Exception e, Releasable releasable) {
+        releasable.close();
+        if (chunks != null) {
+            Releasables.close(chunks);
+            chunks = null;
+        }
+        closed = true;
+        coordinating.close();
+        completionHandler.onFailure(channel, e);
     }
 
     @Override

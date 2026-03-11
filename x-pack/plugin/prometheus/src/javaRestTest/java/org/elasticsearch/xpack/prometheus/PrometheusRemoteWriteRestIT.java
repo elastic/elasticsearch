@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.compression.Snappy;
+
+import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -216,7 +221,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
@@ -227,7 +233,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         return EntityUtils.toString(e.getResponse().getEntity());
@@ -286,6 +293,20 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         List<Map<String, Object>> docs = searchDocs(dataStream, metricName);
         assertThat(docs, hasSize(1));
         return new ObjectPath(docs.getFirst());
+    }
+
+    private static byte[] snappyEncode(byte[] input) {
+        ByteBuf in = Unpooled.wrappedBuffer(input);
+        ByteBuf out = Unpooled.buffer(input.length);
+        try {
+            new Snappy().encode(in, out, input.length);
+            byte[] result = new byte[out.readableBytes()];
+            out.readBytes(result);
+            return result;
+        } finally {
+            in.release();
+            out.release();
+        }
     }
 
 }

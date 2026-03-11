@@ -161,13 +161,13 @@ public final class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
+        final ActionListener<Void> resolvedBuildListener = buildListener != null ? buildListener : ActionListener.noop();
+
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
             context.fetchResult()
                 .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
-            if (buildListener != null) {
-                buildListener.onResponse(null);
-            }
+            resolvedBuildListener.onResponse(null);
             listener.onResponse(null);
             return;
         }
@@ -201,9 +201,9 @@ public final class FetchPhase {
         }, listener::onFailure);
 
         if (writer == null) {
-            buildSearchHits(context, docIdsToLoad, docsIterator, buildListener, hitsListener);
+            buildSearchHits(context, docIdsToLoad, docsIterator, resolvedBuildListener, hitsListener);
         } else {
-            buildSearchHitsStreaming(context, docIdsToLoad, docsIterator, writer, buildListener, hitsListener);
+            buildSearchHitsStreaming(context, docIdsToLoad, docsIterator, writer, resolvedBuildListener, hitsListener);
         }
     }
 
@@ -370,7 +370,7 @@ public final class FetchPhase {
         SearchContext context,
         int[] docIdsToLoad,
         FetchPhaseDocsIterator docsIterator,
-        @Nullable ActionListener<Void> buildListener,
+        ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
     ) {
         SearchHits resultToReturn = null;
@@ -408,12 +408,10 @@ public final class FetchPhase {
                 context.circuitBreaker().addWithoutBreaking(-leakedBytes);
             }
         } finally {
-            if (buildListener != null) {
-                if (caughtException != null) {
-                    buildListener.onFailure(caughtException);
-                } else {
-                    buildListener.onResponse(null);
-                }
+            if (caughtException != null) {
+                buildListener.onFailure(caughtException);
+            } else {
+                buildListener.onResponse(null);
             }
 
             if (caughtException != null) {
@@ -432,7 +430,7 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         StreamingFetchPhaseDocsIterator docsIterator,
         FetchPhaseResponseChunk.Writer writer,
-        @Nullable ActionListener<Void> buildListener,
+        ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
     ) {
         final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
@@ -470,9 +468,8 @@ public final class FetchPhase {
             }
         }));
 
-        // Acquire a listener for the main iteration. This prevents RefCountingListener from
-        // completing until we explicitly signal success/failure after iteration finishes.
         final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
+        chunkCompletionRefs.close();
 
         int maxInFlightChunks = SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(
             context.getSearchExecutionContext().getIndexSettings().getSettings()
@@ -494,7 +491,8 @@ public final class FetchPhase {
                 public void onResponse(FetchPhaseDocsIterator.IterateResult result) {
                     try (result) {
                         if (context.isCancelled()) {
-                            throw new TaskCancelledException("cancelled");
+                            onFailure(new TaskCancelledException("cancelled"));
+                            return;
                         }
 
                         if (result.lastChunkBytes != null) {
@@ -503,36 +501,26 @@ public final class FetchPhase {
                             lastChunkSequenceStartRef.set(result.lastChunkSequenceStart);
                             lastChunkByteSizeRef.set(result.lastChunkByteSize);
                         }
-
-                        if (buildListener != null) {
-                            buildListener.onResponse(null);
-                        }
-
-                        mainBuildListener.onResponse(null);
-                        chunkCompletionRefs.close();
                     } catch (Exception e) {
                         onFailure(e);
+                        return;
                     }
+                    buildListener.onResponse(null);
+                    mainBuildListener.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
-                    try {
-                        Releasables.closeWhileHandlingException(lastChunkBytes);
-                    } finally {
-                        long bytesSize = lastChunkByteSizeRef.getAndSet(0);
-                        if (bytesSize > 0) {
-                            context.circuitBreaker().addWithoutBreaking(-bytesSize);
-                        }
+                    Releasables.closeWhileHandlingException(lastChunkBytes);
+
+                    long bytesSize = lastChunkByteSizeRef.getAndSet(0);
+                    if (bytesSize > 0) {
+                        context.circuitBreaker().addWithoutBreaking(-bytesSize);
                     }
 
-                    if (buildListener != null) {
-                        buildListener.onFailure(e);
-                    }
-
+                    buildListener.onFailure(e);
                     mainBuildListener.onFailure(e);
-                    chunkCompletionRefs.close();
                 }
             }
         );

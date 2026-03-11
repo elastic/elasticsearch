@@ -1,5 +1,6 @@
 simpleKeep
 required_capability: optional_fields_nullify_tech_preview
+
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP foo
@@ -30,7 +31,6 @@ FROM partial_mapping_sample_data
 
 fieldUnmappedInSourceButExcludedSingleIndex
 required_capability: optional_fields_nullify_tech_preview
-required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_excluded_source_sample_data
@@ -50,7 +50,6 @@ FROM partial_mapping_excluded_source_sample_data
 
 fieldUnmappedInSourceButSourceDisabledSingleIndex
 required_capability: optional_fields_nullify_tech_preview
-required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_no_source_sample_data
@@ -273,7 +272,6 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -298,7 +296,6 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -423,6 +420,7 @@ x:integer | foo:null
 
 mvExpand
 required_capability: optional_fields_nullify_tech_preview
+
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | MV_EXPAND foo
@@ -434,7 +432,6 @@ x:integer | foo:null
 
 forkBranchesWithDifferentSchemas
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fork_v9
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -458,7 +455,6 @@ null           |1985           |null           |abc            |fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_inline_stats_group_by_null
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -471,7 +467,6 @@ x:integer      |does_not_exist:null|c:long         |s:double       |d:null
 
 lookupJoin
 required_capability: optional_fields_nullify_tech_preview
-required_capability: join_lookup_v12
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -485,7 +480,6 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 
 enrich
 required_capability: optional_fields_nullify_tech_preview
-required_capability: enrich_load
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -499,7 +493,6 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 
 partiallyUnmappedKeywordMultiIndex
 required_capability: optional_fields_nullify_tech_preview
-required_capability: index_metadata_field
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -526,7 +519,6 @@ sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 
 partiallyUnmappedNonKeywordMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
-required_capability: index_metadata_field
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -554,7 +546,6 @@ sample_data            | 2023-10-23T12:15:03.360Z  | 3450233.0
 
 partiallyUnmappedMixedTypesMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
-required_capability: index_metadata_field
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, logs, no_mapping_sample_data METADATA _index
@@ -589,11 +580,9 @@ sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: optional_fields_nullify_tech_preview
-required_capability: index_metadata_field
-required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
-FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data METADATA _index
+FROM sample_data,partial_mapping_no_source_sample_data METADATA _index
 | KEEP _index, @timestamp, message
 | SORT _index, @timestamp
 ;
@@ -617,8 +606,6 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 
 fieldIsPartiallyUnmappedPartiallySourceExcludedMultiIndex
 required_capability: optional_fields_nullify_tech_preview
-required_capability: index_metadata_field
-required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -665,8 +652,6 @@ TS k8s_unmapped
 rateOnUnmappedTsIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
-required_capability: tbucket
-required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped
@@ -705,6 +690,8 @@ null        | 2024-05-10T00:09:00.000Z
 maxOverTimeOfKeyword
 SET unmapped_fields="nullify"\;
 required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
 TS k8s,k8s_unmapped METADATA _index
 | STATS pod = min(max_over_time(region)) BY time_bucket = bucket(@timestamp,1minute), _index
 | SORT time_bucket, _index

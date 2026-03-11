@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -3283,6 +3284,41 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var filter = as(eval.child(), Filter.class);
         var orderBy = as(filter.child(), OrderBy.class);
         assertThat(orderBy, not(nullValue()));
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Unmapped fields with dotted names (e.g. host.entity.id) should be nullified in STATS WHERE, even when an EVAL before the STATS
+     * creates a field whose name is a suffix of the unmapped field name (e.g. entity.id).
+     */
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            ROW x = 1
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), hasItems("host.entity.id", "entity.id"));
+        assertTrue(agg.resolved());
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Same as {@link #testStatsFilteredAggAfterEvalWithDottedUnmappedField()} but with FROM instead of ROW.
+     */
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), hasItems("host.entity.id", "entity.id"));
+        assertTrue(agg.resolved());
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

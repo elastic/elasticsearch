@@ -665,3 +665,29 @@ TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = doe
 max_bytes:long | cluster:null
 10797          | null
 ;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedField
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;

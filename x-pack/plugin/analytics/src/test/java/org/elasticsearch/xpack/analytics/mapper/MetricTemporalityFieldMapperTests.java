@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -64,6 +65,7 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
             b -> b.field("ignore_malformed", true),
             m -> assertTrue(((MetricTemporalityFieldMapper) m).ignoreMalformed())
         );
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
 
@@ -194,6 +196,30 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         IndexableField field = doc.rootDoc().getField("field");
         assertThat(field, notNullValue());
         assertThat(field.binaryValue(), equalTo(new BytesRef("delta")));
+    }
+
+    public void testIndexedTrue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
+            b.field("time_series_dimension", true);
+            b.field("index", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "delta")));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertThat(field, notNullValue());
+        assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.DOCS));
+    }
+
+    public void testIndexedFalse() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
+            b.field("time_series_dimension", true);
+            b.field("index", false);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "delta")));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertThat(field, notNullValue());
+        assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
     }
 
     public void testRejectUnknownValue() throws IOException {

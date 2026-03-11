@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -152,7 +153,9 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(true);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(
+                new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null).optimizedRescoring(false)
+            );
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
@@ -180,7 +183,11 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(false);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(
+                Optional.of(
+                    new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null).optimizedRescoring(false)
+                )
+            );
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

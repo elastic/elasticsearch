@@ -3303,6 +3303,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
             """));
 
+        // TODO: golden testing
         var limit = as(plan, Limit.class);
 
         var agg = as(limit.child(), Aggregate.class);
@@ -3339,6 +3340,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """;
         var plan = analyzeStatement(load ? setUnmappedLoad(query) : setUnmappedNullify(query));
 
+        // TODO: golden testing
         var limit = as(plan, Limit.class);
 
         var agg = as(limit.child(), Aggregate.class);

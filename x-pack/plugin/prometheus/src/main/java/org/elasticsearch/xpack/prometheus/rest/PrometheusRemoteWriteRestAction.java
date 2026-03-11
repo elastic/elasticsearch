@@ -115,6 +115,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                                             )
                                         );
                                     } catch (Exception sendException) {
+                                        sendException.addSuppressed(e);
                                         logger.warn("failed to send failure response", sendException);
                                     }
                                 }

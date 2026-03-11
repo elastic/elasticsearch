@@ -303,6 +303,18 @@ public class IndexingPressure implements IndexingPressureMonitor {
             totalCoordinatingRequests.getAndIncrement();
         }
 
+        /**
+         * Reduces the tracked byte count for this coordinating operation without closing it.
+         * Use this to lower a reservation once the actual size is known to be smaller than the initially reserved amount.
+         */
+        public void reduceBytes(long bytes) {
+            assert closed.get() == false;
+            assert currentOperationsSize >= bytes;
+            currentOperationsSize -= bytes;
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            currentCoordinatingBytes.getAndAdd(-bytes);
+        }
+
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {

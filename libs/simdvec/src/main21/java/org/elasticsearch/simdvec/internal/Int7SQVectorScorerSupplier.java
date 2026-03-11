@@ -271,7 +271,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class MaxInnerProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(MemorySegmentAccessInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public MaxInnerProductSupplier(
+            MemorySegmentAccessInput input,
+            LegacyQuantizedByteVectorValues values,
+            float scoreCorrectionConstant
+        ) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant, BITS));
         }
 

@@ -9,11 +9,11 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;

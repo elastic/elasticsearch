@@ -110,7 +110,11 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getInt7SQVectorScorer(VectorSimilarityFunction sim, LegacyQuantizedByteVectorValues values, float[] queryVector);
+    Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        LegacyQuantizedByteVectorValues values,
+        float[] queryVector
+    );
 
     /**
      * Returns an optional containing an int7 optimal scalar quantized vector score supplier

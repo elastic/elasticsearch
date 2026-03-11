@@ -9,9 +9,9 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.util.Optional;
 

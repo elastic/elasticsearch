@@ -18,7 +18,11 @@ import java.util.Optional;
 public final class Int7SQVectorScorer {
 
     // Unconditionally returns an empty optional on <= JDK 21, since the scorer is only supported on JDK 22+
-    public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, LegacyQuantizedByteVectorValues values, float[] queryVector) {
+    public static Optional<RandomVectorScorer> create(
+        VectorSimilarityFunction sim,
+        LegacyQuantizedByteVectorValues values,
+        float[] queryVector
+    ) {
         return Optional.empty();
     }
 

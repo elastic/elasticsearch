@@ -220,8 +220,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
-         * capability until we enable the LOAD option mentioned above.
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -230,6 +230,11 @@ public class EsqlCapabilities {
          * match fields already present in the children's output.
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
@@ -1928,6 +1933,12 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
+         * grouping function that excludes specific dimensions from time-series grouping.
+         */
+        TIME_SERIES_WITHOUT_GROUPING,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -2108,6 +2119,11 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
+         */
+        TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
          */
         TDIGEST_MEDIAN,
@@ -2217,6 +2233,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142968
          */
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
 
         /**
          * Fix for not including metadata _doc_count in the _timeseries column

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -84,7 +85,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+        when(transportService.newNetworkBytesStream(any())).then(
+            invocation -> new RecyclerBytesStreamOutput(recycler, invocation.getArgument(0))
+        );
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
@@ -206,8 +209,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 }
 
                 @Override
-                public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                    return new RecyclerBytesStreamOutput(recycler);
+                public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+                    return new RecyclerBytesStreamOutput(recycler, circuitBreaker);
                 }
             };
 

@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -49,6 +53,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -352,5 +358,121 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
 
             assertThat(mvExpand.child(), instanceOf(LocalRelation.class));
         }
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_Limit[1[INTEGER],[emp_no{f}#6],false,false]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testLimitByPruneIdenticalLimits() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2 BY emp_no
+            | LIMIT 1 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10000[INTEGER],[],false,false]
+     * \_Limit[1[INTEGER],[first_name{f}#6],false,false]
+     *   \_Limit[1[INTEGER],[emp_no{f}#5],false,false]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testLimitByKeepDifferentGroupings() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 1 BY first_name
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        var limit1 = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit1.limit()).value(), equalTo(1));
+        assertThat(limit1.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit1.groupings()), contains("first_name"));
+        var limit2 = as(limit1.child(), Limit.class);
+        assertThat(((Literal) limit2.limit()).value(), equalTo(1));
+        assertThat(limit2.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[2[INTEGER],[],false,false]
+     * \_Limit[2[INTEGER],[emp_no{f}#5],false,false]
+     *   \_Limit[2[INTEGER],[],false,false]
+     *     \_Limit[1[INTEGER],[emp_no{f}#5],false,false]
+     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testLimitByNotCombinedWhenSeparatedByPlainLimit() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2
+            | LIMIT 2 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+        var limit2 = as(limit.child(), Limit.class);
+        assertThat(((Literal) limit2.limit()).value(), equalTo(2));
+        assertThat(limit2.groupings(), empty());
+        var limit3 = as(limit2.child(), Limit.class);
+        assertThat(((Literal) limit3.limit()).value(), equalTo(1));
+        assertThat(Expressions.names(limit3.groupings()), contains("emp_no"));
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[languages{f}#12,ASC,LAST]],10000[INTEGER],false]
+     * \_Aggregate[[languages{f}#12],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c, languages{f}#12]]
+     *   \_Limit[2[INTEGER],[languages{f}#12],false,false]
+     *     \_TopN[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }</pre>
+     */
+    public void testLimitByNotCombinedWithTopN() {
+        var plan = plan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 1000
+            | LIMIT 2 BY languages
+            | STATS c = COUNT(*) BY languages
+            | SORT languages ASC NULLS LAST
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
+        assertThat(orderNames(topN), contains("languages"));
+        var agg = as(topN.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("languages"));
+        var limit = as(agg.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(Expressions.names(limit.groupings()), contains("languages"));
+        var innerTopN = as(limit.child(), TopN.class);
+        assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(orderNames(innerTopN), contains("emp_no"));
+        as(innerTopN.child(), EsRelation.class);
+    }
+
+    private static List<String> orderNames(TopN topN) {
+        return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }
 }

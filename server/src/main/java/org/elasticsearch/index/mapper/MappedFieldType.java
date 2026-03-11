@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -720,6 +721,12 @@ public abstract class MappedFieldType {
 
         @Nullable
         BlockLoaderFunctionConfig blockLoaderFunctionConfig();
+
+        /**
+         * Warnings collector for the block loader. May be {@code null} if warnings are not supported.
+         */
+        @Nullable
+        Warnings warnings();
 
         /**
          * Number of bytes reserved for each ordinals {@link BlockLoader.Reader}.

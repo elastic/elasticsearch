@@ -193,6 +193,21 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * When loading from a multi-leaf doc vector that maps to a single shard and segment,
+     * the reader switches to a doc-sequential iteration order if the number of
+     * {@link org.elasticsearch.compute.data.ElementType#BYTES_REF BYTES_REF} fields exceeds
+     * this threshold. The doc-sequential path avoids the expensive backwards reorder and
+     * supports partial-page splitting bounded by {@code jumboBytes}.
+     */
+    public static final Setting<Integer> DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD = Setting.intSetting(
+        "esql.doc_sequence_bytes_ref_field_threshold",
+        500,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -208,7 +223,8 @@ public class PlannerSettings {
             MAX_KEYWORD_SORT_FIELDS,
             SOURCE_RESERVATION_FACTOR,
             BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-            BYTES_REF_RAM_OVERESTIMATE_FACTOR
+            BYTES_REF_RAM_OVERESTIMATE_FACTOR,
+            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD
         );
     }
 
@@ -248,6 +264,10 @@ public class PlannerSettings {
                 BYTES_REF_RAM_OVERESTIMATE_FACTOR,
                 v -> settings.updateAndGet(s -> s.bytesRefRamOverestimateFactor(v))
             );
+            clusterSettings.initializeAndWatch(
+                DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.docSequenceBytesRefFieldThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -268,6 +288,7 @@ public class PlannerSettings {
     private final double sourceReservationFactor;
     private final ByteSizeValue bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
+    private final int docSequenceBytesRefFieldThreshold;
 
     /**
      * Defaults.
@@ -285,7 +306,8 @@ public class PlannerSettings {
         MAX_KEYWORD_SORT_FIELDS.getDefault(Settings.EMPTY),
         SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
-        BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY)
+        BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
+        DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -304,7 +326,8 @@ public class PlannerSettings {
         int maxKeywordSortFields,
         double sourceReservationFactor,
         ByteSizeValue bytesRefRamOverestimateThreshold,
-        double bytesRefRamOverestimateFactor
+        double bytesRefRamOverestimateFactor,
+        int docSequenceBytesRefFieldThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
@@ -319,6 +342,7 @@ public class PlannerSettings {
         this.sourceReservationFactor = sourceReservationFactor;
         this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
         this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
+        this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -335,7 +359,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -357,7 +382,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -379,7 +405,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -415,7 +442,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -437,7 +465,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -459,7 +488,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -481,7 +511,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -510,7 +541,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -535,7 +567,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -560,7 +593,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -582,7 +616,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -604,7 +639,8 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
@@ -626,11 +662,35 @@ public class PlannerSettings {
             maxKeywordSortFields,
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
         );
     }
 
     public double bytesRefRamOverestimateFactor() {
         return bytesRefRamOverestimateFactor;
+    }
+
+    public PlannerSettings docSequenceBytesRefFieldThreshold(int docSequenceBytesRefFieldThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
+        );
+    }
+
+    public int docSequenceBytesRefFieldThreshold() {
+        return docSequenceBytesRefFieldThreshold;
     }
 }

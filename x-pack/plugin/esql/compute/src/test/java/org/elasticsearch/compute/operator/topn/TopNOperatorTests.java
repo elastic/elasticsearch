@@ -17,7 +17,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -37,13 +37,13 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.compute.test.TypedAbstractBlockSourceBuilder;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleDocLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
@@ -99,7 +99,6 @@ import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
@@ -112,7 +111,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
-//@Repeat(iterations = 100)
 public class TopNOperatorTests extends OperatorTestCase {
     protected final int pageSize = randomPageSize();
 
@@ -739,7 +737,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(topNLong(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+    protected List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
         return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
     }
 
@@ -854,14 +852,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
@@ -869,8 +867,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls first
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, true, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, lessThan(nullRow));
                 assertThat(nullRow, greaterThan(nonNullRow));
@@ -879,8 +877,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls last
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, false, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, greaterThan(nullRow));
                 assertThat(nullRow, lessThan(nonNullRow));
@@ -889,8 +887,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // ascending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, greaterThan(r2));
                 assertThat(r2, lessThan(r1));
@@ -898,8 +896,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // descending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, lessThan(r2));
                 assertThat(r2, greaterThan(r1));
@@ -908,7 +906,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         page.releaseBlocks();
     }
 
-    private TopNOperator.Row row(
+    private TopNRow row(
         ElementType elementType,
         TopNEncoder encoder,
         int channel,
@@ -927,7 +925,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             channelInKey,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
+        TopNRow row = new TopNRow(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;
@@ -1203,7 +1201,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     protected <T, S> List<Page> topNMultipleColumns(
         DriverContext driverContext,
-        TypedAbstractBlockSourceBuilder sourceOperator,
+        AbstractTypedBlockSourceOperator sourceOperator,
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders,
@@ -2049,7 +2047,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCloseWithoutCompleting() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -2071,9 +2069,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testRowResizes() {
         int columns = 1000;
         int rows = 1000;
-        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
-            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
-        );
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1)));
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
         boolean asc = randomBoolean();
@@ -2156,7 +2152,7 @@ public class TopNOperatorTests extends OperatorTestCase {
              * With very small bytes we might break too early. That's ok. Small
              * ones are rare and if we have them then a few early-breaks is fine.
              */
-            minPageSize -= 10;
+            minPageSize -= 20;
         }
         if (byteLength < PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
             /*

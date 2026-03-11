@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -83,6 +84,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
+                    case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case Fork fork -> {
                         forkPresent.set(true);
                         yield pruneColumnsInFork(fork, used);
@@ -208,6 +210,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return p;
+    }
+
+    /**
+     * Prunes unused columns from an {@link ExternalRelation}.
+     * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
+     * the attribute list on an external relation directly controls which columns the format reader loads from storage.
+     */
+    private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        var remaining = pruneUnusedAndAddReferences(ext.output(), used);
+        return remaining != null ? ext.withAttributes(remaining) : ext;
     }
 
     // TODO: see ResolveUnmapped#patchFork comment

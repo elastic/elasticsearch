@@ -359,8 +359,6 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
-            } else if (ia.getType() == Type.VIEW) {
-                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;
@@ -1524,6 +1522,13 @@ public class IndexNameExpressionResolver {
                 throw infe;
             }
         }
+        if (indexAbstraction.getType() == Type.VIEW && context.getOptions().indexAbstractionOptions().resolveViews() == false) {
+            if (ignoreUnavailable) {
+                return false;
+            } else {
+                throw notFoundException(name);
+            }
+        }
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
@@ -1792,7 +1797,7 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
-            if (context.getOptions().wildcardOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
+            if (context.getOptions().indexAbstractionOptions().resolveViews() == false && indexAbstraction.getType() == Type.VIEW) {
                 return false;
             }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
@@ -1847,7 +1852,7 @@ public class IndexNameExpressionResolver {
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (indexAbstraction.getType() == Type.VIEW) {
-                if (context.getOptions().wildcardOptions().resolveViews()) {
+                if (context.getOptions().indexAbstractionOptions().resolveViews()) {
                     resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
                 }
             } else {

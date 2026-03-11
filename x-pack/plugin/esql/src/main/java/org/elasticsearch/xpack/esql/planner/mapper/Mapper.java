@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -87,8 +87,10 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
-        // ExternalRelation is handled by MapperUtils.mapLeaf()
-        // which calls toPhysicalExec() to create coordinator-only source operators
+        if (leaf instanceof ExternalRelation external) {
+            return new FragmentExec(external);
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 
@@ -245,25 +247,20 @@ public class Mapper {
     }
 
     private PhysicalPlan mapFork(Fork fork) {
-        if (fork instanceof UnionAll unionAll) {
-            return mapUnionAll(unionAll);
-        }
-        return new MergeExec(fork.source(), fork.children().stream().map(this::mapInner).toList(), fork.output());
-    }
-
-    private PhysicalPlan mapUnionAll(UnionAll unionAll) {
         // after removing the implicit limit attached to each branch, the branch plan may not have a coordinator plan anymore, however
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
-        int childSize = unionAll.children().size();
+        int childSize = fork.children().size();
+
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(unionAll.children().get(i));
+            PhysicalPlan child = mapInner(fork.children().get(i));
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }
             newChildren.add(child);
         }
-        return new MergeExec(unionAll.source(), newChildren, unionAll.output());
+
+        return new MergeExec(fork.source(), newChildren, fork.output());
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

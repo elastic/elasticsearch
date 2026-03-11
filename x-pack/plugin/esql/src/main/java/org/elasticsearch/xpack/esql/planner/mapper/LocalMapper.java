@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -71,8 +72,10 @@ public class LocalMapper {
             return new EsSourceExec(esRelation);
         }
 
-        // ExternalRelation is handled by MapperUtils.mapLeaf()
-        // via its toPhysicalExec() method, bypassing FragmentExec/ExchangeExec dispatch
+        if (leaf instanceof ExternalRelation external) {
+            return external.toPhysicalExec();
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 

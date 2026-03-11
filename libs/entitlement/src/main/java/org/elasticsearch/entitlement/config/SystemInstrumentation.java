@@ -56,9 +56,9 @@ public class SystemInstrumentation implements InstrumentationConfig {
 
         builder.on(System.class, rule -> {
             rule.callingVoidStatic(System::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
-            rule.callingStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseThrowNotEntitled();
+            rule.callingStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.callingStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseThrowNotEntitled();
+            rule.callingStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
             rule.callingVoidStatic(System::setOut, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
             rule.callingVoidStatic(System::setErr, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();

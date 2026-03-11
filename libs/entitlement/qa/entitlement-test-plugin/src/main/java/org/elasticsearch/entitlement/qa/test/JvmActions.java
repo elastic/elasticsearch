@@ -29,20 +29,17 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class JvmActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void setSystemProperty() {
-        System.setProperty("es.entitlements.checkSetSystemProperty", "true");
-        try {
-            System.clearProperty("es.entitlements.checkSetSystemProperty");
-        } catch (RuntimeException e) {
-            // ignore for this test case
-        }
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String setSystemProperty() {
+        String previous = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
+        System.clearProperty("es.entitlements.checkSetSystemProperty");
+        return previous;
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void clearSystemProperty() {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String clearSystemProperty() {
         EntitledPlugin.selfTest(); // TODO: find a better home
-        System.clearProperty("es.entitlements.checkClearSystemProperty");
+        return System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

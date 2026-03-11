@@ -850,6 +850,7 @@ count:long | min:integer | max:integer | avg:double | sum:long
 centroidFromCountriesBboxWeb
 required_capability: st_centroid_agg
 required_capability: st_centroid_agg_shapes
+required_capability: st_centroid_agg_shapes_doc_values
 
 FROM countries_bbox_web
 | WHERE id IN ("NOR", "SWE", "FIN")
@@ -1141,6 +1142,7 @@ centroidAndExtentFromCountriesBboxWeb
 required_capability: st_centroid_agg
 required_capability: st_centroid_agg_shapes
 required_capability: st_extent_agg
+required_capability: st_centroid_agg_shapes_doc_values
 
 FROM countries_bbox_web
 | WHERE id IN ("NOR", "SWE", "FIN")

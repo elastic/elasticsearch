@@ -120,40 +120,6 @@ class ValuesIntAggregator {
     }
 
     /**
-     * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
-     * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
-     * to an array, allowing us to build the output in O(N) instead.
-     */
-    private static class NextValues implements Releasable {
-        private final BlockFactory blockFactory;
-        private final LongHashTable hashes;
-
-        private NextValues(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-            this.hashes = HashImplFactory.newLongHash(blockFactory);
-        }
-
-        void addValue(int groupId, int v) {
-            /*
-             * Encode the groupId and value into a single long -
-             * the top 32 bits for the group, the bottom 32 for the value.
-             */
-            hashes.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
-        }
-
-        int getValue(ValuesNextPreparedForEmitting prepared, int index) {
-            long both = hashes.get(prepared.ids[index]);
-            return (int) (both & 0xFFFFFFFFL);
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(hashes);
-        }
-    }
-
-    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over result rendering performance.
      * The first value in each group is collected in the {@code firstValues}
@@ -164,14 +130,14 @@ class ValuesIntAggregator {
         IntArray firstValues;
         private BitArray seen;
         private int maxGroupId = -1;
-        private final NextValues nextValues;
+        private final ValuesNextLong nextValues;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
             boolean success = false;
             try {
                 this.firstValues = driverContext.bigArrays().newIntArray(1, false);
-                this.nextValues = new NextValues(driverContext.blockFactory());
+                this.nextValues = new ValuesNextLong(driverContext.blockFactory());
                 success = true;
             } finally {
                 if (success == false) {
@@ -202,7 +168,7 @@ class ValuesIntAggregator {
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
             } else if (firstValues.get(groupId) != v) {
-                nextValues.addValue(groupId, v);
+                nextValues.add(groupId, v);
             }
         }
 
@@ -230,7 +196,7 @@ class ValuesIntAggregator {
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = ValuesNextPreparedForEmitting.build(blockFactory, selected, nextValues.hashes)) {
+            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
                 return buildOutputBlock(blockFactory, selected, prepared);
             }
         }
@@ -256,8 +222,7 @@ class ValuesIntAggregator {
                         builder.appendInt(firstValue);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(prepared, i);
-                            builder.appendInt(nextValue);
+                            builder.appendInt(nextValues.getInt(prepared, i));
                         }
                         builder.endPositionEntry();
                         nextValuesStart = nextValuesEnd;

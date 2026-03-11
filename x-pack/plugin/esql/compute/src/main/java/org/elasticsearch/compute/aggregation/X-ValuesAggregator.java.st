@@ -194,70 +194,6 @@ $endif$
     }
 
     /**
-     * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
-     * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
-     * to an array, allowing us to build the output in O(N) instead.
-     */
-    private static class NextValues implements Releasable {
-        private final BlockFactory blockFactory;
-$if(long||double)$
-        private final LongLongHash hashes;
-
-$else$
-        private final LongHashTable hashes;
-
-$endif$
-        private NextValues(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-$if(long||double)$
-            this.hashes = new LongLongHash(1, blockFactory.bigArrays());
-$else$
-            this.hashes = HashImplFactory.newLongHash(blockFactory);
-$endif$
-        }
-
-        void addValue(int groupId, $if(BytesRef)$int$else$$type$$endif$ v) {
-$if(long)$
-            hashes.add(groupId, v);
-$elseif(double)$
-            hashes.add(groupId, Double.doubleToLongBits(v));
-$elseif(int||BytesRef)$
-            /*
-             * Encode the groupId and value into a single long -
-             * the top 32 bits for the group, the bottom 32 for the value.
-             */
-            hashes.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
-$elseif(float)$
-            /*
-             * Encode the groupId and value into a single long -
-             * the top 32 bits for the group, the bottom 32 for the value.
-             */
-            hashes.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
-$endif$
-        }
-
-        $if(BytesRef)$int$else$$type$$endif$ getValue(ValuesNextPreparedForEmitting prepared, int index) {
-$if(long)$
-            return hashes.getKey2(prepared.ids[index]);
-$elseif(double)$
-            return Double.longBitsToDouble(hashes.getKey2(prepared.ids[index]));
-$elseif(float)$
-            long both = hashes.get(prepared.ids[index]);
-            return Float.intBitsToFloat((int) (both & 0xFFFFFFFFL));
-$elseif(BytesRef||int)$
-            long both = hashes.get(prepared.ids[index]);
-            return (int) (both & 0xFFFFFFFFL);
-$endif$
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(hashes);
-        }
-    }
-
-    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over result rendering performance.
      * The first value in each group is collected in the {@code firstValues}
@@ -273,7 +209,7 @@ $else$
         private BitArray seen;
         private int maxGroupId = -1;
 $endif$
-        private final NextValues nextValues;
+        private final ValuesNextLong$if(long||double)$Long$endif$ nextValues;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
@@ -285,7 +221,7 @@ $if(BytesRef)$
 $else$
                 this.firstValues = driverContext.bigArrays().new$Type$Array(1, false);
 $endif$
-                this.nextValues = new NextValues(driverContext.blockFactory());
+                this.nextValues = new ValuesNextLong$if(long||double)$Long$endif$(driverContext.blockFactory());
                 success = true;
             } finally {
                 if (success == false) {
@@ -306,7 +242,7 @@ $if(BytesRef)$
                 if (current < 0) {
                     firstValues.set(groupId, valueOrdinal + 1);
                 } else if (current != valueOrdinal) {
-                    nextValues.addValue(groupId, valueOrdinal);
+                    nextValues.add(groupId, valueOrdinal);
                 }
             } else {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
@@ -336,7 +272,7 @@ $else$
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
             } else if (firstValues.get(groupId) != v) {
-                nextValues.addValue(groupId, v);
+                nextValues.add(groupId, v);
             }
 $endif$
         }
@@ -373,9 +309,9 @@ $endif$
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = ValuesNextPreparedForEmitting.build(blockFactory, selected, nextValues.hashes)) {
+            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
 $if(BytesRef)$
-                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.hashes.size(), bytes.size())) {
+                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, prepared);
                 } else {
                     return buildOutputBlock(blockFactory, selected, prepared);
@@ -418,8 +354,12 @@ $endif$
                         builder.append$Type$($if(BytesRef)$bytes.get(firstValue, scratch)$else$firstValue$endif$);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(prepared, i);
-                            builder.append$Type$($if(BytesRef)$bytes.get(nextValue, scratch)$else$nextValue$endif$);
+$if(BytesRef)$
+                            var nextValue = nextValues.getInt(prepared, i);
+                            builder.append$Type$(bytes.get(nextValue, scratch));
+$else$
+                            builder.append$Type$(nextValues.get$Type$(prepared, i));
+$endif$
                         }
                         builder.endPositionEntry();
                         nextValuesStart = nextValuesEnd;
@@ -436,7 +376,7 @@ $if(BytesRef)$
             BytesRefBlock result = null;
             var dictArray = bytes.getBytesRefs();
             dictArray.incRef();
-            int estimateSize = Math.toIntExact(firstValues.size() + nextValues.hashes.size());
+            int estimateSize = Math.toIntExact(firstValues.size() + nextValues.size());
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -453,7 +393,7 @@ $if(BytesRef)$
                         builder.beginPositionEntry();
                         builder.appendInt(firstValue);
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendInt(nextValues.getValue(prepared, i));
+                            builder.appendInt(nextValues.getInt(prepared, i));
                         }
                         builder.endPositionEntry();
                     }

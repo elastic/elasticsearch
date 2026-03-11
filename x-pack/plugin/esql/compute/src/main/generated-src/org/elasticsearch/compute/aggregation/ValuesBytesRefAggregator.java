@@ -138,40 +138,6 @@ class ValuesBytesRefAggregator {
     }
 
     /**
-     * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
-     * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
-     * to an array, allowing us to build the output in O(N) instead.
-     */
-    private static class NextValues implements Releasable {
-        private final BlockFactory blockFactory;
-        private final LongHashTable hashes;
-
-        private NextValues(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-            this.hashes = HashImplFactory.newLongHash(blockFactory);
-        }
-
-        void addValue(int groupId, int v) {
-            /*
-             * Encode the groupId and value into a single long -
-             * the top 32 bits for the group, the bottom 32 for the value.
-             */
-            hashes.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
-        }
-
-        int getValue(ValuesNextPreparedForEmitting prepared, int index) {
-            long both = hashes.get(prepared.ids[index]);
-            return (int) (both & 0xFFFFFFFFL);
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(hashes);
-        }
-    }
-
-    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over result rendering performance.
      * The first value in each group is collected in the {@code firstValues}
@@ -181,7 +147,7 @@ class ValuesBytesRefAggregator {
         private final BlockFactory blockFactory;
         BytesRefHash bytes;
         private IntArray firstValues;
-        private final NextValues nextValues;
+        private final ValuesNextLong nextValues;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
@@ -189,7 +155,7 @@ class ValuesBytesRefAggregator {
             try {
                 this.bytes = new BytesRefHash(1, driverContext.bigArrays());
                 this.firstValues = driverContext.bigArrays().newIntArray(1, true);
-                this.nextValues = new NextValues(driverContext.blockFactory());
+                this.nextValues = new ValuesNextLong(driverContext.blockFactory());
                 success = true;
             } finally {
                 if (success == false) {
@@ -209,7 +175,7 @@ class ValuesBytesRefAggregator {
                 if (current < 0) {
                     firstValues.set(groupId, valueOrdinal + 1);
                 } else if (current != valueOrdinal) {
-                    nextValues.addValue(groupId, valueOrdinal);
+                    nextValues.add(groupId, valueOrdinal);
                 }
             } else {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
@@ -232,8 +198,8 @@ class ValuesBytesRefAggregator {
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = ValuesNextPreparedForEmitting.build(blockFactory, selected, nextValues.hashes)) {
-                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.hashes.size(), bytes.size())) {
+            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
+                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, prepared);
                 } else {
                     return buildOutputBlock(blockFactory, selected, prepared);
@@ -263,7 +229,7 @@ class ValuesBytesRefAggregator {
                         builder.appendBytesRef(bytes.get(firstValue, scratch));
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(prepared, i);
+                            var nextValue = nextValues.getInt(prepared, i);
                             builder.appendBytesRef(bytes.get(nextValue, scratch));
                         }
                         builder.endPositionEntry();
@@ -280,7 +246,7 @@ class ValuesBytesRefAggregator {
             BytesRefBlock result = null;
             var dictArray = bytes.getBytesRefs();
             dictArray.incRef();
-            int estimateSize = Math.toIntExact(firstValues.size() + nextValues.hashes.size());
+            int estimateSize = Math.toIntExact(firstValues.size() + nextValues.size());
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -297,7 +263,7 @@ class ValuesBytesRefAggregator {
                         builder.beginPositionEntry();
                         builder.appendInt(firstValue);
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendInt(nextValues.getValue(prepared, i));
+                            builder.appendInt(nextValues.getInt(prepared, i));
                         }
                         builder.endPositionEntry();
                     }

@@ -3137,12 +3137,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *       \_Row[[TODATETIME(1970-01-01T00:00:00Z[KEYWORD]) AS millis#4, TODATENANOS(1970-01-01T00:00:00Z[KEYWORD]) AS nanos#6]]
      */
     public void testDoNotResolveUnmappedFieldPresentInChildren() {
-        var plan = analyzeStatement(setUnmappedNullify("""
+        String query = """
                 ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
                 | SORT millis ASC
                 | WHERE millis < "2000-01-01"
                 | EVAL nanos = MV_MIN(nanos)
-            """));
+            """;
+        boolean useNullify = randomBoolean();
+        var plan = analyzeStatement(useNullify? setUnmappedNullify(query) : setUnmappedLoad(query));
 
         var limit = asLimit(plan, 1000);
         var eval = as(limit.child(), Eval.class);

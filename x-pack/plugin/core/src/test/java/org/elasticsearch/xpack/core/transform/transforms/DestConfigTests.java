@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -81,20 +82,13 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
             if (instance.getWriteAction() == null) {
                 return instance;
             }
-            // Re-create without writeAction, preserving the raw aliases value.
-            // We need the raw aliases field (null vs empty list matters for equals), but getAliases() normalizes null to List.of().
-            // Access the raw field via reflection.
-            List<DestAlias> rawAliases;
+            // Serialize at the BWC version and deserialize to get the expected object (writeAction stripped by version guard).
+            // This avoids needing access to the raw aliases field (null vs empty list matters for equals).
             try {
-                var field = DestConfig.class.getDeclaredField("aliases");
-                field.setAccessible(true);
-                @SuppressWarnings("unchecked")
-                List<DestAlias> value = (List<DestAlias>) field.get(instance);
-                rawAliases = value;
-            } catch (ReflectiveOperationException e) {
+                return copyWriteable(instance, new NamedWriteableRegistry(List.of()), DestConfig::new, version);
+            } catch (IOException e) {
                 throw new AssertionError(e);
             }
-            return new DestConfig(instance.getIndex(), rawAliases, instance.getPipeline());
         }
     }
 

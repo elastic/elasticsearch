@@ -918,6 +918,9 @@ setup:
 
 ---
 "Test put transform with write_action create":
+  - requires:
+      cluster_features: ["gte_v9.4.0"]
+      reason: "write_action parameter added in 9.4.0"
   - do:
       transform.put_transform:
         transform_id: "transform-with-write-action-create"
@@ -944,6 +947,9 @@ setup:
 
 ---
 "Test put transform with invalid write_action":
+  - requires:
+      cluster_features: ["gte_v9.4.0"]
+      reason: "write_action parameter added in 9.4.0"
   - do:
       catch: bad_request
       transform.put_transform:

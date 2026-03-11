@@ -184,10 +184,10 @@ class NioFileSystemActions {
         fs.checkAccess(FileCheckActions.readFile());
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "null")
-    static String checkGetFileAttributeView() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedDefaultNull = true)
+    static FileOwnerAttributeView checkGetFileAttributeView() {
         var fs = FileSystems.getDefault().provider();
-        return String.valueOf(fs.getFileAttributeView(FileCheckActions.readFile(), FileOwnerAttributeView.class));
+        return fs.getFileAttributeView(FileCheckActions.readFile(), FileOwnerAttributeView.class);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
@@ -220,9 +220,9 @@ class NioFileSystemActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
-    static String checkExists() {
+    static boolean checkExists() {
         var fs = FileSystems.getDefault().provider();
-        return String.valueOf(fs.exists(FileCheckActions.readFile()));
+        return fs.exists(FileCheckActions.readFile());
     }
 
     private NioFileSystemActions() {}

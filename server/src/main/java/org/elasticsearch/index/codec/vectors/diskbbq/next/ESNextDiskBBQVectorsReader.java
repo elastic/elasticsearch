@@ -58,7 +58,18 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
-        super(state, getFormatReader);
+        super(
+            state,
+            getFormatReader,
+            ESNextDiskBBQVectorsFormat.NAME,
+            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ESNextDiskBBQVectorsFormat.VERSION_START,
+            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
+            ESNextDiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ESNextDiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+        );
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

@@ -1087,17 +1087,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
-                | LIMIT 10 BY hostname
+                | LIMIT 10 BY hostname, @timestamp / 10
             """);
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
-        assertThat(limit.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
-        assertThat(limit.groupings().size(), equalTo(1));
-        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupings().getFirst();
-        assertThat(groupKey.name(), equalTo("hostname"));
+        assertThat(limit.groupings().size(), equalTo(2));
+        assertThat(limit.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) limit.groupings().get(0)).name(), equalTo("hostname"));
+        assertThat(limit.groupings().get(1), instanceOf(Alias.class));
+        Alias divAlias = (Alias) limit.groupings().get(1);
+        assertThat(divAlias.child(), instanceOf(Div.class));
+        Div divExpr = (Div) divAlias.child();
+        assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
+        assertThat(divExpr.right(), instanceOf(Literal.class));
+        assertThat(((Literal) divExpr.right()).value(), equalTo(10));
 
         assertThat(limit.child(), instanceOf(OrderBy.class));
         OrderBy orderBy = (OrderBy) limit.child();

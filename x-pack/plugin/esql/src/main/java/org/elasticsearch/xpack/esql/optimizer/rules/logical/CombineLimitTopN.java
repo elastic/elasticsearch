@@ -25,6 +25,7 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> 
 
     @Override
     public LogicalPlan rule(Limit limit) {
+        // TODO: update this check when SORT + LIMIT BY (TopN) support is added
         if (limit.groupings().isEmpty() && limit.child() instanceof TopN topn) {
             int thisLimitValue = Foldables.limitValue(limit.limit(), limit.sourceText());
             int topNValue = Foldables.limitValue(topn.limit(), topn.sourceText());

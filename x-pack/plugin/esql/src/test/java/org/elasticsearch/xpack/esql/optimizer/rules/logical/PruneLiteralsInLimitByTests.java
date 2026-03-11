@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEvalFields;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +40,7 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 1 BY x
             """);
 
-        var eval = as(plan, Eval.class);
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var limit = as(eval.child(), Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(limit.groupings(), empty());
@@ -61,15 +62,7 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 1 BY y
             """);
 
-        var eval = as(plan, Eval.class);
-        var evalFields = eval.fields();
-        assertThat(evalFields.size(), equalTo(2));
-        var x = evalFields.get(0);
-        var y = evalFields.get(1);
-        assertThat(((Literal) x.child()).value(), equalTo(5));
-        assertThat(((Literal) y.child()).value(), equalTo(7));
-        assertThat(x.name(), equalTo("x"));
-        assertThat(y.name(), equalTo("y"));
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 5, 7 });
 
         var limit = as(eval.child(), Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
@@ -93,15 +86,7 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 1 BY y
             """);
 
-        var eval = as(plan, Eval.class);
-        var evalFields = eval.fields();
-        assertThat(evalFields.size(), equalTo(2));
-        var x = evalFields.get(0);
-        var y = evalFields.get(1);
-        assertThat(((Literal) x.child()).value(), equalTo(5));
-        assertThat(((Literal) y.child()).value(), equalTo(7));
-        assertThat(x.name(), equalTo("x"));
-        assertThat(y.name(), equalTo("y"));
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 5, 7 });
 
         var limit = as(eval.child(), Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
@@ -126,7 +111,7 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 1 BY x, emp_no
             """);
 
-        var eval = as(plan, Eval.class);
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var defaultLimit = as(eval.child(), Limit.class);
         assertThat(defaultLimit.groupings(), empty());
         var limit = as(defaultLimit.child(), Limit.class);
@@ -151,7 +136,81 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 1 BY x, 3
             """);
 
-        var eval = as(plan, Eval.class);
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
+        var limit = as(eval.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings(), empty());
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * An expression composed of propagated foldable eval aliases should itself become foldable and be pruned.
+     * {@code x + x + 2} becomes {@code 5 + 5 + 2 = 12} after propagation. The expression grouping causes
+     * {@code ReplaceLimitByExpressionWithEval} to wrap in a Project to preserve the output schema.
+     * <pre>{@code
+     * Project[[..., x{r}#N]]
+     * \_Eval[[5[INTEGER] AS x]]
+     *   \_Limit[1[INTEGER],[],false,false]
+     *     \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testFoldableExpressionFromPropagatedEval() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5
+            | LIMIT 1 BY x + x + 2
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = assertEvalFields(as(project.child(), Eval.class), new String[] { "x" }, new Object[] { 5 });
+        var limit = as(eval.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings(), empty());
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Contiguous LIMIT BY with a foldable eval alias: both degenerate to plain limits and get combined.
+     * <pre>{@code
+     * Eval[[5[INTEGER] AS x]]
+     * \_Limit[1[INTEGER],[],false,false]
+     *   \_EsRelation[test][...]
+     * }</pre>
+     */
+    public void testContiguousLimitByWithFoldableEval() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5
+            | LIMIT 2 BY x
+            | LIMIT 1 BY x
+            """);
+
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
+        var limit = as(eval.child(), Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(limit.groupings(), empty());
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Mixing evals pointing to the same foldable and LIMIT BYs with the same canonical groupings
+     * should produce a LIMIT without groupings
+     * <pre>{@code
+     * Eval[[5[INTEGER] AS x#4, 5[INTEGER] AS y#8]]
+     * \_Limit[1[INTEGER],[],false,false]
+     *   \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
+     */
+    public void testNonContiguousLimitByWithFoldableEval() {
+        var plan = plan("""
+            FROM test
+            | EVAL x = 5 + 24
+            | LIMIT 2 BY x
+            | EVAL y = x
+            | LIMIT 1 BY y
+            """);
+
+        var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 29, 29 });
         var limit = as(eval.child(), Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
         assertThat(limit.groupings(), empty());

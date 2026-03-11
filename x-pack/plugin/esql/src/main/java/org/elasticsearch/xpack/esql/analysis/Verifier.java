@@ -335,6 +335,7 @@ public class Verifier {
         }
     }
 
+    // TODO: remove this check when SORT + LIMIT BY (TopN) support is added
     private static void checkLimitBy(LogicalPlan plan, Failures failures) {
         if (plan instanceof Limit limit && limit.groupings().isEmpty() == false) {
             LogicalPlan child = limit.child();

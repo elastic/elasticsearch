@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
@@ -24,10 +23,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
 /**
  * Extract non-attribute {@link Limit} grouping expressions into a synthetic {@link Eval}.
  * <p>
- * For example, {@code SORT salary | LIMIT N BY languages * 2} becomes
- * {@code SORT salary | EVAL $$limit_by_0 = languages * 2 | LIMIT N BY $$limit_by_0}.
- * The eval is inserted below the {@link OrderBy} to preserve the {@code Limit -> OrderBy} structure
- * needed by {@link ReplaceLimitAndSortAsTopN}.
+ * For example, {@code LIMIT N BY languages * 2} becomes
+ * {@code EVAL $$limit_by_0 = languages * 2 | LIMIT N BY $$limit_by_0}.
+ * {@link PushDownEval} in the operators batch takes care of pushing the Eval below any
+ * {@link org.elasticsearch.xpack.esql.plan.logical.OrderBy} if present.
  * <p>
  * Foldable groupings are pruned separately by {@link PruneLiteralsInLimitBy} in the operators batch.
  */
@@ -67,14 +66,7 @@ public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.Optim
         }
 
         var originalOutput = limit.output();
-        var child = limit.child();
-        LogicalPlan evalChild;
-        if (child instanceof OrderBy orderBy) {
-            evalChild = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), orderBy.order());
-        } else {
-            evalChild = new Eval(limit.source(), child, evals);
-        }
-
+        var evalChild = new Eval(limit.source(), limit.child(), evals);
         var newLimit = new Limit(limit.source(), limit.limit(), evalChild, newGroupings, limit.duplicated(), limit.local());
         return new Project(limit.source(), newLimit, originalOutput);
     }

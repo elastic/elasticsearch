@@ -42,8 +42,9 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             // Enrich.
             Set<Limit> seenLimits = Collections.newSetFromMap(new IdentityHashMap<>());
             en.child().forEachDownMayReturnEarly((p, stop) -> {
-                if (p instanceof Limit l && l.local() == false) {
-                    // Local limits can be ignored here as they are always duplicates that have another limit upstairs
+                if (p instanceof Limit l && l.local() == false && l.groupings().isEmpty()) {
+                    // Local limits can be ignored here as they are always duplicates that have another limit upstairs.
+                    // LIMIT BY limits are excluded: per-group semantics differ from a global limit.
                     seenLimits.add(l);
                     return;
                 }

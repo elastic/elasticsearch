@@ -219,7 +219,7 @@ class NioFileSystemActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
     static boolean checkExists() {
         var fs = FileSystems.getDefault().provider();
         return fs.exists(FileCheckActions.readFile());

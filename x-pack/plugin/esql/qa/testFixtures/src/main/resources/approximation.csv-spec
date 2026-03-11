@@ -22,7 +22,7 @@
 
 
 Exact total row count
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(*)
@@ -34,7 +34,7 @@ count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 
 
 Exact total single-valued field count
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv)
@@ -46,7 +46,7 @@ count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 
 
 Approximate total multi-valued field count
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(mv)
@@ -58,7 +58,7 @@ count:long       | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolea
 
 
 Approximate stats on large single-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -71,7 +71,7 @@ count:long     | avg:double | sum:long           | CONFIDENCE_INTERVAL(count):lo
 
 
 Approximate stats on large multi-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation=true\;
 FROM many_numbers
@@ -84,7 +84,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 Exact stats on small single-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -98,7 +98,7 @@ count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED
 
 
 Exact stats on small multi-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -113,7 +113,7 @@ count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED
 
 
 Multiple total counts
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -126,7 +126,7 @@ count:long     | count2:long    | countValue:long  | CONFIDENCE_INTERVAL(count):
 
 
 Exact count with where on single-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -140,7 +140,7 @@ count:long | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean
 
 
 Approximate stats with where on multi-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -155,7 +155,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 Approximate stats with stats where
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000, "confidence_level":0.85}\;
 FROM many_numbers
@@ -171,7 +171,7 @@ count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(cou
 
 
 Approximate stats with sample
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000,"confidence_level":0.85}\;
 FROM many_numbers
@@ -185,7 +185,7 @@ count:long    | avg:double | sum:long            | CONFIDENCE_INTERVAL(count):lo
 
 
 Approximate stats with commands before stats
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -209,7 +209,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 Approximate stats with commands after stats
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -227,7 +227,7 @@ avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):bool
 
 
 Approximate stats with dependent variables that have confidence interval
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -246,7 +246,7 @@ y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | CERTIFIED(p
 
 
 Approximate stats with dependent string variable
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -262,7 +262,7 @@ from_str:double
 
 
 Approximate stats with dependent multi-valued variable
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -278,6 +278,7 @@ sv:double
 
 Approximate stats by with zero variance
 required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
@@ -297,7 +298,7 @@ avg:double | median:double | one:double | mv:integer | CONFIDENCE_INTERVAL(avg):
 
 
 Approximate stats by on large single-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -316,7 +317,7 @@ count:long | sv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boo
 
 
 Approximate stats by on large multi-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
@@ -336,7 +337,7 @@ count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boo
 
 
 Exact stats by on small single-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -355,7 +356,7 @@ count:long | sv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boo
 
 
 Exact stats by on small multi-valued data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -374,14 +375,8 @@ count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boo
 ;
 
 
-// This test fails in a multi-node setup: on one node, the field "sv_and_one_mv"
-// is multi-valued, and on the other nodes it is single-valued. This leads to
-// wrong sample correction on the coordinator node.
-// TODO: fix this issue by moving the sample correction logic to the data nodes,
-// and re-enable this test.
-
 Approximate stats by on mixed data
-required_capability: approximation_v2
+required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv_and_one_mv)

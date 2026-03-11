@@ -237,13 +237,20 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
-     * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
+     * UAs that weren't resolvable at first were added to the plan. But {@link Analyzer.ResolveRefs} has marked all or some of them as
+     * unresolvable by attaching a custom message. This needs to be removed for {@link Analyzer.ResolveRefs} to attempt resolving them
+     * again. That's what this method does.
      */
-    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> maybeNowResolvableAttributes) {
+        // Use name-based matching: an unmapped field name may appear in multiple places in the plan (e.g. in both the aggregate function
+        // and the WHERE clause of a filtered agg). All occurrences need refreshing, but collectUnresolved only stores one UA per name.
+        // Matching by name rather than object equality ensures we refresh all instances.
+        Set<String> maybeNowResolvableNames = new HashSet<>(maybeNowResolvableAttributes.size());
+        for (UnresolvedAttribute ua : maybeNowResolvableAttributes) {
+            maybeNowResolvableNames.add(ua.name());
+        }
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
-            if (unresolved.contains(ua)) {
-                unresolved.remove(ua);
+            if (maybeNowResolvableNames.contains(ua.name())) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
                 // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
                 ua = (ua.withId(new NameId())).withUnresolvedMessage(null);

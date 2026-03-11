@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -28,6 +29,11 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -36,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -47,6 +54,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -63,6 +75,8 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CountDownLatch;
@@ -79,6 +93,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfi
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformIndexerTests extends ESTestCase {
 
@@ -718,6 +733,243 @@ public class TransformIndexerTests extends ESTestCase {
 
         // verify that the pageSize is the new applied setting and not null
         assertEquals(configuredMaxPageSearchSize, context.getPageSize());
+    }
+
+    /**
+     * A variant of the mock indexer that does NOT override doProcess, so the real processBuckets() code path is exercised.
+     * It captures BulkRequests for verification.
+     */
+    class WriteActionTransformIndexer extends TransformIndexer {
+
+        private final ThreadPool threadPool;
+        private final SearchResponse searchResponse;
+        private final AtomicReference<BulkRequest> capturedBulkRequest = new AtomicReference<>();
+        private CountDownLatch afterFinishOrFailureLatch;
+        private int numberOfLoops;
+
+        WriteActionTransformIndexer(
+            int numberOfLoops,
+            ThreadPool threadPool,
+            TransformServices transformServices,
+            CheckpointProvider checkpointProvider,
+            TransformConfig transformConfig,
+            AtomicReference<IndexerState> initialState,
+            TransformIndexerStats jobStats,
+            TransformContext context,
+            SearchResponse searchResponse
+        ) {
+            super(
+                threadPool,
+                transformServices,
+                checkpointProvider,
+                transformConfig,
+                initialState,
+                null,
+                jobStats,
+                null,
+                TransformCheckpoint.EMPTY,
+                TransformCheckpoint.EMPTY,
+                context
+            );
+            this.threadPool = threadPool;
+            this.numberOfLoops = numberOfLoops;
+            this.searchResponse = searchResponse;
+        }
+
+        public void initialize() {
+            this.initializeFunction();
+        }
+
+        @Override
+        void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            responseListener.onResponse(ONE_HIT_SEARCH_RESPONSE);
+        }
+
+        @Override
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+            responseListener.onResponse(
+                new BulkByScrollResponse(
+                    TimeValue.ZERO,
+                    new BulkByScrollTask.Status(0, 0L, 0L, 0L, 0L, 0, 0L, 0L, 0L, 0L, TimeValue.ZERO, 0.0f, null, TimeValue.ZERO),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    false
+                )
+            );
+        }
+
+        @Override
+        void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
+        }
+
+        @Override
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
+            // Return the composite aggregation SearchResponse on the first call, then null aggs to signal completion
+            if (numberOfLoops > 0) {
+                --numberOfLoops;
+                threadPool.generic().execute(() -> nextPhase.onResponse(searchResponse));
+            } else {
+                threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            }
+        }
+
+        @Override
+        protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
+            capturedBulkRequest.set(request);
+            threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+        }
+
+        @Override
+        protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
+            super.doSaveState(state, position, next);
+        }
+
+        @Override
+        void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+            fieldMappingsListener.onResponse(Collections.emptyMap());
+        }
+
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void afterFinishOrFailure() {
+            super.afterFinishOrFailure();
+            if (afterFinishOrFailureLatch != null) {
+                afterFinishOrFailureLatch.countDown();
+            }
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
+            listener.onResponse(null);
+        }
+
+        public BulkRequest getCapturedBulkRequest() {
+            return capturedBulkRequest.get();
+        }
+
+        public void addAfterFinishOrFailureLatch() {
+            afterFinishOrFailureLatch = new CountDownLatch(1);
+        }
+
+        public void waitForAfterFinishOrFailureLatch(long timeout, TimeUnit unit) throws InterruptedException {
+            assertTrue(afterFinishOrFailureLatch.await(timeout, unit));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteActionCreateClearsDocumentId() throws Exception {
+        // Create a deterministic PivotConfig with a single terms group and a value_count aggregation
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
+        groups.put("my_field", new TermsGroupSource("my_field", null, false));
+        Map<String, Object> groupSource = new LinkedHashMap<>();
+        groupSource.put("my_field", Map.of("terms", Map.of("field", "my_field")));
+        GroupConfig groupConfig = new GroupConfig(groupSource, groups);
+
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(new ValueCountAggregationBuilder("my_count").field("my_field"));
+        Map<String, Object> aggSource = Map.of("my_count", Map.of("value_count", Map.of("field", "my_field")));
+        AggregationConfig aggConfig = new AggregationConfig(aggSource, aggBuilder);
+
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig, null);
+
+        // Create a composite aggregation mock with one bucket
+        InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+        when(bucket.getKey()).thenReturn(Map.of("my_field", "value1"));
+        when(bucket.getDocCount()).thenReturn(1L);
+
+        InternalNumericMetricsAggregation.SingleValue countAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
+        when(countAgg.value()).thenReturn(1.0);
+        when(countAgg.getValueAsString()).thenReturn("1.0");
+        when(countAgg.getName()).thenReturn("my_count");
+        when(bucket.getAggregations()).thenReturn(InternalAggregations.from(List.of(countAgg)));
+
+        InternalComposite composite = mock(InternalComposite.class);
+        when(composite.getName()).thenReturn("_transform");
+        when(composite.getBuckets()).thenReturn((List) List.of(bucket));
+        when(composite.afterKey()).thenReturn(Map.of("my_field", "value1"));
+
+        SearchResponse compositeSearchResponse = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .aggregations(InternalAggregations.from(List.of(composite)))
+            .build();
+
+        try {
+            DestConfig destConfig = new DestConfig("my-dest-index", null, null, DestConfig.WRITE_ACTION_CREATE);
+            TransformConfig config = new TransformConfig(
+                randomAlphaOfLength(10),
+                new SourceConfig(new String[] { "my-source-index" }, QueryConfig.matchAll(), Collections.emptyMap(), null),
+                destConfig,
+                null,
+                new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+                null,
+                pivotConfig,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+
+            CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
+            transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
+            TransformServices transformServices = new TransformServices(
+                transformConfigManager,
+                mock(TransformCheckpointService.class),
+                auditor,
+                new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class)
+            );
+
+            WriteActionTransformIndexer indexer = new WriteActionTransformIndexer(
+                1,
+                threadPool,
+                transformServices,
+                checkpointProvider,
+                config,
+                state,
+                new TransformIndexerStats(),
+                context,
+                compositeSearchResponse
+            );
+            indexer.initialize();
+            indexer.addAfterFinishOrFailureLatch();
+
+            indexer.start();
+            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+
+            indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+            // Verify the BulkRequest was captured and IndexRequests have CREATE opType and null IDs
+            BulkRequest bulkRequest = indexer.getCapturedBulkRequest();
+            assertNotNull("Expected a BulkRequest to be captured", bulkRequest);
+            assertFalse("Expected at least one request in the BulkRequest", bulkRequest.requests().isEmpty());
+
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                assertEquals(
+                    "IndexRequest should have CREATE opType when write_action is 'create'",
+                    DocWriteRequest.OpType.CREATE,
+                    request.opType()
+                );
+                assertNull("IndexRequest should have null id when write_action is 'create'", request.id());
+            }
+        } finally {
+            compositeSearchResponse.decRef();
+        }
     }
 
     private MockedTransformIndexer createMockIndexer(

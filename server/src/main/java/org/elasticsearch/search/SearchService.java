@@ -1121,6 +1121,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         QueryPhase.execute(searchContext);
                         queryResult = searchContext.queryResult();
                         if (queryResult.hasSearchContext() == false && readerContext.singleSession()) {
+                            // no hits, we can release the context since there will be no fetch phase
                             freeReaderContext(readerContext.id());
                         }
                         opsListener.onQueryPhase(searchContext, System.nanoTime() - before);

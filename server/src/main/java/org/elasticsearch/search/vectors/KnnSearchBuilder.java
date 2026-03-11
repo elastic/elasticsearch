@@ -517,12 +517,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return null;
         }
         if (rescoreVectorBuilder != null) {
-            return rescoreVectorBuilder.oversample();
+            return rescoreVectorBuilder.oversample() > MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING ? rescoreVectorBuilder.oversample() : null;
         }
         if (searchExecutionContext == null) {
             return null;
         }
-        return getDefaultOversampleForField(field, searchExecutionContext);
+        Float defaultOversample = getDefaultOversampleForField(field, searchExecutionContext);
+        return defaultOversample != null && defaultOversample > MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING ? defaultOversample : null;
     }
 
     private static Float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {

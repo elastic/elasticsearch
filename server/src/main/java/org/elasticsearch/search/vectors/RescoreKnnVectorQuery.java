@@ -45,8 +45,7 @@ import java.util.Objects;
  * <ul>
  *   <li><b>Inline rescoring</b>:
  *   Used when the inner query is already a top-N vector query with {@code rescoreK} results.
- *   The vector similarity is applied inline using a {@link FunctionScoreQuery} without an additional
- *   filtering pass.</li>
+ *   The vector similarity is applied inline without an additional filtering pass.</li>
  *   <li><b>Late rescoring</b>: Used when the inner query is not a top-N vector query or does not return
  *   {@code rescoreK} results. The top {@code rescoreK} documents are first collected, and then rescoring is applied
  *   separately to select the final top {@code k}.</li>

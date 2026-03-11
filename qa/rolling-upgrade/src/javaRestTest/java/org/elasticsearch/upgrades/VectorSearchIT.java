@@ -807,6 +807,87 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
+
+    public void testQuantizedKnnSearchWithRescoringDisabledDuringUpgrade() throws Exception {
+        assumeTrue(
+            "lazy rescoring for knn DFS searches requires quantized vector search",
+            oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
+        );
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "int8_hnsw"
+                      }
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+                """;
+            createIndex(
+                DFS_KNN_RESCORE_INDEX_NAME,
+                Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build(),
+                mapping
+            );
+            for (int i = 0; i < 30; i++) {
+                Request indexRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_doc/" + i);
+                indexRequest.setJsonEntity(String.format("""
+                    {
+                      "vector": [%s, 0, 0],
+                      "value": %s
+                    }
+                    """, i, i));
+                client().performRequest(indexRequest);
+            }
+            client().performRequest(new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_refresh"));
+        }
+        Request searchRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_search");
+        if (false == isUpgradedCluster()) {
+            searchRequest.setJsonEntity("""
+                {
+                  "knn": {
+                    "field": "vector",
+                    "query_vector": [1, 0, 0],
+                    "k": 3,
+                    "num_candidates": 30,
+                    "rescore_vector": {
+                      "oversample": 2.0
+                    }
+                  }
+                }
+                """);
+        } else {
+            searchRequest.setJsonEntity("""
+                {
+                  "knn": {
+                    "field": "vector",
+                    "query_vector": [1, 0, 0],
+                    "k": 3,
+                    "num_candidates": 30,
+                    "rescore_vector": {
+                      "oversample": 2.0
+                    },
+                    "optimized_rescoring": false
+                  }
+                }
+                """);
+        }
+        Map<String, Object> response = search(searchRequest);
+
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+        assertThat(hits, notNullValue());
+        assertThat(hits.size(), equalTo(3));
+        assertThat(hits.getFirst().get("_id"), equalTo("1"));
+    }
+
     private void index64DimVectors(String indexName) throws Exception {
         String[] vectors = new String[] {
             "{\"vector\":[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, "

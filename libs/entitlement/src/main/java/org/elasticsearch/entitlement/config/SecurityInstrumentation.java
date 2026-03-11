@@ -50,10 +50,10 @@ public class SecurityInstrumentation implements InstrumentationConfig {
         builder.on(KeyStore.class, rule -> {
             rule.callingStatic(KeyStore::getInstance, File.class, char[].class)
                 .enforce((file) -> Policies.fileRead(file))
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
             rule.callingStatic(KeyStore::getInstance, File.class, KeyStore.LoadStoreParameter.class)
                 .enforce((file) -> Policies.fileRead(file))
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
 
         builder.on(KeyStore.Builder.class, rule -> {
@@ -69,7 +69,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
         builder.on(CertStore.class, rule -> {
             rule.callingStatic(CertStore::getInstance, String.class, CertStoreParameters.class)
                 .enforce((type) -> "LDAP".equals(type) ? Policies.outboundNetworkAccess() : Policies.empty())
-                .elseThrow(e -> new NoSuchAlgorithmException(e));
+                .elseThrow(NoSuchAlgorithmException::new);
         });
     }
 }

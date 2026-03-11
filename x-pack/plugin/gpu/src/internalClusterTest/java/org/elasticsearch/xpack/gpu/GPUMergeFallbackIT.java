@@ -13,7 +13,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -89,7 +89,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkGPUSupport() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", CuVSGPUSupport.instance().isSupported());
     }
 
     @Override

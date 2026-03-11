@@ -21,12 +21,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.DESCRIPTION_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FUNCTION_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.NAME_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.PARAMETERS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.STRICT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FUNCTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.PARAMETERS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STRICT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

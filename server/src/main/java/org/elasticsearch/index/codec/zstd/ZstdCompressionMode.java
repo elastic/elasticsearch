@@ -51,7 +51,9 @@ public class ZstdCompressionMode extends CompressionMode {
         final int level;
         // Buffer for copying between the DataInput and native memory. No hard science behind this number, it just tries to be high enough
         // to benefit from bulk copying and low enough to keep heap usage under control.
-        final byte[] copyBuffer = new byte[4096];
+        final byte[] copyBuffer = new byte[8096];
+        final NativeAccess nativeAccess = NativeAccess.instance();
+        final Zstd zstd = nativeAccess.getZstd();
 
         private ZstdCompressor(int level) {
             this.level = level;
@@ -59,9 +61,6 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final NativeAccess nativeAccess = NativeAccess.instance();
-            final Zstd zstd = nativeAccess.getZstd();
-
             final int srcLen = Math.toIntExact(buffersInput.length());
             if (srcLen == 0) {
                 return;
@@ -108,7 +107,9 @@ public class ZstdCompressionMode extends CompressionMode {
 
         // Buffer for copying between the DataInput and native memory. No hard science behind this number, it just tries to be high enough
         // to benefit from bulk copying and low enough to keep heap usage under control.
-        final byte[] copyBuffer = new byte[4096];
+        final byte[] copyBuffer = new byte[8096];
+        final NativeAccess nativeAccess = NativeAccess.instance();
+        final Zstd zstd = nativeAccess.getZstd();
 
         private ZstdDecompressor() {}
 
@@ -120,11 +121,7 @@ public class ZstdCompressionMode extends CompressionMode {
                 return;
             }
 
-            final NativeAccess nativeAccess = NativeAccess.instance();
-            final Zstd zstd = nativeAccess.getZstd();
-
             final int compressedLength = in.readVInt();
-
             try (
                 CloseableByteBuffer src = nativeAccess.newConfinedBuffer(compressedLength);
                 CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(originalLength)

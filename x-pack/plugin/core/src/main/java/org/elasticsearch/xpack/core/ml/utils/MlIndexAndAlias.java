@@ -835,10 +835,16 @@ public final class MlIndexAndAlias {
         allJobResultsIndices.add(newIndex);
         MlIndexAndAlias.sortIndices(allJobResultsIndices);
 
+        // The base-name alias (e.g. .ml-anomalies-shared) looks like a read alias to isAnomaliesReadAlias()
+        // because it starts with .ml-anomalies- and the remainder is a valid ID. Exclude it so the
+        // rollover processing only handles actual job aliases.
+        String baseName = baseIndexName(currentJobResultsIndices.get(0));
+
         // Group all unique aliases by their job ID. This ensures each job is processed only once.
         aliasesMap.values()
             .stream()
             .flatMap(List::stream)
+            .filter(alias -> alias.alias().equals(baseName) == false)
             .filter(alias -> isAnomaliesReadAlias(alias.alias()) || isAnomaliesWriteAlias(alias.alias()))
             .flatMap(alias -> AnomalyDetectorsIndex.jobIdFromAlias(alias.alias()).stream().map(jobId -> new Tuple<>(jobId, alias)))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())))

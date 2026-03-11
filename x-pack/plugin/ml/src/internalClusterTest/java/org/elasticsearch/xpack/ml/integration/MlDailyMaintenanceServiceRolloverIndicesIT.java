@@ -187,6 +187,9 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
     public void testTriggerRollResultsIndicesIfNecessaryTask_withMixedIndexTypes() throws Exception {
         maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
 
+        String sharedBaseName = baseNameAlias("shared");
+        String customBaseName = baseNameAlias("custom-my-custom");
+
         // 1. Create a job using the default shared index
         Job.Builder sharedJob = createJob("shared-job");
         putJob(sharedJob);
@@ -195,7 +198,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
             Map.of(
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001",
-                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()))
+                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()), sharedBaseName)
             )
         );
 
@@ -207,22 +210,22 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom*",
             Map.of(
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000001",
-                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()))
+                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()), customBaseName)
             )
         );
 
         // 3. Trigger a single maintenance run
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // 4. Verify BOTH indices were rolled over correctly
+        // 4. Verify BOTH indices were rolled over correctly, and the base-name alias spans all indices
         assertIndicesAndAliases(
             "After rollover (shared)",
             AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
             Map.of(
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001",
-                List.of(readAlias(sharedJob.getId())),
+                List.of(readAlias(sharedJob.getId()), sharedBaseName),
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002",
-                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()))
+                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()), sharedBaseName)
             )
         );
 
@@ -231,9 +234,9 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom*",
             Map.of(
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000001",
-                List.of(readAlias(customJob.getId())),
+                List.of(readAlias(customJob.getId()), customBaseName),
                 AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000002",
-                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()))
+                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()), customBaseName)
             )
         );
     }
@@ -244,6 +247,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001";
         String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
+        String baseName = baseNameAlias("shared");
 
         // 1. Create an index that looks like an ML results index but has no aliases
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
@@ -255,8 +259,12 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 2. Trigger maintenance
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // Verify that the index was rolled over, even though it had no ML aliases
-        assertIndicesAndAliases("After rollover attempt", indexWildcard, Map.of(indexName, List.of(), rolledIndexName, List.of()));
+        // Verify that the index was rolled over, and the base-name alias was added to both indices
+        assertIndicesAndAliases(
+            "After rollover attempt",
+            indexWildcard,
+            Map.of(indexName, List.of(baseName), rolledIndexName, List.of(baseName))
+        );
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask() throws Exception {
@@ -286,6 +294,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001";
         String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
+        String baseName = baseNameAlias("shared");
 
         // 1. Manually remove the read alias to create an inconsistent state
         client().admin()
@@ -294,7 +303,11 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             .removeAlias(indexName, readAlias(jobId))
             .get();
 
-        assertIndicesAndAliases("Before rollover (missing read alias)", indexWildcard, Map.of(indexName, List.of(writeAlias(jobId))));
+        assertIndicesAndAliases(
+            "Before rollover (missing read alias)",
+            indexWildcard,
+            Map.of(indexName, List.of(writeAlias(jobId), baseName))
+        );
 
         // 2. Trigger maintenance
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
@@ -303,12 +316,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After rollover (missing read alias)",
             indexWildcard,
-            Map.of(
-                indexName,
-                List.of(readAlias(jobId)), // Old index should now have read alias
-                rolledIndexName,
-                List.of(writeAlias(jobId), readAlias(jobId)) // New index has both aliases
-            )
+            Map.of(indexName, List.of(readAlias(jobId), baseName), rolledIndexName, List.of(writeAlias(jobId), readAlias(jobId), baseName))
         );
     }
 
@@ -322,6 +330,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001";
         String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
+        String baseName = baseNameAlias("shared");
 
         // 1. Manually remove the write alias to create an inconsistent state
         client().admin()
@@ -330,7 +339,11 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             .removeAlias(indexName, writeAlias(jobId))
             .get();
 
-        assertIndicesAndAliases("Before rollover (orphaned read alias)", indexWildcard, Map.of(indexName, List.of(readAlias(jobId))));
+        assertIndicesAndAliases(
+            "Before rollover (orphaned read alias)",
+            indexWildcard,
+            Map.of(indexName, List.of(readAlias(jobId), baseName))
+        );
 
         // 2. Trigger maintenance
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
@@ -339,12 +352,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After rollover (orphaned read alias)",
             indexWildcard,
-            Map.of(
-                indexName,
-                List.of(readAlias(jobId)), // The orphaned read alias remains on the old index
-                rolledIndexName,
-                List.of(writeAlias(jobId), readAlias(jobId)) // New index has a full set of correct aliases
-            )
+            Map.of(indexName, List.of(readAlias(jobId), baseName), rolledIndexName, List.of(writeAlias(jobId), readAlias(jobId), baseName))
         );
     }
 
@@ -359,6 +367,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String indexName2 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
         String indexName3 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000003";
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
+        String baseName = baseNameAlias("shared");
 
         // 1. Create a second index and add the same write alias to it, creating an inconsistent state
         createIndex(indexName2);
@@ -371,23 +380,23 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "Before rollover (duplicate write alias)",
             indexWildcard,
-            Map.of(indexName1, List.of(writeAlias(jobId), readAlias(jobId)), indexName2, List.of(writeAlias(jobId)))
+            Map.of(indexName1, List.of(writeAlias(jobId), readAlias(jobId), baseName), indexName2, List.of(writeAlias(jobId)))
         );
 
         // 2. Trigger maintenance and expect it to fail because the rollover alias is not unique
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // 3. Verify that the state has not changed
+        // 3. Verify the aliases were healed, including the base-name alias on all indices
         assertIndicesAndAliases(
             "After failed rollover (duplicate write alias)",
             indexWildcard,
             Map.of(
                 indexName1,
-                List.of(readAlias(jobId)),
+                List.of(readAlias(jobId), baseName),
                 indexName2,
-                List.of(readAlias(jobId)),
+                List.of(readAlias(jobId), baseName),
                 indexName3,
-                List.of(writeAlias(jobId), readAlias(jobId))
+                List.of(writeAlias(jobId), readAlias(jobId), baseName)
             )
         );
     }
@@ -403,6 +412,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String indexName2 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
         String indexName3 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000003";
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*";
+        String baseName = baseNameAlias("shared");
 
         // 1. Create a second, newer index, leaving the write alias on the old one
         createIndex(indexName2);
@@ -410,24 +420,24 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "Before rollover (misplaced write alias)",
             indexWildcard,
-            Map.of(indexName1, List.of(writeAlias(jobId), readAlias(jobId)), indexName2, List.of())
+            Map.of(indexName1, List.of(writeAlias(jobId), readAlias(jobId), baseName), indexName2, List.of())
         );
 
         // 2. Trigger a maintenance run and expect it to gracefully repair the wrongly seated write alias
         // because the write alias points to indexName1.
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // 3. Verify that the job aliases are now in a healthy state
+        // 3. Verify that the job aliases are now in a healthy state, and base-name alias spans all indices
         assertIndicesAndAliases(
             "After rollover (misplaced write alias)",
             indexWildcard,
             Map.of(
                 indexName1,
-                List.of(readAlias(jobId)),
+                List.of(readAlias(jobId), baseName),
                 indexName2,
-                List.of(readAlias(jobId)),
+                List.of(readAlias(jobId), baseName),
                 indexName3,
-                List.of(writeAlias(jobId), readAlias(jobId))
+                List.of(writeAlias(jobId), readAlias(jobId), baseName)
             )
         );
     }
@@ -664,11 +674,12 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 3. Trigger maintenance on the service where ILM is disabled
         blockingCall(ilmDisabledService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // 4. Verify that a rollover DID occur, because the service's isIlmEnabled flag was false
+        // 4. Verify that a rollover DID occur, and the base-name alias was added to both indices
+        String baseName = baseNameAlias("ilm-disabled-test");
         assertIndicesAndAliases(
             "After rollover (ILM disabled)",
             indexName.replace("000001", "*"),
-            Map.of(indexName, List.of(), rolledIndexName, List.of())
+            Map.of(indexName, List.of(baseName), rolledIndexName, List.of(baseName))
         );
     }
 
@@ -678,6 +689,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 1. Create an index with an empty "index.lifecycle.name" setting
         String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "empty-ilm-policy-000001";
         String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "empty-ilm-policy-000002";
+        String baseName = baseNameAlias("empty-ilm-policy");
         createIndex(indexName, Settings.builder().put("index.lifecycle.name", "").build());
 
         assertIndicesAndAliases("Before rollover (empty ILM setting)", indexName, Map.of(indexName, List.of()));
@@ -685,11 +697,11 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 2. Trigger maintenance
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
-        // 3. Verify that a rollover DID occur, because an empty policy name means ILM is not active
+        // 3. Verify that a rollover DID occur, and the base-name alias was added to both indices
         assertIndicesAndAliases(
             "After rollover (empty ILM setting)",
             indexName.replace("000001", "*"),
-            Map.of(indexName, List.of(), rolledIndexName, List.of())
+            Map.of(indexName, List.of(baseName), rolledIndexName, List.of(baseName))
         );
     }
 
@@ -730,18 +742,108 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertThat(finalIndexResponse.getIndices().length, is(2)); // No new index should be created
     }
 
+    /**
+     * Simulates the upgrade scenario where a pre-9.3 cluster has a legacy unsuffixed concrete index
+     * (e.g. {@code .ml-anomalies-shared}). After rollover, the base-name alias must NOT be created
+     * because the concrete index name conflicts with the alias name.
+     */
+    public void testBaseNameAlias_notCreatedWhenLegacyConcreteIndexExists() throws Exception {
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        String legacyIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared";
+        String rolledIndexName = legacyIndexName + "-000001";
+        String indexWildcard = legacyIndexName + "*";
+
+        // 1. Create a legacy unsuffixed index (simulating pre-9.3 state)
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(legacyIndexName);
+        client().admin().indices().create(createIndexRequest).actionGet();
+
+        assertIndicesAndAliases("Legacy index created", indexWildcard, Map.of(legacyIndexName, List.of()));
+
+        // 2. Trigger maintenance — the legacy index gets rolled over to a suffixed index
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 3. Verify the rollover occurred but the base-name alias was NOT created,
+        // because the legacy concrete index name (.ml-anomalies-shared) conflicts with
+        // what the alias name would be.
+        assertIndicesAndAliases(
+            "After rollover (legacy index)",
+            indexWildcard,
+            Map.of(legacyIndexName, List.of(), rolledIndexName, List.of())
+        );
+    }
+
+    /**
+     * Simulates a post-upgrade scenario where a legacy unsuffixed concrete index has job aliases.
+     * When rollover occurs, the base-name alias must NOT be created because the legacy concrete
+     * index name conflicts with the alias name.
+     */
+    public void testBaseNameAlias_notCreatedWhenLegacyConcreteIndexExistsWithJob() throws Exception {
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        String legacyIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared";
+        String rolledIndexName = legacyIndexName + "-000001";
+        String secondRolledIndexName = legacyIndexName + "-000002";
+        String indexWildcard = legacyIndexName + "*";
+        String jobId = "legacy-job";
+
+        // 1. Create the legacy unsuffixed index with job aliases (simulating pre-9.3 state)
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(legacyIndexName);
+        client().admin().indices().create(createIndexRequest).actionGet();
+        client().admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(legacyIndexName).alias(writeAlias(jobId)).isHidden(true))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(legacyIndexName).alias(readAlias(jobId)).isHidden(true))
+            .get();
+
+        assertIndicesAndAliases(
+            "Legacy index with job aliases",
+            indexWildcard,
+            Map.of(legacyIndexName, List.of(writeAlias(jobId), readAlias(jobId)))
+        );
+
+        // 2. Trigger rollover
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 3. Verify the job aliases moved but the base-name alias was NOT created
+        assertIndicesAndAliases(
+            "After rollover (legacy with job)",
+            indexWildcard,
+            Map.of(legacyIndexName, List.of(readAlias(jobId)), rolledIndexName, List.of(writeAlias(jobId), readAlias(jobId)))
+        );
+
+        // 4. Trigger another rollover
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 5. Still no base-name alias even after second rollover
+        assertIndicesAndAliases(
+            "After second rollover (legacy with job)",
+            indexWildcard,
+            Map.of(
+                legacyIndexName,
+                List.of(readAlias(jobId)),
+                rolledIndexName,
+                List.of(readAlias(jobId)),
+                secondRolledIndexName,
+                List.of(writeAlias(jobId), readAlias(jobId))
+            )
+        );
+    }
+
     private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();
         String secondJobId = jobs[1].getId();
         String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "*";
         String firstIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000001";
+        String baseName = baseNameAlias(indexNamePart);
 
         // 1. Create the first job, which creates the first index and aliases
         putJob(jobs[0]);
         assertIndicesAndAliases(
             "Before first rollover attempt",
             indexWildcard,
-            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), baseName))
         );
 
         // 2. Trigger the first rollover attempt
@@ -749,7 +851,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After first rollover attempt",
             indexWildcard,
-            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), baseName))
         );
 
         // 3. Create the second job, which adds its aliases to the current write index
@@ -757,7 +859,10 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After second job creation",
             indexWildcard,
-            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId)))
+            Map.of(
+                firstIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId), baseName)
+            )
         );
 
         // 4. Trigger the second rollover attempt
@@ -765,7 +870,10 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After second job creation",
             indexWildcard,
-            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId)))
+            Map.of(
+                firstIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId), baseName)
+            )
         );
     }
 
@@ -776,13 +884,14 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         String firstIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000001";
         String secondIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000002";
         String thirdIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000003";
+        String baseName = baseNameAlias(indexNamePart);
 
         // 1. Create the first job, which creates the first index and aliases
         putJob(jobs[0]);
         assertIndicesAndAliases(
             "Before first rollover",
             indexWildcard,
-            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), baseName))
         );
 
         // 2. Trigger the first rollover
@@ -790,7 +899,12 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         assertIndicesAndAliases(
             "After first rollover",
             indexWildcard,
-            Map.of(firstIndexName, List.of(readAlias(firstJobId)), secondIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+            Map.of(
+                firstIndexName,
+                List.of(readAlias(firstJobId), baseName),
+                secondIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), baseName)
+            )
         );
 
         // 3. Create the second job, which adds its aliases to the current write index
@@ -800,9 +914,9 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             indexWildcard,
             Map.of(
                 firstIndexName,
-                List.of(readAlias(firstJobId)),
+                List.of(readAlias(firstJobId), baseName),
                 secondIndexName,
-                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId))
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId), baseName)
             )
         );
 
@@ -813,11 +927,11 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             indexWildcard,
             Map.of(
                 firstIndexName,
-                List.of(readAlias(firstJobId)),
+                List.of(readAlias(firstJobId), baseName),
                 secondIndexName,
-                List.of(readAlias(firstJobId), readAlias(secondJobId)),
+                List.of(readAlias(firstJobId), readAlias(secondJobId), baseName),
                 thirdIndexName,
-                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId))
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId), baseName)
             )
         );
     }
@@ -862,6 +976,10 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
 
     private String writeAlias(String jobId) {
         return AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+    }
+
+    private String baseNameAlias(String indexNamePart) {
+        return AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart;
     }
 
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {

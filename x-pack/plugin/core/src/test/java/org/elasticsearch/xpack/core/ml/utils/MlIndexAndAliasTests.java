@@ -537,10 +537,10 @@ public class MlIndexAndAliasTests extends ESTestCase {
             Arrays.asList(currentIndices)
         );
         var actions = request.request().getAliasActions();
+        // 6 actions: 2 write ADD + 2 write REMOVE + 2 read ADD. No base-name alias because the
+        // old index is unsuffixed and its name conflicts with the would-be alias name.
         assertThat(actions, hasSize(6));
 
-        // The order in which the alias actions are created
-        // is not preserved so look for the item in the list
         for (var job : jobs) {
             var expected = new AliasActionMatcher(
                 AnomalyDetectorsIndex.resultsWriteAlias(job),
@@ -557,7 +557,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
             );
             assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
 
-            // This alias action request ensures that every index has a read alias, even if the old index was missing one.
             var expected1 = new AliasActionMultiIndicesMatcher(
                 AnomalyDetectorsIndex.jobResultsAliasedName(job),
                 new String[] { anomaliesIndex, newIndex },
@@ -565,6 +564,108 @@ public class MlIndexAndAliasTests extends ESTestCase {
             );
             assertThat(actions.stream().filter(expected1::matches).count(), equalTo(1L));
         }
+
+        // Verify no base-name alias was added (old index name conflicts)
+        assertThat(actions.stream().filter(a -> a.aliases()[0].equals(".ml-anomalies-sharedindex")).count(), equalTo(0L));
+    }
+
+    public void testBuildIndexAliasesRequest_withSuffixedIndices() {
+        var oldIndex = ".ml-anomalies-shared-000001";
+        var newIndex = ".ml-anomalies-shared-000002";
+
+        var jobs = List.of("job1", "job2");
+        IndexMetadata.Builder oldIndexMetadata = createSharedResultsIndex(oldIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder newIndexMetadata = createEmptySharedResultsIndex(newIndex, IndexVersion.current());
+
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(oldIndexMetadata);
+        metadata.put(newIndexMetadata);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+
+        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
+            mock(ElasticsearchClient.class),
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
+
+        String[] currentIndices = { oldIndex };
+        var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            csBuilder.build(),
+            Arrays.asList(currentIndices)
+        );
+        var actions = request.request().getAliasActions();
+        // 7 actions: 2 write ADD + 2 write REMOVE + 2 read ADD + 1 base-name alias ADD
+        assertThat(actions, hasSize(7));
+
+        for (var job : jobs) {
+            var writeAdd = new AliasActionMatcher(
+                AnomalyDetectorsIndex.resultsWriteAlias(job),
+                newIndex,
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            );
+            assertThat(actions.stream().filter(writeAdd::matches).count(), equalTo(1L));
+
+            var writeRemove = new AliasActionMatcher(
+                AnomalyDetectorsIndex.resultsWriteAlias(job),
+                oldIndex,
+                IndicesAliasesRequest.AliasActions.Type.REMOVE
+            );
+            assertThat(actions.stream().filter(writeRemove::matches).count(), equalTo(1L));
+
+            var readAdd = new AliasActionMultiIndicesMatcher(
+                AnomalyDetectorsIndex.jobResultsAliasedName(job),
+                new String[] { oldIndex, newIndex },
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            );
+            assertThat(actions.stream().filter(readAdd::matches).count(), equalTo(1L));
+        }
+
+        // Verify the base-name alias was added spanning both indices
+        var baseNameAction = new AliasActionMultiIndicesMatcher(
+            ".ml-anomalies-shared",
+            new String[] { oldIndex, newIndex },
+            IndicesAliasesRequest.AliasActions.Type.ADD
+        );
+        assertThat(actions.stream().filter(baseNameAction::matches).count(), equalTo(1L));
+    }
+
+    public void testBuildIndexAliasesRequest_withSuffixedIndicesAndLegacyConcreteIndex() {
+        var legacyIndex = ".ml-anomalies-shared";
+        var newIndex = ".ml-anomalies-shared-000001";
+
+        var jobs = List.of("job1");
+        IndexMetadata.Builder legacyIndexMetadata = createSharedResultsIndex(legacyIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder newIndexMetadata = createEmptySharedResultsIndex(newIndex, IndexVersion.current());
+
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(legacyIndexMetadata);
+        metadata.put(newIndexMetadata);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+
+        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
+            mock(ElasticsearchClient.class),
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
+
+        String[] currentIndices = { legacyIndex };
+        var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            csBuilder.build(),
+            Arrays.asList(currentIndices)
+        );
+        var actions = request.request().getAliasActions();
+        // 3 actions: 1 write ADD + 1 write REMOVE + 1 read ADD. No base-name alias because
+        // the legacy concrete index name (.ml-anomalies-shared) conflicts with the alias name.
+        assertThat(actions, hasSize(3));
+
+        // Verify no base-name alias action
+        assertThat(actions.stream().filter(a -> a.aliases()[0].equals(".ml-anomalies-shared")).count(), equalTo(0L));
     }
 
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {

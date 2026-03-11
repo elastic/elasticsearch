@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -75,20 +76,47 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         List<Attribute> resolvedAttributes
     ) throws IOException {
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, resolvedAttributes, null);
+    }
+
+    /**
+     * Creates a parallel-parsing iterator with an explicit error policy.
+     *
+     * @param errorPolicy error handling policy for per-segment parsing, or {@code null} for defaults
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
         if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return reader.readSplit(storageObject, projectedColumns, batchSize, false, true, resolvedAttributes);
+            return reader.read(storageObject, projectedColumns, batchSize, errorPolicy);
         }
 
         List<long[]> segments = computeSegments(reader, storageObject, fileLength, parallelism, minSegment);
 
         if (segments.size() <= 1) {
-            return reader.readSplit(storageObject, projectedColumns, batchSize, false, true, resolvedAttributes);
+            return reader.read(storageObject, projectedColumns, batchSize, errorPolicy);
         }
 
-        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, resolvedAttributes);
+        return new OrderedParallelIterator(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            segments,
+            executor,
+            resolvedAttributes,
+            errorPolicy
+        );
     }
 
     /**
@@ -162,6 +190,7 @@ public final class ParallelParsingCoordinator {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final List<Attribute> resolvedAttributes;
+        private final ErrorPolicy errorPolicy;
 
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -178,13 +207,15 @@ public final class ParallelParsingCoordinator {
             int batchSize,
             List<long[]> segments,
             Executor executor,
-            List<Attribute> resolvedAttributes
+            List<Attribute> resolvedAttributes,
+            ErrorPolicy errorPolicy
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.resolvedAttributes = resolvedAttributes;
+            this.errorPolicy = errorPolicy;
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -211,16 +242,13 @@ public final class ParallelParsingCoordinator {
                 boolean lastSplit = segmentIndex == totalSegments - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
-                try (
-                    CloseableIterator<Page> pages = reader.readSplit(
-                        segObj,
-                        projectedColumns,
-                        batchSize,
-                        false,
-                        lastSplit,
-                        resolvedAttributes
-                    )
-                ) {
+                CloseableIterator<Page> pages;
+                if (segmentIndex == 0) {
+                    pages = reader.read(segObj, projectedColumns, batchSize, errorPolicy);
+                } else {
+                    pages = reader.readSplit(segObj, projectedColumns, batchSize, false, lastSplit, resolvedAttributes, errorPolicy);
+                }
+                try (pages) {
                     while (pages.hasNext()) {
                         if (firstError.get() != null || closed) {
                             break;

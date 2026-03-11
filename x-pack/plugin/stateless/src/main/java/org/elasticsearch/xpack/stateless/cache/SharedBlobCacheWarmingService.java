@@ -604,10 +604,38 @@ public class SharedBlobCacheWarmingService {
         return calculateWarmingRatio(nowMillis, commitMillis, boostWindow.getMillis(), minSearchPower);
     }
 
+    /**
+     * Calculates the warming ratio for a compound commit based on its timestamp relative to now and the boost window.
+     * The ratio determines what fraction of the commit's data should be warmed in cache.
+     *
+     * <p>The formula combines a recency term with an age term that activates when {@code SP > 100}.
+     * It creates a plateau for older-but-still-in-window commits. For example, with {@code SP=150}, there
+     * is a slope (of -SP/100/bw per millisecond of timestamp) between the 1.0 and 0.5 ((SP - 100)/100) warming ratio values:
+     *
+     * <pre>
+     * ratio
+     * 1.0 +---------\
+     *     |              \
+     * 0.5 |                   +---------+
+     *     |                             |
+     *   0 +---------+---------+---------+
+     *     now       now-bw/3  now-2bw/3 now-bw
+     *                   timestamp
+     * </pre>
+     *
+     * <p>For {@code SP >= 200} the warming ratio is fixed at 1.0 across the boost window timestamp range.
+     */
     protected static double calculateWarmingRatio(long nowMillis, long timestampMillis, long boostWindowMillis, int searchPower) {
-        final long delta = Math.max(timestampMillis - (nowMillis - boostWindowMillis), 0);
-        final double ratio = ((double) delta / boostWindowMillis) * searchPower;
-        return Math.min(ratio, 100) / 100;
+        // anything outside the boost window is not warmed
+        if (timestampMillis < nowMillis - boostWindowMillis) {
+            return 0;
+        }
+        // warming ratio is highest for more recent commits
+        final double recencyTerm = (double) (timestampMillis - nowMillis + boostWindowMillis) / boostWindowMillis * searchPower;
+        // at some point, for older commits (but still inside the boost window), the warming ratio stabilizes to SP-100
+        final double ageTerm = (double) (nowMillis - timestampMillis) / boostWindowMillis * searchPower;
+        final double ratio = Math.min(recencyTerm, 100) + Math.max(ageTerm - 100, 0);
+        return Math.max(ratio, 0) / 100;
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {

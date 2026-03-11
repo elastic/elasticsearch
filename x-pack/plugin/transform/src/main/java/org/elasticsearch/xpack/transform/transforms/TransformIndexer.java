@@ -1061,6 +1061,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (opType != DocWriteRequest.OpType.INDEX) {
             indexRequestStream = indexRequestStream.map(req -> {
                 req.opType(opType);
+                req.id(null);
                 return req;
             });
         }

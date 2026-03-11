@@ -56,7 +56,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             "Docker supports target platform",
             task -> Architecture.fromDockerPlatform(getPlatform().getOrNull())
                 .map(arch -> getDockerSupport().get().isArchitectureSupported(arch))
-                .orElse(false) && getDockerSupport().get().getDockerAvailability().isAvailable()
+                .orElse(false)
+                && getDockerSupport().get().getDockerAvailability().isAvailable()
         );
     }
 

@@ -165,9 +165,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public Expression surrogate() {
         if (buckets.resolved() && buckets.dataType().isWholeNumber()) {
-            if (from == null || to == null) {
-                return null;
-            }
+            assert from != null && to != null : "numeric bucket count requires [from] and [to]; resolveType should have caught this";
             return new Bucket(source(), timestamp, buckets, from, to, configuration);
         }
         return new Bucket(source(), timestamp, buckets, from, to, configuration);
@@ -200,6 +198,9 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         if (buckets.dataType().isWholeNumber() && (from == null || to == null)) {
             return new TypeResolution("numeric bucket count in [" + sourceText() + "] requires [from] and [to] parameters");
+        }
+        if (DataType.isTemporalAmount(buckets.dataType()) && (from != null || to != null)) {
+            return new TypeResolution("[from] and [to] in [" + sourceText() + "] cannot be used with a duration or period bucket size");
         }
         if (from == null != (to == null)) {
             return new TypeResolution("[from] and [to] in [" + sourceText() + "] must both be provided or both omitted");

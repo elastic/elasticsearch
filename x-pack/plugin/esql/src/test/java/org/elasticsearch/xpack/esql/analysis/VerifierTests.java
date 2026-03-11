@@ -2907,6 +2907,16 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
             equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
         );
+        assertThat(
+            error(
+                "from test | stats max(event_duration) by tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")",
+                sampleDataAnalyzer
+            ),
+            equalTo(
+                "1:42: [from] and [to] in [tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")]"
+                    + " cannot be used with a duration or period bucket size"
+            )
+        );
 
         /*
         To test unsupported @timestamp data type. In this case, we use a boolean as a type for the @timestamp field which is not supported

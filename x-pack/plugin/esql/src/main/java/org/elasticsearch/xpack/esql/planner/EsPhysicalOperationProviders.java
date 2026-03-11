@@ -495,7 +495,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
         Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());
-        boolean needsOutputFiltering = outputRounding != null && internalRounding != null && outputRounding != internalRounding;
+        boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
+            && outputRounding != null
+            && internalRounding != null
+            && outputRounding != internalRounding;
         return new TimeSeriesAggregationOperator.Factory(
             internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,

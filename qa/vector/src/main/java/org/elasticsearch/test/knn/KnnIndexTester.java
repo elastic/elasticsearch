@@ -452,47 +452,113 @@ public class KnnIndexTester {
     ) throws Exception {
         Directory sharedDir = dirConfig.shared() ? dirConfig.factory().create(indexPath) : null;
         try {
-            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
-                KnnIndexer knnIndexer = new KnnIndexer(
-                    testConfiguration.docVectors(),
-                    indexPath,
-                    codec,
-                    testConfiguration.indexThreads(),
-                    testConfiguration.vectorEncoding().luceneEncoding,
-                    testConfiguration.dimensions(),
-                    testConfiguration.vectorSpace(),
+            if (testConfiguration.useDataGenerator()) {
+                // Multi-tenant generated data mode
+                MultiTenantDataGenerator generator = new MultiTenantDataGenerator(
                     testConfiguration.numDocs(),
-                    mergePolicy,
-                    testConfiguration.writerBufferSizeInMb(),
-                    testConfiguration.writerMaxBufferedDocs()
+                    testConfiguration.dimensions(),
+                    testConfiguration.numTenants(),
+                    testConfiguration.tenantDistribution(),
+                    testConfiguration.generatorSeed()
                 );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                }
-                if (testConfiguration.reindex()) {
-                    reindex(knnIndexer, indexResults, sharedDir);
-                }
-                if (testConfiguration.forceMerge()) {
-                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
-                }
-            }
-            numSegments(indexPath, indexResults, sharedDir);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
-                try {
-                    if (dirConfig.preWarm()) {
-                        logDiagnostics(dirConfig, readDir, "Before prewarm");
-                        KnnSearcher.preWarmDirectory(readDir);
-                        logDiagnostics(dirConfig, readDir, "After prewarm");
+                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                    KnnIndexer knnIndexer = new KnnIndexer(
+                        testConfiguration.docVectors(),
+                        indexPath,
+                        codec,
+                        testConfiguration.indexThreads(),
+                        testConfiguration.vectorEncoding().luceneEncoding,
+                        testConfiguration.dimensions(),
+                        testConfiguration.vectorSpace(),
+                        testConfiguration.numDocs(),
+                        mergePolicy,
+                        testConfiguration.writerBufferSizeInMb(),
+                        testConfiguration.writerMaxBufferedDocs()
+                    );
+                    if (testConfiguration.reindex()) {
+                        Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                        try {
+                            knnIndexer.createGeneratedIndex(indexResults, writeDir, generator);
+                        } finally {
+                            if (sharedDir == null) {
+                                writeDir.close();
+                            }
+                        }
                     }
-                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
-                    logDiagnostics(dirConfig, readDir, "After search");
-                } finally {
-                    if (sharedDir == null) {
-                        readDir.close();
+                    if (testConfiguration.forceMerge()) {
+                        forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
                     }
                 }
-            }
+                numSegments(indexPath, indexResults, sharedDir);
+                if (testConfiguration.numQueries() > 0) {
+                    Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                    try {
+                        if (dirConfig.preWarm()) {
+                            logDiagnostics(dirConfig, readDir, "Before prewarm");
+                            KnnSearcher.preWarmDirectory(readDir);
+                            logDiagnostics(dirConfig, readDir, "After prewarm");
+                        }
+                        runMultiTenantSearches(
+                            testConfiguration,
+                            indexPath,
+                            readDir,
+                            results,
+                            parsedArgs,
+                            indexPathName,
+                            indexType,
+                            generator
+                        );
+                        logDiagnostics(dirConfig, readDir, "After search");
+                    } finally {
+                        if (sharedDir == null) {
+                            readDir.close();
+                        }
+                    }
+                }
+            } else {
+                // Original file-based mode
+                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                    KnnIndexer knnIndexer = new KnnIndexer(
+                        testConfiguration.docVectors(),
+                        indexPath,
+                        codec,
+                        testConfiguration.indexThreads(),
+                        testConfiguration.vectorEncoding().luceneEncoding,
+                        testConfiguration.dimensions(),
+                        testConfiguration.vectorSpace(),
+                        testConfiguration.numDocs(),
+                        mergePolicy,
+                        testConfiguration.writerBufferSizeInMb(),
+                        testConfiguration.writerMaxBufferedDocs()
+                    );
+                    if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                    }
+                    if (testConfiguration.reindex()) {
+                        reindex(knnIndexer, indexResults, sharedDir);
+                    }
+                    if (testConfiguration.forceMerge()) {
+                        forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
+                    }
+                }
+                numSegments(indexPath, indexResults, sharedDir);
+                if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                    Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                    try {
+                        if (dirConfig.preWarm()) {
+                            logDiagnostics(dirConfig, readDir, "Before prewarm");
+                            KnnSearcher.preWarmDirectory(readDir);
+                            logDiagnostics(dirConfig, readDir, "After prewarm");
+                        }
+                        runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                        logDiagnostics(dirConfig, readDir, "After search");
+                    } finally {
+                        if (sharedDir == null) {
+                            readDir.close();
+                        }
+                    }
+                }
+            } // end else (file-based mode)
         } finally {
             if (sharedDir != null) {
                 sharedDir.close();
@@ -551,6 +617,32 @@ public class KnnIndexTester {
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
+        }
+    }
+
+    private static void runMultiTenantSearches(
+        TestConfiguration testConfiguration,
+        Path indexPath,
+        Directory dir,
+        Results[] results,
+        ParsedArgs parsedArgs,
+        String indexPathName,
+        String indexType,
+        MultiTenantDataGenerator generator
+    ) throws Exception {
+        if (parsedArgs.warmUpIterations() > 0) {
+            logger.info("Running multi-tenant searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+        }
+        for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+            for (int i = 0; i < results.length; i++) {
+                var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
+                KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                knnSearcher.runMultiTenantSearch(ignoreResults, testConfiguration.searchParams().get(i), dir, generator);
+            }
+        }
+        for (int i = 0; i < results.length; i++) {
+            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+            knnSearcher.runMultiTenantSearch(results[i], testConfiguration.searchParams().get(i), dir, generator);
         }
     }
 
@@ -674,6 +766,24 @@ public class KnnIndexTester {
 
             printBlock(sb, searchHeaders, queryResultsArray);
 
+            // Append per-tenant recall summary if available
+            for (Results queryResult : queryResults) {
+                if (queryResult.perTenantRecall != null && queryResult.perTenantRecall.isEmpty() == false) {
+                    sb.append("\nPer-tenant recall for ").append(queryResult.indexName).append(":\n");
+                    float min = Float.MAX_VALUE;
+                    float max = Float.MIN_VALUE;
+                    float sum = 0;
+                    for (Map.Entry<String, Float> entry : queryResult.perTenantRecall.entrySet()) {
+                        float recall = entry.getValue();
+                        min = Math.min(min, recall);
+                        max = Math.max(max, recall);
+                        sum += recall;
+                    }
+                    int count = queryResult.perTenantRecall.size();
+                    sb.append(String.format(Locale.ROOT, "  tenants=%d  min=%.4f  max=%.4f  avg=%.4f%n", count, min, max, sum / count));
+                }
+            }
+
             return sb.toString();
         }
 
@@ -750,6 +860,7 @@ public class KnnIndexTester {
         double overSamplingFactor;
         boolean earlyTermination;
         int numCandidates;
+        Map<String, Float> perTenantRecall;
 
         Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;

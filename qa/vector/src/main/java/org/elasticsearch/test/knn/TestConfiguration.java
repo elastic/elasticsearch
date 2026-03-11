@@ -70,7 +70,11 @@ record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    String directoryType
+    String directoryType,
+    boolean useDataGenerator,
+    int numTenants,
+    String tenantDistribution,
+    long generatorSeed
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -112,6 +116,10 @@ record TestConfiguration(
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
+    static final ParseField USE_DATA_GENERATOR_FIELD = new ParseField("use_data_generator");
+    static final ParseField NUM_TENANTS_FIELD = new ParseField("num_tenants");
+    static final ParseField TENANT_DISTRIBUTION_FIELD = new ParseField("tenant_distribution");
+    static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -177,6 +185,10 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
+        PARSER.declareBoolean(Builder::setUseDataGenerator, USE_DATA_GENERATOR_FIELD);
+        PARSER.declareInt(Builder::setNumTenants, NUM_TENANTS_FIELD);
+        PARSER.declareString(Builder::setTenantDistribution, TENANT_DISTRIBUTION_FIELD);
+        PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -238,7 +250,19 @@ record TestConfiguration(
                 "directory_type",
                 "string",
                 "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
-            )
+            ),
+            new ParameterHelp(
+                "use_data_generator",
+                "boolean",
+                "Use synthetic data generator instead of vector files. Requires dimensions to be set."
+            ),
+            new ParameterHelp("num_tenants", "int", "Number of tenants for multi-tenant data generation. Default 100."),
+            new ParameterHelp(
+                "tenant_distribution",
+                "string",
+                "Distribution of documents across tenants: uniform or zipf. Default uniform."
+            ),
+            new ParameterHelp("generator_seed", "long", "Random seed for data generator. Default 42.")
         );
 
         int nameWidth = "parameter".length();
@@ -312,6 +336,10 @@ record TestConfiguration(
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
         private String directoryType = "default";
+        private boolean useDataGenerator = false;
+        private int numTenants = 100;
+        private String tenantDistribution = "uniform";
+        private long generatorSeed = 42L;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -518,6 +546,26 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setUseDataGenerator(boolean useDataGenerator) {
+            this.useDataGenerator = useDataGenerator;
+            return this;
+        }
+
+        public Builder setNumTenants(int numTenants) {
+            this.numTenants = numTenants;
+            return this;
+        }
+
+        public Builder setTenantDistribution(String tenantDistribution) {
+            this.tenantDistribution = tenantDistribution.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
+        public Builder setGeneratorSeed(long generatorSeed) {
+            this.generatorSeed = generatorSeed;
+            return this;
+        }
+
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -670,7 +718,14 @@ record TestConfiguration(
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
             }
 
-            if (docVectors == null) {
+            if (useDataGenerator) {
+                if (dimensions <= 0) {
+                    throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                }
+                if (docVectors == null) {
+                    docVectors = List.of(PathUtils.get("generated-" + numTenants + "-tenants"));
+                }
+            } else if (docVectors == null) {
                 throw new IllegalArgumentException("Dataset or document vectors path must be provided");
             }
             if (dimensions <= 0 && dimensions != -1) {
@@ -742,7 +797,11 @@ record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                directoryType
+                directoryType,
+                useDataGenerator,
+                numTenants,
+                tenantDistribution,
+                generatorSeed
             );
         }
 
@@ -801,6 +860,10 @@ record TestConfiguration(
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
+            builder.field(USE_DATA_GENERATOR_FIELD.getPreferredName(), useDataGenerator);
+            builder.field(NUM_TENANTS_FIELD.getPreferredName(), numTenants);
+            builder.field(TENANT_DISTRIBUTION_FIELD.getPreferredName(), tenantDistribution);
+            builder.field(GENERATOR_SEED_FIELD.getPreferredName(), generatorSeed);
             return builder.endObject();
         }
 

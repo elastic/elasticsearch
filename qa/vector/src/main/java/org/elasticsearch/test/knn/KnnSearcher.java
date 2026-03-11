@@ -24,6 +24,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionQuery;
@@ -46,6 +47,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -80,7 +82,9 @@ import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
@@ -95,6 +99,7 @@ import java.util.function.IntConsumer;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 import static org.elasticsearch.test.knn.KnnIndexer.ID_FIELD;
+import static org.elasticsearch.test.knn.KnnIndexer.TENANT_ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 class KnnSearcher {
@@ -308,6 +313,174 @@ class KnnSearcher {
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+    }
+
+    /**
+     * Runs multi-tenant search: each query is randomly assigned to a tenant and executed with a TermQuery filter
+     * on tenant_id. Recall is computed per-tenant and reported as a per-tenant map plus average.
+     */
+    void runMultiTenantSearch(
+        KnnIndexTester.Results finalResults,
+        SearchParameters searchParameters,
+        Directory dir,
+        MultiTenantDataGenerator generator
+    ) throws IOException {
+        List<String> tenantIds = new ArrayList<>(generator.getTenantAssignments().keySet());
+        int numTenants = tenantIds.size();
+        Random queryRandom = new Random(searchParameters.seed());
+
+        // Assign each query to a random tenant
+        String[] queryTenants = new String[numQueryVectors];
+        for (int i = 0; i < numQueryVectors; i++) {
+            queryTenants[i] = tenantIds.get(queryRandom.nextInt(numTenants));
+        }
+
+        TopDocs[] results = new TopDocs[numQueryVectors];
+        int[][] resultIds = new int[numQueryVectors][];
+        long elapsed, totalCpuTimeMS, totalVisited = 0;
+
+        // Generate query vectors (declared outside try blocks so they're accessible for exact NN computation)
+        float[][] floatQueries = null;
+        byte[][] byteQueries = null;
+        if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+            byteQueries = generator.generateQueryByteVectors(numQueryVectors);
+        } else {
+            floatQueries = generator.generateQueryVectors(numQueryVectors);
+        }
+
+        try (
+            ExecutorService executorService = Executors.newFixedThreadPool(
+                searchParameters.searchThreads(),
+                r -> new Thread(r, "KnnSearcher-Thread")
+            )
+        ) {
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = searchParameters.searchThreads() > 1
+                    ? new IndexSearcher(reader, executorService)
+                    : new IndexSearcher(reader);
+
+                // Warm up: run a few queries
+                for (int i = 0; i < Math.min(numQueryVectors, 100); i++) {
+                    Query tenantFilter = new TermQuery(new Term(TENANT_ID_FIELD, queryTenants[i]));
+                    if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                        doVectorQuery(byteQueries[i], searcher, tenantFilter, searchParameters);
+                    } else {
+                        doVectorQuery(floatQueries[i], searcher, tenantFilter, searchParameters);
+                    }
+                }
+
+                long startNS = System.nanoTime();
+                KnnIndexTester.ThreadDetails startThreadDetails = new KnnIndexTester.ThreadDetails();
+
+                // Run actual queries
+                for (int i = 0; i < numQueryVectors; i++) {
+                    Query tenantFilter = new TermQuery(new Term(TENANT_ID_FIELD, queryTenants[i]));
+                    if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                        results[i] = doVectorQuery(byteQueries[i], searcher, tenantFilter, searchParameters);
+                    } else {
+                        results[i] = doVectorQuery(floatQueries[i], searcher, tenantFilter, searchParameters);
+                    }
+                }
+
+                KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
+                elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
+                long startCPUTimeNS = 0;
+                long endCPUTimeNS = 0;
+                for (int i = 0; i < startThreadDetails.threadInfos.length; i++) {
+                    if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
+                        startCPUTimeNS += startThreadDetails.cpuTimesNS[i];
+                    }
+                }
+                for (int i = 0; i < endThreadDetails.threadInfos.length; i++) {
+                    if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
+                        endCPUTimeNS += endThreadDetails.cpuTimesNS[i];
+                    }
+                }
+                totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(endCPUTimeNS - startCPUTimeNS);
+
+                StoredFields storedFields = reader.storedFields();
+                for (int i = 0; i < numQueryVectors; i++) {
+                    totalVisited += results[i].totalHits.value();
+                    resultIds[i] = getResultIds(results[i], storedFields);
+                }
+                logger.info(
+                    "completed {} multi-tenant searches in {} ms: {} QPS CPU time={}ms",
+                    numQueryVectors,
+                    elapsed,
+                    (1000L * numQueryVectors) / elapsed,
+                    totalCpuTimeMS
+                );
+            }
+        }
+
+        // Compute exact NN per query with tenant filter and measure recall
+        logger.info("computing brute-force exact multi-tenant KNN matches for {} queries", numQueryVectors);
+        long nnStartNS = System.nanoTime();
+        int[][] nn = new int[numQueryVectors][];
+        try (Directory indexDir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(indexDir)) {
+            List<Callable<Void>> tasks = new ArrayList<>();
+            for (int i = 0; i < numQueryVectors; i++) {
+                Query tenantFilter = new TermQuery(new Term(TENANT_ID_FIELD, queryTenants[i]));
+                if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                    tasks.add(
+                        new ComputeNNByteTask(i, searchParameters.topK(), byteQueries[i], nn, reader, tenantFilter, similarityFunction)
+                    );
+                } else {
+                    tasks.add(
+                        new ComputeNNFloatTask(i, searchParameters.topK(), floatQueries[i], nn, reader, tenantFilter, similarityFunction)
+                    );
+                }
+            }
+            ForkJoinPool.commonPool().invokeAll(tasks);
+        }
+        long nnElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - nnStartNS);
+        logger.info("computed {} exact multi-tenant NN matches in {} ms", numQueryVectors, nnElapsedMS);
+
+        // Compute per-tenant recall
+        Map<String, List<Integer>> tenantQueryIndices = new LinkedHashMap<>();
+        for (int i = 0; i < numQueryVectors; i++) {
+            tenantQueryIndices.computeIfAbsent(queryTenants[i], k -> new ArrayList<>()).add(i);
+        }
+        Map<String, Float> perTenantRecall = new LinkedHashMap<>();
+        float totalRecall = 0;
+        int tenantsWithQueries = 0;
+        for (var entry : tenantQueryIndices.entrySet()) {
+            int tenantMatches = 0;
+            int tenantTotal = entry.getValue().size() * searchParameters.topK();
+            for (int idx : entry.getValue()) {
+                tenantMatches += compareNN(nn[idx], resultIds[idx], searchParameters.topK());
+            }
+            float tenantRecall = tenantMatches / (float) tenantTotal;
+            perTenantRecall.put(entry.getKey(), tenantRecall);
+            totalRecall += tenantRecall;
+            tenantsWithQueries++;
+        }
+        float avgRecall = tenantsWithQueries > 0 ? totalRecall / tenantsWithQueries : 0;
+
+        // Log per-tenant recall summary
+        float minRecall = perTenantRecall.values().stream().min(Float::compareTo).orElse(0f);
+        float maxRecall = perTenantRecall.values().stream().max(Float::compareTo).orElse(0f);
+        logger.info(
+            "Multi-tenant recall: avg={}, min={}, max={}, tenants_with_queries={}",
+            String.format("%.4f", avgRecall),
+            String.format("%.4f", minRecall),
+            String.format("%.4f", maxRecall),
+            tenantsWithQueries
+        );
+
+        finalResults.visitPercentage = indexType == KnnIndexTester.IndexType.IVF ? searchParameters.visitPercentage() : 0;
+        finalResults.avgRecall = avgRecall;
+        finalResults.qps = (1000f * numQueryVectors) / elapsed;
+        finalResults.avgLatency = (float) elapsed / numQueryVectors;
+        finalResults.averageVisited = (double) totalVisited / numQueryVectors;
+        finalResults.netCpuTimeMS = (double) totalCpuTimeMS / numQueryVectors;
+        finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
+        finalResults.filterCached = searchParameters.filterCached();
+        finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
+        finalResults.filterSelectivity = searchParameters.filterSelectivity();
+        finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.earlyTermination = searchParameters.earlyTermination();
+        finalResults.perTenantRecall = perTenantRecall;
     }
 
     /**

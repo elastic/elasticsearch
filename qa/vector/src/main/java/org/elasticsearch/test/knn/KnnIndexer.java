@@ -25,7 +25,9 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -33,12 +35,15 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.StandardIOBehaviorHint;
@@ -68,6 +73,7 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 class KnnIndexer {
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
+    static final String TENANT_ID_FIELD = "tenant_id";
 
     private final List<Path> docsPath;
     private final Path indexPath;
@@ -226,6 +232,94 @@ class KnnIndexer {
 
         // report numDocsIndexed here in case we have less than the total numDocs
         result.numDocs = numDocsIndexed.get();
+    }
+
+    /**
+     * Creates an index from synthetic multi-tenant data. Documents are sorted by tenant_id.
+     */
+    void createGeneratedIndex(KnnIndexTester.Results result, Directory dir, MultiTenantDataGenerator generator) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        iwc.setCodec(codec);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
+        iwc.setUseCompoundFile(false);
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
+        iwc.setMaxFullFlushMergeWaitMillis(0);
+        iwc.setIndexSort(new Sort(new SortField(TENANT_ID_FIELD, SortField.Type.STRING, false)));
+
+        iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
+            @Override
+            public boolean isEnabled(String component) {
+                return Objects.equals(component, "IVF");
+            }
+        });
+        logger.info(
+            "KnnIndexer: creating generated index with {} tenants, codec={}, vectorEncoding={}, dim={}",
+            generator.getNumTenants(),
+            codec.getName(),
+            vectorEncoding,
+            dim
+        );
+
+        if (Files.exists(indexPath)) {
+            logger.debug("KnnIndexer: existing index at {}", indexPath);
+        } else {
+            Files.createDirectories(indexPath);
+        }
+
+        int localDim = dim;
+        if (localDim <= 0) {
+            throw new IllegalArgumentException("dimensions must be specified for generated data");
+        }
+        FieldType fieldType = switch (vectorEncoding) {
+            case BYTE -> KnnByteVectorField.createFieldType(localDim, similarityFunction);
+            case FLOAT32 -> KnnFloatVectorField.createFieldType(localDim, similarityFunction);
+        };
+
+        long start = System.nanoTime();
+        int numDocsIndexed = 0;
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            // Index documents sorted by tenant (contiguous blocks per tenant)
+            for (var entry : generator.getTenantAssignments().entrySet()) {
+                String tenantId = entry.getKey();
+                BytesRef tenantIdBytes = new BytesRef(tenantId);
+                for (int docId : entry.getValue()) {
+                    Document doc = new Document();
+                    final IndexableField field;
+                    switch (vectorEncoding) {
+                        case BYTE -> {
+                            byte[] vector = generator.nextByteVector();
+                            field = new KnnByteVectorField(VECTOR_FIELD, vector, fieldType);
+                        }
+                        case FLOAT32 -> {
+                            float[] vector = generator.nextVector();
+                            field = new KnnFloatVectorField(VECTOR_FIELD, vector, fieldType);
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    }
+                    doc.add(field);
+                    doc.add(new StoredField(ID_FIELD, docId));
+                    doc.add(new SortedDocValuesField(TENANT_ID_FIELD, tenantIdBytes));
+                    doc.add(new StringField(TENANT_ID_FIELD, tenantId, org.apache.lucene.document.Field.Store.YES));
+                    iw.addDocument(doc);
+                    numDocsIndexed++;
+                    if (numDocsIndexed % 25000 == 0) {
+                        logger.debug("Done indexing {} documents.", numDocsIndexed);
+                    }
+                }
+            }
+            logger.info("KnnIndexer: indexed {} generated documents", numDocsIndexed);
+            iw.commit();
+            ConcurrentMergeScheduler cms = (ConcurrentMergeScheduler) iwc.getMergeScheduler();
+            cms.sync();
+        }
+
+        long elapsed = System.nanoTime() - start;
+        logger.debug("Generated indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocsIndexed);
+        result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+        result.numDocs = numDocsIndexed;
     }
 
     void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {

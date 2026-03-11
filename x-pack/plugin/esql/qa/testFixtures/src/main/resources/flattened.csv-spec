@@ -170,7 +170,7 @@ SET unmapped_fields="load"\;
 FROM flattened_otel_logs
 | RENAME resource.attributes.host.name AS host_name
 | KEEP @timestamp, host_name
-| SORT host_name ASC
+| SORT host_name ASC, @timestamp ASC
 ;
 
 @timestamp:date          | host_name:keyword

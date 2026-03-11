@@ -1123,7 +1123,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (response.getFailedShards() != 0) {
                 logger.info("Post refresh failed [{}],{}", downsampleIndexName, Strings.toString(response));
             }
-            ActionListener<AcknowledgedResponse> nextStepListener = new FlushResultListener(
+            ActionListener<AcknowledgedResponse> nextStepListener = new FlushActionListener(
                 parentTask,
                 downsampleIndexName,
                 startTime,
@@ -1173,13 +1173,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Triggers a flush operation on the downsample target index
      */
-    class FlushResultListener implements ActionListener<AcknowledgedResponse> {
+    class FlushActionListener implements ActionListener<AcknowledgedResponse> {
 
         final ActionListener<AcknowledgedResponse> actionListener;
         private final TaskId parentTask;
         private final String downsampleIndexName;
 
-        FlushResultListener(
+        FlushActionListener(
             final TaskId parentTask,
             final String downsampleIndexName,
             final long startTime,

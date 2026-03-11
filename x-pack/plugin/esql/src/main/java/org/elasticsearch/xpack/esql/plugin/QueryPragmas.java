@@ -111,6 +111,16 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     /**
+     * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
+     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     */
+    public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
+        "parsing_parallelism",
+        EsExecutors.allocatedProcessors(Settings.EMPTY),
+        1
+    );
+
+    /**
      * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
      * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
      * of doc-sequence loading.
@@ -258,6 +268,10 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int parsingParallelism() {
+        return PARSING_PARALLELISM.get(settings);
     }
 
     /**

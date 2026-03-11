@@ -79,8 +79,6 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderGreen(leaderIndex);
 
-        followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
-
         final int nbBatches = randomIntBetween(5, 10);
         final int docsPerBatch = randomIntBetween(20, 50);
 
@@ -107,6 +105,8 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
                 .getCount(),
             greaterThan(1L)
         );
+
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
 
         final long maxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, maxSeqNo + 1);

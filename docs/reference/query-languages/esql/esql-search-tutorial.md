@@ -178,6 +178,28 @@ FROM cooking_blog
 
 This helps reduce the amount of data returned and focuses on the information you need.
 
+Another option is to retrieve the original document source via the `_source` metadata field:
+
+```esql
+FROM cooking_blog METADATA _source
+| WHERE description:"fluffy pancakes"
+| KEEP _source
+| LIMIT 1000
+```
+
+You should consider using `_source` when:
+- You need several fields from a document, and most of them are text fields.
+- You have long text fields in your documents.
+- You want the original document instead of the indexed values for your fields.
+- You have nested objects or arrays that you want to preserve in their original structure.
+
+You probably want to avoid using `_source` when:
+- Your fields are stored as doc values (numeric, keyword, date, boolean). doc values access is faster than _source.
+- Your index uses synthetic source. Accessing _source in synthetic source mode has a performance penalty.
+- The text fields you need are stored fields.
+
+Using `_source` or selecting fields are both valid options, but can have performance and data format implications that you should consider based on your use case.
+
 ### Understand relevance scoring
 
 Search results can be ranked based on how well they match your query. To calculate and use relevance scores, you need to explicitly request the `_score` metadata:

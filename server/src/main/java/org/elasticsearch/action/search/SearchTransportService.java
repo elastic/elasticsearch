@@ -736,7 +736,6 @@ public class SearchTransportService {
                             );
                         } catch (Exception e) {
                             Releasables.closeWhileHandlingException(bytesToSend);
-                            responseChunk.close();
                             listener.onFailure(e);
                         }
                     }

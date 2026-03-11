@@ -369,10 +369,9 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     /**
      * Tests that we prefer to throttle rather than allocate to a not-preferred node when both
-     * options exist (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
      */
     public void testThrottleBeforeNotPreferredNode() {
-        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.THROTTLE, Decision.NOT_PREFERRED);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.THROTTLE, Decision.NOT_PREFERRED);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
@@ -386,10 +385,9 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     /**
      * Tests that we allocate to a YES node rather than a NOT_PREFERRED node when both exist
-     * (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
      */
     public void testYesBeforeNotPreferredNode() {
-        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.YES, Decision.NOT_PREFERRED);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.YES, Decision.NOT_PREFERRED);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertAllocatedToNode1(allocation);
         assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
@@ -397,21 +395,23 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     /**
      * Tests that we allocate to a NOT_PREFERRED node rather than a NO node when both exist
-     * (YES &gt; THROTTLE &gt; NOT_PREFERRED &gt; NO).
      */
     public void testNotPreferredBeforeNoNode() {
-        final RoutingAllocation allocation = allocateWithTwoNodeDecider(Decision.NOT_PREFERRED, Decision.NO);
+        final RoutingAllocation allocation = runAllocationWithTwoNodes(Decision.NOT_PREFERRED, Decision.NO);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertAllocatedToNode1(allocation);
         assertClusterHealthStatus(allocation, ClusterHealthStatus.GREEN);
     }
 
     /**
-     * Runs allocation with two nodes (node1, node2) where the decider returns the given
-     * decision for each. Both nodes have shard data (allocId1 / allocId2). Returns the
-     * allocation after {@link #allocateAllUnassigned}.
+     * Sets up a {@link RoutingAllocation} with a single shard and two nodes, both having in-sync allocations, and
+     * runs {@link PrimaryShardAllocator#allocateUnassigned} on it.
+     *
+     * @param node1Decision The decision for {@link #node1}
+     * @param node2Decision The decision for {@link #node2}
+     * @return The resulting {@link RoutingAllocation}
      */
-    private RoutingAllocation allocateWithTwoNodeDecider(Decision node1Decision, Decision node2Decision) {
+    private RoutingAllocation runAllocationWithTwoNodes(Decision node1Decision, Decision node2Decision) {
         AllocationDecider decider = new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

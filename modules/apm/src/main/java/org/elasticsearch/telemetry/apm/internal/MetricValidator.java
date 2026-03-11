@@ -67,7 +67,16 @@ public class MetricValidator {
         "es.thread_pool.searchable_snapshots_cache_fetch_async.*",
         "es.thread_pool.searchable_snapshots_cache_prewarming.*",
         "es.thread_pool.security-crypto.*",
-        "es.thread_pool.security-token-key.*"
+        "es.thread_pool.security-token-key.*",
+        // APM Java agent-compatible metric names (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+        "system.cpu.*",
+        "system.memory.*",
+        "system.process.*",
+        "jvm.fd.*",
+        "jvm.file_descriptor.*",
+        "jvm.gc.*",
+        "jvm.memory.*",
+        "jvm.thread.*"
     );
 
     /**
@@ -241,7 +250,16 @@ public class MetricValidator {
             Map.entry("es.tsdb.downsample.actions.shard.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.actions.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.latency.shard.histogram", DOWNSAMPLE_ATTRIBUTES),
-            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES)
+            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES),
+            // APM Java agent-compatible metrics (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+            Map.entry("jvm.gc.count", Set.of("name")),
+            Map.entry("jvm.gc.time", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.max", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.max", Set.of("name"))
         );
 
         // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
@@ -317,6 +335,11 @@ public class MetricValidator {
 
             assert Attributes.OTEL_ATTRIBUTES.contains(attribute)
                 || Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
+                // allow percentile for all thread pools
+                // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.
+                || (metricName.startsWith("es.thread_pool.") && attribute.equals("percentile"))
+                // ML metrics use dot-separated attribute key
+                || (metricName.startsWith("es.ml.") && attribute.equals("es.ml.is_master"))
                 || Attributes.ATTRIBUTE_PATTERN.matcher(attribute).matches()
                 : Strings.format(
                     "Attribute [%s] of [%s] does not match the required naming pattern [%s], see the naming guidelines.",

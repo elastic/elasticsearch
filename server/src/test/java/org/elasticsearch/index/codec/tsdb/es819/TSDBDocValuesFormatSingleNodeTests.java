@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -29,18 +31,22 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testTSDBIndexUsesCorrectDocValuesFormat() throws Exception {
         String indexName = "tsdb-test";
-        Settings settings = Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-01-01T00:00:00Z")
-            .build();
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-01-01T00:00:00Z");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        }
+        Settings settings = settingsBuilder.build();
 
         createIndex(
             indexName,
@@ -111,6 +117,10 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
             if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
                 docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;
+            } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(PerFieldDocValuesFormat.class));
+                docValuesFormatProvider = (field) -> ((PerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat())
+                    .getDocValuesFormatForField(field);
             } else {
                 fail("Unexpected codec type: " + codec.getClass().getName());
                 return;

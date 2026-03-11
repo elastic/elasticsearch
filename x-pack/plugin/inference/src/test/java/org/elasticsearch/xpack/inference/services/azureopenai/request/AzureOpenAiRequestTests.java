@@ -49,7 +49,12 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         var apiKey = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
         var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, apiKey, null);
-        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(TEST_INFERENCE_ID, threadPool, secretSettings, AzureOpenAiCompletionServiceSettingsTests.createRandom());
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            secretSettings,
+            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+        );
 
         secretsApplier.applyTo(httpPost, ActionListener.noop());
         var apiKeyHeader = httpPost.getFirstHeader(API_KEY_HEADER);
@@ -61,7 +66,12 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         var entraId = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
         var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, entraId);
-        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(TEST_INFERENCE_ID, threadPool, secretSettings, AzureOpenAiCompletionServiceSettingsTests.createRandom());
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            secretSettings,
+            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+        );
 
         secretsApplier.applyTo(httpPost, ActionListener.noop());
         var authHeader = httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION);
@@ -76,7 +86,12 @@ public class AzureOpenAiRequestTests extends ESTestCase {
             Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)),
             TEST_INFERENCE_ID
         );
-        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(TEST_INFERENCE_ID, threadPool, secretSettings, AzureOpenAiCompletionServiceSettingsTests.createRandom());
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            secretSettings,
+            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+        );
 
         secretsApplier.applyTo(httpPost, ActionListener.noop());
 

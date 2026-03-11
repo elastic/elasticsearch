@@ -73,7 +73,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
-        if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
+        if (crossProjectEnabled) {
             multiRequest.setProjectRouting(restRequest.param("project_routing"));
             multiRequest.indicesOptions(
                 IndicesOptions.builder(multiRequest.indicesOptions())

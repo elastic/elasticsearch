@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -111,6 +115,14 @@ public class PromqlVerifierTests extends ESTestCase {
             error("PROMQL index=test buckets=10 avg(foo)", tsdb),
             containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
+    }
+
+    public void testPromqlBucketsWithTimestampBoundsFromContext() {
+        var now = Instant.now();
+        var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
+        var analyzer = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution(), bounds);
+        var plan = analyzer.analyze(EsqlParser.INSTANCE.parseQuery("PROMQL index=test buckets=10 avg(network.bytes_in)"));
+        assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
     }
 
     public void testNoMetricNameMatcherNotSupported() {

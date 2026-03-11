@@ -34,6 +34,7 @@ You can learn how to:
 **Route or send data elsewhere**
 - [Reindex with custom routing](#docs-reindex-routing)
 - [Reindex with an ingest pipeline](#reindex-with-an-ingest-pipeline)
+- [Reindex in {{cps}}](#reindex-cps)
 - [Reindex from remote](#reindex-from-remote)
 
 **Troubleshooting**
@@ -589,6 +590,90 @@ Think of the possibilities! Just be careful; you are able to change:
 
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not sending the version in an indexing request; it will cause the document to be overwritten in the destination regardless of the version on the target or the version type you use in the reindex API request.
 
+## Reindex in {{cps}} [reindex-cps]
+```{applies_to}
+serverless: preview
+```
+
+When [{{cps}}](docs-content://explore-analyze/cross-project-search.md) is enabled, the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-reindex) can pull documents from indices across linked {{serverless-short}} projects.
+The `source.index` field resolves across the origin project and all of its linked projects.
+You can narrow the scope of the source using [project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) or [qualified index expressions](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md#search-expressions).
+Documents are always written to the destination index on the origin project.
+
+There are two ways to reindex in {{cps-init}}:
+
+* [**Reindex across linked projects**](#reindex-cps-linked): reindex from projects that are linked to the origin project in the {{ecloud}} UI. This mode does not use `source.remote` and works like other {{cps}}-enabled endpoints.
+* [**Reindex from a remote project**](#reindex-cps-remote): reindex from a {{serverless-short}} project or {{ech}} deployment that is not linked to the origin project, by specifying `source.remote.host`.
+
+### Reindex across linked projects [reindex-cps-linked]
+
+Without `source.remote`, the Reindex API works like other {{cps}}-enabled endpoints:
+
+* Only projects [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) in the {{ecloud}} UI can be targeted.
+* The `source.index` field resolves across the origin project and all linked projects.
+* You can use `project_routing` in the `source` section to limit which projects are included.
+* Qualified index expressions (for example, `project1:logs`) are supported.
+
+The following request reindexes documents from the `logs` index across all linked projects whose `_csp` tag matches `aws`:
+
+```console
+POST _reindex
+{
+  "source": {
+    "project_routing": "_csp:aws",
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+### Reindex from a remote project [reindex-cps-remote]
+
+When using `source.remote.host`, you can reindex from {{serverless-short}} projects or {{ech}} deployments that are not linked to the origin project via the {{ecloud}} UI.
+
+The `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
+
+The following request reindexes documents from the `logs` index on a remote project. Because `source.index` resolves across projects, documents are pulled from `logs` indices across the remote project and all of its linked projects:
+
+```console
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "https://my-remote-project.es.us-east-1.aws.elastic.cloud:443"
+    },
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+You can add `project_routing` to the `source` section to limit which of the remote project's linked projects are included. The following request limits the reindex source to the remote project's origin project only:
+
+```console
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "https://my-remote-project.es.us-east-1.aws.elastic.cloud:443"
+    },
+    "project_routing": "_alias:_origin",
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+::::{note}
+`project_routing` is not supported when the remote target is an {{ech}} deployment. If you include `project_routing` in a request targeting an {{ech}} deployment, the request returns an error.
+::::
+
 ## Reindex from remote [reindex-from-remote]
 ```{applies_to}
 stack: ga
@@ -618,11 +703,6 @@ POST _reindex
   }
 }
 ```
-% TEST[setup:host]
-% TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
-% TEST[s/"username": "user",/"username": "test_admin",/]
-% TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
 The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
 

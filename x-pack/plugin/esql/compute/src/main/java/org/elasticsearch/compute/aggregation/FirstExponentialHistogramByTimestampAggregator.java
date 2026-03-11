@@ -35,7 +35,7 @@ public class FirstExponentialHistogramByTimestampAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.WithLongSingleState current, ExponentialHistogram value, long timestamp) {
-        if (timestamp < current.longValue()) {
+        if (current.isSeen() == false || timestamp < current.longValue()) {
             current.set(timestamp, value);
         }
     }

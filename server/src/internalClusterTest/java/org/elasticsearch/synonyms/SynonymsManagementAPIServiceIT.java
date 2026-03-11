@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
 
-
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     private SynonymsManagementAPIService synonymsManagementAPIService;

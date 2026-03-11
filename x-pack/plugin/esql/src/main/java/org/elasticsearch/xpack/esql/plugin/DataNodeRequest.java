@@ -67,6 +67,38 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final boolean reductionLateMaterialization;
     private final List<ExternalSplit> externalSplits;
 
+    /**
+     * Constructor with all parameters including externalSplits.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        List<ExternalSplit> externalSplits
+    ) {
+        this.sessionId = sessionId;
+        this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
+        this.aliasFilters = aliasFilters;
+        this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+    }
+
+    /**
+     * Constructor without externalSplits (defaults to empty list).
+     */
     DataNodeRequest(
         String sessionId,
         Configuration configuration,
@@ -92,32 +124,6 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             List.of()
         );
-    }
-
-    DataNodeRequest(
-        String sessionId,
-        Configuration configuration,
-        String clusterAlias,
-        List<Shard> shards,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan,
-        String[] indices,
-        IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction,
-        boolean reductionLateMaterialization,
-        List<ExternalSplit> externalSplits
-    ) {
-        this.sessionId = sessionId;
-        this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shards = shards;
-        this.aliasFilters = aliasFilters;
-        this.plan = plan;
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
-        this.runNodeLevelReduction = runNodeLevelReduction;
-        this.reductionLateMaterialization = reductionLateMaterialization;
-        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
     }
 
     DataNodeRequest(StreamInput in) throws IOException {

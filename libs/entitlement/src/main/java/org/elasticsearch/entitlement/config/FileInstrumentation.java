@@ -51,6 +51,7 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
+import java.util.Collections;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -460,7 +461,9 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(FileURLConnection.class, rule -> {
             rule.callingVoid(FileURLConnection::connect).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrow(e -> new IOException(e));
-            rule.calling(FileURLConnection::getHeaderFields).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturnEmptyMap();
+            rule.calling(FileURLConnection::getHeaderFields)
+                .enforce(f -> Policies.urlFileRead(f.getURL()))
+                .elseReturn(Collections.emptyMap());
             rule.calling(FileURLConnection::getHeaderField, String.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
             rule.calling(FileURLConnection::getHeaderField, Integer.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
             rule.calling(FileURLConnection::getContentLength).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1);
@@ -476,7 +479,7 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(JarURLConnection.class, rule -> {
             rule.callingVoid(JarURLConnection::connect).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));
-            rule.calling(JarURLConnection::getHeaderFields).enforce(Policies::jarURLAccess).elseReturnEmptyMap();
+            rule.calling(JarURLConnection::getHeaderFields).enforce(Policies::jarURLAccess).elseReturn(Collections.emptyMap());
             rule.calling(JarURLConnection::getHeaderField, String.class).enforce(Policies::jarURLAccess).elseReturn(null);
             rule.calling(JarURLConnection::getHeaderField, Integer.class).enforce(Policies::jarURLAccess).elseReturn(null);
             rule.calling(JarURLConnection::getContent).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));

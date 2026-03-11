@@ -323,6 +323,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                        request.setProjectRouting(transformConfig.getSource().getProjectRouting());
+                    }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
                         transformConfig.getSource().getRuntimeMappings()
                     );
@@ -1127,6 +1130,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(getConfig().getSource().getProjectRouting());
+        }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
@@ -1155,6 +1161,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(config.getSource().getProjectRouting());
+        }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {

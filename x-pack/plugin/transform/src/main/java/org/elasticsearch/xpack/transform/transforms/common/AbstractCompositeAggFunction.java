@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -219,7 +220,12 @@ public abstract class AbstractCompositeAggFunction implements Function {
             .timeout(timeout);
         buildSearchQuery(sourceBuilder, null, pageSize);
         logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
-        return new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            searchRequest.setProjectRouting(sourceConfig.getProjectRouting());
+        }
+        return searchRequest;
     }
 
     @Override

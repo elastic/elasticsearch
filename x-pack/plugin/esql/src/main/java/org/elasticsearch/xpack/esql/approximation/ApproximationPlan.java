@@ -381,7 +381,7 @@ public class ApproximationPlan {
                             projections.add(uncorrectedBucketAlias.toAttribute());
 
                             Expression uncorrectedBucket = uncorrectedBucketAlias.toAttribute();
-                            if (aggFn.equals(COUNT_ALL_ROWS)) {
+                            if (aggFn instanceof Count) {
                                 // For COUNT, no data should result in NULL, like in other aggregations.
                                 // Otherwise, the confidence interval computation breaks.
                                 uncorrectedBucket = new Case(

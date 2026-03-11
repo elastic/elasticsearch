@@ -18,6 +18,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -29,12 +30,14 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
@@ -49,10 +52,12 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -65,6 +70,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,9 +143,9 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
-        // We expect to see 1 call to each from pre-warming. And no calls from preRecovery.
-        assertEquals(1, containerChildrenCalls.get());
-        assertEquals(1, containerListCalls.get());
+        // We expect to see no calls to list blobs or children.
+        assertEquals(0, containerChildrenCalls.get());
+        assertEquals(0, containerListCalls.get());
     }
 
     public void testRelocatingIndexShardReceivesAllBlobs() throws Exception {
@@ -268,6 +275,117 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         // Relocate back to node A
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);
+        ensureGreen(indexName);
+    }
+
+    public void testRelocatingIndexShardReceivesDeletedBlobForPrewarming() throws Exception {
+        var settings = Settings.builder().put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2).build();
+        startMasterOnlyNode(settings);
+        final String indexNodeA = startIndexNode(settings);
+
+        Set<String> blobsDeleted = ConcurrentCollections.newConcurrentSet();
+        setNodeRepositoryStrategy(indexNodeA, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobStoreDeleteBlobsIgnoringIfNotExists(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                Iterator<String> blobNames
+            ) throws IOException {
+                blobNames.forEachRemaining(blobsDeleted::add);
+                originalRunnable.run();
+            }
+        });
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        var shard = findIndexShard(resolveIndex(indexName), 0);
+        assertNotNull(shard);
+
+        final String indexNodeB = startIndexNode(settings);
+
+        // Pause pre-warming on target until we are done with relocation
+        CountDownLatch prewarmBlockLatch = new CountDownLatch(1);
+        // Capture the blob passed during pre-warming in relocation
+        AtomicReference<TransportStatelessPrimaryRelocationAction.BlobFileWithLength> prewarmBccBlobRef = new AtomicReference<>();
+        CountDownLatch prewarmMessageFailedLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest) request;
+                var latestBccBlob = handoffRequest.latestBccBlob();
+                Assert.assertNotNull(latestBccBlob);
+                prewarmBccBlobRef.set(latestBccBlob);
+
+                safeAwait(prewarmBlockLatch);
+                // We expect the pre-warming to fail since we will delete the blob before unblocking
+                handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateResponse((l, e) -> {
+                    assertThat(e, instanceOf(IndexShardNotRecoveringException.class));
+                    prewarmMessageFailedLatch.countDown();
+                    l.onFailure(e);
+                })), task);
+            });
+        // Capture the blob store operations on target
+        final var bccAccesses = new AtomicInteger(0);
+        setNodeRepositoryStrategy(indexNodeB, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobStoreDeleteBlobsIgnoringIfNotExists(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                Iterator<String> blobNames
+            ) throws IOException {
+                blobNames.forEachRemaining(blobsDeleted::add);
+                originalRunnable.run();
+            }
+
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (purpose == OperationPurpose.INDICES) {
+                    bccAccesses.incrementAndGet();
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+
+        // Index some docs
+        indexDocs(indexName, between(1, 100));
+        ensureGreen(indexName);
+        // Trigger relocation
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        ensureGreen(indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+
+        // Extra activity to trigger deletions on target node after relocation.
+        indexDocs(indexName, 10);
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
+        indexDocs(indexName, 1);
+        // Confirm that the blob passed in pre-warming message was deleted from the blob store
+        assertBusy(() -> {
+            var prewarmBccBlob = prewarmBccBlobRef.get();
+            assertThat(prewarmBccBlob, not(equalTo(null)));
+            var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(prewarmBccBlob.blobFile().generation());
+            assertTrue(blobsDeleted.stream().anyMatch(d -> d.endsWith(bccBlobName)));
+        });
+
+        assertThat(bccAccesses.get(), greaterThan(0));
+        bccAccesses.set(0);
+
+        // Evict the cache on target to force evict the deleted blob
+        final var indexNodeBCacheService = getCacheService(
+            BlobStoreCacheDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
+        );
+        indexNodeBCacheService.forceEvict((key) -> true);
+
+        // Unblock pre-warming message that now includes a path to the deleted blob
+        prewarmBlockLatch.countDown();
+        safeAwait(prewarmMessageFailedLatch);
+        assertEquals(0, bccAccesses.get());
+
         ensureGreen(indexName);
     }
 

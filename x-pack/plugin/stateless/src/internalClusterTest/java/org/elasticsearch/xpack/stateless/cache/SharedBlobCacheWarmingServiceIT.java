@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
-import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,6 +112,7 @@ import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDyna
 import static org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -328,15 +328,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
-        // Block start-relocation action until warming is complete (ensure warming entirely precedes shard-relocation)
+        // Block on handling of primary-context-handoff until pre-warming is complete.
+        // Ensure we normally pre-warm before relocation starts recovery.
         final var targetHasCompletedInitialPreWarming = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(indexNodeB);
+        final var transportService = MockTransportService.getInstance(indexNodeA);
         transportService.addSendBehavior(
             (Transport.Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) -> {
-                if (TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME.equals(action)) {
+                connection.sendRequest(requestId, action, request, options);
+                if (PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
                     safeAwait(targetHasCompletedInitialPreWarming);
                 }
-                connection.sendRequest(requestId, action, request, options);
             }
         );
 
@@ -373,7 +374,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             );
 
             CompletedWarmingDetails earlyWarmingDetails = safeGet(earlyWarmingIsComplete);
-            logger.info("Early-warmed to generation {}, unblocking start-relocation action", earlyWarmingDetails.commit().generation());
+            logger.info("Early-warmed to generation {}, unblocking primary handoff action", earlyWarmingDetails.commit().generation());
             // block access to objects from the generation we warmed before post-handoff pre-warming starts
             blockAccessToGenerationBeforePostHandoffPreWarmingStarts(indexNodeB, earlyWarmingDetails.commit().generation());
             // unblock start-relocation action

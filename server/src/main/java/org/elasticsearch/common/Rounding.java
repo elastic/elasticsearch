@@ -303,8 +303,11 @@ public abstract class Rounding implements Writeable {
 
         /**
          * If this rounding mechanism precalculates rounding points then
-         * this array stores dates such that each date between each entry.
-         * if the rounding mechanism doesn't precalculate points then this
+         * this array stores those points.  The array is such that for an
+         * index {@code i} and a value {@code v}, if {@code points[i] <= v < points[i+1]}
+         * then {@code v} rounds to {@code points[i]}
+         *
+         * <p>If the rounding mechanism doesn't precalculate points then this
          * is {@code null}.
          */
         long[] fixedRoundingPoints();

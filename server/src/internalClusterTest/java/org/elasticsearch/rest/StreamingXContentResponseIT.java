@@ -21,13 +21,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -84,13 +78,7 @@ public class StreamingXContentResponseIT extends ESIntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {

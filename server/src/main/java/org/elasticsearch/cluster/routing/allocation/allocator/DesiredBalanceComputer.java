@@ -576,8 +576,6 @@ public class DesiredBalanceComputer {
             startedShards.getFirst()
         );
 
-        // DIANNA: alternatively, can we get a count of all the shards that need to move, then simulate the change all at once?
-
         // For started shards, attempt to find its source node. If found, it is a relocation, otherwise it is a new shard.
         // The same shard on the same source node cannot be relocated twice to different nodes. So we exclude it once used.
         final Map<ShardId, Set<String>> alreadySeenSourceNodes = new HashMap<>();

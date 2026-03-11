@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -230,6 +231,9 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (ROUND_TO_BLOCK_LOADER.isEnabled() == false) {
+            return null;
+        }
         if (field instanceof FieldAttribute f) {
             DataType dt = dataType();
             if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {

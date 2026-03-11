@@ -200,8 +200,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs, disableSeqNo);
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -447,8 +446,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
-        putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs, disableSeqNo);
+        putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -580,8 +578,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
-        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs, disableSeqNo);
+        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -608,18 +605,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             for (var result : bulkResponse.getItems()) {
                 assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 assertThat(result.getVersion(), equalTo(1L));
-                assertThat(result.getResponse().getPrimaryTerm(), equalTo(disableSeqNo ? 0L : 1L));
-                if (disableSeqNo == false) {
-                    var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.computeIfAbsent(
-                        result.getResponse().getShardId(),
-                        shardId -> new HashMap<>()
-                    );
-                    var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
-                    assertThat(previous, nullValue());
-                    previous = docsIndicesById.put(result.getId(), result.getIndex());
-                    assertThat(previous, nullValue());
-                    docsIndices.add(result.getIndex());
-                }
+                assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+                var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.computeIfAbsent(
+                    result.getResponse().getShardId(),
+                    shardId -> new HashMap<>()
+                );
+                var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+                assertThat(previous, nullValue());
+                previous = docsIndicesById.put(result.getId(), result.getIndex());
+                assertThat(previous, nullValue());
+                docsIndices.add(result.getIndex());
             }
         }
 
@@ -634,13 +629,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
-            assertThat(deleteResponse.getPrimaryTerm(), equalTo(disableSeqNo ? 0L : 1L));
-            if (disableSeqNo == false) {
-                var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.get(deleteResponse.getShardId());
-                assertThat(docsIdsBySeqNo, notNullValue());
-                var previous = docsIdsBySeqNo.put(deleteResponse.getSeqNo(), deletedDocId);
-                assertThat(previous, nullValue());
-            }
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            var docsIdsBySeqNo = docsIdsBySeqNoAndShardId.get(deleteResponse.getShardId());
+            assertThat(docsIdsBySeqNo, notNullValue());
+            var previous = docsIdsBySeqNo.put(deleteResponse.getSeqNo(), deletedDocId);
+            assertThat(previous, nullValue());
         }
 
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
@@ -826,7 +819,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final boolean useNestedDocs = rarely();
 
         final var dataStreamName = randomIdentifier();
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
         putDataStreamTemplate(
             dataStreamName,
             1,
@@ -835,8 +827,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
                 .build(),
-            useNestedDocs,
-            disableSeqNo
+            useNestedDocs
         );
 
         final var docsIndices = new HashSet<String>();
@@ -1138,8 +1129,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
-        putDataStreamTemplate(dataStreamName, shards, 0, useNestedDocs, disableSeqNo);
+        putDataStreamTemplate(dataStreamName, shards, 0, useNestedDocs);
 
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
@@ -1256,8 +1246,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 
         final var dataStreamName = randomIdentifier();
-        boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
-        putDataStreamTemplate(dataStreamName, 1, 0, rarely(), disableSeqNo);
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 
         final var docsIndexByIds = new ConcurrentHashMap<String, String>();
         var timestamp = Instant.now();
@@ -1422,9 +1411,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs, boolean disableSeqNo)
-        throws IOException {
-        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs, disableSeqNo);
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs) throws IOException {
+        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs);
     }
 
     private static void putDataStreamTemplate(
@@ -1432,8 +1420,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         int primaries,
         int replicas,
         Settings extraSettings,
-        boolean useNestedDocs,
-        boolean disableSeqno
+        boolean useNestedDocs
     ) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)

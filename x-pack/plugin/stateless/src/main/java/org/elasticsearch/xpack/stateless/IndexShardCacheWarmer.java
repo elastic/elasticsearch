@@ -21,6 +21,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -31,6 +32,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
@@ -73,14 +75,24 @@ public class IndexShardCacheWarmer {
         preWarmIndexShardCache(indexShard, INDEXING_EARLY);
     }
 
-    /**
-     * Schedule the pre-warming of a stateless index shard
-     *
-     * @param indexShard The shard to warm
-     */
+    public void preWarmIndexShardCacheForPeerRecovery(IndexShard indexShard, StatelessCommitService.SourceBlobsInfo sourceBlobsInfo) {
+        preWarmIndexShardCache(indexShard, INDEXING_EARLY, sourceBlobsInfo);
+    }
+
     public void preWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
+        preWarmIndexShardCache(indexShard, warmingType, null);
+    }
+
+    public void preWarmIndexShardCache(
+        IndexShard indexShard,
+        SharedBlobCacheWarmingService.Type warmingType,
+        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo
+    ) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
+            throw new IndexShardNotRecoveringException(indexShard.shardId(), currentState);
+        }
+        if (warmingType == INDEXING_EARLY && currentState != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(indexShard.shardId(), currentState);
         }
         assert warmingType != INDEXING_EARLY || currentState == IndexShardState.RECOVERING
@@ -89,10 +101,15 @@ public class IndexShardCacheWarmer {
             : "only stateless ingestion shards are supported";
         assert warmingType != INDEXING_EARLY || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
             : "Only peer recoveries are supported";
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType));
+        assert sourceBlobsInfo == null || warmingType == INDEXING_EARLY;
+        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo));
     }
 
-    private void doPreWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
+    private void doPreWarmIndexShardCache(
+        IndexShard indexShard,
+        SharedBlobCacheWarmingService.Type warmingType,
+        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo
+    ) {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
         if (store.tryIncRef()) {
@@ -119,8 +136,7 @@ public class IndexShardCacheWarmer {
                     useReplicatedRanges,
                     bccHeaderReadExecutor,
                     readSingleBlobIfHollow,
-                    // TODO(ES-13400): pass blobs received from source shard after/if we require prewarming to be triggered by source.
-                    null,
+                    sourceBlobsInfo,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
@@ -150,6 +166,8 @@ public class IndexShardCacheWarmer {
     }
 
     private static void logException(ShardId shardId, Exception e) {
+        // FileNotFoundException and NoSuchFileException are expected for the early indexing as files might be replaced
+        // during relocation flushes.
         logger.log(
             ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null ? Level.DEBUG : Level.INFO,
             () -> Strings.format("%s early indexing cache prewarming failed", shardId),

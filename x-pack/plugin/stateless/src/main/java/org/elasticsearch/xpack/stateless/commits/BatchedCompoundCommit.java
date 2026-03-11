@@ -96,6 +96,11 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return blobLength;
     }
 
+    public BlobFile toBlobFile() {
+        String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
+        return new BlobFile(blobName, primaryTermAndGeneration);
+    }
+
     /**
      * Reads a maximum of {@code maxBlobLength} bytes of a {@link BatchedCompoundCommit} from the blob store. For that it materializes the
      * headers for all the {@link StatelessCompoundCommit} contained in the batched compound commit that are located before the maximum blob

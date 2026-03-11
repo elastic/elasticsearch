@@ -664,6 +664,97 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
     }
 
+    public void testExplain() throws Exception {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+        for (String user : List.of("test-admin", "user1")) {
+            Response resp = runExplainCommand(user, "EXPLAIN (FROM index | WHERE value > 10 | STATS sum=sum(value))");
+            assertOK(resp);
+            Map<String, Object> respMap = entityAsMap(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
+            // Verify we have the expected columns
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+            // Should have at least coordinator plans
+            assertThat(values.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+            }
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        }
+    }
+
+    /**
+     * Run an EXPLAIN command - does not add LIMIT since EXPLAIN doesn't support downstream commands.
+     */
+    private Response runExplainCommand(String user, String command) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.addParameter("error_trace", "true");
+        // EXPLAIN queries may trigger a default limit warning, so ignore warnings
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
+        );
+        return client().performRequest(request);
+    }
+
     public void testEnrich() throws Exception {
         createEnrichPolicy();
         try {

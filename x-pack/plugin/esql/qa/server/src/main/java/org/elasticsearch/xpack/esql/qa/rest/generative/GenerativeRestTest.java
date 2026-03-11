@@ -95,6 +95,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
+        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
         // https://github.com/elastic/elasticsearch/issues/142543
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",

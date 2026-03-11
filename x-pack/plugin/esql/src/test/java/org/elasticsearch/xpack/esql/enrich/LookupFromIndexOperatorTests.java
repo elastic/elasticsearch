@@ -64,6 +64,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -90,7 +91,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -282,7 +282,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         Expression joinOnExpression = null;
-        FragmentExec rightPlanWithOptionalPreJoinFilter = buildLessThanFilter(LESS_THAN_VALUE);
+        FragmentExec rightPlanWithOptionalPreJoinFilter = buildLessThanFilter(LESS_THAN_VALUE, loadFields);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
@@ -329,14 +329,15 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         );
     }
 
-    static FragmentExec buildLessThanFilter(int value) {
-        FieldAttribute filterAttribute = new FieldAttribute(
-            Source.EMPTY,
-            "lint",
-            new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+    static FragmentExec buildLessThanFilter(int value, List<NamedExpression> loadFields) {
+        FieldAttribute filterAttribute = loadFields.stream()
+            .filter(f -> f.name().equals("lint"))
+            .map(FieldAttribute.class::cast)
+            .findFirst()
+            .orElseThrow();
         Expression lessThan = new LessThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.INTEGER));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
+        List<Attribute> attrs = loadFields.stream().map(f -> (Attribute) f).toList();
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), attrs);
         Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
         return new FragmentExec(filter);
     }
@@ -387,7 +388,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .append("Filter\\[lint\\{f}#\\d+ < ")
                 .append(LESS_THAN_VALUE)
                 .append("\\[INTEGER]]\\n")
-                .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
+                .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[lkwd\\{f}#\\d+, lint\\{f}#\\d+]<>\\]\\]");
             sb.append(")");
         }
 

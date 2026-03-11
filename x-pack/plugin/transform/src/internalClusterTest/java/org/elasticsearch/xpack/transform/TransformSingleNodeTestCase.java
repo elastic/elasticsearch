@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -116,12 +117,14 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         client().execute(PutTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
-    protected void createDiceTransform(String transformId, String transformSrc, String projectRouting) {
+    protected void createDiceTransform(String transformId, String transformSrc, IndicesOptions indicesOptions, String projectRouting) {
         createTransform(
             TransformConfig.builder()
                 .setId(transformId)
                 .setDest(new DestConfig(transformId, null, null))
-                .setSource(new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), projectRouting))
+                .setSource(
+                    new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), indicesOptions, projectRouting)
+                )
                 .setFrequency(TimeValue.ONE_MINUTE)
                 .setSyncConfig(new TimeSyncConfig("time", TimeValue.ONE_MINUTE))
                 .setLatestConfig(new LatestConfig(List.of("roll"), "time"))

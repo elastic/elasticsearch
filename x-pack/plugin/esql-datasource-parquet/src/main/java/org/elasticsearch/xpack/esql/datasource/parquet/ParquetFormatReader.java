@@ -13,8 +13,10 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.format.converter.ParquetMetadataConverter;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.api.Converter;
@@ -35,9 +37,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -47,6 +52,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -62,7 +69,7 @@ import java.util.NoSuchElementException;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements FormatReader {
+public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
 
@@ -72,24 +79,113 @@ public class ParquetFormatReader implements FormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        List<Attribute> schema = readSchema(object);
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
-    }
-
-    private List<Attribute> readSchema(StorageObject object) throws IOException {
-        // Adapt StorageObject to Parquet InputFile
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-
-        // Build ParquetReadOptions with SKIP_ROW_GROUPS to only read schema metadata
-        ParquetReadOptions options = ParquetReadOptions.builder().withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS).build();
+        ParquetReadOptions options = ParquetReadOptions.builder().build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
-
-            // Convert Parquet schema directly to ESQL Attributes
-            return convertParquetSchemaToAttributes(parquetSchema);
+            List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
+            SourceStatistics statistics = extractStatistics(reader, parquetSchema);
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
         }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        if (rowGroups.isEmpty()) {
+            return null;
+        }
+
+        long totalRows = 0;
+        long totalSize = 0;
+        Map<String, long[]> nullCounts = new HashMap<>();
+        Map<String, Comparable[]> mins = new HashMap<>();
+        Map<String, Comparable[]> maxs = new HashMap<>();
+
+        for (BlockMetaData rowGroup : rowGroups) {
+            totalRows += rowGroup.getRowCount();
+            totalSize += rowGroup.getTotalByteSize();
+            for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String colName = col.getPath().toDotString();
+                Statistics stats = col.getStatistics();
+                if (stats == null || stats.isEmpty()) {
+                    continue;
+                }
+                nullCounts.merge(colName, new long[] { stats.getNumNulls() }, (a, b) -> {
+                    a[0] += b[0];
+                    return a;
+                });
+                if (stats.hasNonNullValue()) {
+                    mins.merge(colName, new Comparable[] { stats.genericGetMin() }, (a, b) -> {
+                        @SuppressWarnings("unchecked")
+                        int cmp = a[0].compareTo(b[0]);
+                        if (cmp > 0) a[0] = b[0];
+                        return a;
+                    });
+                    maxs.merge(colName, new Comparable[] { stats.genericGetMax() }, (a, b) -> {
+                        @SuppressWarnings("unchecked")
+                        int cmp = a[0].compareTo(b[0]);
+                        if (cmp < 0) a[0] = b[0];
+                        return a;
+                    });
+                }
+            }
+        }
+
+        final long rowCount = totalRows;
+        final long sizeBytes = totalSize;
+        Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
+        for (Type field : schema.getFields()) {
+            String name = field.getName();
+            long[] nc = nullCounts.get(name);
+            Comparable[] mn = mins.get(name);
+            Comparable[] mx = maxs.get(name);
+            if (nc != null || mn != null || mx != null) {
+                final long nullCount = nc != null ? nc[0] : 0;
+                final Object minVal = mn != null ? mn[0] : null;
+                final Object maxVal = mx != null ? mx[0] : null;
+                columnStats.put(name, new SourceStatistics.ColumnStatistics() {
+                    @Override
+                    public OptionalLong nullCount() {
+                        return OptionalLong.of(nullCount);
+                    }
+
+                    @Override
+                    public OptionalLong distinctCount() {
+                        return OptionalLong.empty();
+                    }
+
+                    @Override
+                    public Optional<Object> minValue() {
+                        return Optional.ofNullable(minVal);
+                    }
+
+                    @Override
+                    public Optional<Object> maxValue() {
+                        return Optional.ofNullable(maxVal);
+                    }
+                });
+            }
+        }
+
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(sizeBytes);
+            }
+
+            @Override
+            public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                return columnStats.isEmpty() ? Optional.empty() : Optional.of(columnStats);
+            }
+        };
     }
 
     @Override
@@ -176,6 +272,67 @@ public class ParquetFormatReader implements FormatReader {
     @Override
     public void close() throws IOException {
         // No resources to close at the reader level
+    }
+
+    @Override
+    public List<long[]> discoverSplitRanges(StorageObject object) throws IOException {
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
+            List<BlockMetaData> rowGroups = reader.getRowGroups();
+            if (rowGroups.size() <= 1) {
+                return List.of();
+            }
+            List<long[]> ranges = new ArrayList<>(rowGroups.size());
+            for (BlockMetaData block : rowGroups) {
+                ranges.add(new long[] { block.getStartingPos(), block.getTotalByteSize() });
+            }
+            return ranges;
+        }
+    }
+
+    /**
+     * Reads only row groups whose starting position falls within {@code [rangeStart, rangeEnd)}.
+     * errorPolicy is accepted for interface compliance but not applied — Parquet errors are
+     * structural (corrupt page, schema mismatch) rather than row-level.
+     */
+    @Override
+    public CloseableIterator<Page> readRange(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetReadOptions options = ParquetReadOptions.builder().withRange(rangeStart, rangeEnd).build();
+        ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
+
+        FileMetaData fileMetaData = reader.getFileMetaData();
+        MessageType parquetSchema = fileMetaData.getSchema();
+        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
+
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null || projectedColumns.isEmpty()) {
+            projectedAttributes = attributes;
+        } else {
+            projectedAttributes = new ArrayList<>();
+            Map<String, Attribute> attributeMap = new HashMap<>();
+            for (Attribute attr : attributes) {
+                attributeMap.put(attr.name(), attr);
+            }
+            for (String columnName : projectedColumns) {
+                Attribute attr = attributeMap.get(columnName);
+                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
+                projectedAttributes.add(attr);
+            }
+        }
+
+        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+        String createdBy = fileMetaData.getCreatedBy();
+        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT, createdBy);
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {

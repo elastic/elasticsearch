@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LookupPruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -64,9 +62,7 @@ public class LookupLogicalOptimizer extends ParameterizedRuleExecutor<LogicalPla
 
         List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length + additionalRules.length);
         for (Rule<?, LogicalPlan> r : rules) {
-            if (r instanceof PruneFilters) {
-                newRules.add(new LookupPruneFilters());
-            } else if (r instanceof OptimizerRules.LocalAware<?> localAware) {
+            if (r instanceof OptimizerRules.LocalAware<?> localAware) {
                 Rule<?, LogicalPlan> local = localAware.local();
                 if (local != null) {
                     newRules.add(local);

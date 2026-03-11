@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -292,8 +293,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Filter on a missing field with equality (e.g. {@code language_name == "English"}) folds to {@code null == "English"} → null,
-     * which marks the {@link ParameterizedQueryExec} as {@code emptyResult=true} instead of collapsing the plan.
+     * Filter on a missing field with equality (e.g. {@code language_name == "English"}) folds to {@code null == "English"} → false,
+     * which collapses the entire plan to an empty {@link LocalSourceExec}.
      */
     public void testFilterOnMissingFieldFoldedToEmpty() {
         EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
@@ -308,10 +309,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             | WHERE language_name == "English"
             """, stats);
 
-        ProjectExec project = as(plan, ProjectExec.class);
-        EvalExec eval = as(project.child(), EvalExec.class);
-        ParameterizedQueryExec paramQuery = as(eval.child(), ParameterizedQueryExec.class);
-        assertThat(paramQuery.emptyResult(), is(true));
+        as(plan, LocalSourceExec.class);
     }
 
     /**

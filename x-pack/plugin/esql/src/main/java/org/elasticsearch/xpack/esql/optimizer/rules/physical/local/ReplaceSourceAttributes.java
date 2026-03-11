@@ -85,14 +85,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
                 strippedOutput.add(attr);
             }
         }
-        return new ParameterizedQueryExec(
-            plan.source(),
-            strippedOutput,
-            plan.matchFields(),
-            plan.joinOnConditions(),
-            plan.query(),
-            plan.emptyResult()
-        );
+        return new ParameterizedQueryExec(plan.source(), strippedOutput, plan.matchFields(), plan.joinOnConditions(), plan.query());
     }
 
     private static Attribute getDocAttribute(EsSourceExec plan) {

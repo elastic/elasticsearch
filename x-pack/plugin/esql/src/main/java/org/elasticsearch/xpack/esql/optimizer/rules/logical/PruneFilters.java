@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 
-public class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
+public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
     @Override
     protected LogicalPlan rule(Filter filter) {
         Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
@@ -30,7 +30,7 @@ public class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
                 return filter.child();
             }
             if (FALSE.equals(condition) || Expressions.isGuaranteedNull(condition)) {
-                return handleAlwaysFalseFilter(filter);
+                return PruneEmptyPlans.skipPlan(filter);
             }
         }
 
@@ -40,11 +40,7 @@ public class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
         return filter;
     }
 
-    protected LogicalPlan handleAlwaysFalseFilter(Filter filter) {
-        return PruneEmptyPlans.skipPlan(filter);
-    }
-
-    public static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
+    private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
         if (binaryLogic instanceof Or or) {
             boolean nullLeft = Expressions.isGuaranteedNull(or.left());
             boolean nullRight = Expressions.isGuaranteedNull(or.right());

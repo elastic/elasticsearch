@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -114,10 +115,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
 
     /**
      * Filter referencing a missing field should be folded away (the condition becomes null/false).
-     * ReplaceFieldWithConstantOrNull replaces the missing field with null, then LookupPruneFilters
-     * marks the ParameterizedQuery as emptyResult instead of collapsing the plan to LocalRelation,
-     * preserving the plan structure for the LookupExecutionPlanner.
-     * Expects: Project -> Eval -> ParameterizedQuery(emptyResult=true)
+     * ReplaceFieldWithConstantOrNull replaces the missing field with null, then PruneFilters removes the filter
+     * and PropagateEmptyRelation replaces the entire plan with an empty LocalRelation.
      */
     public void testFilterOnMissingFieldFolded() {
         EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
@@ -132,10 +131,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
             | WHERE language_name == "English"
             """, stats);
 
-        Project project = as(plan, Project.class);
-        Eval eval = as(project.child(), Eval.class);
-        ParameterizedQuery pq = as(eval.child(), ParameterizedQuery.class);
-        assertTrue("Expected emptyResult=true on ParameterizedQuery", pq.emptyResult());
+        LocalRelation local = as(plan, LocalRelation.class);
+        assertTrue("Expected empty relation", local.hasEmptySupplier());
     }
 
     /**
@@ -189,8 +186,7 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
     /**
      * Constant field NOT matching the filter value: {@code language_name} is a constant {@code "Spanish"},
      * but the filter is {@code WHERE language_name == "English"}.  The constant replaces the field reference,
-     * the filter folds to {@code false}, and LookupPruneFilters marks the ParameterizedQuery as emptyResult.
-     * Expects: Project -> ParameterizedQuery(emptyResult=true)
+     * the filter folds to {@code false}, and the entire plan collapses to an empty {@link LocalRelation}.
      */
     public void testConstantFieldMismatchFoldsToEmpty() {
         EsqlTestUtils.TestConfigurableSearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().withConstantValue(
@@ -205,9 +201,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
             | WHERE language_name == "English"
             """, stats);
 
-        Project project = as(plan, Project.class);
-        ParameterizedQuery pq = as(project.child(), ParameterizedQuery.class);
-        assertTrue("Expected emptyResult=true on ParameterizedQuery", pq.emptyResult());
+        LocalRelation local = as(plan, LocalRelation.class);
+        assertTrue("Expected empty relation", local.hasEmptySupplier());
     }
 
     private LogicalPlan optimizeLookupLogicalPlan(String esql, SearchStats searchStats) {

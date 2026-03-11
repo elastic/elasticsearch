@@ -34,7 +34,6 @@ public class ParameterizedQueryExec extends LeafExec {
     private final Expression joinOnConditions;
     @Nullable
     private final QueryBuilder query;
-    private final boolean emptyResult;
 
     public ParameterizedQueryExec(
         Source source,
@@ -43,23 +42,11 @@ public class ParameterizedQueryExec extends LeafExec {
         @Nullable Expression joinOnConditions,
         @Nullable QueryBuilder query
     ) {
-        this(source, output, matchFields, joinOnConditions, query, false);
-    }
-
-    public ParameterizedQueryExec(
-        Source source,
-        List<Attribute> output,
-        List<MatchConfig> matchFields,
-        @Nullable Expression joinOnConditions,
-        @Nullable QueryBuilder query,
-        boolean emptyResult
-    ) {
         super(source);
         this.output = output;
         this.matchFields = matchFields;
         this.joinOnConditions = joinOnConditions;
         this.query = query;
-        this.emptyResult = emptyResult;
     }
 
     @Override
@@ -81,14 +68,10 @@ public class ParameterizedQueryExec extends LeafExec {
         return query;
     }
 
-    public boolean emptyResult() {
-        return emptyResult;
-    }
-
     public ParameterizedQueryExec withQuery(QueryBuilder query) {
         return Objects.equals(this.query, query)
             ? this
-            : new ParameterizedQueryExec(source(), output, matchFields, joinOnConditions, query, emptyResult);
+            : new ParameterizedQueryExec(source(), output, matchFields, joinOnConditions, query);
     }
 
     @Override
@@ -103,7 +86,7 @@ public class ParameterizedQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<ParameterizedQueryExec> info() {
-        return NodeInfo.create(this, ParameterizedQueryExec::new, output, matchFields, joinOnConditions, query, emptyResult);
+        return NodeInfo.create(this, ParameterizedQueryExec::new, output, matchFields, joinOnConditions, query);
     }
 
     @Override
@@ -114,12 +97,11 @@ public class ParameterizedQueryExec extends LeafExec {
         return Objects.equals(output, that.output)
             && Objects.equals(matchFields, that.matchFields)
             && Objects.equals(joinOnConditions, that.joinOnConditions)
-            && Objects.equals(query, that.query)
-            && emptyResult == that.emptyResult;
+            && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output, matchFields, joinOnConditions, query, emptyResult);
+        return Objects.hash(output, matchFields, joinOnConditions, query);
     }
 }

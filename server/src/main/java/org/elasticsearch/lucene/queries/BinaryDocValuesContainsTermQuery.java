@@ -11,7 +11,6 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -57,19 +56,17 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                     return null;
                 }
 
-                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+                final DocIdSetIterator containsIter = values instanceof BlockLoader.OptionalColumnAtATimeReader direct
+                    ? direct.tryContainsIterator(containsTerm)
+                    : null;
 
-                final DocIdSetIterator containsIter = countsSkipper.maxValue() == 1
-                    && values instanceof BlockLoader.OptionalColumnAtATimeReader direct ? direct.containsIterator(containsTerm) : null;
-
-                Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                 final DocIdSetIterator iterator;
                 if (containsIter != null) {
                     iterator = containsIter;
                 } else {
+                    Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
+                    String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                    final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                     iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                 }
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());

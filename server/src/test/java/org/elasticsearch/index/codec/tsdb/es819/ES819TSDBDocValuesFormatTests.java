@@ -82,6 +82,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -2460,7 +2461,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final int[] possibleLengths = new int[] { 5, 10, 20 };
         final int targetLength = possibleLengths[randomIntBetween(0, possibleLengths.length - 1)];
 
-        // lengthIterator is only supported on all binary doc values implementation,
+        // tryLengthIterator is supported on all binary doc values implementation,
         // and so randomize between compressed and uncompressed implementation to test both implementations.
         var dvFormat = new ES819Version3TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
@@ -2514,9 +2515,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
                 }
 
-                // Test lengthIterator
+                // Test tryLengthIterator
                 var binaryDV = getES819BinaryValues(leafReader, binaryField);
-                DocIdSetIterator lengthIter = binaryDV.lengthIterator(targetLength);
+                DocIdSetIterator lengthIter = binaryDV.tryLengthIterator(targetLength);
                 assertNotNull(lengthIter);
                 assertEquals(-1, lengthIter.docID());
 
@@ -2548,13 +2549,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                 // Test advance past existing docs
                 binaryDV = getES819BinaryValues(leafReader, binaryField);
-                lengthIter = binaryDV.lengthIterator(targetLength);
+                lengthIter = binaryDV.tryLengthIterator(targetLength);
                 assertNotNull(lengthIter);
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.advance(numDocs));
 
                 // Test with a length that no doc has — iterator should be immediately exhausted
                 binaryDV = getES819BinaryValues(leafReader, binaryField);
-                lengthIter = binaryDV.lengthIterator(9999);
+                lengthIter = binaryDV.tryLengthIterator(9999);
                 assertNotNull(lengthIter);
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.nextDoc());
             }
@@ -2566,11 +2567,22 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final String binaryField = "binary_field";
         long currentTimestamp = 1704067200000L;
 
-        // Use a few distinct values with known substrings so that we get both matching and non-matching docs.
-        final String[] possibleValues = new String[] { "elasticsearch", "kibana", "research", "logstash", "searching" };
-        final String containsTerm = "search";
+        final String containsTerm = randomUnicodeOfCodepointLengthBetween(1, 10);
+        int numPossibleValues = randomIntBetween(5, 100);
+        final String[] possibleValues = new String[numPossibleValues];
+        for (int i = 0; i < numPossibleValues; i++) {
+            if (randomBoolean()) {
+                // definitely contains term
+                String prefix = randomUnicodeOfCodepointLengthBetween(0, 20);
+                String suffix = randomUnicodeOfCodepointLengthBetween(0, 20);
+                possibleValues[i] = prefix + containsTerm + suffix;
+            } else {
+                // likely does not contain term
+                possibleValues[i] = randomUnicodeOfCodepointLengthBetween(1, 100);
+            }
+        }
 
-        // containsIterator is only implemented for the compressed binary doc values path
+        // tryContainsIterator is only implemented for the compressed binary doc values path
         var dvFormat = new ES819Version3TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
@@ -2625,9 +2637,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 assertFalse("expected some matching docs", expectedDocIds.isEmpty());
 
-                // Test containsIterator via nextDoc
+                // Test tryContainsIterator via nextDoc
                 var binaryDV = getES819BinaryValues(leafReader, binaryField);
-                DocIdSetIterator containsIter = binaryDV.containsIterator(containsTermRef);
+                DocIdSetIterator containsIter = binaryDV.tryContainsIterator(containsTermRef);
                 assertNotNull(containsIter);
                 assertEquals(-1, containsIter.docID());
 
@@ -2641,19 +2653,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                 // Test advance past existing docs
                 binaryDV = getES819BinaryValues(leafReader, binaryField);
-                containsIter = binaryDV.containsIterator(containsTermRef);
+                containsIter = binaryDV.tryContainsIterator(containsTermRef);
                 assertNotNull(containsIter);
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, containsIter.advance(numDocs));
 
                 // Test with a term that no doc contains — iterator should be immediately exhausted
+                String notFoundTerm = randomUnicodeOfCodepointLengthBetween(101, 200);
                 binaryDV = getES819BinaryValues(leafReader, binaryField);
-                containsIter = binaryDV.containsIterator(new BytesRef("zzzznotfound"));
+                containsIter = binaryDV.tryContainsIterator(new BytesRef(notFoundTerm));
                 assertNotNull(containsIter);
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, containsIter.nextDoc());
 
                 // Test advance to specific matching docs
                 binaryDV = getES819BinaryValues(leafReader, binaryField);
-                containsIter = binaryDV.containsIterator(containsTermRef);
+                containsIter = binaryDV.tryContainsIterator(containsTermRef);
                 for (int expected : expectedDocIds.stream().sorted().toList()) {
                     int result = containsIter.advance(expected);
                     assertEquals("advance(" + expected + ") should land on that doc", expected, result);

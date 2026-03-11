@@ -514,12 +514,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public DocIdSetIterator lengthIterator(int length) throws IOException {
+                public DocIdSetIterator tryLengthIterator(int length) throws IOException {
                     return decoder.decodeLengthsBulk(entry.numCompressedBlocks, 0, maxDoc - 1, length);
                 }
 
                 @Override
-                public DocIdSetIterator containsIterator(BytesRef containsTerm) throws IOException {
+                public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
                     return decoder.containsTermIterator(entry.numCompressedBlocks, 0, maxDoc - 1, containsTerm);
                 }
             };

@@ -61,7 +61,7 @@ final class BinaryDocValuesLengthQuery extends Query {
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final DocIdSetIterator iterator;
                 if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
-                    iterator = direct.lengthIterator(length);
+                    iterator = direct.tryLengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                     iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost());

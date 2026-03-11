@@ -1039,6 +1039,7 @@ public final class IndexSettings {
                             )
                         );
                     }
+                    // Sequence numbers cannot be trimmed for points, so we enforce doc values only usage
                     var seqNoIndexOptions = (SeqNoFieldMapper.SeqNoIndexOptions) settings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
                     if (seqNoIndexOptions != SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY) {
                         throw new IllegalArgumentException(

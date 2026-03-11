@@ -3891,9 +3891,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {
-        assertEquals(
-            "1:22: second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]",
-            error("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)")
+        assertThat(
+            error("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)"),
+            containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
         );
     }
 

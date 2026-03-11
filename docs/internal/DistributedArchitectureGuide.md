@@ -1311,8 +1311,7 @@ detection, exposing committed file metadata and enforcing integrity invariants.
 
 The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
 a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
-directory is cleaned up. This allows the `Store` to outlive the higher-level [IndexShard] instance that owns it (for
-example, during shard relocation). The `Store` also receives a [ShardLock] at construction time and only releases it 
+directory is cleaned up. The `Store` also receives a [ShardLock] at construction time and only releases it 
 once closed, allowing other threads waiting to acquire the lock for this shard to proceed.
 
 #### Backing Directory

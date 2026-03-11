@@ -33,9 +33,8 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Iterator;
 import java.util.TreeSet;
 
 /**
@@ -137,9 +136,8 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
     static class KeyStrippingDeduplicatingDocValues extends SortedBinaryDocValues {
 
         private final SortedBinaryDocValues delegate;
-        private final TreeSet<BytesRef> sorted = new TreeSet<>();
-        private final List<BytesRef> dedupedValues = new ArrayList<>();
-        private int index;
+        private final TreeSet<BytesRef> uniqueValues = new TreeSet<>();
+        private Iterator<BytesRef> iterator;
 
         KeyStrippingDeduplicatingDocValues(SortedBinaryDocValues delegate) {
             this.delegate = delegate;
@@ -147,9 +145,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            sorted.clear();
-            dedupedValues.clear();
-            index = 0;
+            uniqueValues.clear();
 
             if (delegate.advanceExact(target) == false) {
                 return false;
@@ -159,21 +155,21 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
             for (int i = 0; i < count; i++) {
                 BytesRef keyedValue = delegate.nextValue();
                 BytesRef stripped = FlattenedFieldParser.extractValue(keyedValue);
-                sorted.add(BytesRef.deepCopyOf(stripped));
+                uniqueValues.add(BytesRef.deepCopyOf(stripped));
             }
 
-            dedupedValues.addAll(sorted);
-            return dedupedValues.isEmpty() == false;
+            iterator = uniqueValues.iterator();
+            return uniqueValues.isEmpty() == false;
         }
 
         @Override
         public int docValueCount() {
-            return dedupedValues.size();
+            return uniqueValues.size();
         }
 
         @Override
         public BytesRef nextValue() throws IOException {
-            return dedupedValues.get(index++);
+            return iterator.next();
         }
     }
 

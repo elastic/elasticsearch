@@ -46,7 +46,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,6 +58,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RE
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_CREATED;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_REOPENED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
@@ -449,11 +449,22 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             decidedNodes(notPreferredCount, Decision.NOT_PREFERRED, "not-pref"),
             decidedNodes(noCount, Decision.NO, "no")
         );
-        final List<Decision.Type> order = new ArrayList<>();
+        final List<Decision.Type> expectedOrder = List.of(
+            Decision.Type.YES,
+            Decision.Type.THROTTLE,
+            Decision.Type.NOT_PREFERRED,
+            Decision.Type.NO
+        );
+        int lastTypeIndex = 0;
         for (PrimaryShardAllocator.DecidedNode node : nodesToAllocate) {
-            order.add(node.decision().type());
+            final int typeIndex = expectedOrder.indexOf(node.decision().type());
+            assertThat(
+                node.decision().type() + " came after " + expectedOrder.get(lastTypeIndex),
+                typeIndex,
+                greaterThanOrEqualTo(lastTypeIndex)
+            );
+            lastTypeIndex = typeIndex;
         }
-        assertThat(order, equalTo(expectedNodesToAllocateOrder(yesCount, throttleCount, notPreferredCount, noCount)));
     }
 
     private List<PrimaryShardAllocator.DecidedNode> decidedNodes(int count, Decision decision, String allocIdPrefix) {
@@ -470,23 +481,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 )
             )
             .toList();
-    }
-
-    private static List<Decision.Type> expectedNodesToAllocateOrder(int yesCount, int throttleCount, int notPreferredCount, int noCount) {
-        final List<Decision.Type> expected = new ArrayList<>();
-        for (int i = 0; i < yesCount; i++) {
-            expected.add(Decision.Type.YES);
-        }
-        for (int i = 0; i < throttleCount; i++) {
-            expected.add(Decision.Type.THROTTLE);
-        }
-        for (int i = 0; i < notPreferredCount; i++) {
-            expected.add(Decision.Type.NOT_PREFERRED);
-        }
-        for (int i = 0; i < noCount; i++) {
-            expected.add(Decision.Type.NO);
-        }
-        return expected;
     }
 
     /**

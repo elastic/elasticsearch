@@ -151,6 +151,9 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
         return numBytes;
     }
 
+    @Override
+    public abstract OffHeapBinarizedVectorValues copy() throws IOException;
+
     static OffHeapBinarizedVectorValues load(
         OrdToDocDISIReaderConfiguration configuration,
         int dimension,

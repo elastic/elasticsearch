@@ -61,7 +61,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         IndexedByShardId<ShardContext> shardContexts,
         boolean reuseColumnLoaders,
         int docChannel,
-        double sourceReservationFactor
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold
     ) implements OperatorFactory {
         public Factory
 
@@ -69,6 +70,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
+        }
+
+        /**
+         * Convenience constructor that uses the default doc-sequence threshold of 500.
+         */
+        public Factory(
+            ByteSizeValue jumboSize,
+            List<FieldInfo> fields,
+            IndexedByShardId<ShardContext> shardContexts,
+            boolean reuseColumnLoaders,
+            int docChannel,
+            double sourceReservationFactor
+        ) {
+            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500);
         }
 
         @Override
@@ -80,7 +95,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 shardContexts,
                 reuseColumnLoaders,
                 docChannel,
-                sourceReservationFactor
+                sourceReservationFactor,
+                docSequenceBytesRefFieldThreshold
             );
         }
 
@@ -172,6 +188,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * </p>
      */
     final long jumboBytes;
+    final int docSequenceBytesRefFieldThreshold;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
     private final boolean reuseColumnLoaders;
@@ -221,13 +238,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean reuseColumnLoaders,
         int docChannel,
-        double sourceReservationFactor
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
+        this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.fields = new FieldWork[fields.size()];
         for (int i = 0; i < this.fields.length; i++) {
             this.fields[i] = new FieldWork(fields.get(i), i);
@@ -242,10 +261,27 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(
-            page,
-            docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
-        );
+        return appendBlockArrays(page, valuesReader(docVector));
+    }
+
+    private ValuesReader valuesReader(DocVector docVector) {
+        if (docVector.singleSegment()) {
+            return new ValuesFromSingleReader(this, docVector);
+        }
+        if (bytesRefFieldCount() >= docSequenceBytesRefFieldThreshold) {
+            return new ValuesFromDocSequence(this, docVector);
+        }
+        return new ValuesFromManyReader(this, docVector);
+    }
+
+    private int bytesRefFieldCount() {
+        int count = 0;
+        for (FieldWork field : fields) {
+            if (field.info.type() == ElementType.BYTES_REF) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

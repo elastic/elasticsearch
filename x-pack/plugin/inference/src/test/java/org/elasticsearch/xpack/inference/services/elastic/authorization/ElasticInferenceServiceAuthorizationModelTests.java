@@ -1026,15 +1026,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     }
 
     public void testFiltersEndpointsWithInvalidReleaseDate() {
-        var id1 = "id1";
-        var invalidId = "invalid_id";
-        var invalidId2 = "invalid_id2";
+        var validDateId = "valid_date_id";
+        var blankDateId = "blank_date_id";
+        var invalidDateId = "invalid_date_id";
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id1,
+                    validDateId,
                     "name1",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1046,7 +1046,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId,
+                    invalidDateId,
                     "name2",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1058,13 +1058,13 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId2,
+                    blankDateId,
                     "name3",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
                     null,
-                    TEST_RELEASE_DATE,
-                    "",
+                    "  ",
+                    null,
                     null,
                     null,
                     null
@@ -1073,19 +1073,20 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
-        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertThat(auth.getEndpointIds(), is(Set.of(validDateId, blankDateId)));
         assertTrue(auth.isAuthorized());
     }
 
     public void testFiltersEndpointsWithInvalidEndOfLifeDate() {
-        var id1 = "id1";
-        var invalidId = "invalid_id";
+        var validDateId = "valid_date_id";
+        var invalidDateId = "invalid_date_id";
+        var blankDateId = "blank_date_id";
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id1,
+                    validDateId,
                     "name1",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1097,13 +1098,25 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId,
+                    invalidDateId,
                     "name2",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
                     null,
-                    "",
+                    TEST_RELEASE_DATE,
                     "invalid-date-format",
+                    null,
+                    null,
+                    null
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    blankDateId,
+                    "name2",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    TEST_RELEASE_DATE,
+                    " ",
                     null,
                     null,
                     null
@@ -1112,7 +1125,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
-        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertThat(auth.getEndpointIds(), is(Set.of(validDateId, blankDateId)));
         assertTrue(auth.isAuthorized());
     }
 

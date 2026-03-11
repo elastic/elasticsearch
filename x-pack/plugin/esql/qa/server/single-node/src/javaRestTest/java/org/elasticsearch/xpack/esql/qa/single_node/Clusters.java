@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-
-import java.util.Map;
 
 public class Clusters {
 
@@ -28,12 +25,7 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
             .apply(() -> configProvider)
+            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
             .build();
-    }
-
-    public static void addAdditionalLoggingSettings(LocalClusterSpecBuilder<?> spec) {
-        for (Map.Entry<String, String> entry : EsqlSpecTestCase.LOGGING_CLUSTER_SETTINGS.entrySet()) {
-            spec.setting(entry.getKey(), entry.getValue());
-        }
     }
 }

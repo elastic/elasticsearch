@@ -1535,6 +1535,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
+        assertThat(
+            error("from test | mv_expand id | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+        );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -1555,6 +1559,21 @@ public class VerifierTests extends ESTestCase {
         String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
         assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
+    }
+
+    public void testMultiMatchWithLookupJoinField() {
+        assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
+        assertThat(
+            error(
+                "FROM test | EVAL language_code = languages "
+                    + "| LOOKUP JOIN languages_lookup ON language_code "
+                    + "| WHERE multi_match(\"test\", language_name)"
+            ),
+            containsString(
+                "[MultiMatch] function cannot operate on [language_name],"
+                    + " supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -1830,6 +1849,81 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
+    public void testFullTextFunctionsAfterSimpleRename() throws Exception {
+        query("from test | rename title as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | where name : \"Meditation\"", fullTextAnalyzer);
+        query("from test | rename title as name | where match_phrase(name, \"Meditation\")", fullTextAnalyzer);
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            query("from test | rename title as name | where multi_match(\"Meditation\", name)", fullTextAnalyzer);
+        }
+    }
+
+    public void testFullTextFunctionsAfterChainedRename() throws Exception {
+        query("from test | rename title as x | rename x as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as x, x as name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query(
+            "from test | rename title as name, body as description"
+                + " | where match(name, \"Meditation\") and match_phrase(description, \"long text\")",
+            fullTextAnalyzer
+        );
+    }
+
+    public void testFullTextFunctionsAfterRenameShadowingAndSwap() throws Exception {
+        query("from test | rename body as title | where match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as tmp, body as title, tmp as body | where match(body, \"Meditation\")", fullTextAnalyzer);
+    }
+
+    public void testFullTextFunctionsAfterRenameWithInterveningCommands() throws Exception {
+        query("from test | rename title as name | keep name, body | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | sort name | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | eval x = 1 | where match(name, \"Meditation\")", fullTextAnalyzer);
+        query("from test | rename title as name | where match(name::keyword, \"Meditation\")", fullTextAnalyzer);
+    }
+
+    public void testFullTextFunctionsRejectEvalColumns() throws Exception {
+        assertThat(
+            error("from test | eval name = title | where match(name, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MATCH] function cannot operate on [name], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval name = title | where name : \"Meditation\"", fullTextAnalyzer),
+            containsString("[:] operator cannot operate on [name], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval name = title | where match_phrase(name, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+        );
+    }
+
+    public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
+        assertThat(
+            error(
+                "from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | eval name = title | rename name as x | where match(x, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match(x, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")", fullTextAnalyzer),
+            containsString("[MATCH] function cannot operate on [x], which is not a field from an index mapping")
+        );
+        assertThat(
+            error(
+                "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")",
+                fullTextAnalyzer
+            ),
+            containsString("[MATCH] function cannot operate on [y], which is not a field from an index mapping")
+        );
+    }
+
     public void testConditionalFunctionsWithMixedNumericTypes() {
         for (String functionName : List.of("coalesce", "greatest", "least")) {
             assertEquals(
@@ -2040,7 +2134,7 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
                 + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
@@ -2861,11 +2955,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
         );
         assertThat(
-            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: argument of [tbucket(\"@tbucket\", 1 hour)] must be [integer, date_period or time_duration],"
+                    + " found value [\"@tbucket\"] type [keyword]"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
@@ -2873,7 +2970,27 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
-            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+            equalTo(
+                "1:42: argument of [tbucket(\"1\")] must be [integer, date_period or time_duration], found value [\"1\"] type [keyword]"
+            )
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error(
+                "from test | stats max(event_duration) by tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")",
+                sampleDataAnalyzer
+            ),
+            equalTo(
+                "1:42: [from] and [to] in [tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")]"
+                    + " cannot be used with a duration or period bucket size"
+            )
         );
 
         /*
@@ -3640,6 +3757,26 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("TS k8s | SORT @timestamp | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after SORT command"));
     }
 
+    public void testTsInfoRequiresTsSource() {
+        assertThat(error("FROM test | TS_INFO"), containsString("TS_INFO can only be used with TS source command"));
+    }
+
+    public void testTsInfoWithTsSource() {
+        query("TS k8s | TS_INFO", k8s);
+    }
+
+    public void testTsInfoCannotBeUsedAfterStats() {
+        assertThat(error("TS k8s | STATS c = count(*) | TS_INFO", k8s), containsString("TS_INFO cannot be used after STATS command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | TS_INFO", k8s), containsString("TS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | TS_INFO", k8s), containsString("TS_INFO cannot be used after SORT command"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -3653,7 +3790,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
@@ -3664,7 +3801,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
@@ -3679,7 +3816,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
@@ -3696,7 +3833,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLambdaValueIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
@@ -3738,7 +3875,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
 
         assertThat(error("""
             FROM test

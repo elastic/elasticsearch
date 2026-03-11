@@ -1279,7 +1279,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 indices,
                 startTime,
                 repositoryStateId,
-                failure,
+                ABORTED_FAILURE_TEXT,
                 version,
                 source,
                 clonesBuilder

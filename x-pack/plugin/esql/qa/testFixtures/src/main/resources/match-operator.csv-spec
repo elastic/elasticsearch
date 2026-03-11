@@ -844,6 +844,41 @@ c:long
 22
 ;
 
+matchOperatorBeforeMvExpand
+required_capability: match_operator_colon
+
+from books
+| where author : "Faulkner" and book_no == "2378"
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+matchOperatorBeforeMvExpandWithStats
+required_capability: match_operator_colon
+
+from books
+| where author : "Tolkien"
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+| limit 5
+;
+
+   count:long  |    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
+;
+
 testMatchOperatorUnionAll
 required_capability: subquery_in_from_command
 required_capability: full_text_functions_accept_null_field
@@ -858,4 +893,121 @@ year:integer | author:text            | host:keyword
 1979         | Gabriel Garcia Marquez | null
 2005         | Gabriel Garcia Marquez | null
 2014         | Gabriel Garcia Marquez | null
+;
+
+matchOperatorAfterSimpleRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterChainedRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameWithKeep
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| keep book_no, writer
+| where writer : "Faulkner"
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterEvalAndRename
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where writer : "Faulkner"
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameWithEvalAndSort
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where writer : "Faulkner"
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOperatorAfterRenameShadowing
+required_capability: match_operator_colon
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename title as author
+| where author : "Return" and book_no == "7350"
+| keep book_no, author
+;
+
+book_no:keyword | author:text
+7350            | Return of the Shadow
 ;

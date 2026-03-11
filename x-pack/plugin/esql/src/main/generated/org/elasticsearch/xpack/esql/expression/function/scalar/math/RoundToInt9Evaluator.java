@@ -12,22 +12,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToInt9Evaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToInt9Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt9Evaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final int p0;
 
@@ -51,8 +51,8 @@ public final class RoundToInt9Evaluator implements EvalOperator.ExpressionEvalua
 
   private Warnings warnings;
 
-  public RoundToInt9Evaluator(Source source, EvalOperator.ExpressionEvaluator field, int p0, int p1,
-      int p2, int p3, int p4, int p5, int p6, int p7, int p8, DriverContext driverContext) {
+  public RoundToInt9Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
+      int p3, int p4, int p5, int p6, int p7, int p8, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
@@ -133,10 +133,10 @@ public final class RoundToInt9Evaluator implements EvalOperator.ExpressionEvalua
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final int p0;
 
@@ -156,8 +156,8 @@ public final class RoundToInt9Evaluator implements EvalOperator.ExpressionEvalua
 
     private final int p8;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int p0, int p1,
-        int p2, int p3, int p4, int p5, int p6, int p7, int p8) {
+    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2, int p3,
+        int p4, int p5, int p6, int p7, int p8) {
       this.source = source;
       this.field = field;
       this.p0 = p0;

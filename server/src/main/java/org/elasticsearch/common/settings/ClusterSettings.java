@@ -113,7 +113,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestSettings;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -341,6 +340,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
         HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
         HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
+        HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH,
         HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT,
@@ -673,15 +673,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
         ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
-        SamplingService.TTL_POLL_INTERVAL_SETTING,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,

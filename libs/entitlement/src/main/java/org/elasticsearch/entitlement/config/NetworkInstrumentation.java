@@ -67,6 +67,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractSelectableChannel;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
+import java.util.Collections;
 
 public class NetworkInstrumentation implements InstrumentationConfig {
     @Override
@@ -449,7 +450,9 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(sun.net.www.URLConnection::getHeaderField, Integer.class)
                 .enforce(Policies::entitlementForUrlConnection)
                 .elseReturn(null);
-            rule.calling(sun.net.www.URLConnection::getHeaderFields).enforce(Policies::entitlementForUrlConnection).elseReturnEmptyMap();
+            rule.calling(sun.net.www.URLConnection::getHeaderFields)
+                .enforce(Policies::entitlementForUrlConnection)
+                .elseReturn(Collections.emptyMap());
             rule.calling(sun.net.www.URLConnection::getHeaderFieldKey, Integer.class)
                 .enforce(Policies::entitlementForUrlConnection)
                 .elseReturn(null);
@@ -485,7 +488,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseReturn(null);
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getHeaderFields)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturnEmptyMap();
+                .elseReturn(Collections.emptyMap());
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getHeaderField, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(null);
@@ -508,7 +511,9 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldKey, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(null);
-            rule.calling(HttpsURLConnectionImpl::getHeaderFields).enforce(Policies::outboundNetworkAccess).elseReturnEmptyMap();
+            rule.calling(HttpsURLConnectionImpl::getHeaderFields)
+                .enforce(Policies::outboundNetworkAccess)
+                .elseReturn(Collections.emptyMap());
             rule.calling(HttpsURLConnectionImpl::getResponseCode)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseThrow(e -> new IOException(e));

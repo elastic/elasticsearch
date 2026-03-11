@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
@@ -27,8 +30,15 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     private final QueryRequest baseRequest;
     private final int maxBufferSize;
     private final Executor executor;
+    private final ExternalSliceQueue sliceQueue;
 
-    public AsyncConnectorSourceOperatorFactory(Connector connector, QueryRequest baseRequest, int maxBufferSize, Executor executor) {
+    public AsyncConnectorSourceOperatorFactory(
+        Connector connector,
+        QueryRequest baseRequest,
+        int maxBufferSize,
+        Executor executor,
+        @Nullable ExternalSliceQueue sliceQueue
+    ) {
         if (connector == null) {
             throw new IllegalArgumentException("connector must not be null");
         }
@@ -45,6 +55,11 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         this.baseRequest = baseRequest;
         this.maxBufferSize = maxBufferSize;
         this.executor = executor;
+        this.sliceQueue = sliceQueue;
+    }
+
+    public AsyncConnectorSourceOperatorFactory(Connector connector, QueryRequest baseRequest, int maxBufferSize, Executor executor) {
+        this(connector, baseRequest, maxBufferSize, executor, null);
     }
 
     @Override
@@ -52,20 +67,51 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
         driverContext.addAsyncAction();
-        executor.execute(() -> {
-            try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
-                ExternalSourceDrainUtils.drainPages(cursor, buffer);
-                buffer.finish(false);
-            } catch (Exception e) {
-                buffer.onFailure(e);
-            } finally {
+
+        int rowLimit = baseRequest.rowLimit();
+        if (sliceQueue != null) {
+            executor.execute(() -> {
                 try {
-                    connector.close();
-                } catch (IOException ignored) {} finally {
-                    driverContext.removeAsyncAction();
+                    int rowsRemaining = rowLimit;
+                    ExternalSplit split;
+                    while ((split = sliceQueue.nextSplit()) != null) {
+                        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
+                            break;
+                        }
+                        try (ResultCursor cursor = connector.execute(request, split)) {
+                            int consumed = ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer);
+                            if (rowLimit != FormatReader.NO_LIMIT) {
+                                rowsRemaining -= consumed;
+                            }
+                        }
+                    }
+                    buffer.finish(false);
+                } catch (Exception e) {
+                    buffer.onFailure(e);
+                } finally {
+                    try {
+                        connector.close();
+                    } catch (IOException ignored) {} finally {
+                        driverContext.removeAsyncAction();
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            executor.execute(() -> {
+                try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
+                    ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer, rowLimit);
+                    buffer.finish(false);
+                } catch (Exception e) {
+                    buffer.onFailure(e);
+                } finally {
+                    try {
+                        connector.close();
+                    } catch (IOException ignored) {} finally {
+                        driverContext.removeAsyncAction();
+                    }
+                }
+            });
+        }
         return new AsyncExternalSourceOperator(buffer);
     }
 

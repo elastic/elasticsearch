@@ -402,7 +402,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = SocketException.class)
     static void connectDatagramSocket() throws SocketException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.connect(new InetSocketAddress(1234));

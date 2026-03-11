@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -604,10 +605,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
 
+                DenseVectorFieldMapper.ElementType elementType = modelSettings.elementType();
+                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions;
+                IndexOptions innerIndexOptions = indexOptions.indexOptions();
+                if (innerIndexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions dvio) {
+                    denseVectorIndexOptions = dvio;
+                } else if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                    denseVectorIndexOptions = edvio.getBaseIndexOptions();
+                    // TODO: Validate that element type override is compatible with model element type?
+                    elementType = edvio.getElementType();
+                } else {
+                    throw new IllegalStateException(
+                        "Unexpected inner index options type [" + innerIndexOptions.getClass().getSimpleName() + "]"
+                    );
+                }
+
                 int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
-                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                    (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
-                denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
+                denseVectorIndexOptions.validate(elementType, dims, true);
             }
         }
 
@@ -1446,15 +1460,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";
         denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
-        denseVectorMapperBuilder.elementType(denseVectorElementType(indexVersionCreated, modelSettings.elementType()));
         // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
         // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
         // and the field will use the defaults for the dense_vector field.
+        DenseVectorFieldMapper.ElementType resolvedElementType = denseVectorElementType(indexVersionCreated, modelSettings.elementType());
         if (indexOptions != null) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions;
+            IndexOptions innerIndexOptions = indexOptions.indexOptions();
+            if (innerIndexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions dvio) {
+                denseVectorIndexOptions = dvio;
+            } else if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                denseVectorIndexOptions = edvio.getBaseIndexOptions();
+                resolvedElementType = edvio.getElementType();
+            } else {
+                throw new IllegalStateException(
+                    "Unexpected inner index options type [" + innerIndexOptions.getClass().getSimpleName() + "]"
+                );
+            }
+
             denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
-            denseVectorIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), true);
+            denseVectorIndexOptions.validate(resolvedElementType, modelSettings.dimensions(), true);
         } else {
             DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
@@ -1464,6 +1489,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
             }
         }
+        denseVectorMapperBuilder.elementType(resolvedElementType);
     }
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(

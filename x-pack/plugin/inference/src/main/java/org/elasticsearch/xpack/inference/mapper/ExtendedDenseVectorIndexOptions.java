@@ -29,6 +29,14 @@ public class ExtendedDenseVectorIndexOptions implements IndexOptions {
         this.elementType = Objects.requireNonNull(elementType);
     }
 
+    public DenseVectorFieldMapper.DenseVectorIndexOptions getBaseIndexOptions() {
+        return baseIndexOptions;
+    }
+
+    public DenseVectorFieldMapper.ElementType getElementType() {
+        return elementType;
+    }
+
     @Override
     public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
         baseIndexOptions.toXContentFragment(builder, params);

@@ -130,7 +130,7 @@ public class SemanticTextIndexOptions implements ToXContent {
         return Strings.toString(this);
     }
 
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
+    private static IndexOptions parseDenseVectorIndexOptionsFromMap(
         String fieldName,
         Map<String, Object> map,
         IndexVersion indexVersion,
@@ -145,7 +145,23 @@ public class SemanticTextIndexOptions implements ToXContent {
                 XContentMapValues.nodeStringValue(type, null)
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
+            DenseVectorFieldMapper.ElementType elementType = null;
+            String elementTypeStr = XContentMapValues.nodeStringValue(
+                map.remove(ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD.getPreferredName())
+            );
+            if (elementTypeStr != null) {
+                elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
+            }
+
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = vectorIndexType.parseIndexOptions(
+                fieldName,
+                map,
+                indexVersion,
+                experimentalFeaturesEnabled
+            );
+            return elementType != null
+                ? new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
+                : denseVectorIndexOptions;
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

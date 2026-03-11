@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 /**
  * Computes the extent of a set of cartesian shapes from the combined bounds-and-centroid format.
  * The bounds are the first 4 values as doubles (representing encoded integers):
- * [minX, maxX, minY, maxY].
+ * [minX, maxX, maxY, minY], the same order as found in the constructor of the Rectangle class.
  * This requires that the planner has planned that shapes are loaded from doc-values with
  * EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
  */
@@ -43,7 +43,7 @@ class SpatialExtentCartesianShapeCombinedDocValuesAggregator extends SpatialExte
         }
         int start = values.getFirstValueIndex(p);
         // Read the first 4 values as the bounds (stored as doubles but representing encoded ints)
-        // Order is: minX, maxX, minY (top), maxY (bottom) but Rectangle expects maxY, minY
+        // Order is: minX, maxX, maxY (top), minY (bottom) as stored in Rectangle
         int minX = (int) values.getDouble(start);
         int maxX = (int) values.getDouble(start + 1);
         int maxY = (int) values.getDouble(start + 2);  // top
@@ -57,7 +57,7 @@ class SpatialExtentCartesianShapeCombinedDocValuesAggregator extends SpatialExte
         }
         int start = values.getFirstValueIndex(p);
         // Read the first 4 values as the bounds (stored as doubles but representing encoded ints)
-        // Order is: minX, maxX, minY (top), maxY (bottom) but Rectangle expects maxY, minY
+        // Order is: minX, maxX, maxY (top), minY (bottom) as stored in Rectangle
         int minX = (int) values.getDouble(start);
         int maxX = (int) values.getDouble(start + 1);
         int maxY = (int) values.getDouble(start + 2);  // top

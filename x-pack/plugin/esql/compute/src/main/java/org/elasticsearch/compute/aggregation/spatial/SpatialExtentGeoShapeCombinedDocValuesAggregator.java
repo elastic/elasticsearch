@@ -17,8 +17,12 @@ import org.elasticsearch.compute.data.DoubleBlock;
  * Computes the extent of a set of geo shapes from the combined bounds-and-centroid format.
  * The bounds are the first 6 values as doubles (representing encoded integers):
  * [top, bottom, negLeft, negRight, posLeft, posRight].
+ * The order of the values is the same as defined in the constructor of the Extent class,
+ * as that is the order in which the values are stored in shape doc-values.
  * This requires that the planner has planned that shapes are loaded from doc-values with
  * EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
+ * The reason the integers are stored as doubles in the DoubleBlock is that they are loaded
+ * from doc-values together with the centroid values, which themselves are stored as doubles.
  */
 @Aggregator(
     {

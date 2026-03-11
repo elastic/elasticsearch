@@ -30,12 +30,15 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -372,8 +375,18 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                         .endObject();
                 }), indexMode);
             }
+        } else if (indexMode == IndexMode.TIME_SERIES) {
+            // TIME_SERIES indexing modes use a fixed mapping for the @timestamp field
+            // Synthetic id need cumbersome special care in test setup so we turn that
+            // off in this test
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .build();
+            return createMapperService(settings, mapping(b -> {})).documentMapper();
         } else {
-            // TIME_SERIES and LOGSDB indexing modes use a fixed mapping for the @timestamp field
+            // LOGSDB indexing modes use a fixed mapping for the @timestamp field
             return createDocumentMapper(mapping(b -> {}), indexMode);
         }
     }

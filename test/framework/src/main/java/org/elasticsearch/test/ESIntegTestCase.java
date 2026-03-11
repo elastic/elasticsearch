@@ -1384,11 +1384,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final int maxDoc = leafReader.maxDoc();
 
                 var segmentDocIds = new ArrayList<Integer>();
+                // Only collect root documents; nested documents lack _primary_term doc values
+                var primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDocValues == null) {
+                    continue;
+                }
                 for (int docId = 0; docId < maxDoc; docId++) {
-                    if (liveDocs != null && liveDocs.get(docId) == false) { // Return only live docs, not all docs
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
                         continue;
                     }
-                    segmentDocIds.add(docId);
+                    if (primaryTermDocValues.advanceExact(docId)) {
+                        segmentDocIds.add(docId);
+                    }
                 }
                 if (segmentDocIds.isEmpty()) {
                     continue;
@@ -1399,8 +1406,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
                 var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
 
+                primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 final NumericDocValues seqNoDocValues = seqNoDisabled ? null : leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
-                final NumericDocValues primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 final NumericDocValues versionDocValues = leafReader.getNumericDocValues(VersionFieldMapper.NAME);
 
                 for (int docId : docIdsArray) {

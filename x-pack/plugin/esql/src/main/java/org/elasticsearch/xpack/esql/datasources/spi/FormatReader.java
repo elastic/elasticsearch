@@ -91,7 +91,7 @@ public interface FormatReader extends Closeable {
                 object,
                 context.projectedColumns(),
                 context.batchSize(),
-                context.skipFirstLine(),
+                context.firstSplit() == false,
                 context.lastSplit(),
                 context.resolvedAttributes(),
                 context.errorPolicy()

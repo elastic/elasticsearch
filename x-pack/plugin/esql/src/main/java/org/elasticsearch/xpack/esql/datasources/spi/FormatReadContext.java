@@ -24,8 +24,8 @@ import java.util.List;
  * @param batchSize        target number of rows per page
  * @param rowLimit         maximum total rows to return ({@link FormatReader#NO_LIMIT} for unlimited)
  * @param errorPolicy      how to handle malformed rows
- * @param skipFirstLine    whether to skip the first line (used in split-based reads where the
- *                         split starts mid-record)
+ * @param firstSplit       whether this is the first split for the file (consistent with {@code lastSplit};
+ *                         format-agnostic replacement for the legacy {@code skipFirstLine} parameter)
  * @param lastSplit        whether this is the last split for the file (affects trailing-record handling)
  * @param resolvedAttributes pre-resolved schema attributes (non-null in split reads where the schema
  *                           was resolved from the first split)
@@ -35,7 +35,7 @@ public record FormatReadContext(
     int batchSize,
     int rowLimit,
     ErrorPolicy errorPolicy,
-    boolean skipFirstLine,
+    boolean firstSplit,
     boolean lastSplit,
     List<Attribute> resolvedAttributes
 ) {
@@ -51,21 +51,21 @@ public record FormatReadContext(
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, skipFirstLine, lastSplit, resolvedAttributes);
+        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, resolvedAttributes);
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, skipFirstLine, lastSplit, resolvedAttributes);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, resolvedAttributes);
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
-    public FormatReadContext withSplit(boolean skip, boolean last, List<Attribute> attrs) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, skip, last, attrs);
+    public FormatReadContext withSplit(boolean first, boolean last, List<Attribute> attrs) {
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, attrs);
     }
 
     public static Builder builder() {
@@ -77,7 +77,7 @@ public record FormatReadContext(
         private int batchSize;
         private int rowLimit = FormatReader.NO_LIMIT;
         private ErrorPolicy errorPolicy = ErrorPolicy.STRICT;
-        private boolean skipFirstLine;
+        private boolean firstSplit;
         private boolean lastSplit;
         private List<Attribute> resolvedAttributes;
 
@@ -103,8 +103,8 @@ public record FormatReadContext(
             return this;
         }
 
-        public Builder skipFirstLine(boolean skipFirstLine) {
-            this.skipFirstLine = skipFirstLine;
+        public Builder firstSplit(boolean firstSplit) {
+            this.firstSplit = firstSplit;
             return this;
         }
 
@@ -119,7 +119,7 @@ public record FormatReadContext(
         }
 
         public FormatReadContext build() {
-            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, skipFirstLine, lastSplit, resolvedAttributes);
+            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit, resolvedAttributes);
         }
     }
 }

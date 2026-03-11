@@ -332,18 +332,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             }
                             List<String> cols = projectedColumns(injector);
                             StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                            boolean skipFirstLine = false;
+                            boolean firstSplit = true;
                             boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                             if (fileSplit.offset() > 0) {
                                 obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                skipFirstLine = isFirstSplit == false;
+                                firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                             }
                             FormatReadContext ctx = FormatReadContext.builder()
                                 .projectedColumns(cols)
                                 .batchSize(batchSize)
                                 .errorPolicy(errorPolicy)
-                                .skipFirstLine(skipFirstLine)
+                                .firstSplit(firstSplit)
                                 .lastSplit(lastSplit)
                                 .resolvedAttributes(attributes)
                                 .build();

@@ -179,7 +179,8 @@ public class ReplicasLoadBalancingScaler {
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            IndicesOptions.CrossProjectModeOptions.DEFAULT
+            IndicesOptions.CrossProjectModeOptions.DEFAULT,
+            IndicesOptions.IndexAbstractionOptions.DEFAULT
         );
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices("_all")
             .clear()

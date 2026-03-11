@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -619,22 +620,150 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("parquet", metadata.sourceType());
     }
 
+    public void testDiscoverSplitRangesMultipleRowGroups() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<long[]> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Expected multiple ranges for multi-row-group file, got " + ranges.size(), ranges.size() > 1);
+
+        for (long[] range : ranges) {
+            assertTrue("Range offset must be non-negative", range[0] >= 0);
+            assertTrue("Range length must be positive", range[1] > 0);
+        }
+    }
+
+    public void testDiscoverSplitRangesSingleRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group = factory.newGroup();
+            group.add("id", 1L);
+            return List.of(group);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<long[]> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Single row group file should return empty ranges", ranges.isEmpty());
+    }
+
+    public void testReadRangeSelectsCorrectRowGroups() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<long[]> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+
+        int totalRowsFromRanges = 0;
+        for (long[] range : ranges) {
+            long rangeStart = range[0];
+            long rangeEnd = rangeStart + range[1];
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    null,
+                    1000,
+                    rangeStart,
+                    rangeEnd,
+                    List.of(),
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    totalRowsFromRanges += page.getPositionCount();
+                }
+            }
+        }
+
+        int totalRowsDirect = 0;
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1000)) {
+            while (iterator.hasNext()) {
+                totalRowsDirect += iterator.next().getPositionCount();
+            }
+        }
+        assertEquals("Reading all ranges should produce the same total as a full read", totalRowsDirect, totalRowsFromRanges);
+    }
+
     @FunctionalInterface
     private interface GroupCreator {
         List<Group> create(SimpleGroupFactory factory);
     }
 
+    /**
+     * Creates a Parquet file with wide rows (INT64 id + 200-char BINARY payload) and a small
+     * row group size to guarantee multiple row groups in the output.
+     */
+    private byte[] createWideMultiRowGroupFile(int numRows) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        String padding = "x".repeat(200);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(4 * 1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < numRows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", (long) i);
+                g.add("payload", "row-" + i + "-" + padding);
+                writer.write(g);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        OutputFile outputFile = new OutputFile() {
+        OutputFile outputFile = createOutputFile(outputStream);
+
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        List<Group> groups = groupCreator.create(groupFactory);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+
+            for (Group group : groups) {
+                writer.write(group);
+            }
+        }
+
+        return outputStream.toByteArray();
+    }
+
+    private static OutputFile createOutputFile(ByteArrayOutputStream outputStream) {
+        return new OutputFile() {
             @Override
-            public PositionOutputStream create(long blockSizeHint) throws IOException {
+            public PositionOutputStream create(long blockSizeHint) {
                 return new PositionOutputStream() {
                     private long position = 0;
 
                     @Override
-                    public long getPos() throws IOException {
+                    public long getPos() {
                         return position;
                     }
 
@@ -658,7 +787,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
 
             @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) throws IOException {
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
                 return create(blockSizeHint);
             }
 
@@ -677,23 +806,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 return "memory://test.parquet";
             }
         };
-
-        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
-        List<Group> groups = groupCreator.create(groupFactory);
-
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .build()
-        ) {
-
-            for (Group group : groups) {
-                writer.write(group);
-            }
-        }
-
-        return outputStream.toByteArray();
     }
 
     private StorageObject createStorageObject(byte[] data) {

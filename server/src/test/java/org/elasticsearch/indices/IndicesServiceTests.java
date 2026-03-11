@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -56,11 +58,18 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -96,6 +105,7 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTest
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -194,13 +204,100 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     }
 
+    public static class DeprecatedParameterMapper extends FieldMapper {
+
+        static final String CONTENT_TYPE = "deprecated-param-mapper";
+
+        private DeprecatedParameterMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+            super(simpleName, mappedFieldType, builderParams);
+        }
+
+        @Override
+        protected void parseCreateField(DocumentParserContext context) {}
+
+        @Override
+        public Builder getMergeBuilder() {
+            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
+        }
+
+        @Override
+        protected String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        static class TypeBuilder extends FieldMapper.Builder {
+
+            private final Parameter<String> deprecatedParam = Parameter.stringParam(
+                "deprecated_field",
+                true,
+                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
+                null
+            ).acceptsNull().deprecated();
+
+            private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+            TypeBuilder(String name) {
+                super(name);
+            }
+
+            @Override
+            protected Parameter<?>[] getParameters() {
+                return new Parameter<?>[] { deprecatedParam, meta };
+            }
+
+            @Override
+            public String contentType() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public FieldMapper build(MapperBuilderContext context) {
+                return new DeprecatedParameterMapper(
+                    leafName(),
+                    new DeprecatedParameterFieldType(context.buildFullName(leafName()), deprecatedParam.getValue(), meta.getValue()),
+                    builderParams(this, context)
+                );
+            }
+        }
+
+        static class DeprecatedParameterFieldType extends MappedFieldType {
+
+            private final String deprecatedField;
+
+            DeprecatedParameterFieldType(String name, String deprecatedField, Map<String, String> meta) {
+                super(name, IndexType.NONE, false, meta);
+                this.deprecatedField = deprecatedField;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return ValueFetcher.EMPTY;
+            }
+
+            @Override
+            public String typeName() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        }
+    }
+
     public static class TestPlugin extends Plugin implements MapperPlugin {
 
         public TestPlugin() {}
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
+            return Map.of(
+                "fake-mapper",
+                KeywordFieldMapper.PARSER,
+                DeprecatedParameterMapper.CONTENT_TYPE,
+                new FieldMapper.TypeParser((name, parserContext) -> new DeprecatedParameterMapper.TypeBuilder(name))
+            );
         }
 
         @Override
@@ -938,6 +1035,49 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
             .documentMapper();
         assertNull(temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that deprecations warnings do not leak when the mapping is updated
+     */
+    public void testDeprecationsWarningsDoNotEscape() throws IOException {
+        try {
+            // We remove the extra test thread context from the warning headers so we can test
+            // the isolation of the thread pool thread context
+            HeaderWarning.removeThreadContext(getThreadContext());
+
+            IndicesService indicesService = getIndicesService();
+            IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+                .build();
+            IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+            IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+                .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+                .putMapping("""
+                    {
+                      "_doc":{
+                        "properties": {
+                          "my-field": {
+                            "type": "deprecated-param-mapper",
+                            "deprecated_field": "someValue"
+                          }
+                        }
+                      }
+                    }""")
+                .build();
+            indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+            final List<String> warnings = indexService.getThreadPool().getThreadContext().getResponseHeaders().get("Warning");
+            if (warnings != null) {
+                assertThat(
+                    warnings,
+                    not(contains(containsString("Parameter [deprecated_field] is deprecated and will be removed in a future version")))
+                );
+            }
+        } finally {
+            // Add the test thread context back because the teardown expects it
+            HeaderWarning.setThreadContext(getThreadContext());
+        }
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

@@ -939,6 +939,7 @@ FROM partial_mapping_sample_data
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedField
 required_capability: optional_fields_v2
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -953,6 +954,7 @@ null                   | foo
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedFieldLoadsFromSource
 required_capability: optional_fields_v2
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data

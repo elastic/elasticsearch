@@ -668,6 +668,7 @@ max_bytes:long | cluster:null
 
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedField
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -681,6 +682,7 @@ null                | foo
 
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="nullify"\;
 FROM languages

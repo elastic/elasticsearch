@@ -819,7 +819,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
             for (int j = 0; j < bulkSize; j++) {
                 int doc = docIdsScratch[j];
                 if (doc != -1) {
-                    scores[j] = osqVectorsScorer.score(
+                    scores[j] = osqVectorsScorer.applyCorrectionsIndividually(
                         queryQuantizer.getQueryCorrections().lowerInterval(),
                         queryQuantizer.getQueryCorrections().upperInterval(),
                         queryQuantizer.getQueryCorrections().quantizedComponentSum(),

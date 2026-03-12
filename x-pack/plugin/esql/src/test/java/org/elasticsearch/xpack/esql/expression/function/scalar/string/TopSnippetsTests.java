@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -38,7 +37,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_NUM_SNIPPETS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_WORD_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
@@ -98,9 +99,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
-                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral()
                 ),
-                "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
+                "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                    + query
+                    + "], "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -142,13 +145,15 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 List<TestCaseSupplier.TypedData> values = List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "field"),
-                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query"),
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral(),
                     new TestCaseSupplier.TypedData(createOptions(numSnippets, numWords), UNSUPPORTED, "options").forceLiteral()
                 );
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                        + query
+                        + "], "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,
@@ -245,14 +250,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         List<String> result = process(combinedText, query, 3, 50);
 
-        assertNotNull("Should return results for matching query", result);
-        assertFalse("Should have at least one result", result.isEmpty());
-
-        assertTrue(
-            "First snippet should be from the most relevant chunk (contains 'Elasticsearch' multiple times)",
-            result.get(0).toLowerCase(Locale.ROOT).contains("elasticsearch")
-                && (result.get(0).contains("powerful") || result.get(0).contains("supports") || result.get(0).contains("companies"))
-        );
+        assertThat(result, hasSize(2));
+        assertThat(result.get(0), containsString("Elasticsearch is a powerful search engine"));
+        assertThat(result.get(1), containsString("Elasticsearch is one option among several alternatives"));
     }
 
     private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {
@@ -278,9 +278,14 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         try (
             ExpressionEvaluator eval = evaluator(
-                new TopSnippets(Source.EMPTY, field("field", DataType.KEYWORD), field("query", DataType.KEYWORD), optionsMap)
+                new TopSnippets(
+                    Source.EMPTY,
+                    field("field", DataType.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(query), DataType.KEYWORD),
+                    optionsMap
+                )
             ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(query))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
             if (block.isNull(0)) {
                 return null;
@@ -295,5 +300,4 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             }
         }
     }
-
 }

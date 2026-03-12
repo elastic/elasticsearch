@@ -31,13 +31,13 @@ public final class ValuesLongAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public ValuesLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesLongAggregatorFunction.create(driverContext, channels);
+    return new ValuesLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public ValuesLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new ValuesLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

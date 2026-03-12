@@ -10,23 +10,23 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Chunk}.
+ * {@link ExpressionEvaluator} implementation for {@link Chunk}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ChunkEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ChunkEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChunkEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
   private final ChunkingSettings chunkingSettings;
 
@@ -34,8 +34,8 @@ public final class ChunkEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public ChunkEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      ChunkingSettings chunkingSettings, DriverContext driverContext) {
+  public ChunkEvaluator(Source source, ExpressionEvaluator field, ChunkingSettings chunkingSettings,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.chunkingSettings = chunkingSettings;
@@ -90,14 +90,14 @@ public final class ChunkEvaluator implements EvalOperator.ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
     private final ChunkingSettings chunkingSettings;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
+    public Factory(Source source, ExpressionEvaluator.Factory field,
         ChunkingSettings chunkingSettings) {
       this.source = source;
       this.field = field;

@@ -20,6 +20,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -37,6 +38,8 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -63,13 +66,28 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -92,8 +110,13 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
@@ -123,7 +146,13 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -132,10 +161,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
@@ -145,6 +177,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.getResourceStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -199,11 +232,13 @@ import static org.mockito.Mockito.mock;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
-    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
-        .map(EsqlCapabilities.Cap::capabilityName)
-        .collect(toSet());
-
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+
+    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, true);
+
+    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final String fileName;
     private final String groupName;
@@ -219,7 +254,6 @@ public class CsvTests extends ESTestCase {
      * </p>
      */
     private Configuration configuration;
-    private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -285,9 +319,6 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            for (String capability : testCase.requiredCapabilities) {
-                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
-            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -390,19 +421,20 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
             assumeFalseLogging(
-                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
-                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+                "CSV tests cannot handle replacing approximate count by exact (requires ES filter pushdown)",
+                groupName.equals("approximation")
+                    && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.capabilities(true)))
+                    everyItem(in(ALL_CAPS.capabilities()))
                 );
                 assumeTrueLogging(
                     "Capability not supported in this build",
-                    EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
+                    ENABLED_CAPS.capabilities().containsAll(testCase.requiredCapabilities)
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
@@ -624,18 +656,21 @@ public class CsvTests extends ESTestCase {
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        ExternalSourceResolution externalSourceResolution
     ) {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                functionRegistry,
+                FUNCTION_REGISTRY,
+                null,
                 indexResolution,
                 Map.of(),
                 enrichPolicies,
                 emptyInferenceResolution(),
+                externalSourceResolution,
                 minimumVersion,
                 unmappedResolution
             ),
@@ -682,7 +717,7 @@ public class CsvTests extends ESTestCase {
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(functionRegistry),
+            new PlanTelemetry(FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -752,9 +787,10 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
+        String query = substituteTemplates(testCase.query, csvFileTemplateResolver());
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
         esqlExecutionInfo.queryProfile().planning().start();
-        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
+        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(query);
         LogicalPlan plan = resolveViews(statement.plan());
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -764,7 +800,48 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(plan, statement.setting(UNMAPPED_FIELDS), configuration, testDatasets, minimumVersion);
+
+        boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
+        ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        DataSourceModule dataSourceModule = null;
+        OperatorFactoryRegistry operatorFactoryRegistry;
+        if (hasExternalSources) {
+            var preAnalysis = new PreAnalyzer().preAnalyze(plan);
+            if (preAnalysis.icebergPaths().isEmpty() == false) {
+                List<DataSourcePlugin> plugins = List.of(new CsvDataSourcePlugin(), new HttpDataSourcePlugin());
+                DataSourceCapabilities caps = DataSourceCapabilities.build(plugins);
+                BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+                dataSourceModule = new DataSourceModule(plugins, caps, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    dataSourceModule
+                );
+                Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+                plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+                    if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                        String path = BytesRefs.toString(literal.value());
+                        pathParams.put(path, p.params());
+                    }
+                });
+                PlainActionFuture<ExternalSourceResolution> resolveFuture = new PlainActionFuture<>();
+                externalSourceResolver.resolve(preAnalysis.icebergPaths(), pathParams, resolveFuture);
+                externalSourceResolution = resolveFuture.actionGet();
+                operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } else {
+                operatorFactoryRegistry = null;
+            }
+        } else {
+            operatorFactoryRegistry = null;
+        }
+
+        LogicalPlan analyzed = analyzedPlan(
+            plan,
+            statement.setting(UNMAPPED_FIELDS),
+            configuration,
+            testDatasets,
+            minimumVersion,
+            externalSourceResolution
+        );
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -776,11 +853,11 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             new PreAnalyzer(),
-            functionRegistry,
+            FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(functionRegistry),
+            new PlanTelemetry(FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,
@@ -795,14 +872,17 @@ public class CsvTests extends ESTestCase {
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            LogicalPlan optimizedPlan = session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile);
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                statement,
                 esqlExecutionInfo,
-                planRunner(bigArrays, physicalOperationProviders),
-                session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
+                planRunner(bigArrays, physicalOperationProviders, operatorFactoryRegistry),
+                optimizedPlan,
                 configuration,
                 foldCtx,
+                configuration.approximationSettings() != null
+                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
+                    : null,
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(
@@ -821,7 +901,13 @@ public class CsvTests extends ESTestCase {
             );
         }));
 
-        return listener.get();
+        try {
+            return listener.get();
+        } finally {
+            if (dataSourceModule != null) {
+                IOUtils.closeWhileHandlingException(dataSourceModule);
+            }
+        }
     }
 
     private Settings randomNodeSettings() {
@@ -851,17 +937,24 @@ public class CsvTests extends ESTestCase {
                 || p instanceof ChangePointExec
                 || p instanceof MergeExec
                 || p instanceof MMRExec
+                || p instanceof ExternalSourceExec
+                || p instanceof ExchangeExec
         )) {
             return;
         }
         SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
-    PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
+    PlanRunner planRunner(
+        BigArrays bigArrays,
+        TestPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry
+    ) {
         return (physicalPlan, configuration, foldContext, planTimeProfile, listener) -> executeSubPlan(
             bigArrays,
             foldContext,
             physicalOperationProviders,
+            operatorFactoryRegistry,
             physicalPlan,
             listener
         );
@@ -871,11 +964,14 @@ public class CsvTests extends ESTestCase {
         BigArrays bigArrays,
         FoldContext foldCtx,
         TestPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
         PhysicalPlan physicalPlan,
         ActionListener<Result> listener
     ) {
         // Keep in sync with ComputeService#execute
         opportunisticallyAssertPlanSerialization(physicalPlan);
+        // Discover splits from FragmentExec (plan has FragmentExec, not ExternalSourceExec yet)
+        List<ExternalSplit> coordinatorSplits = coordinatorSplits(operatorFactoryRegistry, physicalPlan);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -908,13 +1004,12 @@ public class CsvTests extends ESTestCase {
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
             physicalOperationProviders,
-            null  // OperatorFactoryRegistry - not needed for CSV tests
+            operatorFactoryRegistry
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
         // replace fragment inside the coordinator plan
-        List<Driver> drivers = new ArrayList<>();
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
@@ -922,7 +1017,7 @@ public class CsvTests extends ESTestCase {
             new OutputExec(coordinatorPlan, collectedPages::add),
             EmptyIndexedByShardId.instance()
         );
-        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        List<Driver> drivers = new ArrayList<>(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
@@ -932,6 +1027,12 @@ public class CsvTests extends ESTestCase {
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);
+            if (coordinatorSplits.isEmpty() == false) {
+                csvDataNodePhysicalPlan = csvDataNodePhysicalPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorSplits) : exec
+                );
+            }
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
@@ -964,5 +1065,138 @@ public class CsvTests extends ESTestCase {
             drivers,
             listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, configuration, DriverCompletionInfo.EMPTY, null))
         );
+    }
+
+    private static List<ExternalSplit> coordinatorSplits(OperatorFactoryRegistry operatorFactoryRegistry, PhysicalPlan physicalPlan) {
+        List<ExternalSplit> coordinatorSplits = new ArrayList<>();
+        if (operatorFactoryRegistry != null) {
+            physicalPlan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    if (withSplits.splits().isEmpty() == false) {
+                        coordinatorSplits.addAll(withSplits.splits());
+                    } else {
+                        // Fallback: FileSplitProvider returns empty for FileSet.UNRESOLVED (single-file).
+                        // Create a single split from the path so the operator can read.
+                        String path = withSplits.sourcePath();
+                        if (path != null && path.startsWith("file://")) {
+                            try {
+                                StoragePath storagePath = StoragePath.of(path);
+                                Path fsPath = PathUtils.get(URI.create(path));
+                                if (Files.exists(fsPath)) {
+                                    long fileLength = Files.size(fsPath);
+                                    coordinatorSplits.add(
+                                        new FileSplit(
+                                            withSplits.sourceType(),
+                                            storagePath,
+                                            0,
+                                            fileLength,
+                                            ".csv",
+                                            withSplits.config() != null ? withSplits.config() : Map.of(),
+                                            Map.of()
+                                        )
+                                    );
+                                }
+                            } catch (Exception e) {
+                                LOGGER.debug(
+                                    () -> org.elasticsearch.core.Strings.format(
+                                        "Fallback split creation failed for path [%s]; "
+                                            + "operator may still work with path directly when splits empty",
+                                        path
+                                    ),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+        return coordinatorSplits;
+    }
+
+    /**
+     * Returns a template resolver that maps CSV dataset names (e.g. "employees") to file:// URLs
+     * for datasets in CSV_DATASET that have a data file. Unknown template names return null.
+     * <p>
+     * Paths are resolved lazily on first use per template and cached. For jar resources, temp files
+     * use a file-specific prefix; if a file matching that prefix already exists, it is reused.
+     */
+    public static Function<String, String> csvFileTemplateResolver() {
+        ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+        return templateName -> {
+            CsvTestsDataLoader.TestDataset dataset = CSV_DATASET.get(templateName);
+            if (dataset == null || dataset.dataFileName() == null) {
+                throw new IllegalArgumentException("Failed to resolve CSV path for dataset [" + templateName + "]");
+            }
+            return cache.computeIfAbsent(templateName, k -> {
+                try {
+                    return resolveCsvFilePathLazy("/data/" + dataset.dataFileName());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to resolve CSV path for dataset [" + templateName + "]", e);
+                }
+            });
+        };
+    }
+
+    private static String resolveCsvFilePathLazy(String resourcePath) throws IOException {
+        URL resource = CsvTestsDataLoader.class.getResource(resourcePath);
+        if (resource == null) {
+            throw new IllegalStateException("Cannot find resource " + resourcePath);
+        }
+        String protocol = resource.getProtocol();
+        if ("file".equals(protocol)) {
+            return normalizeFileUri(resource.toExternalForm());
+        }
+        if ("jar".equals(protocol)) {
+            String fileName = PathUtils.get(resourcePath).getFileName().toString();
+            String prefix = CsvTests.class.getCanonicalName() + "-" + fileName + "-";
+            Path tempDir = PathUtils.get(System.getProperty("java.io.tmpdir"));
+            try (var stream = Files.newDirectoryStream(tempDir, prefix + "*")) {
+                var iterator = stream.iterator();
+                if (iterator.hasNext()) {
+                    Path existing = iterator.next();
+                    return normalizeFileUri(existing.toUri().toURL().toExternalForm());
+                }
+            }
+            Path tempFile = createTempFile(tempDir, prefix, ".csv");
+            try (InputStream in = getResourceStream(resourcePath)) {
+                Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return normalizeFileUri(tempFile.toUri().toURL().toExternalForm());
+        }
+        throw new IllegalStateException("Unsupported resource protocol: " + protocol);
+    }
+
+    private static Path createTempFile(Path tempDir, String prefix, String suffix) throws IOException {
+        Path tempFile = Files.createTempFile(tempDir, prefix, suffix);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                Files.deleteIfExists(tempFile);
+            } catch (IOException ignored) {
+                // Best-effort cleanup on shutdown
+            }
+        }));
+        return tempFile;
+    }
+
+    private static String normalizeFileUri(String uri) {
+        if (uri != null && uri.startsWith("file:/") && uri.startsWith("file:///") == false) {
+            return "file://" + uri.substring(5);
+        }
+        return uri;
+    }
+
+    public static String substituteTemplates(String query, Function<String, String> templateResolver) {
+        Matcher matcher = TEMPLATE_PATTERN.matcher(query);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String templateName = matcher.group(1);
+            String replacement = templateResolver.apply(templateName);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 }

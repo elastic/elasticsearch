@@ -36,16 +36,11 @@ public final class FirstDoubleByTimestampGroupingAggregatorFunction implements G
 
   private final DriverContext driverContext;
 
-  public FirstDoubleByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      FirstDoubleByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstDoubleByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstDoubleByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstDoubleByTimestampGroupingAggregatorFunction(channels, FirstDoubleByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstDoubleByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

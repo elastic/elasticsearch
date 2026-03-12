@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,7 +31,9 @@ import java.util.List;
  * in block iteration order. This means {@code [1, 2]} and {@code [2, 1]} produce different keys.
  * Null positions are encoded as a value count of zero.
  */
-public class GroupKeyEncoder implements Releasable {
+public class GroupKeyEncoder implements Accountable, Releasable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupKeyEncoder.class);
 
     private static final DefaultUnsortableTopNEncoder encoder = TopNEncoder.DEFAULT_UNSORTABLE;
 
@@ -111,6 +115,20 @@ public class GroupKeyEncoder implements Releasable {
             }
             default -> throw new IllegalArgumentException("unsupported element type for group key encoding: " + type);
         }
+    }
+
+    public int[] groupChannels() {
+        return groupChannels;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(groupChannels);
+        size += RamUsageEstimator.shallowSizeOf(elementTypes);
+        size += scratch.ramBytesUsed();
+        size += RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        return size;
     }
 
     @Override

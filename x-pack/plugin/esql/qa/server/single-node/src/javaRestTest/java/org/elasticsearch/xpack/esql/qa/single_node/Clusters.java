@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
@@ -24,6 +25,7 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .shared(true)
             .apply(() -> configProvider)
+            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
             .build();
     }
 }

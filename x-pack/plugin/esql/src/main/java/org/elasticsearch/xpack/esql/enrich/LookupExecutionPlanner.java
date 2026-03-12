@@ -346,6 +346,7 @@ public class LookupExecutionPlanner {
                         extractField.dataType() == DataType.UNSUPPORTED,
                         MappedFieldType.FieldExtractPreference.NONE,
                         null,
+                        null,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
 
@@ -355,7 +356,7 @@ public class LookupExecutionPlanner {
                             extractField.name(),
                             PlannerUtils.toElementType(extractField.dataType()),
                             false,
-                            shardIdx -> {
+                            (ctx, shardIdx) -> {
                                 if (shardIdx != 0) {
                                     throw new IllegalStateException("only one shard");
                                 }
@@ -379,7 +380,8 @@ public class LookupExecutionPlanner {
                     shardContexts,
                     true,
                     docChannel,
-                    PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+                    PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
                 );
             }
 

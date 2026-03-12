@@ -283,21 +283,25 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
                 @Override
                 public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
+                    assert false : "Should not be called";
                     throw new IllegalStateException("Should not be called");
                 }
 
                 @Override
                 public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
+                    assert false : "Should not be called";
                     throw new IllegalStateException("Should not be called");
                 }
 
                 @Override
                 public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
+                    assert false : "Should not be called";
                     throw new IllegalStateException("Should not be called");
                 }
 
                 @Override
                 public Scheduler newSingle(ThreadFactory threadFactory) {
+                    assert false : "Should not be called";
                     throw new IllegalStateException("Should not be called");
                 }
             });

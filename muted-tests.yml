@@ -438,6 +438,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/144078
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/144079
 
 # Examples:
 #

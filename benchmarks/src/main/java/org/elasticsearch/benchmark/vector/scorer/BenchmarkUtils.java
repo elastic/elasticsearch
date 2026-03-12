@@ -24,7 +24,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.VectorScorerFactory;
@@ -134,25 +133,6 @@ class BenchmarkUtils {
     static RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
-    }
-
-    static InMemoryInt4QuantizedByteVectorValues int4QuantizedVectorValues(int dims, byte[][] packedVectors) {
-        var random = ThreadLocalRandom.current();
-        var correctiveTerms = new OptimizedScalarQuantizer.QuantizationResult[packedVectors.length];
-        for (int i = 0; i < packedVectors.length; i++) {
-            correctiveTerms[i] = new OptimizedScalarQuantizer.QuantizationResult(
-                random.nextFloat(-1f, 1f),
-                random.nextFloat(-1f, 1f),
-                random.nextFloat(-1f, 1f),
-                random.nextInt(0, dims * 15)
-            );
-        }
-        float[] centroid = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            centroid[i] = random.nextFloat();
-        }
-        float centroidDP = random.nextFloat();
-        return new InMemoryInt4QuantizedByteVectorValues(dims, packedVectors, correctiveTerms, centroid, centroidDP);
     }
 
     static RandomVectorScorerSupplier lucene104ScoreSupplier(

@@ -9,9 +9,8 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding;
+import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
@@ -31,14 +30,14 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.int4QuantizedVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104ScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104Scorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createInt4QuantizedVectorValues;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createScalarQueryScorer;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4DotProductCorrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4EuclideanCorrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
@@ -74,12 +73,12 @@ public class VectorScorerInt4Benchmark {
     public VectorSimilarityType function;
 
     private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
-        private final InMemoryInt4QuantizedByteVectorValues values;
+        private final QuantizedByteVectorValues values;
         private byte[] queryUnpacked;
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections;
         private final int dims;
 
-        ScalarDotProduct(InMemoryInt4QuantizedByteVectorValues values) {
+        ScalarDotProduct(QuantizedByteVectorValues values) {
             this.values = values;
             this.dims = values.dimension();
         }
@@ -106,12 +105,12 @@ public class VectorScorerInt4Benchmark {
     }
 
     private static class ScalarEuclidean implements UpdateableRandomVectorScorer {
-        private final InMemoryInt4QuantizedByteVectorValues values;
+        private final QuantizedByteVectorValues values;
         private byte[] queryUnpacked;
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections;
         private final int dims;
 
-        ScalarEuclidean(InMemoryInt4QuantizedByteVectorValues values) {
+        ScalarEuclidean(QuantizedByteVectorValues values) {
             this.values = values;
             this.dims = values.dimension();
         }
@@ -137,44 +136,11 @@ public class VectorScorerInt4Benchmark {
         }
     }
 
-    static RandomVectorScorer createScalarQueryScorer(
-        InMemoryInt4QuantizedByteVectorValues values,
-        VectorSimilarityFunction sim,
-        float[] queryVec
-    ) throws IOException {
-        int dims = values.dimension();
-        OptimizedScalarQuantizer quantizer = values.getQuantizer();
-        float[] centroid = values.getCentroid();
-        ScalarEncoding encoding = values.getScalarEncoding();
-
-        byte[] queryQuantized = new byte[encoding.getDiscreteDimensions(dims)];
-        float[] queryCopy = Arrays.copyOf(queryVec, queryVec.length);
-        if (sim == VectorSimilarityFunction.COSINE) {
-            VectorUtil.l2normalize(queryCopy);
-        }
-        var queryCorrections = quantizer.scalarQuantize(queryCopy, queryQuantized, encoding.getQueryBits(), centroid);
-        float centroidDP = values.getCentroidDP();
-
-        return new RandomVectorScorer.AbstractRandomVectorScorer(values) {
-            @Override
-            public float score(int node) throws IOException {
-                byte[] packed = values.vectorValue(node);
-                int rawDot = dotProductI4SinglePacked(queryQuantized, packed);
-                var nodeCorrections = values.getCorrectiveTerms(node);
-                if (sim == VectorSimilarityFunction.EUCLIDEAN) {
-                    return applyInt4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
-                } else {
-                    return applyInt4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP);
-                }
-            }
-        };
-    }
-
     private UpdateableRandomVectorScorer scorer;
     private RandomVectorScorer queryScorer;
 
     static class VectorData {
-        final InMemoryInt4QuantizedByteVectorValues values;
+        final QuantizedByteVectorValues values;
         final float[] queryVector;
 
         VectorData(int dims) {
@@ -185,7 +151,7 @@ public class VectorScorerInt4Benchmark {
                 randomInt4Bytes(random, unpacked);
                 packedVectors[v] = packNibbles(unpacked);
             }
-            values = int4QuantizedVectorValues(dims, packedVectors);
+            values = createInt4QuantizedVectorValues(dims, packedVectors);
             queryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = random.nextFloat();

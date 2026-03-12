@@ -39,7 +39,7 @@ public record FormatReadContext(
      * Creates a minimal context for the common non-split case.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, false, false);
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, true, true);
     }
 
     /**
@@ -72,8 +72,8 @@ public record FormatReadContext(
         private int batchSize;
         private int rowLimit = FormatReader.NO_LIMIT;
         private ErrorPolicy errorPolicy = ErrorPolicy.STRICT;
-        private boolean firstSplit;
-        private boolean lastSplit;
+        private boolean firstSplit = true;
+        private boolean lastSplit = true;
 
         private Builder() {}
 

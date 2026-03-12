@@ -76,20 +76,21 @@ public interface FormatReader extends Closeable {
         return metadata(object).schema();
     }
 
-    // === CONTEXT-BASED API (preferred) ===
+    // === READ API ===
 
     /**
      * Reads data from the given storage object using the provided context.
      * <p>
-     * This is the primary read method. The default implementation delegates to the
-     * legacy parameter-based overloads for backward compatibility with existing
-     * implementations. New implementations should override this method directly.
+     * This is the primary read method. All implementations must override this method.
      */
-    default CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        if (context.rowLimit() != NO_LIMIT) {
-            return read(object, context.projectedColumns(), context.batchSize(), context.rowLimit(), context.errorPolicy());
-        }
-        return read(object, context.projectedColumns(), context.batchSize(), context.errorPolicy());
+    CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException;
+
+    /**
+     * Convenience overload that delegates to {@link #read(StorageObject, FormatReadContext)}.
+     * Keeps test code and simple call sites working without constructing a context.
+     */
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        return read(object, FormatReadContext.of(projectedColumns, batchSize));
     }
 
     /**
@@ -148,9 +149,9 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a format reader configured with the pre-resolved schema attributes.
+     * Returns a format reader configured with the schema attributes.
      * <p>
-     * The resolved schema is determined during the planning phase (via {@link #metadata(StorageObject)})
+     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
      * and is constant for all files/splits in a query. Passing it here allows the reader to skip
      * re-reading/inferring the schema from the file header on every read, which is especially
      * important for split-based reads where the split may start mid-file (no header available).
@@ -158,152 +159,11 @@ public interface FormatReader extends Closeable {
      * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
      * the schema from the file metadata.
      *
-     * @param resolvedSchema the planning-phase schema attributes, or null to clear
+     * @param schema the planning-phase schema attributes, or null to clear
      * @return a new reader with the schema set, or {@code this} if the schema is not needed
      */
-    default FormatReader withResolvedSchema(List<Attribute> resolvedSchema) {
+    default FormatReader withSchema(List<Attribute> schema) {
         return this;
-    }
-
-    // === LEGACY API (deprecated - use context-based methods above) ===
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
-        return read(object, projectedColumns, batchSize);
-    }
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
-        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
-        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
-    }
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize, errorPolicy);
-        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
-    }
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return read(object, projectedColumns, batchSize);
-    }
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
-    }
-
-    /**
-     * @deprecated Use {@link #read(StorageObject, FormatReadContext)} instead.
-     */
-    @Deprecated
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes);
-    }
-
-    // === LEGACY ASYNC API (deprecated) ===
-
-    /**
-     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
-     */
-    @Deprecated
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        readAsync(object, projectedColumns, batchSize, NO_LIMIT, executor, listener);
-    }
-
-    /**
-     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
-     */
-    @Deprecated
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        readAsync(object, projectedColumns, batchSize, rowLimit, null, executor, listener);
-    }
-
-    /**
-     * @deprecated Use {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)} instead.
-     */
-    @Deprecated
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        executor.execute(() -> {
-            try {
-                ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit, effective));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
     }
 
     default boolean supportsNativeAsync() {
@@ -319,7 +179,7 @@ public interface FormatReader extends Closeable {
         private final CloseableIterator<Page> delegate;
         private int remaining;
 
-        LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
+        public LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
             if (rowLimit <= 0) {
                 throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
             }

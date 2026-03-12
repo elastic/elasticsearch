@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -320,7 +321,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
         }
 
@@ -373,19 +374,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-            return readSplit(object, projectedColumns, batchSize, false, true, SCHEMA);
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean skipFirstLine = context.firstSplit() == false;
+            int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
 
@@ -524,19 +515,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-            return readSplit(object, projectedColumns, batchSize, false, true, SCHEMA);
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean skipFirstLine = context.firstSplit() == false;
+            int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
             if (skipFirstLine) {

@@ -48,96 +48,9 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         return inner.read(new DecompressingStorageObject(object, codec), context);
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize);
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, errorPolicy);
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit, errorPolicy);
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            resolvedAttributes
-        );
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            lastSplit,
-            resolvedAttributes
-        );
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            lastSplit,
-            resolvedAttributes,
-            errorPolicy
-        );
+        return read(object, FormatReadContext.of(projectedColumns, batchSize));
     }
 
     @Override
@@ -168,8 +81,8 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withResolvedSchema(List<Attribute> resolvedSchema) {
-        FormatReader configured = inner.withResolvedSchema(resolvedSchema);
+    public FormatReader withSchema(List<Attribute> schema) {
+        FormatReader configured = inner.withSchema(schema);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 

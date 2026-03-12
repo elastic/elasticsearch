@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -1098,8 +1097,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
         }
 
-        assertTrue("readSplit should be called for non-first segments", formatReader.readSplitCount.get() > 0);
-        assertEquals("read() should be called once for the first segment (handles header)", 1, formatReader.readCount.get());
+        assertTrue("read() should be called for multiple segments when parallel parsing is used", formatReader.readCount.get() > 1);
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -1151,7 +1149,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         assertTrue("read() should be called when row limit is set", formatReader.readCount.get() > 0);
-        assertEquals("readSplit should not be called when row limit bypasses parallel parsing", 0, formatReader.readSplitCount.get());
+        assertEquals(
+            "read() with firstSplit=false should not be called when row limit bypasses parallel parsing",
+            0,
+            formatReader.readWithFirstSplitFalseCount.get()
+        );
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -1295,7 +1297,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             readCount.incrementAndGet();
             Page page = createTestPage();
             return new CloseableIterator<>() {
@@ -1343,7 +1345,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
                 throw new IOException("Simulated read error on file: " + object.path());
@@ -1468,7 +1470,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
         }
 
@@ -1516,27 +1518,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return singlePageIterator();
         }
 
-        @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
-            capturedObjects.add(object);
-            capturedSkipFirstLine.add(false);
-            return singlePageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) {
-            capturedObjects.add(object);
-            capturedSkipFirstLine.add(skipFirstLine);
-            return singlePageIterator();
-        }
-
         private static CloseableIterator<Page> singlePageIterator() {
             Page page = createTestPage();
             return new CloseableIterator<>() {
@@ -1580,7 +1561,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class TrackingSegmentableFormatReader implements SegmentableFormatReader {
         final AtomicInteger readCount = new AtomicInteger(0);
-        final AtomicInteger readSplitCount = new AtomicInteger(0);
+        final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
 
         @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {
@@ -1601,35 +1582,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             readCount.incrementAndGet();
-            return singleTestPageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) {
-            readSplitCount.incrementAndGet();
-            return singleTestPageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes,
-            org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy errorPolicy
-        ) {
-            readSplitCount.incrementAndGet();
+            if (context.firstSplit() == false) {
+                readWithFirstSplitFalseCount.incrementAndGet();
+            }
             return singleTestPageIterator();
         }
 
@@ -1784,19 +1741,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
-        }
-
-        @Override
-        public void readAsync(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            Executor executor,
-            ActionListener<CloseableIterator<Page>> listener
-        ) {
-            executor.execute(() -> { listener.onResponse(emptyIterator()); });
         }
 
         @Override

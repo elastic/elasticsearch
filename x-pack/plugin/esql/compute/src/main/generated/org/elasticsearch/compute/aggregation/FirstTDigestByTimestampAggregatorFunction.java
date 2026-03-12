@@ -36,16 +36,10 @@ public final class FirstTDigestByTimestampAggregatorFunction implements Aggregat
 
   private final List<Integer> channels;
 
-  public FirstTDigestByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, TDigestStates.WithLongSingleState state) {
+  FirstTDigestByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstTDigestByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstTDigestByTimestampAggregatorFunction(driverContext, channels, FirstTDigestByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstTDigestByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -37,16 +37,11 @@ public final class AllLastFloatByLongGroupingAggregatorFunction implements Group
 
   private final DriverContext driverContext;
 
-  public AllLastFloatByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllLastFloatByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastFloatByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastFloatByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastFloatByLongGroupingAggregatorFunction(channels, AllLastFloatByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastFloatByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

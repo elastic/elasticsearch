@@ -33,16 +33,10 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public ValuesFloatGroupingAggregatorFunction(List<Integer> channels,
-      ValuesFloatAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesFloatAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesFloatGroupingAggregatorFunction(channels, ValuesFloatAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

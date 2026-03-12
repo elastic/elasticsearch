@@ -45,6 +45,8 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
+:::{important}
+
 The default {{infer}} endpoint varies by deployment type and version:
 
 - {applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` On {{serverless-short}} and {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
@@ -53,7 +55,6 @@ The default {{infer}} endpoint varies by deployment type and version:
 
 - {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
 
-:::{important}
 If you use the default {{infer}} endpoint and upgrade to a newer version, newly created indices may use a different embedding model than existing ones. Queries that target these indices together may produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
 :::

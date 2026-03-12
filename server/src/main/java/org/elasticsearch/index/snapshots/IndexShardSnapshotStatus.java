@@ -88,6 +88,7 @@ public class IndexShardSnapshotStatus {
     private final AtomicReference<Stage> stage;
     private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
+    private final long creationTimeMillis;
     private long startTimeMillis;
     private long totalTimeMillis;
     private int incrementalFileCount;
@@ -102,6 +103,7 @@ public class IndexShardSnapshotStatus {
 
     private IndexShardSnapshotStatus(
         final Stage stage,
+        final long creationTimeMillis,
         final long startTimeMillis,
         final long totalTimeMillis,
         final int incrementalFileCount,
@@ -117,6 +119,7 @@ public class IndexShardSnapshotStatus {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
         this.shardSnapshotResult = new AtomicReference<>();
+        this.creationTimeMillis = creationTimeMillis;
         this.startTimeMillis = startTimeMillis;
         this.totalTimeMillis = totalTimeMillis;
         this.incrementalFileCount = incrementalFileCount;
@@ -194,6 +197,10 @@ public class IndexShardSnapshotStatus {
 
     public long getTotalTimeMillis() {
         return totalTimeMillis;
+    }
+
+    public long getCreationTimeMillis() {
+        return creationTimeMillis;
     }
 
     public void addAbortListener(ActionListener<AbortStatus> listener) {
@@ -330,8 +337,12 @@ public class IndexShardSnapshotStatus {
         );
     }
 
-    public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation) {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
+    /**
+     * @param creationTimeMillis the time this status was created, used to compute queue time until the snapshot starts.
+     */
+    public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation, long creationTimeMillis) {
+        assert creationTimeMillis > 0 : "creationTimeMillis must be positive but got " + creationTimeMillis;
+        return new IndexShardSnapshotStatus(Stage.INIT, creationTimeMillis, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
     }
 
     public static IndexShardSnapshotStatus.Copy newFailed(final String failure) {
@@ -339,7 +350,7 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "initialized as failed").asCopy();
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "initialized as failed").asCopy();
     }
 
     public static IndexShardSnapshotStatus.Copy newDone(
@@ -354,6 +365,7 @@ public class IndexShardSnapshotStatus {
         // The snapshot is done which means the number of processed files is the same as total
         return new IndexShardSnapshotStatus(
             Stage.DONE,
+            0L,
             startTime,
             totalTime,
             incrementalFileCount,

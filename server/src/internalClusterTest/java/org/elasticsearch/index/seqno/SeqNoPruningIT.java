@@ -12,7 +12,9 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -23,10 +25,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +85,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         );
 
         // waits for retention leases to advance past all docs
-        assertRetentionLeasesAdvanced(indexName, totalDocs);
+        assertRetentionLeasesAdvanced(client(), indexName, totalDocs);
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -264,7 +269,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         final long newMaxSeqNo = indicesAdmin().prepareStats(indexName).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
 
         // wait for all retention leases to advance past all docs
-        assertRetentionLeasesAdvanced(indexName, newMaxSeqNo + 1);
+        assertRetentionLeasesAdvanced(client(), indexName, newMaxSeqNo + 1);
 
         forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -280,27 +285,67 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         assertShardsHaveSeqNoDocValues(indexName, false, 1);
     }
 
-    /**
-     * Waits for all retention leases on all copies of the given index to have their retaining sequence number
-     * equal to the expected value.
-     */
-    private static void assertRetentionLeasesAdvanced(String indexName, long expectedRetainingSeqNo) throws Exception {
-        assertBusy(() -> {
-            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (var indexService : indicesServices) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (var indexShard : indexService) {
-                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                                assertThat(
-                                    "retention lease [" + lease.id() + "] should have advanced",
-                                    lease.retainingSequenceNumber(),
-                                    equalTo(expectedRetainingSeqNo)
-                                );
-                            }
-                        }
-                    }
-                }
+    public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
+        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
+        final var indexName = randomIdentifier();
+        final Instant now = Instant.now();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now.minusSeconds(3600).toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), now.plusSeconds(3600).toString())
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .build()
+            ).setMapping("@timestamp", "type=date", "hostname", "type=keyword,time_series_dimension=true", "field", "type=keyword")
+        );
+        ensureGreen(indexName);
+
+        final int nbBatches = randomIntBetween(5, 10);
+        final int docsPerBatch = randomIntBetween(20, 50);
+        final long totalDocs = (long) nbBatches * docsPerBatch;
+
+        long timestampMillis = now.toEpochMilli() - totalDocs;
+        for (int batch = 0; batch < nbBatches; batch++) {
+            var bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int doc = 0; doc < docsPerBatch; doc++) {
+                bulk.add(
+                    prepareIndex(indexName).setSource(
+                        "@timestamp",
+                        timestampMillis++,
+                        "hostname",
+                        "host-" + batch + "-" + doc,
+                        "field",
+                        "value"
+                    )
+                );
             }
-        });
+            assertNoFailures(bulk.get());
+        }
+
+        flushAndRefresh(indexName);
+
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs);
+        assertShardsHaveSeqNoDocValues(indexName, true, 1);
+
+        assertThat(
+            indicesAdmin().prepareStats(indexName).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+            greaterThan(1L)
+        );
+
+        assertRetentionLeasesAdvanced(client(), indexName, totalDocs);
+
+        var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        assertNoFailures(forceMerge);
+
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs);
+        assertShardsHaveSeqNoDocValues(indexName, false, 1);
     }
 }

@@ -133,7 +133,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
 
-        if (multiRequest.allowsCrossProject() && crossProjectEnabled.orElse(false)) {
+        if (crossProjectEnabled.orElse(false)) {
             // These indices options trickle down and apply to each search request.
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))

@@ -1861,12 +1861,12 @@ public class NumberFieldMapper extends FieldMapper {
             boolean ignoreMalformed,
             IndexVersion indexVersion
         ) {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName, ignoreMalformed, indexVersion) {
-                @Override
-                public void writeValue(XContentBuilder b, long value) throws IOException {
-                    NumberType.this.writeValue(b, value);
-                }
-            };
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
+            if (ignoreMalformed) {
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
+            }
+            return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
         }
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);

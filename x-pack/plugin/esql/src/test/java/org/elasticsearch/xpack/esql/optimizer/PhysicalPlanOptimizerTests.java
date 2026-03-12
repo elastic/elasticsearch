@@ -4824,18 +4824,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 : FieldExtractPreference.NONE;
             assertAggregation(agg, "centroid", "hasDocValues:" + useDocValues, SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
             assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, GEO_SHAPE, fieldExtractPreference);
-            var fieldExtractExec = as(agg.child(), FieldExtractExec.class);
-            // Both bounds and centroid attributes should be set when doc-values are available
-            if (useDocValues) {
-                assertThat(fieldExtractExec.boundsAttributes().stream().map(Node::sourceText).toList(), equalTo(List.of("city_boundary")));
-                assertThat(
-                    fieldExtractExec.centroidAttributes().stream().map(Node::sourceText).toList(),
-                    equalTo(List.of("city_boundary"))
-                );
-            } else {
-                assertThat(fieldExtractExec.boundsAttributes(), equalTo(Set.of()));
-                assertThat(fieldExtractExec.centroidAttributes(), equalTo(Set.of()));
-            }
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
         }
     }
 
@@ -4963,15 +4952,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             );
             assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
             var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
-            var fieldExtractExec = as(exec.child(), FieldExtractExec.class);
-            // Both bounds and centroid attributes should be set when doc-values are available
-            if (hasDocValues) {
-                assertThat(fieldExtractExec.boundsAttributes().stream().map(Node::sourceText).toList(), equalTo(List.of("shape")));
-                assertThat(fieldExtractExec.centroidAttributes().stream().map(Node::sourceText).toList(), equalTo(List.of("shape")));
-            } else {
-                assertThat(fieldExtractExec.boundsAttributes(), equalTo(Set.of()));
-                assertThat(fieldExtractExec.centroidAttributes(), equalTo(Set.of()));
-            }
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
         }
     }
 

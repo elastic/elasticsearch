@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.DisallowLoadWithPartiallyMappedNonKeyword;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -249,6 +250,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertFromAggregateMetricDouble(),
             new TimeSeriesGroupByAll(),
             new ResolveUnionTypesInUnionAll(),
+            new DisallowLoadWithPartiallyMappedNonKeyword(),
             new ResolveUnmapped()
         ),
         new Batch<>(

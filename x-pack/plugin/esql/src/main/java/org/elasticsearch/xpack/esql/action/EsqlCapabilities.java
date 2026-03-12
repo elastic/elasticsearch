@@ -2170,6 +2170,11 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
+         * Support for TBUCKET with numeric bucket count and optional from/to parameters.
+         */
+        TBUCKET_FROM_TO,
+
+        /**
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,

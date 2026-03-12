@@ -2975,6 +2975,59 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testAcquireLastIndexCommitReleasesCommitOnFailure() throws Exception {
+        engine.close();
+        final var shouldFail = new AtomicBoolean(false);
+        final int failureVariant = between(0, 2);
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                final FlushResultListener effectiveListener;
+                if (shouldFail.get() && failureVariant == 0) {
+                    effectiveListener = new FlushResultListener() {
+                        @Override
+                        public void afterFlushWithLock(long generation) {
+                            listener.afterFlushWithLock(generation);
+                            throw new ElasticsearchException("simulated failure after acquiring commit");
+                        }
+
+                        @Override
+                        public void onResponse(FlushResult flushResult) {
+                            listener.onResponse(flushResult);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    };
+                } else {
+                    effectiveListener = listener;
+                }
+                super.flushHoldingLock(force, waitIfOngoing, effectiveListener);
+                if (shouldFail.get() && failureVariant == 1) {
+                    throw new ElasticsearchException("simulated failure at the end");
+                }
+            }
+
+            @Override
+            protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+                if (shouldFail.get() && failureVariant == 2) {
+                    listener.onFailure(new ElasticsearchException("simulated durability failure"));
+                } else {
+                    super.waitForCommitDurability(generation, listener);
+                }
+            }
+        };
+        recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+        engine.ensureCanFlush();
+
+        engine.index(indexForDoc(testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null)));
+        shouldFail.set(true);
+        expectThrows(ElasticsearchException.class, () -> engine.acquireLastIndexCommit(true));
+        assertFalse("acquired commit should have been released on failure", hasAcquiredIndexCommitsForTesting(engine));
+    }
+
     private Long getHighestSeqNo(final IndexReader reader) throws IOException {
         boolean usePoints = switch (defaultSettings.seqNoIndexOptions()) {
             case POINTS_AND_DOC_VALUES -> randomBoolean();

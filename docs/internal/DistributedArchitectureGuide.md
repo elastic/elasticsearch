@@ -1705,7 +1705,39 @@ section in the General Architecture Guide.
 
 ### Lucene
 
+[Apache Lucene](https://lucene.apache.org/) is the search and indexing library at the core of every Elasticsearch shard.
+Each shard is a Lucene index. Instead of treating Lucene as an opaque storage engine at the bottom of the
+stack, Elasticsearch deeply integrates with it. It customizes file I/O, codecs, merge behavior, and reader
+lifecycle.
+
+For more details on how Elasticsearch wraps Lucene's `Directory` for file I/O, see the [Store](#store) section.
+For how the `IndexWriter` and `DirectoryReader` are managed, including the distinction between "refresh"
+(NRT reopen) and "flush" (durable Lucene commit), see [Segments, Refresh, and Flush](#segments-refresh-and-flush).
+
 #### Lucene File Layout
+
+A Lucene index on disk is a collection of segment files plus a
+`segments_N` [info file](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SegmentInfos.html) that
+records which segments belong to the latest commit. Each segment is a self-contained, immutable mini-index composed
+of several file types, each responsible for a different data structure:
+
+| Extension | Content |
+|-----------|---------|
+| `.si`     | Segment metadata (doc count, unique id, diagnostics, Lucene version). |
+| `.fnm`    | Field infos: field names, types (string, numeric, etc.), and index options (stored, indexed, doc values). |
+| `.fdm`, `.fdt` | Stored fields metadata and data (original JSON `_source`, stored field values). |
+| `.tim`, `.tip`, `.doc`, `.pos`, `.pay` | The inverted index: term dictionary, postings lists, positions, and payloads. |
+| `.dvd`, `.dvm` | Doc values data and metadata (columnar storage for sorting, aggregations, scripting). |
+| `.tvd`, `.tvx` | Term vectors data and index. |
+| `.nvm`, `.nvd` | Norms (per-field length normalization factors used in scoring). |
+| `.liv`    | Live documents bitset (tracks which docs have been deleted within the segment). |
+| `.vec`, `.vex`, `.vem` | KNN vector data and graph (HNSW or other ANN structure). |
+| `.kdm`, `.kdi`, `.kdd` | Points / BKD tree (numeric range queries, geo). |
+
+The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
+`segments_N+1` as the active commit point, making the new set of segments visible. The old segment files are removed
+once no reader [holds a reference](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef())
+to them.
 
 #### Codecs
 

@@ -187,15 +187,15 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     diffGauge(() -> cache.getOrRefresh().get(indexMode).indexing.getIndexFailedDueToVersionConflictCount())
                 )
             );
-            metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
-                if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
-                    return null;
-                }
-                return new LongWithAttributes(
-                    getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
-                );
-            }));
         }
+        metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+            if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
+                return null;
+            }
+            return new LongWithAttributes(
+                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
+            );
+        }));
         assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";
         return metrics;
     }

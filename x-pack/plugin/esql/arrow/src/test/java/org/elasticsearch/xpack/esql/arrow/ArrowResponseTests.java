@@ -63,10 +63,9 @@ import java.util.stream.Stream;
 
 public class ArrowResponseTests extends ESTestCase {
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test-noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final RootAllocator ALLOCATOR = new RootAllocator();
 

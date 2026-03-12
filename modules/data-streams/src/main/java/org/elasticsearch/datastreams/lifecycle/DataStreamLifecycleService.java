@@ -99,6 +99,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -180,6 +181,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
+    private final AtomicBoolean dlmCurrentlyRunning = new AtomicBoolean(false);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
@@ -356,18 +358,28 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
-        long startTime = nowSupplier.getAsLong();
-        if (lastRunStartedAt != null) {
-            timeBetweenStarts = startTime - lastRunStartedAt;
-        }
-        lastRunStartedAt = startTime;
-        for (var projectId : state.metadata().projects().keySet()) {
-            // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
-            try {
-                run(state.projectState(projectId));
-            } catch (Exception e) {
-                logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+        // Ensure that if DLM execution takes longer than its invocation interval, that we still only run a single invocation at once.
+        if (dlmCurrentlyRunning.compareAndSet(false, true)) {
+            long startTime = nowSupplier.getAsLong();
+            if (lastRunStartedAt != null) {
+                timeBetweenStarts = startTime - lastRunStartedAt;
             }
+            lastRunStartedAt = startTime;
+            try {
+                for (var projectId : state.metadata().projects().keySet()) {
+                    // We catch inside the loop to avoid one broken project preventing DLM to run on other projects.
+                    try {
+                        run(state.projectState(projectId));
+                    } catch (Exception e) {
+                        logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+                    }
+                }
+            } finally {
+                // Ensure that no matter what, we unset the running flag.
+                dlmCurrentlyRunning.set(false);
+            }
+        } else {
+            logger.debug("DLM skipping run because it is already running, last run was started at [{}]", lastRunStartedAt);
         }
     }
 
@@ -577,7 +589,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             for (Index index : indicesEligibleForAction) {
                 long findStepStartTime = nowSupplier.getAsLong();
-                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                int stepToExecuteIndex = findFirstIncompleteStepIndex(projectState, dataStream, action, index);
                 if (logger.isTraceEnabled()) {
                     long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
                     logger.trace(
@@ -589,7 +601,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
 
-                if (stepToExecute != null) {
+                if (stepToExecuteIndex >= 0) {
+                    DlmStep stepToExecute = action.steps().get(stepToExecuteIndex);
                     try {
                         logger.trace(
                             "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
@@ -599,7 +612,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             index.getName()
                         );
                         long stepStartTime = nowSupplier.getAsLong();
-                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
+                        Index indexForExecution = resolveIndexOutputFromPreviousStep(stepToExecuteIndex, index, action, projectState);
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(indexForExecution);
                         stepToExecute.execute(dlmStepContext);
                         if (logger.isTraceEnabled()) {
                             long stepDuration = nowSupplier.getAsLong() - stepStartTime;
@@ -642,20 +656,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return indicesProcessed;
     }
 
-    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
-        DlmStep stepToExecute = null;
-        for (DlmStep step : action.steps().reversed()) {
+    private int findFirstIncompleteStepIndex(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        assert action.steps().size() >= 1 : "an action must have at least one step";
+        int stepToExecute = -1;
+        for (int i = action.steps().size() - 1; i >= 0; i--) {
+            DlmStep step = action.steps().get(i);
             try {
                 long checkStartTime = nowSupplier.getAsLong();
-                if (step.stepCompleted(index, projectState) == false) {
-                    stepToExecute = step;
+                Index indexInUse = resolveIndexOutputFromPreviousStep(i, index, action, projectState);
+                if (step.stepCompleted(indexInUse, projectState) == false) {
+                    stepToExecute = i;
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -666,7 +683,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -687,6 +704,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return stepToExecute;
+    }
+
+    // visible for testing
+    Index resolveIndexOutputFromPreviousStep(int stepToExecuteIndex, Index index, DlmAction action, ProjectState projectState) {
+        if (stepToExecuteIndex < 1) {
+            return index;
+        }
+
+        DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
+        List<String> possibleIndexNames = previousStep.possibleOutputIndexNamePatterns(index.getName());
+
+        return possibleIndexNames.stream()
+            .filter(projectState.metadata()::hasIndex)
+            .findFirst()
+            .map(possibleName -> projectState.metadata().index(possibleName).getIndex())
+            .orElseGet(() -> {
+                assert false
+                    : "Unable to resolve index name for executing step ["
+                        + action.steps().get(stepToExecuteIndex).stepName()
+                        + "] for action ["
+                        + action.name()
+                        + "] with index ["
+                        + index.getName()
+                        + "]";
+                return index;
+            });
     }
 
     // visible for testing
@@ -1811,58 +1854,4 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
-    /**
-     * This wrapper exists only to provide equals and hashCode implementations of a ForceMergeRequest for transportActionsDeduplicator.
-     * It intentionally ignores forceMergeUUID (which ForceMergeRequest's equals/hashCode would have to if they existed) because we don't
-     * care about it for data stream lifecycle deduplication. This class is non-private for the sake of unit testing, but should not be used
-     * outside of Data Stream Lifecycle Service.
-     */
-    static final class ForceMergeRequestWrapper extends ForceMergeRequest {
-        ForceMergeRequestWrapper(ForceMergeRequest original) {
-            super(original.indices());
-            this.maxNumSegments(original.maxNumSegments());
-            this.onlyExpungeDeletes(original.onlyExpungeDeletes());
-            this.flush(original.flush());
-            this.indicesOptions(original.indicesOptions());
-            this.setShouldStoreResult(original.getShouldStoreResult());
-            this.setRequestId(original.getRequestId());
-            this.timeout(original.timeout());
-            this.setParentTask(original.getParentTask());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ForceMergeRequest that = (ForceMergeRequest) o;
-            return Arrays.equals(indices, that.indices())
-                && maxNumSegments() == that.maxNumSegments()
-                && onlyExpungeDeletes() == that.onlyExpungeDeletes()
-                && flush() == that.flush()
-                && Objects.equals(indicesOptions(), that.indicesOptions())
-                && getShouldStoreResult() == that.getShouldStoreResult()
-                && getRequestId() == that.getRequestId()
-                && Objects.equals(timeout(), that.timeout())
-                && Objects.equals(getParentTask(), that.getParentTask());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(
-                Arrays.hashCode(indices),
-                maxNumSegments(),
-                onlyExpungeDeletes(),
-                flush(),
-                indicesOptions(),
-                getShouldStoreResult(),
-                getRequestId(),
-                timeout(),
-                getParentTask()
-            );
-        }
-    }
 }

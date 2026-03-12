@@ -15,7 +15,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -25,7 +25,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
@@ -40,9 +40,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFo
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -63,8 +63,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -120,6 +122,65 @@ public class KnnIndexTester {
         LOG_BYTE,
         NO,
         LOG_DOC
+    }
+
+    /**
+     * Factory that creates a directory for a given index path.
+     */
+    @FunctionalInterface
+    interface DirectoryFactory {
+        Directory create(Path indexPath) throws IOException;
+    }
+
+    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+        private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
+
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
+            this(factory, shared, preWarm, NOOP);
+        }
+    }
+
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>();
+
+    static {
+        directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
+        directoryTypeRegistry.put("frozen", new DirectoryTypeConfig(KnnIndexer::openFrozenDirectory, false, true));
+    }
+
+    /**
+     * Registers a custom directory type that can be referenced via {@code "directory_type"}
+     * in the test configuration JSON.
+     *
+     * @param name    the name used in configuration (e.g. "serverless")
+     * @param factory creates a Directory for the given index path
+     * @param shared  if true, a single directory instance is used for both write and read phases
+     * @param preWarm if true, the directory is pre-warmed before search
+     */
+    static void registerDirectoryType(String name, DirectoryFactory factory, boolean shared, boolean preWarm) {
+        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm));
+    }
+
+    /**
+     * Registers a custom directory type with an optional diagnostic logger.
+     *
+     * @param diagnosticLogger called with (directory, label) at key points (before/after prewarm, after search)
+     */
+    static void registerDirectoryType(
+        String name,
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger
+    ) {
+        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm, diagnosticLogger));
+    }
+
+    static DirectoryTypeConfig getDirectoryTypeConfig(String name) {
+        DirectoryTypeConfig config = directoryTypeRegistry.get(name);
+        if (config == null) {
+            throw new IllegalArgumentException("Unknown directory_type: '" + name + "'. Known types: " + directoryTypeRegistry.keySet());
+        }
+        return config;
     }
 
     private static String formatIndexPath(TestConfiguration args) {
@@ -185,37 +246,44 @@ public class KnnIndexTester {
                 );
             };
             case HNSW -> switch (quantizeBits) {
-                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec);
+                case null -> new ES93HnswVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    mergeWorkers,
+                    exec,
+                    args.flatVectorThreshold()
+                );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     false,
                     mergeWorkers,
-                    exec
+                    exec,
+                    args.flatVectorThreshold()
                 );
-                default -> new ES93HnswScalarQuantizedVectorsFormat(
+                default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
-                    null,
                     quantizeBits,
-                    true,
                     false,
                     mergeWorkers,
-                    exec
+                    exec,
+                    args.flatVectorThreshold()
                 );
             };
             case FLAT -> switch (quantizeBits) {
                 case null -> new ES93FlatVectorFormat(elementType);
                 case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                default -> new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
             };
         };
 
         logger.info("Using format {}", format.getName());
 
-        return new Lucene103Codec() {
+        return new Lucene104Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new KnnVectorsFormat(format.getName()) {
@@ -288,6 +356,13 @@ public class KnnIndexTester {
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
             System.out.println("--warmUp is the number of warm up iterations");
             System.out.println();
+            System.out.println("Available datasets:");
+            try {
+                System.out.println(TestConfiguration.listDatasets());
+            } catch (Exception e) {
+                System.out.println("Failed to list datasets: " + e.getMessage());
+            }
+            System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");
             System.out.println();
@@ -347,49 +422,20 @@ public class KnnIndexTester {
                 Codec codec = createCodec(testConfiguration, exec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
-                    KnnIndexer knnIndexer = new KnnIndexer(
-                        testConfiguration.docVectors(),
-                        indexPath,
-                        codec,
-                        testConfiguration.indexThreads(),
-                        testConfiguration.vectorEncoding().luceneEncoding,
-                        testConfiguration.dimensions(),
-                        testConfiguration.vectorSpace(),
-                        testConfiguration.numDocs(),
-                        mergePolicy,
-                        testConfiguration.writerBufferSizeInMb(),
-                        testConfiguration.writerMaxBufferedDocs()
-                    );
-                    if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                    }
-                    if (testConfiguration.reindex()) {
-                        knnIndexer.createIndex(indexResults);
-                    }
-                    if (testConfiguration.forceMerge()) {
-                        knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
-                    }
-                }
-                numSegments(indexPath, indexResults);
-                if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                    if (parsedArgs.warmUpIterations() > 0) {
-                        logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-                    }
-                    // Warm up
-                    for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-                        for (int i = 0; i < results.length; i++) {
-                            var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
-                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                            knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
-                        }
-                    }
+                DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
 
-                    for (int i = 0; i < results.length; i++) {
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                        knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
-                    }
-                }
+                runTestConfiguration(
+                    testConfiguration,
+                    indexPath,
+                    codec,
+                    mergePolicy,
+                    dirConfig,
+                    indexResults,
+                    results,
+                    parsedArgs,
+                    indexPathName,
+                    indexType
+                );
                 formattedResults.queryResults.addAll(List.of(results));
                 formattedResults.indexResults.add(indexResults);
             } finally {
@@ -401,12 +447,133 @@ public class KnnIndexTester {
         logger.info("Results: \n" + formattedResults);
     }
 
+    /**
+     * Runs indexing, merge, and search phases using the given directory configuration.
+     * When {@code dirConfig.shared()} is true, a single directory instance is used for all
+     * phases. Otherwise, separate directories are used for write and read.
+     */
+    private static void runTestConfiguration(
+        TestConfiguration testConfiguration,
+        Path indexPath,
+        Codec codec,
+        MergePolicy mergePolicy,
+        DirectoryTypeConfig dirConfig,
+        Results indexResults,
+        Results[] results,
+        ParsedArgs parsedArgs,
+        String indexPathName,
+        String indexType
+    ) throws Exception {
+        Directory sharedDir = dirConfig.shared() ? dirConfig.factory().create(indexPath) : null;
+        try {
+            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                KnnIndexer knnIndexer = new KnnIndexer(
+                    testConfiguration.docVectors(),
+                    indexPath,
+                    codec,
+                    testConfiguration.indexThreads(),
+                    testConfiguration.vectorEncoding().luceneEncoding,
+                    testConfiguration.dimensions(),
+                    testConfiguration.vectorSpace(),
+                    testConfiguration.numDocs(),
+                    mergePolicy,
+                    testConfiguration.writerBufferSizeInMb(),
+                    testConfiguration.writerMaxBufferedDocs()
+                );
+                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                }
+                if (testConfiguration.reindex()) {
+                    reindex(knnIndexer, indexResults, sharedDir);
+                }
+                if (testConfiguration.forceMerge()) {
+                    forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
+            }
+            numSegments(indexPath, indexResults, sharedDir);
+            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                try {
+                    if (dirConfig.preWarm()) {
+                        logDiagnostics(dirConfig, readDir, "Before prewarm");
+                        KnnSearcher.preWarmDirectory(readDir);
+                        logDiagnostics(dirConfig, readDir, "After prewarm");
+                    }
+                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                    logDiagnostics(dirConfig, readDir, "After search");
+                } finally {
+                    if (sharedDir == null) {
+                        readDir.close();
+                    }
+                }
+            }
+        } finally {
+            if (sharedDir != null) {
+                sharedDir.close();
+            }
+        }
+    }
+
+    static void reindex(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir) throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.createIndex(indexResults, sharedDir);
+        } else {
+            knnIndexer.createIndex(indexResults);
+        }
+    }
+
+    static void forceMerge(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir);
+        } else {
+            knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
+        }
+    }
+
+    private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
+        dirConfig.diagnosticLogger().accept(dir, label);
+    }
+
+    static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
+        if (sharedDir != null) {
+            numSegments(sharedDir, indexResults);
+        } else {
+            numSegments(indexPath, indexResults);
+        }
+    }
+
+    private static void runSearches(
+        TestConfiguration testConfiguration,
+        Path indexPath,
+        Directory dir,
+        Results[] results,
+        ParsedArgs parsedArgs,
+        String indexPathName,
+        String indexType
+    ) throws Exception {
+        if (parsedArgs.warmUpIterations() > 0) {
+            logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+        }
+        for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+            for (int i = 0; i < results.length; i++) {
+                var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
+                KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i), dir);
+            }
+        }
+        for (int i = 0; i < results.length; i++) {
+            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+            knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
+        }
+    }
+
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if (args.quantizeBits() == null || !Set.of(1, 2, 4).contains(args.quantizeBits())) {
+                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
                     throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + args.quantizeBits()
+                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
                 }
                 break;
@@ -431,10 +598,18 @@ public class KnnIndexTester {
     }
 
     static void numSegments(Path indexPath, Results result) throws IOException {
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
+        try (Directory dir = KnnIndexer.getDirectory(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {
             throw new IOException("Failed to get segment count for index at " + indexPath, e);
+        }
+    }
+
+    static void numSegments(Directory dir, Results result) throws IOException {
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            result.numSegments = reader.leaves().size();
+        } catch (IOException e) {
+            throw new IOException("Failed to get segment count for dir: " + dir, e);
         }
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,6 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -110,12 +110,36 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
+    /**
+     * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
+     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     */
+    public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
+        "parsing_parallelism",
+        EsExecutors.allocatedProcessors(Settings.EMPTY),
+        1
+    );
+
+    /**
+     * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
+     * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
+     * of doc-sequence loading.
+     */
+    public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
 
     public QueryPragmas(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Returns the underlying settings.
+     */
+    public Settings settings() {
+        return settings;
     }
 
     public QueryPragmas(StreamInput in) throws IOException {
@@ -136,7 +160,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int concurrentExchangeClients() {
-        return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
+        return ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.get(settings);
     }
 
     public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -244,6 +268,22 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int parsingParallelism() {
+        return PARSING_PARALLELISM.get(settings);
+    }
+
+    /**
+     * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
+     * {@code true}, returns {@code 0} so that all non-single-segment pages use
+     * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
+     */
+    public int docSequenceBytesRefFieldThreshold(int clusterDefault) {
+        if (FORCE_DOC_SEQUENCE.get(settings)) {
+            return 0;
+        }
+        return clusterDefault;
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

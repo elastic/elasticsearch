@@ -113,6 +113,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            LuceneSourceOperator.Factory::autoStrategy,
             taskConcurrency,
             maxPageSize,
             limit,
@@ -227,7 +228,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
         IndexReader rLarge = null;
         try {
             r0 = simpleReader(dir0, 0, 1);
-            rLarge = simpleReader(dirLarge, 200, 10);
+            rLarge = simpleReader(dirLarge, 2000, 100);
 
             List<ShardContext> shardContexts = List.of(new LuceneSourceOperatorTests.MockShardContext(r0, 0) {
                 @Override
@@ -254,6 +255,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 new IndexedByShardIdFromList<>(shardContexts),
                 queryFunction,
                 DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
                 taskConcurrency,
                 maxPageSize,
                 10,

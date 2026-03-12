@@ -45,6 +45,7 @@ public record SourceOperatorContext(
     List<Attribute> attributes,
     int batchSize,
     int maxBufferSize,
+    int rowLimit,
     Executor executor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
@@ -52,7 +53,8 @@ public record SourceOperatorContext(
     FileSet fileSet,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
-    @Nullable ExternalSliceQueue sliceQueue
+    @Nullable ExternalSliceQueue sliceQueue,
+    int parsingParallelism
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -70,6 +72,9 @@ public record SourceOperatorContext(
         }
         if (maxBufferSize <= 0) {
             throw new IllegalArgumentException("maxBufferSize must be positive, got: " + maxBufferSize);
+        }
+        if (parsingParallelism < 1) {
+            throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
         }
     }
 
@@ -94,6 +99,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -101,7 +107,8 @@ public record SourceOperatorContext(
             fileSet,
             split,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -125,6 +132,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -132,7 +140,8 @@ public record SourceOperatorContext(
             fileSet,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -155,6 +164,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -162,7 +172,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -183,6 +194,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             Map.of(),
@@ -190,7 +202,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -205,6 +218,7 @@ public record SourceOperatorContext(
         private List<Attribute> attributes;
         private int batchSize = 1000;
         private int maxBufferSize = 10;
+        private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
@@ -213,6 +227,7 @@ public record SourceOperatorContext(
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
+        private int parsingParallelism = 1;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -241,6 +256,11 @@ public record SourceOperatorContext(
 
         public Builder maxBufferSize(int maxBufferSize) {
             this.maxBufferSize = maxBufferSize;
+            return this;
+        }
+
+        public Builder rowLimit(int rowLimit) {
+            this.rowLimit = rowLimit;
             return this;
         }
 
@@ -284,6 +304,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder parsingParallelism(int parsingParallelism) {
+            this.parsingParallelism = parsingParallelism;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -292,6 +317,7 @@ public record SourceOperatorContext(
                 attributes,
                 batchSize,
                 maxBufferSize,
+                rowLimit,
                 executor,
                 config,
                 sourceMetadata,
@@ -299,7 +325,8 @@ public record SourceOperatorContext(
                 fileSet,
                 split,
                 partitionColumnNames,
-                sliceQueue
+                sliceQueue,
+                parsingParallelism
             );
         }
     }

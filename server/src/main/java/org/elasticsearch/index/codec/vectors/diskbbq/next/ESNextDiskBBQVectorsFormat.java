@@ -52,9 +52,16 @@ import java.util.concurrent.ExecutorService;
 public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final String NAME = "ESNextDiskBBQVectorsFormat";
+    // centroid ordinals -> centroid values, offsets
+    public static final String CENTROID_EXTENSION = "cenivf";
+    // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized vectors
+    public static final String CLUSTER_EXTENSION = "clivf";
+    public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 1;
+    public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_CURRENT = VERSION_START;
+    public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatVectorScorer.INSTANCE
@@ -161,7 +168,39 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 int totalBits = dimensions * 4;
                 return (totalBits + 7) / 8 * 8 / 4;
             }
+        },
+        SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                return dimensions;
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
         };
+
+        private static void packAsBytes(int[] quantized, byte[] destination) {
+            for (int i = 0; i < quantized.length; i++) {
+                destination[i] = (byte) quantized[i];
+            }
+        }
 
         private final int id;
         private final byte bits, queryBits;
@@ -230,6 +269,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 case 1 -> ONE_BIT_4BIT_QUERY;
                 case 2 -> TWO_BIT_4BIT_QUERY;
                 case 4 -> FOUR_BIT_SYMMETRIC;
+                case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
         }

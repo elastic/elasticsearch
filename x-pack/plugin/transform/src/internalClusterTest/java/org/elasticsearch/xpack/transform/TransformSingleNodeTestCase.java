@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -23,8 +24,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
@@ -114,12 +117,14 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         client().execute(PutTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
-    protected void createDiceTransform(String transformId, String transformSrc, String projectRouting) {
+    protected void createDiceTransform(String transformId, String transformSrc, IndicesOptions indicesOptions, String projectRouting) {
         createTransform(
             TransformConfig.builder()
                 .setId(transformId)
                 .setDest(new DestConfig(transformId, null, null))
-                .setSource(new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), projectRouting))
+                .setSource(
+                    new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), indicesOptions, projectRouting)
+                )
                 .setFrequency(TimeValue.ONE_MINUTE)
                 .setSyncConfig(new TimeSyncConfig("time", TimeValue.ONE_MINUTE))
                 .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
@@ -135,6 +140,16 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         var configs = response.getTransformConfigurations();
         assertThat(configs, hasSize(1));
         return configs.getFirst();
+    }
+
+    protected void stopTransform(String transformId) {
+        var request = new StopTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS, false, false);
+        assertTrue(client().execute(StopTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS).isAcknowledged());
+    }
+
+    protected void deleteTransform(String transformId) {
+        var request = new DeleteTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS);
+        client().execute(DeleteTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
     protected void updateTransform(String transformId, TransformConfigUpdate transformConfigUpdate) {

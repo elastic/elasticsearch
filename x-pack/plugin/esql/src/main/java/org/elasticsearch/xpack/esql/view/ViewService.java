@@ -68,14 +68,14 @@ public class ViewService {
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
 
-    public ViewService(ClusterService clusterService) {
+    public ViewService(ClusterService clusterService, EsqlFunctionRegistry functionRegistry) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        this.telemetry = new PlanTelemetry(functionRegistry);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
     }

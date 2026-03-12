@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -67,7 +69,7 @@ import java.util.OptionalLong;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements FormatReader {
+public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
 
@@ -270,6 +272,67 @@ public class ParquetFormatReader implements FormatReader {
     @Override
     public void close() throws IOException {
         // No resources to close at the reader level
+    }
+
+    @Override
+    public List<long[]> discoverSplitRanges(StorageObject object) throws IOException {
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
+            List<BlockMetaData> rowGroups = reader.getRowGroups();
+            if (rowGroups.size() <= 1) {
+                return List.of();
+            }
+            List<long[]> ranges = new ArrayList<>(rowGroups.size());
+            for (BlockMetaData block : rowGroups) {
+                ranges.add(new long[] { block.getStartingPos(), block.getTotalByteSize() });
+            }
+            return ranges;
+        }
+    }
+
+    /**
+     * Reads only row groups whose starting position falls within {@code [rangeStart, rangeEnd)}.
+     * errorPolicy is accepted for interface compliance but not applied — Parquet errors are
+     * structural (corrupt page, schema mismatch) rather than row-level.
+     */
+    @Override
+    public CloseableIterator<Page> readRange(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        long rangeStart,
+        long rangeEnd,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetReadOptions options = ParquetReadOptions.builder().withRange(rangeStart, rangeEnd).build();
+        ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
+
+        FileMetaData fileMetaData = reader.getFileMetaData();
+        MessageType parquetSchema = fileMetaData.getSchema();
+        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
+
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null || projectedColumns.isEmpty()) {
+            projectedAttributes = attributes;
+        } else {
+            projectedAttributes = new ArrayList<>();
+            Map<String, Attribute> attributeMap = new HashMap<>();
+            for (Attribute attr : attributes) {
+                attributeMap.put(attr.name(), attr);
+            }
+            for (String columnName : projectedColumns) {
+                Attribute attr = attributeMap.get(columnName);
+                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
+                projectedAttributes.add(attr);
+            }
+        }
+
+        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+        String createdBy = fileMetaData.getCreatedBy();
+        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT, createdBy);
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {

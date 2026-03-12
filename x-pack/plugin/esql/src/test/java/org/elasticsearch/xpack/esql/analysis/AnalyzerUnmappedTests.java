@@ -3678,11 +3678,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * This means that ResolveUnmapped will see the EVAL with a yet-to-be-resolved reference to nanos.
      * It should not treat it as unmapped, because there is clearly a nanos attribute in the EVAL's input.
      *
+     * <pre>
      * Limit[1000[INTEGER],false,false]
      * \_Eval[[MVMIN(nanos{r}#6) AS nanos#11]]
-     *   \_Filter[millis{r}#4 < 946684800000[DATETIME]]
+     *   \_Filter[millis{r}#4 &lt; 946684800000[DATETIME]]
      *     \_OrderBy[[Order[millis{r}#4,ASC,LAST]]]
      *       \_Row[[TODATETIME(1970-01-01T00:00:00Z[KEYWORD]) AS millis#4, TODATENANOS(1970-01-01T00:00:00Z[KEYWORD]) AS nanos#6]]
+     * </pre>
      */
     public void testDoNotResolveUnmappedFieldPresentInChildren() {
         String query = """
@@ -3709,6 +3711,88 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(millisAttr.dataType(), is(DataType.DATETIME));
         assertThat(nanosAttr.name(), is("nanos"));
         assertThat(nanosAttr.dataType(), is(DataType.DATE_NANOS));
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Unmapped fields with dotted names (e.g. host.entity.id) should be nullified in STATS WHERE, even when an EVAL before the STATS
+     * creates a field whose name is a suffix of the unmapped field name (e.g. entity.id).
+     *
+     * <pre>
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[entity.id{r}#6],[FilteredExpression[VALUES(host.entity.id{r}#13,true[BOOLEAN],PT0S[TIME_DURATION]),
+     *                               ISNOTNULL(host.entity.id{r}#13)] AS host.entity.id#10, entity.id{r}#6]]
+     *   \_Eval[[foo[KEYWORD] AS entity.id#6, null[NULL] AS host.entity.id#13]]
+     *     \_Row[[1[INTEGER] AS x#4]]
+     * </pre>
+     */
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            ROW x = 1
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+            """));
+
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), is(List.of("host.entity.id", "entity.id")));
+        assertThat(agg.groupings(), hasSize(1));
+        assertThat(Expressions.name(agg.groupings().getFirst()), is("entity.id"));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), hasItems("entity.id", "host.entity.id"));
+        var hostEntityIdAlias = eval.fields().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow();
+        assertThat(hostEntityIdAlias.child(), instanceOf(Literal.class));
+        assertThat(hostEntityIdAlias.child().dataType(), is(DataType.NULL));
+
+        as(eval.child(), Row.class);
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Same as {@link #testStatsFilteredAggAfterEvalWithDottedUnmappedField()} but with FROM instead of ROW.
+     * Tests both nullify and load modes: the plan shape is the same, only the field type in the EsRelation differs.
+     *
+     * <pre>
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[entity.id{r}#4],[FilteredExpression[VALUES(host.entity.id{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]),
+     *                               ISNOTNULL(host.entity.id{f}#22)] AS host.entity.id#8, entity.id{r}#4]]
+     *   \_Eval[[foo[KEYWORD] AS entity.id#4]]
+     *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * </pre>
+     */
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() {
+        boolean load = randomBoolean();
+        String query = """
+            FROM test
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+            """;
+        var plan = analyzeStatement(load ? setUnmappedLoad(query) : setUnmappedNullify(query));
+
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), is(List.of("host.entity.id", "entity.id")));
+        assertThat(agg.groupings(), hasSize(1));
+        assertThat(Expressions.name(agg.groupings().getFirst()), is("entity.id"));
+
+        var eval = as(agg.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("entity.id")));
+
+        var relation = as(eval.child(), EsRelation.class);
+        var dneAttr = as(
+            relation.output().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow(),
+            FieldAttribute.class
+        );
+        if (load) {
+            as(dneAttr.field(), PotentiallyUnmappedKeywordEsField.class);
+        } else {
+            assertThat(dneAttr.dataType(), is(DataType.NULL));
+        }
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

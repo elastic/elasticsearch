@@ -31,13 +31,13 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier imple
   @Override
   public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(driverContext, channels);
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

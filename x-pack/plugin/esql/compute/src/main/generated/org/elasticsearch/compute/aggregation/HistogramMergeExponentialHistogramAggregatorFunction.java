@@ -34,16 +34,11 @@ public final class HistogramMergeExponentialHistogramAggregatorFunction implemen
 
   private final List<Integer> channels;
 
-  public HistogramMergeExponentialHistogramAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, ExponentialHistogramStates.SingleState state) {
+  HistogramMergeExponentialHistogramAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static HistogramMergeExponentialHistogramAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new HistogramMergeExponentialHistogramAggregatorFunction(driverContext, channels, HistogramMergeExponentialHistogramAggregator.initSingle(driverContext));
+    this.state = HistogramMergeExponentialHistogramAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

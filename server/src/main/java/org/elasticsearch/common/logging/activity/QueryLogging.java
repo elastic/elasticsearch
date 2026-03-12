@@ -50,4 +50,5 @@ public interface QueryLogging {
      * How many remote clusters were involved in this query?
      */
     String QUERY_FIELD_REMOTE_COUNT = ES_QUERY_FIELDS_PREFIX + "remote_count";
+    String QUERY_FIELD_REMOTES = ES_QUERY_FIELDS_PREFIX + "remotes";
 }

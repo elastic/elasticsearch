@@ -1,30 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -41,11 +32,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
             "metric_temporality field mapper is only available when the feature flag is enabled",
             MetricTemporalityFieldMapper.FEATURE_FLAG.isEnabled()
         );
-    }
-
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new AnalyticsPlugin());
     }
 
     @Override

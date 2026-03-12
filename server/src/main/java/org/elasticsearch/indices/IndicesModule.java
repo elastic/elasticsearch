@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.LookupRuntimeFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MetricTemporalityFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -217,6 +218,9 @@ public class IndicesModule extends AbstractModule {
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
         mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
+        if (MetricTemporalityFieldMapper.FEATURE_FLAG.isEnabled()) {
+            mappers.put(MetricTemporalityFieldMapper.CONTENT_TYPE, MetricTemporalityFieldMapper.PARSER);
+        }
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(NestedObjectMapper.CONTENT_TYPE, new NestedObjectMapper.TypeParser());
         mappers.put(PassThroughObjectMapper.CONTENT_TYPE, new PassThroughObjectMapper.TypeParser());

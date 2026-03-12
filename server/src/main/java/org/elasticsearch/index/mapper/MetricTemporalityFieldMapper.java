@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.xpack.analytics.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -21,21 +23,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
-import org.elasticsearch.index.mapper.IndexType;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;

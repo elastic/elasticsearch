@@ -158,6 +158,7 @@ import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
 
@@ -833,6 +834,7 @@ public class SnapshotResiliencyTestHelper {
                             Collections.emptyList(),
                             client,
                             null,
+                            UserAgentParserRegistry.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {

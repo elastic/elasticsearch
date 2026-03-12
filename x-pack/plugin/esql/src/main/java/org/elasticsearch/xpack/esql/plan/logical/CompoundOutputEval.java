@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.SequencedMap;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -131,7 +131,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * @return a list of computed output attributes
      */
     protected static List<Attribute> computeOutputAttributes(
-        final LinkedHashMap<String, Class<?>> outputColumns,
+        final SequencedMap<String, Class<?>> outputColumns,
         final String outputFieldPrefix,
         final Source source
     ) {

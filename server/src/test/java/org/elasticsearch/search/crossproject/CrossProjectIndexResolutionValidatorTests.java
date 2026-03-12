@@ -1620,6 +1620,83 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("no such index [P1:logs]"));
     }
 
+    public void testWildcardClusterAliasConcreteIndex() {
+
+        // local index not found with cluster alias pattern
+        var localNotFound = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            null,
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "*:logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of("linked-1:logs")
+                    )
+                )
+            ),
+            Map.of(
+                "linked-1",
+                new ResolvedIndexExpressions(
+                    List.of(
+                        new ResolvedIndexExpression(
+                            "logs",
+                            new ResolvedIndexExpression.LocalExpressions(
+                                Set.of("logs"),
+                                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                                null
+                            ),
+                            Set.of()
+                        )
+                    )
+                )
+            )
+        );
+        assertNotNull(localNotFound);
+        assertThat(localNotFound.getMessage(), equalTo("no such index [_origin:logs]"));
+
+        // remote index not found with cluster alias pattern
+        var remoteNotFound = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            null,
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "*:logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of("linked-1:logs")
+                    )
+                )
+            ),
+            Map.of(
+                "linked-1",
+                new ResolvedIndexExpressions(
+                    List.of(
+                        new ResolvedIndexExpression(
+                            "logs",
+                            new ResolvedIndexExpression.LocalExpressions(
+                                Set.of("logs"),
+                                ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                                null
+                            ),
+                            Set.of()
+                        )
+                    )
+                )
+            )
+        );
+        assertNotNull(remoteNotFound);
+        assertThat(remoteNotFound.getMessage(), equalTo("no such index [linked-1:logs]"));
+    }
+
     private IndicesOptions getStrictAllowNoIndices() {
         return getIndicesOptions(true, false);
     }

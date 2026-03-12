@@ -83,7 +83,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final TimeValue forceConnectTimeoutSecs;
@@ -97,7 +96,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -105,9 +105,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.forceConnectTimeoutSecs = clusterService.getSettings()
             .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));
         transportService.registerRequestHandler(

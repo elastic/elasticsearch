@@ -207,7 +207,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Client client,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -238,7 +239,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.client = client;
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.activityLogger = new ActivityLogger<>(
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),

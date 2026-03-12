@@ -123,7 +123,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ActionFilters actionFilters,
         IndicesService indicesService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -142,7 +143,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

@@ -331,43 +331,45 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void setDefaultSSLContext() throws NoSuchAlgorithmException {
+    static boolean setDefaultSSLContext() throws NoSuchAlgorithmException {
         SSLContext original = SSLContext.getDefault();
         SSLContext dummy = SSLContext.getInstance("TLS");
         SSLContext.setDefault(dummy);
-        boolean unchanged = SSLContext.getDefault() == original;
-        if (unchanged == false) {
+        boolean changed = SSLContext.getDefault() != original;
+        if (changed) {
             SSLContext.setDefault(original);
         }
-        assert unchanged : "SSLContext.setDefault should have been a no-op when denied";
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void setDefaultHostnameVerifier() {
+    static boolean setDefaultHostnameVerifier() {
         var original = HttpsURLConnection.getDefaultHostnameVerifier();
         HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
-        boolean unchanged = HttpsURLConnection.getDefaultHostnameVerifier() == original;
-        if (unchanged == false) {
+        boolean changed = HttpsURLConnection.getDefaultHostnameVerifier() != original;
+        if (changed) {
             HttpsURLConnection.setDefaultHostnameVerifier(original);
         }
-        assert unchanged : "HttpsURLConnection.setDefaultHostnameVerifier should have been a no-op when denied";
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void setDefaultSSLSocketFactory() {
+    static boolean setDefaultSSLSocketFactory() {
         var original = HttpsURLConnection.getDefaultSSLSocketFactory();
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
-        boolean unchanged = HttpsURLConnection.getDefaultSSLSocketFactory() == original;
-        if (unchanged == false) {
+        boolean changed = HttpsURLConnection.getDefaultSSLSocketFactory() != original;
+        if (changed) {
             HttpsURLConnection.setDefaultSSLSocketFactory(original);
         }
-        assert unchanged : "HttpsURLConnection.setDefaultSSLSocketFactory should have been a no-op when denied";
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
-    static void setHttpsConnectionProperties() {
+    static boolean setHttpsConnectionProperties() {
         var connection = new DummyImplementations.DummyHttpsURLConnection();
+        var original = connection.getSSLSocketFactory();
         connection.setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
+        return connection.getSSLSocketFactory() != original;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

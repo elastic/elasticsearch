@@ -344,6 +344,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
             throw e;
         }
     }
+
     private static byte[] snappyEncode(byte[] input) {
         ByteBuf in = Unpooled.wrappedBuffer(input);
         ByteBuf out = Unpooled.buffer(input.length);

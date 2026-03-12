@@ -13,6 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
@@ -8834,6 +8837,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    public void testTimeSeriesWithLimitZeroDoesNotFailVerifier() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h) | LIMIT 0";
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testTimeSeriesGroupByAllWithLimitZeroDoesNotFailVerifier() {
+        assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+        var query = "TS k8s | STATS avg_over_time(network.cost) | LIMIT 0";
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var local = as(eval.child(), LocalRelation.class);
+        assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
+        var query = "TS k8s | STATS network.cost BY bucket(@timestamp, 1h) | LIMIT 0";
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var local = as(eval.child(), LocalRelation.class);
+        assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
     public void testTranslateDataGroupedByTBucket() {
         assumeTrue("requires TBUCKET capability enabled", EsqlCapabilities.Cap.TBUCKET.isEnabled());
         var query = """
@@ -9837,6 +9866,274 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#3, y{r}#5, z{r}#7],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=6]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionBasic() {
+        var plan = plan("""
+            ROW x = 4, y = 2, z = x + y
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(3, page.getBlockCount());
+        assertEquals(4, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(6, ((IntBlock) page.getBlock(2)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#4, b{r}#7, c{r}#11, d{r}#15],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=20]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=30]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionMultipleRefs() {
+        var plan = plan("""
+            ROW a = 10, b = a * 2, c = a + b, d = b - a
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(20, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(10, ((IntBlock) page.getBlock(3)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#51, y{r}#53, z{r}#57, w{r}#62],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=25]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=12]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionComplexExpr() {
+        var plan = plan("""
+            ROW x = 5, y = 3, z = x * y + 10, w = z / (x - y)
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z", "w")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(5, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(25, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(12, ((IntBlock) page.getBlock(3)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#64, b{r}#66, c{r}#70, d{r}#73],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=6]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionWithFunctions() {
+        var plan = plan("""
+            ROW a = 10, b = 3, c = ROUND(a / b, 2), d = c * 2
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(6, ((IntBlock) page.getBlock(3)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#75, b{r}#77, c{r}#79, result{r}#85],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=18]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionNestedArithmetic() {
+        var plan = plan("""
+            ROW a = 2, b = 3, c = 4, result = (a + b) * c - a
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "result")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(2, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(4, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(18, ((IntBlock) page.getBlock(3)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[x{r}#17, y{r}#19, z{r}#23],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * ConstantNullBlock[positions=1], ConstantNullBlock[positions=1]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionWithNull() {
+        var plan = plan("""
+            ROW x = 10, y = null, z = x + y
+            """);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(3, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertTrue(page.getBlock(1).isNull(0));
+        assertTrue(page.getBlock(2).isNull(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#25, b{r}#28, c{r}#31, d{r}#34, e{r}#37],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=4]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=5]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionChained() {
+        var plan = plan("""
+            ROW a = 1, b = a + 1, c = b + 1, d = c + 1, e = d + 1
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d", "e")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(5, page.getBlockCount());
+        assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(4, ((IntBlock) page.getBlock(3)).getInt(0));
+        assertEquals(5, ((IntBlock) page.getBlock(4)).getInt(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[a{r}#39, b{r}#41, is_greater{r}#45, is_equal{r}#49],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=10]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=20]],
+     * BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
+     * BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=false]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionBoolean() {
+        var plan = plan("""
+            ROW a = 10, b = 20, is_greater = b > a, is_equal = a == b
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "is_greater", "is_equal")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(20, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(true, ((BooleanBlock) page.getBlock(2)).getBoolean(0));
+        assertEquals(false, ((BooleanBlock) page.getBlock(3)).getBoolean(0));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[b{r}#89, a{r}#91],Page{blocks=[
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]],
+     * IntVectorBlock[vector=ConstantIntVector[positions=1, value=3]]]}]
+     * }</pre>
+     */
+    public void testRowFieldResolutionShadowing() {
+        var plan = plan("""
+            ROW a = 1, b = 2, a = 3
+            """);
+        var limit = asLimit(plan, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("b", "a")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(2, page.getBlockCount());
+        assertEquals(2, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+    }
+
+    /**
+     * Verifies that intra-ROW-command references to non-deterministic functions produce correct values after optimization.
+     * Since {@code random()} is an internal function, the plan is built manually.
+     * See https://github.com/elastic/elasticsearch/issues/140119
+     */
+    public void testRowFieldResolutionWithNonDeterministicReference() {
+        int v = 10000;
+        // row a = random(10000), b = a
+        var analyzed = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, v, INTEGER))),
+                    new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                )
+            )
+        );
+        var optimized = logicalOptimizer.optimize(analyzed);
+
+        var limit = asLimit(optimized, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(2, page.getBlockCount());
+        int aValue = ((IntBlock) page.getBlock(0)).getInt(0);
+        int bValue = ((IntBlock) page.getBlock(1)).getInt(0);
+        assertTrue("random(" + v + ") should produce a value in [0, " + v + ")", aValue >= 0 && aValue < v);
+        assertEquals("b should have the same value as a", aValue, bValue);
+    }
+
+    /**
      * SORT followed by LOOKUP JOIN should warn because the order is lost.
      */
     public void testWarnSortBeforeLookupJoin() {
@@ -10063,5 +10360,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("rd.registered_domain"));
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
+    }
+
+    public void testTopSnippetsQueryMustBeFoldable() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            FROM test
+            | EVAL x = TOP_SNIPPETS(first_name, last_name)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
+        );
     }
 }

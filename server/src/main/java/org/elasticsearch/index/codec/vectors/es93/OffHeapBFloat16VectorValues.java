@@ -177,6 +177,11 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
                 public DocIdSetIterator iterator() {
                     return iterator;
                 }
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchedDocs) {
+                    return VectorScorer.Bulk.fromRandomScorerDense(randomVectorScorer, iterator, matchedDocs);
+                }
             };
         }
     }
@@ -262,6 +267,11 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
                 @Override
                 public DocIdSetIterator iterator() {
                     return iterator;
+                }
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchedDocs) {
+                    return VectorScorer.Bulk.fromRandomScorerSparse(randomVectorScorer, iterator, matchedDocs);
                 }
             };
         }

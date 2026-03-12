@@ -184,7 +184,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             }
 
             vbcc.freeze();
-            assertThat(Math.toIntExact(vbcc.getTotalSizeInBytes()), greaterThan(fakeNode.sharedCacheService.getRegionSize()));
+            long totalSize = vbcc.getTotalSizeInBytes();
+            int regionSize = fakeNode.sharedCacheService.getRegionSize();
+            assertThat(Math.toIntExact(totalSize), greaterThan(regionSize));
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             fakeNode.warmingService.warmCacheBeforeUpload(vbcc, future);
@@ -194,20 +196,152 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
-                vbcc.getTotalSizeInBytes(),
+                totalSize,
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            ByteBuffer buffer = ByteBuffer.allocate(fakeNode.sharedCacheService.getRegionSize());
-            assertTrue(cacheFile.tryRead(buffer, 0));
-            assertFalse(cacheFile.tryRead(ByteBuffer.allocate(1), buffer.capacity()));
+            // Verify all regions are warmed
+            int endingRegion = sharedCacheService.getEndingRegion(totalSize);
+            for (int region = 0; region <= endingRegion; region++) {
+                long regionStart = (long) region * regionSize;
+                int regionLength = Math.toIntExact(Math.min(regionSize, totalSize - regionStart));
+                ByteBuffer buffer = ByteBuffer.allocate(regionLength);
+                assertTrue("region " + region + " should be cached", cacheFile.tryRead(buffer, regionStart));
 
-            BytesStreamOutput output = new BytesStreamOutput();
-            vbcc.getBytesByRange(0, fakeNode.sharedCacheService.getRegionSize(), output);
+                BytesStreamOutput output = new BytesStreamOutput();
+                vbcc.getBytesByRange(regionStart, regionLength, output);
 
-            buffer.flip();
-            BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
-            assertEquals(output.bytes(), bytesReference);
+                buffer.flip();
+                BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
+                assertEquals("region " + region + " data mismatch", output.bytes(), bytesReference);
+            }
+        }
+    }
+
+    public void testUploadWarmingRespectsMaxPrewarmSizeSetting() throws IOException {
+        var primaryTerm = 1;
+        int maxPrewarmRegions = randomIntBetween(2, 4);
+
+        // Test 1: maxPrewarmSize limits how many regions are warmed
+        try (
+            var fakeNode = createFakeNodeWithUploadPrewarmMaxSize(primaryTerm, ByteSizeValue.ofBytes((long) maxPrewarmRegions * 64 * 1024))
+        ) {
+            int regionSize = fakeNode.sharedCacheService.getRegionSize();
+            long maxPrewarmSizeBytes = (long) maxPrewarmRegions * regionSize;
+
+            var indexCommits = fakeNode.generateIndexCommits(between(60, 80));
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                regionSize,
+                randomIntBetween(0, regionSize)
+            );
+            for (StatelessCommitRef ref : indexCommits) {
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+            }
+            while (vbcc.getTotalSizeInBytes() <= maxPrewarmSizeBytes + regionSize) {
+                indexCommits = fakeNode.generateIndexCommits(between(20, 40));
+                for (StatelessCommitRef ref : indexCommits) {
+                    assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                }
+            }
+            vbcc.freeze();
+
+            long totalSize = vbcc.getTotalSizeInBytes();
+            int warmableEndRegion = fakeNode.sharedCacheService.getEndingRegion(maxPrewarmSizeBytes);
+            int totalEndRegion = fakeNode.sharedCacheService.getEndingRegion(totalSize);
+            assertThat("VBCC should span more regions than the prewarm limit", totalEndRegion, greaterThan(warmableEndRegion));
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCacheBeforeUpload(vbcc, future);
+            future.actionGet();
+
+            StatelessSharedBlobCacheService sharedCacheService = fakeNode.sharedCacheService;
+            SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
+                new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
+                totalSize,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // Regions within the prewarm limit should be warmed with correct data
+            for (int region = 0; region <= warmableEndRegion; region++) {
+                long regionStart = (long) region * regionSize;
+                int regionLength = Math.toIntExact(Math.min(regionSize, totalSize - regionStart));
+                ByteBuffer buffer = ByteBuffer.allocate(regionLength);
+                assertTrue("region " + region + " should be cached", cacheFile.tryRead(buffer, regionStart));
+
+                BytesStreamOutput output = new BytesStreamOutput();
+                vbcc.getBytesByRange(regionStart, regionLength, output);
+                buffer.flip();
+                assertEquals("region " + region + " data mismatch", output.bytes(), BytesReference.fromByteBuffer(buffer));
+            }
+
+            // Regions beyond the prewarm limit should NOT be warmed
+            for (int region = warmableEndRegion + 1; region <= totalEndRegion; region++) {
+                long regionStart = (long) region * regionSize;
+                int regionLength = Math.toIntExact(Math.min(regionSize, totalSize - regionStart));
+                ByteBuffer buffer = ByteBuffer.allocate(regionLength);
+                assertFalse("region " + region + " should NOT be cached", cacheFile.tryRead(buffer, regionStart));
+            }
+        }
+
+        // Test 2: Everything is warmed when maxPrewarmSize exceeds the VBCC size
+        try (var fakeNode = createFakeNodeWithUploadPrewarmMaxSize(primaryTerm, ByteSizeValue.ofMb(8))) {
+            int regionSize = fakeNode.sharedCacheService.getRegionSize();
+
+            var indexCommits = fakeNode.generateIndexCommits(between(60, 80));
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                regionSize,
+                randomIntBetween(0, regionSize)
+            );
+            for (StatelessCommitRef ref : indexCommits) {
+                assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+            }
+            while (vbcc.getTotalSizeInBytes() <= regionSize) {
+                indexCommits = fakeNode.generateIndexCommits(between(20, 40));
+                for (StatelessCommitRef ref : indexCommits) {
+                    assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                }
+            }
+            vbcc.freeze();
+
+            long totalSize = vbcc.getTotalSizeInBytes();
+            int totalEndRegion = fakeNode.sharedCacheService.getEndingRegion(totalSize);
+            assertThat(totalEndRegion, greaterThan(0));
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCacheBeforeUpload(vbcc, future);
+            future.actionGet();
+
+            StatelessSharedBlobCacheService sharedCacheService = fakeNode.sharedCacheService;
+            SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
+                new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
+                totalSize,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // ALL regions should be warmed with correct data
+            for (int region = 0; region <= totalEndRegion; region++) {
+                long regionStart = (long) region * regionSize;
+                int regionLength = Math.toIntExact(Math.min(regionSize, totalSize - regionStart));
+                ByteBuffer buffer = ByteBuffer.allocate(regionLength);
+                assertTrue("region " + region + " should be cached", cacheFile.tryRead(buffer, regionStart));
+
+                BytesStreamOutput output = new BytesStreamOutput();
+                vbcc.getBytesByRange(regionStart, regionLength, output);
+                buffer.flip();
+                assertEquals("region " + region + " data mismatch", output.bytes(), BytesReference.fromByteBuffer(buffer));
+            }
         }
     }
 
@@ -1058,6 +1192,21 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             TestShardRouting.newShardRouting(node.shardId, node.node.getId(), true, ShardRoutingState.INITIALIZING)
         );
         return indexShard;
+    }
+
+    private FakeStatelessNode createFakeNodeWithUploadPrewarmMaxSize(long primaryTerm, ByteSizeValue maxPrewarmSize) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "8MB")
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "64KB")
+                    .put(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING.getKey(), maxPrewarmSize)
+                    .build();
+            }
+        };
     }
 
     private FakeStatelessNode createFakeNode(long primaryTerm) throws IOException {

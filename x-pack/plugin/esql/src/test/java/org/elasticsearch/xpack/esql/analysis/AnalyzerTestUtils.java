@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -73,6 +74,19 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
+    /** Analyzer with a single index and {@code @timestamp} bounds from a query DSL filter. */
+    public static Analyzer analyzer(IndexResolution indexResolution, TimestampBounds timestampBounds) {
+        return analyzer(
+            indexResolutions(indexResolution),
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            TEST_CFG,
+            UNMAPPED_FIELDS.defaultValue(),
+            timestampBounds
+        );
+    }
+
     /** Simple analyzer with multiple indexes, which may also be invalid */
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), TEST_VERIFIER, TEST_CFG);
@@ -117,6 +131,18 @@ public final class AnalyzerTestUtils {
         Configuration config,
         UnmappedResolution unmappedResolution
     ) {
+        return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, unmappedResolution, null);
+    }
+
+    public static Analyzer analyzer(
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        Verifier verifier,
+        Configuration config,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         return new Analyzer(
             testAnalyzerContext(
                 config,
@@ -125,7 +151,8 @@ public final class AnalyzerTestUtils {
                 lookupResolution,
                 enrichResolution,
                 defaultInferenceResolution(),
-                unmappedResolution
+                unmappedResolution,
+                timestampBounds
             ),
             verifier
         );

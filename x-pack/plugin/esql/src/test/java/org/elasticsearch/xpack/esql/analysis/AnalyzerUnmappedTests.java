@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
@@ -3286,15 +3287,58 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/141870
+     * ResolveRefs processes the EVAL only after ImplicitCasting processes the implicit cast in the WHERE.
+     * This means that ResolveUnmapped will see the EVAL with a yet-to-be-resolved reference to nanos.
+     * It should not treat it as unmapped, because there is clearly a nanos attribute in the EVAL's input.
+     *
+     * <pre>
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[MVMIN(nanos{r}#6) AS nanos#11]]
+     *   \_Filter[millis{r}#4 &lt; 946684800000[DATETIME]]
+     *     \_OrderBy[[Order[millis{r}#4,ASC,LAST]]]
+     *       \_Row[[TODATETIME(1970-01-01T00:00:00Z[KEYWORD]) AS millis#4, TODATENANOS(1970-01-01T00:00:00Z[KEYWORD]) AS nanos#6]]
+     * </pre>
+     */
+    public void testDoNotResolveUnmappedFieldPresentInChildren() {
+        String query = """
+                ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
+                | SORT millis ASC
+                | WHERE millis < "2000-01-01"
+                | EVAL nanos = MV_MIN(nanos)
+            """;
+        boolean useNullify = randomBoolean();
+        var plan = analyzeStatement(useNullify ? setUnmappedNullify(query) : setUnmappedLoad(query));
+
+        var limit = asLimit(plan, 1000);
+        var eval = as(limit.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        var orderBy = as(filter.child(), OrderBy.class);
+        // There should be no EVAL injected with NULL for nanos
+        var row = as(orderBy.child(), Row.class);
+
+        var output = plan.output();
+        assertThat(output, hasSize(2));
+        var millisAttr = output.get(0);
+        var nanosAttr = output.get(1);
+        assertThat(millisAttr.name(), is("millis"));
+        assertThat(millisAttr.dataType(), is(DataType.DATETIME));
+        assertThat(nanosAttr.name(), is("nanos"));
+        assertThat(nanosAttr.dataType(), is(DataType.DATE_NANOS));
+    }
+
+    /**
      * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
      * Unmapped fields with dotted names (e.g. host.entity.id) should be nullified in STATS WHERE, even when an EVAL before the STATS
      * creates a field whose name is a suffix of the unmapped field name (e.g. entity.id).
      *
+     * <pre>
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[entity.id{r}#6],[FilteredExpression[VALUES(host.entity.id{r}#13,true[BOOLEAN],PT0S[TIME_DURATION]),
      *                               ISNOTNULL(host.entity.id{r}#13)] AS host.entity.id#10, entity.id{r}#6]]
      *   \_Eval[[foo[KEYWORD] AS entity.id#6, null[NULL] AS host.entity.id#13]]
      *     \_Row[[1[INTEGER] AS x#4]]
+     * </pre>
      */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -3325,11 +3369,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Same as {@link #testStatsFilteredAggAfterEvalWithDottedUnmappedField()} but with FROM instead of ROW.
      * Tests both nullify and load modes: the plan shape is the same, only the field type in the EsRelation differs.
      *
+     * <pre>
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[entity.id{r}#4],[FilteredExpression[VALUES(host.entity.id{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]),
      *                               ISNOTNULL(host.entity.id{f}#22)] AS host.entity.id#8, entity.id{r}#4]]
      *   \_Eval[[foo[KEYWORD] AS entity.id#4]]
      *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * </pre>
      */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() {
         boolean load = randomBoolean();

@@ -200,7 +200,7 @@ public class MeteredStorage {
 
         @Override
         public void close() throws IOException {
-            statsCollector.finishIORunnable(stats, writeChannel::close);
+            statsCollector.finishRunnable(stats, writeChannel::close);
         }
     }
 

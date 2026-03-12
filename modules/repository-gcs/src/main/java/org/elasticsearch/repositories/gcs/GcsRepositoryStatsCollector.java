@@ -177,14 +177,13 @@ public class GcsRepositoryStatsCollector {
     /**
      * Final step in continual collection
      */
-    public void finishIORunnable(OperationStats stats, IORunnable runnable) throws IOException {
+    public void finishRunnable(OperationStats stats, IORunnable runnable) throws IOException {
         setThreadLocal(stats);
         var t = timer.absoluteTimeInMillis();
         try {
             runnable.run();
         } finally {
             stats.totalDuration += timer.absoluteTimeInMillis() - t;
-            collect(stats);
             clearThreadLocal();
         }
     }

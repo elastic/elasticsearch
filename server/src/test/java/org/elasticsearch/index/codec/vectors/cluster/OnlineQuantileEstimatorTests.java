@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.List;
 
 public class OnlineQuantileEstimatorTests extends ESTestCase {
 

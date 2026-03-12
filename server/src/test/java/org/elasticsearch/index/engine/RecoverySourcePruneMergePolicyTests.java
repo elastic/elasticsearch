@@ -99,7 +99,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 for (boolean syntheticRecoverySource : List.of(true, false)) {
                     try (Directory dir = newDirectory()) {
                         IndexWriterConfig iwc = newIndexWriterConfig();
-                        RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
+                        PruningMergePolicy mp = new PruningMergePolicy(
                             syntheticRecoverySource ? null : "extra_source",
                             syntheticRecoverySource ? "extra_source_size" : "extra_source",
                             pruneIdField,
@@ -191,7 +191,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     try (Directory dir = newDirectory()) {
                         IndexWriterConfig iwc = newIndexWriterConfig();
                         iwc.setMergePolicy(
-                            new RecoverySourcePruneMergePolicy(
+                            new PruningMergePolicy(
                                 syntheticRecoverySource ? null : "extra_source",
                                 syntheticRecoverySource ? "extra_source_size" : "extra_source",
                                 pruneIdField,
@@ -297,7 +297,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 try (Directory dir = newDirectory()) {
                     IndexWriterConfig iwc = newIndexWriterConfig();
                     iwc.setMergePolicy(
-                        new RecoverySourcePruneMergePolicy(
+                        new PruningMergePolicy(
                             syntheticRecoverySource ? null : "extra_source",
                             syntheticRecoverySource ? "extra_source_size" : "extra_source",
                             false,
@@ -372,6 +372,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         final boolean pruneSequenceNumber,
         final boolean useSyntheticRecoverySource
     ) throws IOException {
+        assumeTrue("Synthetic id requires a feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG || useSyntheticId == false);
         assumeTrue(
             "Sequence number pruning requires a feature flag",
             IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
@@ -387,7 +388,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
             final var seqNoIndexOptions = IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexSettings.getSettings());
             var iwc = createIndexWriterConfig(indexSettings);
             iwc.setMergePolicy(
-                new RecoverySourcePruneMergePolicy(
+                new PruningMergePolicy(
                     useSyntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
                     useSyntheticRecoverySource ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME : SourceFieldMapper.RECOVERY_SOURCE_NAME,
                     pruneId,
@@ -578,9 +579,10 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         boolean syntheticRecoverySource = randomBoolean();
         boolean pruneIdField = randomBoolean();
         boolean pruneSequenceNumber = randomBoolean();
+        assumeTrue("Synthetic id requires a feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         assumeTrue(
             "Sequence number pruning requires a feature flag",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || (pruneSequenceNumber == false && pruneIdField == false)
         );
         String pruneStoredFieldName = syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME;
         String pruneNumericDVFieldName = syntheticRecoverySource
@@ -599,7 +601,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
             var iwc = createIndexWriterConfig(indexSettings);
             iwc.setMergePolicy(
-                new RecoverySourcePruneMergePolicy(
+                new PruningMergePolicy(
                     pruneStoredFieldName,
                     pruneNumericDVFieldName,
                     pruneIdField,
@@ -642,7 +644,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     // The segment has recovery source DV for all docs since we used ALL_DOCS as the retain query.
                     // A new merge policy with ALL_DOCS hits the "keep all source" early-return (cardinality == maxDoc).
                     {
-                        var mp = new RecoverySourcePruneMergePolicy(
+                        var mp = new PruningMergePolicy(
                             pruneStoredFieldName,
                             pruneNumericDVFieldName,
                             pruneIdField,
@@ -665,7 +667,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
             // pruned. Re-open the writer with a NO_DOCS policy and force merge again to produce that.
             var iwc2 = createIndexWriterConfig(indexSettings);
             iwc2.setMergePolicy(
-                new RecoverySourcePruneMergePolicy(
+                new PruningMergePolicy(
                     pruneStoredFieldName,
                     pruneNumericDVFieldName,
                     pruneIdField,
@@ -700,7 +702,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 assertTrue(leafReader instanceof CodecReader);
                 final var codecReader = (CodecReader) leafReader;
 
-                var mp = new RecoverySourcePruneMergePolicy(
+                var mp = new PruningMergePolicy(
                     pruneStoredFieldName,
                     pruneNumericDVFieldName,
                     pruneIdField,

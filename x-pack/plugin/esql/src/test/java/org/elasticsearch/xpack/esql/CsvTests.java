@@ -788,10 +788,10 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        String query = substituteTemplates(testCase.query, csvFileTemplateResolver());
+        String templatedQuery = substituteTemplates(testCase.query, csvFileTemplateResolver());
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
         esqlExecutionInfo.queryProfile().planning().start();
-        EsqlStatement statement = TEST_PARSER.createStatement(testCase.query);
+        EsqlStatement statement = TEST_PARSER.createStatement(templatedQuery);
         LogicalPlan plan = resolveViews(statement.plan());
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),

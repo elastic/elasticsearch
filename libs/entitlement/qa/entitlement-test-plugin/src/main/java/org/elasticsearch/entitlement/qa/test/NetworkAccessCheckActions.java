@@ -335,37 +335,39 @@ class NetworkAccessCheckActions {
         SSLContext original = SSLContext.getDefault();
         SSLContext dummy = SSLContext.getInstance("TLS");
         SSLContext.setDefault(dummy);
-        if (SSLContext.getDefault() != original) {
+        boolean unchanged = SSLContext.getDefault() == original;
+        if (unchanged == false) {
             SSLContext.setDefault(original);
         }
+        assert unchanged : "SSLContext.setDefault should have been a no-op when denied";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
     static void setDefaultHostnameVerifier() {
         var original = HttpsURLConnection.getDefaultHostnameVerifier();
         HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
-        if (HttpsURLConnection.getDefaultHostnameVerifier() != original) {
+        boolean unchanged = HttpsURLConnection.getDefaultHostnameVerifier() == original;
+        if (unchanged == false) {
             HttpsURLConnection.setDefaultHostnameVerifier(original);
         }
+        assert unchanged : "HttpsURLConnection.setDefaultHostnameVerifier should have been a no-op when denied";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
     static void setDefaultSSLSocketFactory() {
         var original = HttpsURLConnection.getDefaultSSLSocketFactory();
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
-        if (HttpsURLConnection.getDefaultSSLSocketFactory() != original) {
+        boolean unchanged = HttpsURLConnection.getDefaultSSLSocketFactory() == original;
+        if (unchanged == false) {
             HttpsURLConnection.setDefaultSSLSocketFactory(original);
         }
+        assert unchanged : "HttpsURLConnection.setDefaultSSLSocketFactory should have been a no-op when denied";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, isExpectedNoOp = true)
     static void setHttpsConnectionProperties() {
         var connection = new DummyImplementations.DummyHttpsURLConnection();
-        var original = connection.getSSLSocketFactory();
         connection.setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
-        if (connection.getSSLSocketFactory() != original) {
-            connection.setSSLSocketFactory(original);
-        }
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

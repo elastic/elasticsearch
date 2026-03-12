@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
@@ -100,7 +98,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // One representative UA per name for nullify/load (which only need distinct field names).
         LinkedHashSet<UnresolvedAttribute> unresolved = new LinkedHashSet<>(unresolvedByName.size());
         // All UAs (multiple per name) for refreshPlan (which needs to refresh every occurrence in the plan).
-        AttributeSet.Builder allUnresolved = AttributeSet.builder(unresolvedByName.size());
+        Set<UnresolvedAttribute> allUnresolved = new HashSet<>();
         for (List<UnresolvedAttribute> uas : unresolvedByName.values()) {
             unresolved.add(uas.getFirst());
             allUnresolved.addAll(uas);
@@ -238,7 +236,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * unresolvable by attaching a custom message. This needs to be removed for {@link Analyzer.ResolveRefs} to attempt resolving them
      * again. That's what this method does.
      */
-    private static LogicalPlan refreshPlan(LogicalPlan plan, AttributeSet.Builder maybeNowResolvableAttributes) {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
             if (maybeNowResolvableAttributes.remove(ua)) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.

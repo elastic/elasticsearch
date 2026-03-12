@@ -15,15 +15,12 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -38,7 +35,6 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -106,24 +102,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         Map<String, String> headers
     ) {
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
-    }
-
-    /**
-     * Selects a data node for the health task
-     */
-    @Override
-    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
-        HealthNodeTaskParams params,
-        Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState,
-        @Nullable ProjectId projectId
-    ) {
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
-        if (discoveryNode == null) {
-            return NO_NODE_FOUND;
-        } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
-        }
     }
 
     /**

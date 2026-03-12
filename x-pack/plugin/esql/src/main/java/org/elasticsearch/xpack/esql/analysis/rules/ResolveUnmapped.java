@@ -43,7 +43,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
@@ -164,13 +163,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         boolean childrenChanged = false;
         for (var child : fork.children()) {
             Holder<Boolean> patched = new Holder<>(false);
-            var transformed = child.transformDown(
-                n -> patched.get() == false && n instanceof Project,
-                n -> {
-                    patched.set(true);
-                    return patchForkProject((Project) n);
-                }
-            );
+            var transformed = child.transformDown(n -> patched.get() == false && n instanceof Project, n -> {
+                patched.set(true);
+                return patchForkProject((Project) n);
+            });
             childrenChanged |= transformed != child;
             newChildren.add(transformed);
         }

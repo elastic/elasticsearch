@@ -537,7 +537,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [headers] has an entry that is not valid, [key => 1]. "
-                    + "Value type of [1] is not one of [String].;"
+                    + "Value type of [Integer] is not one of [String].;"
             )
         );
     }

@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
@@ -32,6 +33,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.OCCNotSupportedException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
@@ -79,11 +82,13 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.action.search.SearchContextMissingNodesException.SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION;
 import static org.elasticsearch.action.support.replication.ReplicationSplitHelper.STALE_REQUEST_EXCEPTION_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 
 /**
@@ -2052,7 +2057,25 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             186,
             INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION
         ),
-        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 187, STALE_REQUEST_EXCEPTION_VERSION);
+        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 187, STALE_REQUEST_EXCEPTION_VERSION),
+        SEARCH_CONTEXT_MISSING_NODES_EXCEPTION(
+            SearchContextMissingNodesException.class,
+            SearchContextMissingNodesException::new,
+            188,
+            SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION
+        ),
+        OCC_NOT_SUPPORTED_EXCEPTION(
+            OCCNotSupportedException.class,
+            OCCNotSupportedException::new,
+            189,
+            OCC_NOT_SUPPORTED_EXCEPTION_VERSION
+        ),
+        UPDATE_NOT_SUPPORTED_EXCEPTION(
+            UpdateNotSupportedException.class,
+            UpdateNotSupportedException::new,
+            190,
+            OCC_NOT_SUPPORTED_EXCEPTION_VERSION
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

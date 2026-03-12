@@ -135,7 +135,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
             try {
                 DiscoveryNode node = clusterNodeLookup.apply(target.getClusterAlias(), target.getNode());
                 if (node == null) {
-                    throw new IllegalStateException("node [" + target.getNode() + "] is not available");
+                    throw new SearchContextMissingNodesException(
+                        SearchContextMissingNodesException.ContextType.SCROLL,
+                        Set.of(target.getNode())
+                    );
                 }
                 connection = getConnection(target.getClusterAlias(), node);
             } catch (Exception ex) {
@@ -288,7 +291,20 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;
         if (counter.countDown()) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException(phaseName, "all shards failed", failure, buildShardFailures()));
+                ShardSearchFailure[] failures = buildShardFailures();
+                Set<String> missingNodeIds = new HashSet<>();
+                for (ShardSearchFailure f : failures) {
+                    if (f.getCause() instanceof SearchContextMissingNodesException scmne) {
+                        missingNodeIds.addAll(scmne.getMissingNodeIds());
+                    }
+                }
+                if (missingNodeIds.isEmpty() == false) {
+                    listener.onFailure(
+                        new SearchContextMissingNodesException(SearchContextMissingNodesException.ContextType.SCROLL, missingNodeIds)
+                    );
+                } else {
+                    listener.onFailure(new SearchPhaseExecutionException(phaseName, "all shards failed", failure, failures));
+                }
             } else {
                 SearchPhase phase = nextPhaseSupplier.get();
                 try {

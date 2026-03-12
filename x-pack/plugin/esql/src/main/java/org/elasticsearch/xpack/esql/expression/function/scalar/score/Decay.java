@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -159,6 +159,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         ) Expression scale,
         @MapParam(
             name = "options",
+            description = "(Optional) Additional options such as `decay`, `offset` and `type`.",
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
@@ -208,6 +209,22 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    Expression value() {
+        return value;
+    }
+
+    Expression origin() {
+        return origin;
+    }
+
+    Expression scale() {
+        return scale;
+    }
+
+    Expression options() {
+        return options;
     }
 
     @Override
@@ -337,7 +354,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType valueDataType = value.dataType();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
@@ -347,7 +364,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             ALLOWED_OPTIONS
         );
 
-        EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
+        ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
 
         Expression offsetExpr = (Expression) resolvedOptions.get(OFFSET);
         Expression decayExpr = (Expression) resolvedOptions.get(DECAY);
@@ -366,27 +383,27 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Integer) originFolded,
-                (Integer) scaleFolded,
-                (Integer) offsetFolded,
+                ((Number) originFolded).intValue(),
+                ((Number) scaleFolded).intValue(),
+                ((Number) offsetFolded).intValue(),
                 decayFolded,
                 decayFunction
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Double) originFolded,
-                (Double) scaleFolded,
-                (Double) offsetFolded,
+                ((Number) originFolded).doubleValue(),
+                ((Number) scaleFolded).doubleValue(),
+                ((Number) offsetFolded).doubleValue(),
                 decayFolded,
                 decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Long) originFolded,
-                (Long) scaleFolded,
-                (Long) offsetFolded,
+                ((Number) originFolded).longValue(),
+                ((Number) scaleFolded).longValue(),
+                ((Number) offsetFolded).longValue(),
                 decayFolded,
                 decayFunction
             );

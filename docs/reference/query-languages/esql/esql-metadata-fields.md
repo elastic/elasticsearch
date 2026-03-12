@@ -28,7 +28,7 @@ The following metadata fields are available in {{esql}}:
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
- | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabed.
+ | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled.
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
 | `_version` | [`long`](/reference/elasticsearch/mapping-reference/number.md) | Document version number |
 

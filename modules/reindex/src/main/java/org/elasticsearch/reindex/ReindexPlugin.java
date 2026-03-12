@@ -11,16 +11,13 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -33,7 +30,6 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.tasks.Task;
 
@@ -49,16 +45,28 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
-    // N.B. We declare this in the reindex module, so that we can check whether the feature is available on the cluster here - but we
-    // register it via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
+    // N.B. We declare these in the reindex module, so that we can check whether the features are available on the cluster here - but we
+    // register them via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
     // (The enrich plugin depends on this module, and registering features leads to either duplicate feature or JAR hell errors.)
     // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
     public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
+    public static final NodeFeature REINDEX_PIT_SEARCH_FEATURE = new NodeFeature("reindex_pit_search");
 
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
     public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+
+    /**
+     * Guards the development work to change reindexing to use point in time (PIT) searching
+     */
+    public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
+
+    public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
+        return DiscoveryNode.isStateless(environment.settings())
+            ? new StatelessReindexRelocationNodePicker()
+            : new StatefulReindexRelocationNodePicker();
+    }
 
     @Override
     public List<ActionHandler> getActions() {
@@ -81,22 +89,17 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature),
+            new RestReindexAction(clusterSupportsFeature, settings),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
-            new RestReindexRethrottleAction(nodesInCluster)
+            new RestReindexRethrottleAction(nodesInCluster, settings)
         );
     }
 
@@ -107,12 +110,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(
-                ReindexRelocationNodePicker.class,
-                DiscoveryNode.isStateless(services.environment().settings())
-                    ? new StatelessReindexRelocationNodePicker()
-                    : new StatefulReindexRelocationNodePicker()
-            )
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
         );
     }
 

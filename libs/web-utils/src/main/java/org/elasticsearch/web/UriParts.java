@@ -15,40 +15,43 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.SequencedMap;
 
 public class UriParts {
 
-    private static final String DOMAIN = "domain";
-    private static final String FRAGMENT = "fragment";
-    private static final String PATH = "path";
-    private static final String PORT = "port";
-    private static final String QUERY = "query";
-    private static final String SCHEME = "scheme";
-    private static final String USER_INFO = "user_info";
-    private static final String EXTENSION = "extension";
-    private static final String USERNAME = "username";
-    private static final String PASSWORD = "password";
+    public static final String DOMAIN = "domain";
+    public static final String FRAGMENT = "fragment";
+    public static final String PATH = "path";
+    public static final String EXTENSION = "extension";
+    public static final String PORT = "port";
+    public static final String QUERY = "query";
+    public static final String SCHEME = "scheme";
+    public static final String USER_INFO = "user_info";
+    public static final String USERNAME = "username";
+    public static final String PASSWORD = "password";
 
-    private static final LinkedHashMap<String, Class<?>> URI_PARTS_TYPES;
+    private static final SequencedMap<String, Class<?>> URI_PARTS_TYPES;
 
     static {
-        URI_PARTS_TYPES = new LinkedHashMap<>();
-        URI_PARTS_TYPES.putLast(DOMAIN, String.class);
-        URI_PARTS_TYPES.putLast(FRAGMENT, String.class);
-        URI_PARTS_TYPES.putLast(PATH, String.class);
-        URI_PARTS_TYPES.putLast(PORT, Integer.class);
-        URI_PARTS_TYPES.putLast(QUERY, String.class);
-        URI_PARTS_TYPES.putLast(SCHEME, String.class);
-        URI_PARTS_TYPES.putLast(EXTENSION, String.class);
-        URI_PARTS_TYPES.putLast(USER_INFO, String.class);
-        URI_PARTS_TYPES.putLast(USERNAME, String.class);
-        URI_PARTS_TYPES.putLast(PASSWORD, String.class);
+        LinkedHashMap<String, Class<?>> fields = new LinkedHashMap<>();
+        fields.putLast(DOMAIN, String.class);
+        fields.putLast(FRAGMENT, String.class);
+        fields.putLast(PATH, String.class);
+        fields.putLast(EXTENSION, String.class);
+        fields.putLast(PORT, Integer.class);
+        fields.putLast(QUERY, String.class);
+        fields.putLast(SCHEME, String.class);
+        fields.putLast(USER_INFO, String.class);
+        fields.putLast(USERNAME, String.class);
+        fields.putLast(PASSWORD, String.class);
+        URI_PARTS_TYPES = Collections.unmodifiableSequencedMap(fields);
     }
 
-    public static LinkedHashMap<String, Class<?>> getUriPartsTypes() {
+    public static SequencedMap<String, Class<?>> getUriPartsTypes() {
         return URI_PARTS_TYPES;
     }
 

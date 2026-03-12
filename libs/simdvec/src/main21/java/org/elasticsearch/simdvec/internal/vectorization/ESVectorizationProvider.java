@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
@@ -40,6 +41,14 @@ public abstract class ESVectorizationProvider {
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
+    /**
+     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput}.
+     * The input should be unwrapped before calling this method. If the input is
+     * still a {@code FilterIndexInput} that does not implement
+     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
+     * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
+     * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
+     */
     public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,
         byte queryBits,
@@ -49,8 +58,17 @@ public abstract class ESVectorizationProvider {
         int bulkSize
     ) throws IOException;
 
-    /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
+    /**
+     * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
+     * See {@link #newESNextOSQVectorsScorer} for input type requirements.
+     */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    public abstract ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(
+        IndexInput input,
+        int dimension,
+        int vectorLengthInBytes
+    ) throws IOException;
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {

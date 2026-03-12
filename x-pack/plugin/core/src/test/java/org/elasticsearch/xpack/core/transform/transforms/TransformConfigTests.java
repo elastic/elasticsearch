@@ -318,9 +318,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return TransformConfig.fromXContent(parser, transformId, runWithHeaders);
+            return TransformConfig.fromXContent(parser, transformId, runWithHeaders, new TransformParsingContext(false));
         } else {
-            return TransformConfig.fromXContent(parser, null, runWithHeaders);
+            return TransformConfig.fromXContent(parser, null, runWithHeaders, new TransformParsingContext(false));
         }
     }
 
@@ -1139,10 +1139,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             validationException.getMessage(),
             containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
         );
-        assertThat(
-            validationException.getMessage(),
-            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
-        );
     }
 
     public void testNotCrossProjectEnvironment() throws IOException {
@@ -1182,6 +1178,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
-        return TransformConfig.fromXContent(parser, id, lenient);
+        return TransformConfig.fromXContent(parser, id, lenient, new TransformParsingContext(false));
     }
 }

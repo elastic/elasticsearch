@@ -67,6 +67,12 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         sendAndAssertSuccess(writeRequest);
     }
 
+    public void testRemoteWriteEndpointWithEmptyBody() throws Exception {
+        sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/production/api/v1/write");
+    }
+
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "test_gauge_metric";
@@ -134,6 +140,43 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         List<Map<String, Object>> hits2 = searchDocs(metric2);
         assertThat(hits2, hasSize(1));
         assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
+    }
+
+    public void testRemoteWriteDropsNaNSamples() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "nan_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("job", "test_job"), sample(Double.NaN, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+        assertFalse("NaN-only request should not create a data stream", dataStreamExists(DEFAULT_DATA_STREAM));
+    }
+
+    public void testRemoteWriteDropsNaNButKeepsValidSamples() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "nan_mixed_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("job", "test_job"),
+                    sample(Double.NaN, timestamp - 1000),
+                    sample(42.5, timestamp),
+                    sample(Double.POSITIVE_INFINITY, timestamp + 1000),
+                    sample(Double.NEGATIVE_INFINITY, timestamp + 2000)
+                )
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+        assertTrue("Data stream should exist for valid samples", dataStreamExists(DEFAULT_DATA_STREAM));
+
+        List<Map<String, Object>> docs = searchDocs(metricName);
+        assertThat("Only finite samples should be indexed", docs, hasSize(1));
+        assertThat(new ObjectPath(docs.getFirst()).evaluate("metrics." + metricName), equalTo(42.5));
     }
 
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
@@ -227,6 +270,12 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         return EntityUtils.toString(e.getResponse().getEntity());
     }
 
+    private void sendEmptyBodyAndAssertSuccess(String endpoint) throws IOException {
+        Request request = new Request("POST", endpoint);
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
+    }
+
     /**
      * Searches for all indexed documents matching the given metric name and returns their _source maps.
      */
@@ -276,4 +325,16 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         return new ObjectPath(docs.getFirst());
     }
 
+    private boolean dataStreamExists(String dataStream) throws IOException {
+        Request request = new Request("GET", "/_data_stream/" + dataStream);
+        try {
+            client().performRequest(request);
+            return true;
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+    }
 }

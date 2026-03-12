@@ -17,11 +17,14 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -143,16 +146,17 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.engine.LuceneChangesSnapshot;
-import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -160,7 +164,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -224,6 +227,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1335,8 +1339,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return shard.withEngineException(engine -> getLiveDocs(engine, true));
     }
 
-    private static final String NULL_ID = "<null id>";
-
     /**
      * Returns all live documents of the engine as {@link DocIdSeqNoAndSource}.
      *
@@ -1348,140 +1350,103 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static List<DocIdSeqNoAndSource> getLiveDocs(Engine engine, boolean refresh) throws IOException {
         assertThat(engine, notNullValue());
 
-        var source = "test_get_doc_ids";
+        var reason = "test_get_doc_ids";
         if (refresh) {
-            engine.refresh(source);
+            engine.refresh(reason);
         }
         final var engineConfig = engine.getEngineConfig();
         assertThat("Method expects a non-NoOpEngine", engine, not(instanceOf(NoOpEngine.class)));
         assertThat("Method expects a non-NoOpEngine", engineConfig.getMapperService(), notNullValue());
 
-        // Some integration tests have the _source disabled and not stored, in which case we cannot compare the _source reliably
-        final var sourceEnabled = engineConfig.getMapperService().mappingLookup().isSourceEnabled();
+        final var mapperService = engineConfig.getMapperService();
+        // Some integration tests have the _source disabled, in which case we cannot compare the _source
+        final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
+        // Some integration tests use synthetic source/id, so the original source/id stored field might have been trimmed during merges.
+        // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
+        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
+
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
 
-        Engine.Searcher searcher = engine.acquireSearcher(source, Engine.SearcherScope.INTERNAL);
-        try {
-            Translog.Snapshot snapshot = null;
-            try {
-                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                        engineConfig.getMapperService(),
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
+        // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
+        final boolean seqNoDisabled = engineConfig.getIndexSettings().sequenceNumbersDisabled();
+        assert seqNoDisabled == false
+            || engineConfig.getIndexSettings().seqNoIndexOptions().equals(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
 
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
+        final var docs = new ArrayList<DocIdSeqNoAndSource>();
+        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL)) {
+            final var reader = searcher.getDirectoryReader();
+            for (LeafReaderContext leaf : reader.leaves()) {
+                final var leafReader = leaf.reader();
+                final Bits liveDocs = leafReader.getLiveDocs();
+                final int maxDoc = leafReader.maxDoc();
 
-                        @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
-                        }
-                    };
-                } else {
-                    snapshot = new LuceneChangesSnapshot(
-                        engineConfig.getMapperService(),
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
-
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
-
-                        @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
-                        }
-                    };
+                var segmentDocIds = new ArrayList<Integer>();
+                // Only collect root documents; nested documents lack _primary_term doc values
+                var primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDocValues == null) {
+                    continue;
                 }
-                if (snapshot.totalOperations() == 0) {
-                    return List.of();
-                }
-
-                final var docs = new ArrayList<DocIdSeqNoAndSource>(snapshot.totalOperations());
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    DocIdSeqNoAndSource doc;
-                    switch (operation.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            final var indexOp = ESTestCase.asInstanceOf(Translog.Index.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(indexOp.uid()),
-                                sourceEnabled && indexOp.source() != null ? indexOp.source().toBytesRef() : null,
-                                indexOp.seqNo(),
-                                indexOp.primaryTerm(),
-                                indexOp.version()
-                            );
-                            break;
-                        case DELETE:
-                            final var deleteOp = ESTestCase.asInstanceOf(Translog.Delete.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(deleteOp.uid()),
-                                null,
-                                deleteOp.seqNo(),
-                                deleteOp.primaryTerm(),
-                                deleteOp.version()
-                            );
-                            break;
-                        case NO_OP:
-                            continue;
-                        default:
-                            throw new AssertionError("Unsupported operation type " + operation.opType());
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue;
                     }
-                    docs.add(doc);
+                    if (primaryTermDocValues.advanceExact(docId)) {
+                        segmentDocIds.add(docId);
+                    }
                 }
-                docs.sort(
-                    Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
-                        .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
-                        .thenComparing((DocIdSeqNoAndSource::id))
-                );
-                return docs;
-            } finally {
-                if (snapshot != null) {
-                    IOUtils.close(snapshot);
-                    searcher = null;
+                if (segmentDocIds.isEmpty()) {
+                    continue;
+                }
+
+                int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
+                var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
+
+                primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                final NumericDocValues seqNoDocValues = seqNoDisabled ? null : leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                final NumericDocValues versionDocValues = leafReader.getNumericDocValues(VersionFieldMapper.NAME);
+
+                for (int docId : docIdsArray) {
+                    leafStoredFieldLoader.advanceTo(docId);
+
+                    final var id = leafIdLoader.getId(docId);
+                    if (id == null && pruneIdField == false) {
+                        throw new AssertionError("Document has a null _id but ids are not merged away");
+                    }
+
+                    BytesRef source = null;
+                    if (sourceEnabled) {
+                        var src = leafSourceLoader.source(leafStoredFieldLoader, docId).internalSourceRef();
+                        source = src != null ? src.toBytesRef() : null;
+                    }
+
+                    final long seqNo = seqNoDocValues != null && seqNoDocValues.advanceExact(docId)
+                        ? seqNoDocValues.longValue()
+                        : SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+                    boolean found = primaryTermDocValues.advanceExact(docId);
+                    assert found : "found no primary term for: " + docId;
+                    final long primaryTerm = primaryTermDocValues.longValue();
+
+                    found = versionDocValues.advanceExact(docId);
+                    assert found : "found no version for: " + docId;
+                    final long version = versionDocValues.longValue();
+
+                    docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
                 }
             }
-        } finally {
-            IOUtils.close(searcher);
         }
+
+        docs.sort(
+            Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                .thenComparing((DocIdSeqNoAndSource::id))
+        );
+        return docs;
     }
 
     private static List<DocIdSeqNoAndSource> getLiveDocsNoOpEngine(
@@ -1622,19 +1587,44 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         } catch (AlreadyClosedException ex) {
                             continue;
                         }
-                        assertThat(
-                            "out of sync shards: primary=["
-                                + primaryShardRouting
-                                + "] num_docs_on_primary=["
-                                + docsOnPrimary.size()
-                                + "] vs replica=["
-                                + replicaShardRouting
-                                + "] num_docs_on_replica=["
-                                + docsOnReplica.size()
-                                + "]",
-                            docsOnReplica,
-                            equalTo(docsOnPrimary)
-                        );
+
+                        final int nbDocsOnPrimary = docsOnPrimary.size();
+                        final int nbDocsOnReplica = docsOnReplica.size();
+
+                        final var message = "out of sync shards: primary=["
+                            + primaryShardRouting
+                            + "] num_docs_on_primary=["
+                            + nbDocsOnPrimary
+                            + "] vs replica=["
+                            + replicaShardRouting
+                            + "] num_docs_on_replica=["
+                            + nbDocsOnReplica
+                            + "]";
+
+                        if (nbDocsOnPrimary != nbDocsOnReplica) {
+                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
+                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
+                        } else {
+                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
+                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
+                            // is missing in one of the shard.
+                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
+                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
+                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
+                                var docOnPrimary = docsOnPrimary.get(doc);
+                                var docOnReplica = docsOnReplica.get(doc);
+                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
+                                    diffOnPrimary.add(docOnPrimary);
+                                    diffOnReplica.add(docOnReplica);
+                                    break;
+                                }
+                            }
+                            assertThat(
+                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
+                                diffOnReplica,
+                                equalTo(diffOnPrimary)
+                            );
+                        }
                     }
                 }
             }

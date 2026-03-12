@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -500,7 +501,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         Float oversample = getOversampleFactor(searchExecutionContext);
         if (optimizedRescoring && (oversample != null && oversample > MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING)) {
-            int localK = (int) Math.ceil(k * oversample);
+            int localK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
             int localNumCands = Math.max(localK, numCands);
             return new KnnVectorQueryBuilder(field, queryVector, localK, localNumCands, visitPercentage, NO_RESCORING, similarity).boost(
                 boost

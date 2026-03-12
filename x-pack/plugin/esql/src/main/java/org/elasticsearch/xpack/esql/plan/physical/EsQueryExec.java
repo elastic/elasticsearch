@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsQueryExec extends LeafExec implements EstimatesRowSize {
+public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
     public static final EsField DOC_ID_FIELD = new EsField(
         "_doc",
         DataType.DOC_DATA_TYPE,

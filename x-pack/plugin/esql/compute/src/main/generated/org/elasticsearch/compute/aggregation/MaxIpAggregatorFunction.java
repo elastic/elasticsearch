@@ -34,16 +34,10 @@ public final class MaxIpAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxIpAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MaxIpAggregator.SingleState state) {
+  MaxIpAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxIpAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxIpAggregatorFunction(driverContext, channels, MaxIpAggregator.initSingle());
+    this.state = MaxIpAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

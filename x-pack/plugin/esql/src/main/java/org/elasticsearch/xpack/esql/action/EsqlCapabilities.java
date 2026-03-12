@@ -14,11 +14,11 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -28,6 +28,58 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
+    /**
+     * ESQL capabilities.
+     *
+     * @param all if {@code false} then only <strong>enabled</strong> capabilities are returned,
+     *            otherwise <strong>all</strong> known capabilities are returned.
+     */
+    public static EsqlCapabilities capabilities(EsqlFunctionRegistry functions, boolean all) {
+        Builder builder = new Builder(all);
+        for (Cap cap : Cap.values()) {
+            builder.add(cap.capabilityName(), cap.isEnabled());
+        }
+
+        /*
+         * Add all of our cluster features without the leading "esql."
+         */
+        for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
+            builder.add(cap(feature), true);
+        }
+
+        if (all) {
+            functions = functions.snapshotRegistry();
+        }
+        functions.addCapabilities(builder);
+        return builder.build();
+    }
+
+    public static class Builder {
+        private final Set<String> capabilities = new HashSet<>();
+        private final boolean all;
+
+        public Builder(boolean all) {
+            this.all = all;
+        }
+
+        public boolean all() {
+            return all;
+        }
+
+        public void add(String cap, boolean enabled) {
+            if (all || enabled) {
+                boolean firstTime = capabilities.add(cap);
+                if (firstTime == false) {
+                    throw new IllegalStateException("duplicate capability [" + cap + "]");
+                }
+            }
+        }
+
+        public EsqlCapabilities build() {
+            return new EsqlCapabilities(Set.copyOf(capabilities));
+        }
+    }
+
     public enum Cap {
         /**
          * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -168,15 +220,33 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
-         */
-        OPTIONAL_FIELDS(Build.current().isSnapshot()),
-
-        /**
-         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
-         * capability until we enable the LOAD option mentioned above.
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
+
+        /**
+         * Fix incorrect detection of unmapped fields in nullify/load mode when unresolved attributes
+         * match fields already present in the children's output.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
+
+        /**
+         * Nullify unmapped fields in agg filters like {@code STATS agg_fun(field) WHERE field...}, even when
+         * {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs} marks the field as unresolvable with a custom error message.
+         */
+        OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
+         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         */
+        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -195,102 +265,10 @@ public class EsqlCapabilities {
         COUNTER_TYPES,
 
         /**
-         * Support for function {@code BIT_LENGTH}. Done in #115792
-         */
-        FN_BIT_LENGTH,
-
-        /**
-         * Support for function {@code BYTE_LENGTH}.
-         */
-        FN_BYTE_LENGTH,
-
-        /**
-         * Support for function {@code REVERSE}.
-         */
-        FN_REVERSE,
-
-        /**
-         * Support for reversing whole grapheme clusters. This is not supported
-         * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
-         * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
-         */
-        FN_REVERSE_GRAPHEME_CLUSTERS,
-
-        /**
-         * Support for function {@code CONTAINS}. Done in <a href="https://github.com/elastic/elasticsearch/pull/133016">#133016.</a>
-         */
-        FN_CONTAINS,
-
-        /**
-         * Support for function {@code CBRT}. Done in #108574.
-         */
-        FN_CBRT,
-
-        /**
-         * Support for function {@code HYPOT}.
-         */
-        FN_HYPOT,
-
-        /**
-         * Support for {@code MV_APPEND} function. #107001
-         */
-        FN_MV_APPEND,
-
-        /**
-         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
-         */
-        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
-
-        /**
-         * Support for {@code MV_PERCENTILE} function.
-         */
-        FN_MV_PERCENTILE,
-
-        /**
-         * Support for function {@code IP_PREFIX}.
-         */
-        FN_IP_PREFIX,
-
-        /**
-         * Fix a bug leading to the scratch leaking data to other rows.
-         */
-        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
-
-        /**
-         * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
-         */
-        FN_SUBSTRING_EMPTY_NULL,
-
-        /**
-         * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-         */
-        FN_ROUND_UL_FIXES,
-
-        /**
-         * Support for function {@code SCALB}.
-         */
-        FN_SCALB,
-
-        /**
-         * Support for function DAY_NAME
-         */
-        FN_DAY_NAME,
-
-        /**
-         * Support for function MONTH_NAME
-         */
-        FN_MONTH_NAME,
-
-        /**
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
         FN_MV_CONTAINS_V1,
-
-        /**
-         * support for MV_INTERSECTS function
-         */
-        FN_MV_INTERSECTS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -1444,6 +1422,10 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
+         */
+        EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
@@ -1587,11 +1569,6 @@ public class EsqlCapabilities {
         ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
-         * Support for the Present function
-         */
-        FN_PRESENT,
-
-        /**
          * Bugfix for STATS {{expression}} WHERE {{condition}} when the
          * expression is replaced by something else on planning
          * e.g. STATS SUM(1) WHERE x==3 is replaced by
@@ -1605,16 +1582,16 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
+         * COALESCE function support for dense_vector type.
+         */
+        COALESCE_DENSE_VECTOR,
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),
 
         FIX_PERCENTILE_PRECISION(),
-
-        /**
-         * Support for the Absent function
-         */
-        FN_ABSENT,
 
         /** INLINE STATS supports remote indices */
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
@@ -1693,6 +1670,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/120272
          */
         FIX_NO_COLUMNS,
+
+        /**
+         * Fix LimitOperator truncation with zero columns
+         * https://github.com/elastic/elasticsearch/issues/142473
+         */
+        FIX_LIMIT_TRUNCATION_WITH_ZERO_COLUMNS,
 
         /**
          * Support for dots in FUSE attributes
@@ -1822,11 +1805,6 @@ public class EsqlCapabilities {
          * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
          */
         HANDLE_DETERMINIZATION_COMPLEXITY,
-
-        /**
-         * Support for the TRANGE function
-         */
-        FN_TRANGE,
 
         /**
          * https://github.com/elastic/elasticsearch/issues/136851
@@ -1961,6 +1939,12 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
+         * grouping function that excludes specific dimensions from time-series grouping.
+         */
+        TIME_SERIES_WITHOUT_GROUPING,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -2019,16 +2003,6 @@ public class EsqlCapabilities {
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
         FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
-
-        /**
-         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
-         */
-        FN_MV_INTERSECTION,
-
-        /**
-         * Support for the MV_UNION function which returns the set union of two multivalued fields
-         */
-        FN_MV_UNION,
 
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
@@ -2110,11 +2084,6 @@ public class EsqlCapabilities {
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
         /**
-         * MMR result diversification command
-         */
-        MMR(Build.current().isSnapshot()),
-
-        /**
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
          */
         METADATA_WILDCARDS,
@@ -2127,7 +2096,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION(Build.current().isSnapshot()),
+        APPROXIMATION_V2(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2156,9 +2125,25 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
+         */
+        TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
          */
         TDIGEST_MEDIAN,
+
+        /**
+         * Support for {@code FIRST_OVER_TIME} and {@code LAST_OVER_TIME} on {@code tdigest} type fields.
+         */
+        TDIGEST_FIRST_LAST_OVER_TIME,
+
+        /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
 
         /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
@@ -2176,12 +2161,9 @@ public class EsqlCapabilities {
         INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
 
         /**
-         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
-         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
-         * however, without the MMRExec to operator code in place, will fail on the snapshot
-         * TODO - remove this once the MMR operator is merged
+         * Support for the MMR result diversification command
          */
-        MMR_V2(Build.current().isSnapshot()),
+        MMR_V2,
 
         /**
          * Supports the {@code URI_PARTS}) command.
@@ -2194,10 +2176,9 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
-         * Produce a {@code warning} and {@code null} when you run
-         * {@code ABS} on {@code Long.MIN_VALUE}.
+         * Support for TBUCKET with numeric bucket count and optional from/to parameters.
          */
-        FN_ABS_MIN_WARNING,
+        TBUCKET_FROM_TO,
 
         /**
          * Supports the REGISTERED_DOMAIN command.
@@ -2221,11 +2202,6 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         /**
-         * Support for function {@code JSON_EXTRACT}.
-         */
-        FN_JSON_EXTRACT,
-
-        /**
          * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
          * https://github.com/elastic/elasticsearch/issues/142180
          */
@@ -2235,6 +2211,82 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
+
+        /**
+         * FORK with no implicit LIMIT
+         */
+        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
+        /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
+        /**
+         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
+         */
+        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
+
+        /**
+         * Support for intra-row field references in ROW command.
+         * https://github.com/elastic/elasticsearch/issues/140217
+         */
+        ROW_FIELD_RESOLUTION,
+
+        /**
+         * Support aggregating on integers in FIRST/LAST.
+         */
+        FIRST_LAST_AGG_ON_INTS,
+
+        /**
+         * Fix for KQL/QSTR functions failing when used with unmapped fields in NULLIFY mode.
+         * Unmapped fields are now added directly to EsRelation output with NULL type instead of using Eval nodes.
+         * https://github.com/elastic/elasticsearch/issues/142968
+         */
+        FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
+        /**
+         * Fix for not including metadata _doc_count in the _timeseries column
+         * https://github.com/elastic/elasticsearch/issues/143464
+         */
+        FIX_DISPLAYING_TS_DIMENSIONS_IN_METRICS_GROUP_BY_ALL,
+
+        /**
+         * Support for the zero_terms_query option in the match function.
+         * https://github.com/elastic/elasticsearch/issues/143070
+         */
+        MATCH_FUNCTION_ZERO_TERMS_QUERY,
+
+        /**
+         * Fix for full-text functions failing on renamed fields.
+         * https://github.com/elastic/elasticsearch/issues/143859
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
+
+        /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
+         * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
+         * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
+         * sub-plans are updated. Only genuinely new attributes get fresh NameIds.
+         * Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+         * https://github.com/elastic/elasticsearch/issues/142762
+         */
+        FIX_FORK_UNMAPPED_NULLIFY,
+
+        /**
+         * Fix for the STATS BY ALL with LIMIT 0.
+         * https://github.com/elastic/elasticsearch/issues/144024
+         */
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
@@ -2263,30 +2315,6 @@ public class EsqlCapabilities {
         }
     }
 
-    public static final Set<String> CAPABILITIES = capabilities(false);
-
-    /**
-     * Get a {@link Set} of all capabilities. If the {@code all} parameter is {@code false}
-     * then only <strong>enabled</strong> capabilities are returned - otherwise <strong>all</strong>
-     * known capabilities are returned.
-     */
-    public static Set<String> capabilities(boolean all) {
-        List<String> caps = new ArrayList<>();
-        for (Cap cap : Cap.values()) {
-            if (all || cap.isEnabled()) {
-                caps.add(cap.capabilityName());
-            }
-        }
-
-        /*
-         * Add all of our cluster features without the leading "esql."
-         */
-        for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        return Set.copyOf(caps);
-    }
-
     /**
      * Convert a {@link NodeFeature} from {@link EsqlFeatures} into a
      * capability.
@@ -2294,5 +2322,15 @@ public class EsqlCapabilities {
     public static String cap(NodeFeature feature) {
         assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
+    }
+
+    private final Set<String> capabilities;
+
+    private EsqlCapabilities(Set<String> capabilities) {
+        this.capabilities = capabilities;
+    }
+
+    public Set<String> capabilities() {
+        return capabilities;
     }
 }

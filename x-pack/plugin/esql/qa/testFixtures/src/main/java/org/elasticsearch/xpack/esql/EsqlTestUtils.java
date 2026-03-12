@@ -45,6 +45,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -78,6 +79,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -96,6 +98,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -304,6 +307,7 @@ public final class EsqlTestUtils {
         return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
     }
 
+    // TODO: deduplicate some of the `FieldAttribute field(String name, DataType type)` methods in the ESQL tests (currently 6)
     public static FieldAttribute fieldAttribute(String name, DataType type) {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
@@ -570,6 +574,28 @@ public final class EsqlTestUtils {
         InferenceResolution inferenceResolution,
         UnmappedResolution unmappedResolution
     ) {
+        return testAnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolutions,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            unmappedResolution,
+            null
+        );
+    }
+
+    public static MutableAnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
@@ -578,7 +604,8 @@ public final class EsqlTestUtils {
             enrichResolution,
             inferenceResolution,
             randomMinimumVersion(),
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
     }
 
@@ -605,7 +632,7 @@ public final class EsqlTestUtils {
             new InferenceService(mock(Client.class), clusterService),
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            CrossProjectModeDecider.NOOP
         );
     }
 
@@ -655,6 +682,7 @@ public final class EsqlTestUtils {
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             null,
+            statement.setting(QuerySettings.APPROXIMATION),
             Map.of()
         );
     }
@@ -1187,13 +1215,8 @@ public final class EsqlTestUtils {
         double min = digest.getMin();
         double max = digest.getMax();
 
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
-        } catch (IOException e) {
-            // This is a test util, so we're just going to fail the test here
-            fail(e);
-        }
+        TDigestHolder returnValue = new TDigestHolder();
+        returnValue.reset(EncodedTDigest.encodeCentroids(centroids, counts), min, max, sum, valueCount);
         return returnValue;
     }
 

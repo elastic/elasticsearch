@@ -35,6 +35,7 @@ dependencies {
   clusterModules project(xpackModule("ilm"))
   clusterModules project(xpackModule("searchable-snapshots"))
   clusterModules project(":modules:data-streams")
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

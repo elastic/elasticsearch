@@ -1341,6 +1341,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             document(timestamp, "vm-dev01", "cpu-load", 0),
             document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 1)
         );
+        ensureGreen(indexName);
         flushAndRefresh(indexName);
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();

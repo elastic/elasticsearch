@@ -16,12 +16,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class SnappyBlockDecoderTests extends ESTestCase {
 
@@ -308,7 +313,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("preamble"));
     }
 
-    public void testDecodeReleasesResourcesOnError() {
+    public void testDecodeReleasesResourcesOnError() throws IOException {
         var trackingRecycler = new MockBytesRefRecycler();
         var trackingDecoder = new SnappyBlockDecoder(trackingRecycler);
 
@@ -336,7 +341,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         trackingRecycler.close();
     }
 
-    public void testDecodeLiteralExceedsDeclaredLength() {
+    public void testDecodeLiteralExceedsDeclaredLength() throws IOException {
         // Preamble claims 5 bytes, but the literal tag says 10 bytes
         var buf = new ByteArrayOutputStream();
         writeVarint(buf, 5);
@@ -352,7 +357,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
     }
 
-    public void testDecodeCopyExceedsDeclaredLength() {
+    public void testDecodeCopyExceedsDeclaredLength() throws IOException {
         // Preamble claims 6 bytes, literal writes 5, then a copy tries to write 4 more
         var buf = new ByteArrayOutputStream();
         writeVarint(buf, 6);
@@ -371,7 +376,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
     }
 
-    public void testDecodeSnappyBomb() {
+    public void testDecodeSnappyBomb() throws IOException {
         // A small compressed payload that claims a huge uncompressed length (just under maxSize)
         // but the actual tags try to produce even more output than declared.
         // Preamble declares 100 bytes, a single 1-byte literal, then a run-length copy
@@ -399,7 +404,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
     }
 
-    public void testDecodeInvalidCopyOffsetZero() {
+    public void testDecodeInvalidCopyOffsetZero() throws IOException {
         // COPY_2_BYTE_OFFSET with offset=0 triggers "invalid copy offset" error
         var buf = new ByteArrayOutputStream();
         writeVarint(buf, 10);
@@ -418,7 +423,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("invalid copy offset"));
     }
 
-    public void testDecodeCopyOffsetExceedsWritten() {
+    public void testDecodeCopyOffsetExceedsWritten() throws IOException {
         // COPY_1_BYTE_OFFSET with offset=5 but only 2 bytes written so far
         var buf = new ByteArrayOutputStream();
         writeVarint(buf, 10);
@@ -463,11 +468,88 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Randomly synthesize a valid Snappy block as a sequence of arbitrary tagged elements and assert it decodes correctly.
+     */
+    public void testSyntheticCompressedStream() throws IOException {
+        final var uncompressed = new byte[scaledRandomIntBetween(0, ByteSizeUnit.MB.toIntBytes(32))];
+        final var compressed = new RecyclerBytesStreamOutput(recycler);
+        writeVarint(compressed, uncompressed.length);
+
+        int uncompressedPosition = 0;
+        while (true) {
+            int remaining = uncompressed.length - uncompressedPosition;
+            if (remaining == 0) {
+                break;
+            }
+            if (uncompressedPosition == 0 || randomBoolean()) {
+                final var literal = randomByteArrayOfLength(scaledRandomIntBetween(1, remaining));
+                System.arraycopy(literal, 0, uncompressed, uncompressedPosition, literal.length);
+                writeLiteralLength(compressed, literal.length);
+                compressed.write(literal);
+                uncompressedPosition += literal.length;
+            } else {
+                final int copyLength = between(1, Math.min(remaining, 64));
+                int copyPosition = between(0, uncompressedPosition - 1);
+                writeCopy(compressed, uncompressedPosition - copyPosition, copyLength);
+                for (int i = 0; i < copyLength; i++) {
+                    uncompressed[uncompressedPosition++] = uncompressed[copyPosition++];
+                }
+            }
+        }
+
+        try (var decoded = decoder.process(compressed.moveToBytesReference(), uncompressed.length + between(0, 1024))) {
+            assertThat(decoded, equalBytes(new BytesArray(uncompressed)));
+        }
+    }
+
+    private void writeLiteralLength(OutputStream out, int length) throws IOException {
+        int offsetLength = length - 1;
+        if (offsetLength > 0xFFFFFF || randomBoolean()) {
+            out.write(63 << 2);
+            out.write(offsetLength & 0xFF);
+            out.write((offsetLength >> 8) & 0xFF);
+            out.write((offsetLength >> 16) & 0xFF);
+            out.write((offsetLength >> 24) & 0xFF);
+        } else if (offsetLength > 0xFFFF || randomBoolean()) {
+            out.write(62 << 2);
+            out.write(offsetLength & 0xFF);
+            out.write((offsetLength >> 8) & 0xFF);
+            out.write((offsetLength >> 16) & 0xFF);
+        } else if (offsetLength > 0xFF || randomBoolean()) {
+            out.write(61 << 2);
+            out.write(offsetLength & 0xFF);
+            out.write((offsetLength >> 8) & 0xFF);
+        } else if (offsetLength > 59 || randomBoolean()) {
+            out.write(60 << 2);
+            out.write(offsetLength & 0xFF);
+        } else {
+            out.write(offsetLength << 2);
+        }
+    }
+
+    private void writeCopy(OutputStream out, int offset, int length) throws IOException {
+        if (offset > 0xFFFF || randomBoolean()) {
+            out.write(0x03 | ((length - 1) << 2));
+            out.write(offset & 0xFF);
+            out.write((offset >> 8) & 0xFF);
+            out.write((offset >> 16) & 0xFF);
+            out.write((offset >> 24) & 0xFF);
+        } else if (offset > 0x7FF || ((length - 4) | 7) != 7 || randomBoolean()) {
+            out.write(0x02 | ((length - 1) << 2));
+            out.write(offset & 0xFF);
+            out.write((offset >> 8) & 0xFF);
+        } else {
+            out.write(0x01 | (length - 4 << 2) | (((offset >> 8) & 0x07) << 5));
+            out.write(offset & 0xFF);
+        }
+    }
+
     private static ReleasableBytesReference releasable(byte[] data) {
         return new ReleasableBytesReference(new BytesArray(data), () -> {});
     }
 
-    private static void writeVarint(ByteArrayOutputStream buf, int value) {
+    private static void writeVarint(OutputStream buf, int value) throws IOException {
         while ((value & ~0x7F) != 0) {
             buf.write((value & 0x7F) | 0x80);
             value >>>= 7;

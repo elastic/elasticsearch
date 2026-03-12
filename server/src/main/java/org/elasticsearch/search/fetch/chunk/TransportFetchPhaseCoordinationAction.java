@@ -198,52 +198,49 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks
-        ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(
-            ActionListener.wrap(dataNodeResult -> {
-                BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
-                int hitCount = dataNodeResult.getLastChunkHitCount();
-                long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
+        ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(ActionListener.wrap(dataNodeResult -> {
+            BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
+            int hitCount = dataNodeResult.getLastChunkHitCount();
+            long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
 
-                // Process the embedded last chunk if present
-                if (lastChunkBytes != null && hitCount > 0) {
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                            "Received final chunk [{}] for shard [{}]",
-                            hitCount,
-                            request.shardFetchRequest.getShardSearchRequest().shardId()
-                        );
-                    }
-
-                    // Track memory usage
-                    int bytesSize = lastChunkBytes.length();
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-                    responseStream.trackBreakerBytes(bytesSize);
-
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
-                        for (int i = 0; i < hitCount; i++) {
-                            SearchHit hit = SearchHit.readFrom(in, false);
-
-                            // Add with explicit sequence number
-                            long hitSequence = lastChunkSequenceStart + i;
-                            responseStream.addHitWithSequence(hit, hitSequence);
-                        }
-                    }
+            // Process the embedded last chunk if present
+            if (lastChunkBytes != null && hitCount > 0) {
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                        "Received final chunk [{}] for shard [{}]",
+                        hitCount,
+                        request.shardFetchRequest.getShardSearchRequest().shardId()
+                    );
                 }
 
-                // Build final result from all accumulated hits
-                FetchSearchResult finalResult = responseStream.buildFinalResult(
-                    dataNodeResult.getContextId(),
-                    dataNodeResult.getSearchShardTarget(),
-                    dataNodeResult.profileResult()
-                );
+                // Track memory usage
+                int bytesSize = lastChunkBytes.length();
+                circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
+                responseStream.trackBreakerBytes(bytesSize);
 
-                ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
-            }, listener::onFailure),
-            () -> {
-                registration.close();
-                responseStream.decRef();
+                try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
+                    for (int i = 0; i < hitCount; i++) {
+                        SearchHit hit = SearchHit.readFrom(in, false);
+
+                        // Add with explicit sequence number
+                        long hitSequence = lastChunkSequenceStart + i;
+                        responseStream.addHitWithSequence(hit, hitSequence);
+                    }
+                }
             }
-        );
+
+            // Build final result from all accumulated hits
+            FetchSearchResult finalResult = responseStream.buildFinalResult(
+                dataNodeResult.getContextId(),
+                dataNodeResult.getSearchShardTarget(),
+                dataNodeResult.profileResult()
+            );
+
+            ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
+        }, listener::onFailure), () -> {
+            registration.close();
+            responseStream.decRef();
+        });
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {

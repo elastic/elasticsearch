@@ -697,7 +697,6 @@ public class SearchTransportService {
             // coordinator and data node have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
-                logger.info("Using CHUNKED fetch path");
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()

@@ -96,27 +96,25 @@ public class TransportFetchPhaseResponseChunkAction {
             BytesTransportRequest::new,
             (request, channel, task) -> {
                 ReleasableBytesReference bytesRef = request.bytes();
-                FetchPhaseResponseChunk chunk = null;
-                boolean handedOff = false;
+                long coordinatingTaskId;
+                FetchPhaseResponseChunk chunk;
 
                 try (StreamInput in = new NamedWriteableAwareStreamInput(bytesRef.streamInput(), namedWriteableRegistry)) {
-                    long coordinatingTaskId = in.readVLong();
+                    coordinatingTaskId = in.readVLong();
                     chunk = new FetchPhaseResponseChunk(in);
-
-                    processChunk(
-                        coordinatingTaskId,
-                        chunk,
-                        ActionListener.running(() -> { channel.sendResponse(ActionResponse.Empty.INSTANCE); })
-                    );
-                    handedOff = true;
                 } catch (Exception e) {
                     channel.sendResponse(e);
-                    if (handedOff == false && chunk != null) {
-                        chunk.close();
-                    } else if (handedOff == false) {
-                        bytesRef.close();
-                    }
+                    return;
                 }
+
+                processChunk(
+                    coordinatingTaskId,
+                    chunk,
+                    ActionListener.releaseAfter(
+                        ActionListener.running(() -> channel.sendResponse(ActionResponse.Empty.INSTANCE)),
+                        chunk
+                    )
+                );
             }
         );
     }

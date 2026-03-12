@@ -96,33 +96,22 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlights, "field", "this is <em>some</em> text");
     }
 
-    /**
-     * Verify that match_phrase_prefix query + sentence boundary scanner + multi-valued field highlight
-     * does not throw IllegalStateException.
-     * Multi-valued fields trigger the cross-segment boundary logic in SplittingBreakIterator.
-     */
-    public void testMatchPhrasePrefixWithSentenceBoundaryScannerMultiValue() throws IOException {
-
+    public void testHighlightPhraseSpanningMultipleValues() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "properties" : {
-                "field" : { "type" : "text" }
+                "field" : { "type" : "text", "position_increment_gap" : 0 }
             }}}
             """);
 
         ParsedDocument doc = mapperService.documentMapper().parse(source("""
-            { "field" : ["First value with some text here.", "Second value with prefix matching content."] }
+            { "field" : ["not to be true", "the person is"] }
             """));
 
-        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhrasePrefixQuery("field", "prefix mat"))
-            .highlighter(
-                new HighlightBuilder().field("field")
-                    .boundaryScannerType(HighlightBuilder.BoundaryScannerType.SENTENCE)
-                    .highlighterType("unified")
-            );
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhraseQuery("field", "true the person"))
+            .highlighter(new HighlightBuilder().field("field"));
 
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-        assertNotNull(highlights);
-        assertFalse(highlights.isEmpty());
+        assertHighlights(highlights, "field", "<em>true the person</em> is");
     }
 
 }

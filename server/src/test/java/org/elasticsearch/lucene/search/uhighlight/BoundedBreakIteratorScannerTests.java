@@ -148,7 +148,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(text.length(), bi.following(offset - 1));
     }
 
-    public void testFirstResetsStateAndPrecedingFollowingStillWorks() {
+    public void testFirstResetsCachedState() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "This is the first sentence. Here is the second one.";
         bi.setText(text);
@@ -161,8 +161,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         // Call first() to reset state
         assertEquals(0, bi.first());
 
-        // Re-setText and call preceding/following again, results should be consistent
-        bi.setText(text);
+        // preceding/following should work directly after first(), without re-setting text
         int start2 = bi.preceding(offset);
         int end2 = bi.following(offset - 1);
 
@@ -170,25 +169,23 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    public void testSplittingBreakIteratorWrappingAcrossSegments() {
+    public void testSplittingBreakIteratorAcrossValues() {
         BreakIterator bounded = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         SplittingBreakIterator splitting = new SplittingBreakIterator(bounded, '\u0000');
 
-        final String text = "Hello world.\u0000Foo bar. Baz qux.";
+        // "Hello world." is indices 0..11, \0 at 12, "Foo bar." is indices 13..20
+        final String text = "Hello world.\u0000Foo bar.";
         splitting.setText(text);
 
-        // preceding/following should work in the first segment without throwing
         int offset = text.indexOf("world");
-        int start = splitting.preceding(offset + 1);
-        int end = splitting.following(offset);
-        assertThat(start, greaterThanOrEqualTo(0));
-        assertThat(end, greaterThan(start));
+        assertEquals(0, splitting.preceding(offset + 1));
+        assertEquals(12, splitting.following(offset));
+        assertEquals(12, splitting.preceding(13));
 
-        // preceding/following should work across the \u0000 separator boundary
-        int secondOffset = text.indexOf("Baz");
-        start = splitting.preceding(secondOffset + 1);
-        end = splitting.following(secondOffset);
-        assertThat(start, greaterThan(0));
-        assertThat(end, greaterThan(start));
+        int secondOffset = text.indexOf("Foo");
+        assertEquals(13, splitting.preceding(secondOffset + 1));
+        assertEquals(text.length(), splitting.following(secondOffset));
+
+        assertEquals(13, splitting.following(12));
     }
 }

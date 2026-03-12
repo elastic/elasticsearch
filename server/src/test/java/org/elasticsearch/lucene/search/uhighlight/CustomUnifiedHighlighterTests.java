@@ -402,9 +402,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
     }
 
     public void testPhraseSpanningMultipleValues() throws Exception {
-        // Regression test for https://github.com/elastic/elasticsearch/issues/122418
-        // Phrase query spanning across multi-value field boundaries should not throw
-        // IllegalStateException and should not contain \u0000 in the highlighted output.
         final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
         final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
         Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
@@ -419,7 +416,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             new StandardAnalyzer(),
             query,
             Locale.ROOT,
-            BreakIterator.getSentenceInstance(Locale.ROOT),
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
             0,
             outputs
         );

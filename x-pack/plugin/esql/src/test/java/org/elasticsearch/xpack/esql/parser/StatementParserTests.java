@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -135,6 +136,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1080,6 +1082,78 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY hostname, @timestamp / 10
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings().size(), equalTo(2));
+        assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
+        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
+        Alias divAlias = (Alias) limitBy.groupings().get(1);
+        assertThat(divAlias.child(), instanceOf(Div.class));
+        Div divExpr = (Div) divAlias.child();
+        assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
+        assertThat(divExpr.right(), instanceOf(Literal.class));
+        assertThat(((Literal) divExpr.right()).value(), equalTo(10));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByQualifiedName() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY [foo].[hostname]
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limitBy.groupings().getFirst();
+        assertThat(groupKey.qualifier(), equalTo("foo"));
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
     }
 
     public void testBasicSortCommand() {

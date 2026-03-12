@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.SequencedMap;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -43,7 +43,7 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
      * @return the logical plan
      */
     public static RegisteredDomain createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
-        LinkedHashMap<String, Class<?>> functionOutputFields = RegisteredDomainFunctionBridge.getAllOutputFields();
+        SequencedMap<String, Class<?>> functionOutputFields = RegisteredDomainFunctionBridge.getAllOutputFields();
         List<String> outputFileNames = functionOutputFields.keySet().stream().toList();
         List<Attribute> outputFieldAttributes = computeOutputAttributes(functionOutputFields, outputFieldPrefix.name(), source);
         return new RegisteredDomain(source, child, input, outputFileNames, outputFieldAttributes);
@@ -98,7 +98,7 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
     public void postAnalysisVerification(Failures failures) {
         if (input.resolved()) {
             DataType type = input.dataType();
-            if (DataType.isString(type) == false) {
+            if (DataType.isNull(type) == false && DataType.isString(type) == false) {
                 failures.add(fail(input, "Input for REGISTERED_DOMAIN must be of type [string] but is [{}]", type.typeName()));
             }
         }

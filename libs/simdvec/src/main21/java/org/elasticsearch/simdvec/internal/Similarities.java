@@ -288,7 +288,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductD1Q4BulkWithOffsets(
+    public static void dotProductD1Q4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,

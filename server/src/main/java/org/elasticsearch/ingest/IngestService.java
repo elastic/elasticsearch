@@ -81,6 +81,7 @@ import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -99,7 +100,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -152,7 +152,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
-    private final SamplingService samplingService;
     private final Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -244,10 +243,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        SamplingService samplingService,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) {
         this.clusterService = clusterService;
@@ -264,7 +263,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry
             )
         );
         this.threadPool = threadPool;
@@ -272,7 +272,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
-        this.samplingService = samplingService;
         this.nodeInfoListener = nodeInfoListener;
     }
 
@@ -285,10 +284,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             clusterService,
@@ -299,10 +298,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService,
-            samplingService,
             createNodeInfoListener(client)
         );
     }
@@ -323,7 +322,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
         this.featureService = ingestService.featureService;
-        this.samplingService = ingestService.samplingService;
         this.nodeInfoListener = ingestService.nodeInfoListener;
     }
 
@@ -972,7 +970,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
-                            samplingService.maybeSample(state.metadata().projects().get(pipelines.projectId()), indexRequest);
                             continue;
                         }
 
@@ -1195,7 +1192,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 listener.onFailure(e);
             }
         };
-        AtomicBoolean haveAttemptedSampling = new AtomicBoolean(false);
         final var project = state.metadata().projects().get(pipelines.projectId());
         try {
             if (pipeline == null) {
@@ -1354,34 +1350,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
-                    haveAttemptedSampling.set(true);
-                    attemptToSampleData(project, indexRequest, ingestDocument);
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
-            if (haveAttemptedSampling.get() == false) {
-                // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
-                attemptToSampleData(project, indexRequest, ingestDocument);
-            }
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
             exceptionHandler.accept(e); // document failed
-        }
-    }
-
-    private void attemptToSampleData(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        if (samplingService != null && samplingService.atLeastOneSampleConfigured(projectMetadata)) {
-            /*
-             * We need both the original document and the fully updated document for sampling, so we make a copy of the original
-             * before overwriting it here. We can discard it after sampling.
-             */
-            samplingService.maybeSample(projectMetadata, indexRequest, ingestDocument);
-
         }
     }
 

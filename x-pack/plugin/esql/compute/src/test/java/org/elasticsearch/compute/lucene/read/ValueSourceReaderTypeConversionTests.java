@@ -60,6 +60,7 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -202,28 +203,45 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         return readers.get(indexKey);
     }
 
-    @Override
-    protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return factory(initShardContexts(), mapperService("index1").fieldType("long"), ElementType.LONG);
+    protected int docSequenceBytesRefFieldThreshold() {
+        return 500;
     }
 
-    public static Operator.OperatorFactory factory(
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return factory(
+            initShardContexts(),
+            mapperService("index1").fieldType("long"),
+            ElementType.LONG,
+            docSequenceBytesRefFieldThreshold()
+        );
+    }
+
+    static Operator.OperatorFactory factory(
         List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         MappedFieldType ft,
-        ElementType elementType
+        ElementType elementType,
+        int docSequenceThreshold
     ) {
-        return factory(shardContexts, ft.name(), elementType, ValuesSourceReaderOperator.load(ft.blockLoader(blContext())));
+        return factory(
+            shardContexts,
+            ft.name(),
+            elementType,
+            ValuesSourceReaderOperator.load(ft.blockLoader(blContext())),
+            docSequenceThreshold
+        );
     }
 
     private static Operator.OperatorFactory factory(
         List<ValuesSourceReaderOperator.ShardContext> shardContexts,
         String name,
         ElementType elementType,
-        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter
+        ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter,
+        int docSequenceThreshold
     ) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, (ctx, shardIdx) -> {
                 if (shardIdx < 0 || shardIdx >= INDICES.size()) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
@@ -231,7 +249,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             })),
             new IndexedByShardIdFromList<>(shardContexts),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceThreshold
         );
     }
 
@@ -479,7 +499,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 List.of(testCase.info(), fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -520,7 +542,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, null));
+        return new ValuesSourceReaderOperator.FieldInfo(
+            ft.name(),
+            elementType,
+            false,
+            (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, ft, null)
+        );
     }
 
     private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, String toType) {
@@ -528,7 +555,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             fieldName,
             elementType,
             false,
-            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType)
+            (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, fieldName, toType)
         );
     }
 
@@ -550,7 +577,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ),
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -564,7 +593,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     b.stream().map(i -> i.info()).toList(),
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold()
                 ).get(driverContext)
             );
         }
@@ -606,7 +637,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType ft1 = mapperService.fieldType(f1);
         MappedFieldType ft2 = mapperService.fieldType(f2);
         return new FieldCase(
-            new ValuesSourceReaderOperator.FieldInfo(f1, elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft1, ft2))
+            new ValuesSourceReaderOperator.FieldInfo(f1, elementType, false, (ctx, shardIdx) -> getBlockLoaderFor(shardIdx, ft1, ft2))
         );
     }
 
@@ -649,7 +680,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     List.of(i.info()),
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold()
                 ).get(driverContext)
             )
             .toList();
@@ -729,7 +762,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "constant_bytes",
                     ElementType.BYTES_REF,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(new ConstantBytes(new BytesRef("foo")))
                 )
             ).results(checks::constantBytes).readers(StatusChecks::constantBytes)
         );
@@ -739,7 +772,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     "null",
                     ElementType.NULL,
                     false,
-                    shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                 )
             ).results(checks::constantNulls).readers(StatusChecks::constantNulls)
         );
@@ -840,10 +873,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
-                    factory(List.of(vsShardContext), intFt, ElementType.INT).get(driverContext),
-                    factory(List.of(vsShardContext), longFt, ElementType.LONG).get(driverContext),
-                    factory(List.of(vsShardContext), doubleFt, ElementType.DOUBLE).get(driverContext),
-                    factory(List.of(vsShardContext), kwFt, ElementType.BYTES_REF).get(driverContext)
+                    factory(List.of(vsShardContext), intFt, ElementType.INT, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), longFt, ElementType.LONG, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), doubleFt, ElementType.DOUBLE, docSequenceBytesRefFieldThreshold()).get(driverContext),
+                    factory(List.of(vsShardContext), kwFt, ElementType.BYTES_REF, docSequenceBytesRefFieldThreshold()).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
                     try {
@@ -915,18 +948,20 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                                 "null1",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             ),
                             new ValuesSourceReaderOperator.FieldInfo(
                                 "null2",
                                 ElementType.NULL,
                                 false,
-                                shardIdx -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                                (ctx, shardIdx) -> ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
                             )
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true),
+                        docSequenceBytesRefFieldThreshold()
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -961,7 +996,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold()
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1006,13 +1043,15 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, (ctx, shardIdx) -> {
                     seenShards.add(shardIdx);
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true),
+                docSequenceBytesRefFieldThreshold()
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(
@@ -1052,7 +1091,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            new TestDriverRunner().run(d);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(d);
             success = true;
         } finally {
             if (success == false) {

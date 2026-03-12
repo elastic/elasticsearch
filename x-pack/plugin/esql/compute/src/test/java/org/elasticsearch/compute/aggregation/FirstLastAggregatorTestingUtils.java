@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
@@ -31,7 +30,7 @@ public class FirstLastAggregatorTestingUtils {
         for (Page page : input) {
             matchingGroups(page, group).forEach(p -> {
                 Block values = page.getBlock(1);
-                LongBlock timestamps = page.getBlock(2);
+                Block timestamps = page.getBlock(2);
                 Tuple<List<Long>, List<Object>> pair = unpack(timestamps, values, p);
                 work.add(pair.v1(), pair.v2());
             });
@@ -44,7 +43,7 @@ public class FirstLastAggregatorTestingUtils {
     public static void processPages(GroundTruthFirstLastAggregator work, List<Page> input) {
         for (Page page : input) {
             Block values = page.getBlock(0);
-            LongBlock timestamps = page.getBlock(1);
+            Block timestamps = page.getBlock(1);
 
             for (int p = 0; p < page.getPositionCount(); ++p) {
                 Tuple<List<Long>, List<Object>> pair = unpack(timestamps, values, p);
@@ -57,9 +56,12 @@ public class FirstLastAggregatorTestingUtils {
      * Unpacks values of the passed two blocks, at the given position, into two lists. If there are no values for a particular block
      * at that position, the corresponding list is empty.
      */
-    private static Tuple<List<Long>, List<Object>> unpack(LongBlock timestamps, Block values, int p) {
+    private static Tuple<List<Long>, List<Object>> unpack(Block timestamps, Block values, int p) {
         // extract all timestamps at this position into a list
-        List<Long> timestampsAtPosition = BlockTestUtils.valuesAtPosition(timestamps, p, true);
+        List<Long> timestampsAtPosition = BlockTestUtils.valuesAtPosition(timestamps, p, true)
+            .stream()
+            .map(v -> ((Number) v).longValue())
+            .toList();
 
         // extract all values at this position into a list
         List<Object> valuesAtPosition = BlockTestUtils.valuesAtPosition(values, p, true);
@@ -129,7 +131,11 @@ public class FirstLastAggregatorTestingUtils {
          * @param actual The value received from the real aggregator.
          */
         void check(Object actual) {
-            if (expectedValues.isEmpty()) {
+            check(expectedValues, actual);
+        }
+
+        public static void check(Set<List<Object>> expected, Object actual) {
+            if (expected.isEmpty()) {
                 if (actual != null) {
                     throw new AssertionError(String.format(Locale.ROOT, "Expected null but was %s", actual));
                 }
@@ -142,20 +148,20 @@ public class FirstLastAggregatorTestingUtils {
                     actualValues.add(actual);
                 }
 
-                if (expectedValues.contains(actualValues) == false) {
-                    throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(), actual));
+                if (expected.contains(actualValues) == false) {
+                    throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(expected), actual));
                 }
             }
         }
 
-        private String expectedMessage() {
-            if (expectedValues.size() == 1) {
-                return expectedValues.iterator().next().toString();
+        private static String expectedMessage(Set<List<Object>> expected) {
+            if (expected.size() == 1) {
+                return expected.iterator().next().toString();
             }
-            if (expectedValues.size() > 10) {
-                return "one of " + expectedValues.size() + " values";
+            if (expected.size() > 10) {
+                return "one of " + expected.size() + " values";
             }
-            return "one of " + expectedValues;
+            return "one of " + expected;
         }
     }
 }

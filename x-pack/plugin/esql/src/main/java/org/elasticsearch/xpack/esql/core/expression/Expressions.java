@@ -37,7 +37,10 @@ public final class Expressions {
      * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      */
-    public static List<Attribute> toReferenceAttributes(List<? extends NamedExpression> named, List<Attribute> existingOutput) {
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<? extends NamedExpression> named,
+        List<Attribute> existingOutput
+    ) {
         if (named.isEmpty()) {
             return emptyList();
         }

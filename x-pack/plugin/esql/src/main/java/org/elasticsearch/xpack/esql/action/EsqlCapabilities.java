@@ -2263,13 +2263,11 @@ public class EsqlCapabilities {
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         /**
-         * Fixes two independent analysis bugs in {@code FORK} with {@code unmapped_fields="nullify"}.
-         * Bug 1: {@code Fork.withSubPlans()} was reassigning new {@code NameId}s to all output attributes,
-         * breaking references from upper plan nodes.
-         * Bug 2: After {@code ImplicitCasting} runs, the plan may remain unresolved because it requires a
-         * subsequent {@code ResolveRefs} pass to fully resolve. However, {@code ResolveUnmapped} runs before
-         * that second {@code ResolveRefs} pass and mistakenly treats those still-unresolved attributes as
-         * user-introduced unmapped fields, incorrectly nullifying valid references.
+         * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
+         * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
+         * sub-plans are updated. Only genuinely new attributes get fresh NameIds.
+         * Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+         * https://github.com/elastic/elasticsearch/issues/142762
          */
         FIX_FORK_UNMAPPED_NULLIFY,
 

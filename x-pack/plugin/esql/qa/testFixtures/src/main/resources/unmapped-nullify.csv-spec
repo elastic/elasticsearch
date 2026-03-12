@@ -668,7 +668,6 @@ max_bytes:long | cluster:null
 
 
 forkWithRowAndUnmappedKeep
-required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 required_capability: fix_fork_unmapped_nullify
 
@@ -685,7 +684,6 @@ null
 
 
 forkWithFromAndUnmappedCoalesce
-required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 required_capability: fix_fork_unmapped_nullify
 
@@ -702,7 +700,6 @@ avg_worked_seconds:long	| birth_date:date	| emp_no:integer	| first_name:keyword	
 
 
 forkWithUnmappedStatsEvalKeep
-required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 required_capability: fix_fork_unmapped_nullify
 
@@ -721,7 +718,6 @@ kibana.alert.risk_score:long
 
 
 forkWithUnmappedStatsEvalKeepTwoBranches
-required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 required_capability: fix_fork_unmapped_nullify
 required_capability: sample_v3
@@ -741,7 +737,6 @@ kibana.alert.risk_score:long
 
 
 forkWithRowCoalesceAndDrop
-required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 required_capability: fix_fork_unmapped_nullify
 

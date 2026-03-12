@@ -42,11 +42,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -97,7 +95,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -769,6 +766,7 @@ public class Security extends Plugin
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
+                services.crossProjectModeDecider(),
                 services.projectRoutingResolver()
             );
         } catch (final Exception e) {
@@ -792,6 +790,7 @@ public class Security extends Plugin
         PersistentTasksService persistentTasksService,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -1176,7 +1175,7 @@ public class Security extends Plugin
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            new CrossProjectModeDecider(settings),
+            crossProjectModeDecider,
             projectRoutingResolver
         );
 
@@ -1843,19 +1842,14 @@ public class Security extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();
         }
+        Settings settings = restHandlersServices.settings();
         return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
@@ -1892,7 +1886,12 @@ public class Security extends Plugin
             new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
             new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
             new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState(), getBuiltinPrivilegesResponseTranslator.get()),
+            new RestGetBuiltinPrivilegesAction(
+                settings,
+                getLicenseState(),
+                getBuiltinPrivilegesResponseTranslator.get(),
+                restHandlersServices.crossProjectModeDecider()
+            ),
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),

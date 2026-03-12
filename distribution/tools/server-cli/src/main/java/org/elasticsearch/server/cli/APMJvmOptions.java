@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -31,6 +32,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+
 /**
  * This class is responsible for working out if APM telemetry is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
@@ -38,6 +41,7 @@ import java.util.StringJoiner;
  * server URL and secret key can only be provided when Elasticsearch starts.
  */
 class APMJvmOptions {
+
     /**
      * Contains agent configuration that must always be applied, and cannot be overridden.
      */
@@ -137,13 +141,23 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
+        boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
+        boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
+        boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+        boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
+
         final Path agentJar = findAgentJar();
 
-        if (agentJar == null) {
+        if (attachAgent == false || agentJar == null) {
             return List.of();
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        if (metricsEnabled == false || agentMetricsEnabled == false) {
+            propertiesMap.put("metrics_interval", "0s");
+            propertiesMap.put("disable_metrics", "*");
+        }
 
         // Configures a log file to write to. Don't disable writing to a log file,
         // as the agent will then require extra Security Manager permissions when

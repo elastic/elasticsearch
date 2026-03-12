@@ -211,7 +211,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Client client,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -242,7 +243,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.client = client;
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.activityLogger = new ActivityLogger<>(
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
@@ -1208,7 +1209,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions resolutionIdxOpts,
         ActionListener<ResolvedIndices> listener
     ) {
-        HashSet<String> unresponsiveProjects = new HashSet<>();
+        Map<String, Exception> remoteExceptions = new HashMap<>();
         HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
 
         for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
@@ -1220,7 +1221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
             } else if (result.error() != null) {
                 // There was an error communicating with the linked project and the error was already logged.
-                unresponsiveProjects.add(projectName);
+                remoteExceptions.put(projectName, result.error());
             }
         }
 
@@ -1238,7 +1239,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
             rewritten.getResolvedIndexExpressions(),
-            resolvedExpressions
+            resolvedExpressions,
+            remoteExceptions
         );
 
         if (ex != null) {
@@ -1258,7 +1260,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
              * on this info, we can track future connection errors (when fanning out a search op) and display them in the
              * search response's metadata section.
              */
-            for (String unresponsiveProject : unresponsiveProjects) {
+            for (String unresponsiveProject : remoteExceptions.keySet()) {
                 participatingLinkedProjects.put(
                     unresponsiveProject,
                     originalResolvedIndices.getRemoteClusterIndices().get(unresponsiveProject)
@@ -1348,6 +1350,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, SearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
+        final Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
@@ -1357,6 +1360,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shouldSkipOnFailure,
                 responsesCountDown,
                 exceptions,
+                remoteExceptions,
                 clusters,
                 listener
             ) {
@@ -1384,7 +1388,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             originalIdxOpts,
                             projectRouting,
                             originResolvedIdxExpressions,
-                            resolvedIndexExpressions
+                            resolvedIndexExpressions,
+                            remoteExceptions
                         );
                         if (validationEx != null) {
                             throw validationEx;
@@ -1483,6 +1488,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             shouldSkipOnFailure,
             countDown,
             exceptions,
+            new HashMap<>(),
             clusters,
             ActionListener.releaseAfter(originalListener, searchResponseMerger)
         ) {
@@ -2283,6 +2289,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected final boolean skipOnFailure;
         private final CountDown countDown;
         private final AtomicReference<Exception> exceptions;
+        private final Map<String, Exception> remoteExceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
 
@@ -2294,6 +2301,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipOnFailure,
             CountDown countDown,
             AtomicReference<Exception> exceptions,
+            Map<String, Exception> remoteExceptions,
             SearchResponse.Clusters clusters,
             ActionListener<FinalResponse> originalListener
         ) {
@@ -2301,6 +2309,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.skipOnFailure = skipOnFailure;
             this.countDown = countDown;
             this.exceptions = exceptions;
+            this.remoteExceptions = remoteExceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
         }
@@ -2320,6 +2329,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipOnFailure);
+            remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
                 if (cluster != null) {

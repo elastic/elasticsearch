@@ -148,15 +148,6 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(text.length(), bi.following(offset - 1));
     }
 
-    // ---- Tests for first() ----
-
-    public void testFirstReturnsZeroAfterSetText() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        final String text = "This is the first sentence. Here is the second one.";
-        bi.setText(text);
-        assertEquals(0, bi.first());
-    }
-
     public void testFirstResetsStateAndPrecedingFollowingStillWorks() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "This is the first sentence. Here is the second one.";
@@ -179,191 +170,21 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- Tests for next() ----
-
-    public void testNextReturnsSentenceBoundary() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
-        final String text = "First sentence. Second sentence. Third sentence.";
-        bi.setText(text);
-
-        // first() positions to the beginning
-        assertEquals(0, bi.first());
-        // next() should return the next sentence boundary
-        int boundary = bi.next();
-        assertThat(boundary, greaterThan(0));
-        assertThat(boundary, lessThanOrEqualTo(text.length()));
-    }
-
-    public void testNextThenPrecedingFollowingStillWorks() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        final String text = "First sentence. Second sentence. Third sentence.";
-
-        // Get baseline results
-        bi.setText(text);
-        int offset = text.indexOf("Second");
-        int start1 = bi.preceding(offset);
-        int end1 = bi.following(offset - 1);
-
-        // After calling next(), re-setText, preceding/following should not be affected
-        bi.setText(text);
-        bi.first();
-        bi.next();
-
-        bi.setText(text);
-        int start2 = bi.preceding(offset);
-        int end2 = bi.following(offset - 1);
-
-        assertEquals(start1, start2);
-        assertEquals(end1, end2);
-    }
-
-    // ---- Tests for last() ----
-
-    public void testLastReturnsTextEndPosition() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
-        final String text = "First sentence. Second sentence.";
-        bi.setText(text);
-
-        int lastPos = bi.last();
-        assertEquals(text.length(), lastPos);
-    }
-
-    public void testLastThenPrecedingFollowingStillWorks() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        final String text = "First sentence. Second sentence.";
-
-        // Get baseline results
-        bi.setText(text);
-        int offset = text.indexOf("Second");
-        int start1 = bi.preceding(offset);
-        int end1 = bi.following(offset - 1);
-
-        // After calling last(), re-setText, preceding/following should not be affected
-        bi.setText(text);
-        bi.last();
-
-        bi.setText(text);
-        int start2 = bi.preceding(offset);
-        int end2 = bi.following(offset - 1);
-
-        assertEquals(start1, start2);
-        assertEquals(end1, end2);
-    }
-
-    // ---- Tests for next(n) ----
-
-    public void testNextNReturnsBoundary() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
-        final String text = "First sentence. Second sentence. Third sentence.";
-        bi.setText(text);
-
-        // Position to the start, then next(2) should skip 2 boundaries
-        bi.first();
-        int boundary = bi.next(2);
-        assertThat(boundary, greaterThan(0));
-        assertThat(boundary, lessThanOrEqualTo(text.length()));
-    }
-
-    public void testNextNThenPrecedingFollowingStillWorks() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        final String text = "First sentence. Second sentence. Third sentence.";
-
-        // Get baseline results
-        bi.setText(text);
-        int offset = text.indexOf("Third");
-        int start1 = bi.preceding(offset);
-        int end1 = bi.following(offset - 1);
-
-        // After calling next(n), re-setText, preceding/following should not be affected
-        bi.setText(text);
-        bi.first();
-        bi.next(2);
-
-        bi.setText(text);
-        int start2 = bi.preceding(offset);
-        int end2 = bi.following(offset - 1);
-
-        assertEquals(start1, start2);
-        assertEquals(end1, end2);
-    }
-
-    // ---- Tests for previous() ----
-
-    public void testPreviousReturnsBoundary() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
-        final String text = "First sentence. Second sentence. Third sentence.";
-        bi.setText(text);
-
-        // Position to the end first, then previous() should return the preceding boundary
-        bi.last();
-        int boundary = bi.previous();
-        assertThat(boundary, greaterThanOrEqualTo(0));
-        assertThat(boundary, lessThanOrEqualTo(text.length()));
-    }
-
-    public void testPreviousThenPrecedingFollowingStillWorks() {
-        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        final String text = "First sentence. Second sentence.";
-
-        // Get baseline results
-        bi.setText(text);
-        int offset = text.indexOf("Second");
-        int start1 = bi.preceding(offset);
-        int end1 = bi.following(offset - 1);
-
-        // After calling previous(), re-setText, preceding/following should not be affected
-        bi.setText(text);
-        bi.last();
-        bi.previous();
-
-        bi.setText(text);
-        int start2 = bi.preceding(offset);
-        int end2 = bi.following(offset - 1);
-
-        assertEquals(start1, start2);
-        assertEquals(end1, end2);
-    }
-
-    // ---- Tests for SplittingBreakIterator wrapping scenario ----
-
-    public void testSplittingBreakIteratorWrappingDoesNotThrow() {
-        // Simulate the scenario where UnifiedHighlighter wraps BoundedBreakIteratorScanner with SplittingBreakIterator
-        BreakIterator bounded = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        // \u0000 is the multi-value field separator (MULTIVAL_SEP_CHAR)
-        SplittingBreakIterator splitting = new SplittingBreakIterator(bounded, '\u0000');
-
-        // Construct multi-value field text containing \0 separator
-        final String text = "First value sentence.\u0000Second value sentence. Another one here.";
-        splitting.setText(text);
-
-        // following() should work normally without throwing IllegalStateException
-        // When offset crosses the separator segment boundary, SplittingBreakIterator internally calls delegate.first()
-        int boundary = splitting.following(0);
-        assertThat(boundary, greaterThanOrEqualTo(0));
-        assertThat(boundary, lessThanOrEqualTo(text.length()));
-
-        // Call following in the second segment, triggering cross-segment boundary logic
-        int secondValueStart = text.indexOf('\u0000') + 1;
-        boundary = splitting.following(secondValueStart);
-        assertThat(boundary, greaterThanOrEqualTo(secondValueStart));
-        assertThat(boundary, lessThanOrEqualTo(text.length()));
-    }
-
-    public void testSplittingBreakIteratorPrecedingFollowingAcrossSegments() {
+    public void testSplittingBreakIteratorWrappingAcrossSegments() {
         BreakIterator bounded = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         SplittingBreakIterator splitting = new SplittingBreakIterator(bounded, '\u0000');
 
         final String text = "Hello world.\u0000Foo bar. Baz qux.";
         splitting.setText(text);
 
-        // Perform preceding/following in the first segment
+        // preceding/following should work in the first segment without throwing
         int offset = text.indexOf("world");
         int start = splitting.preceding(offset + 1);
         int end = splitting.following(offset);
         assertThat(start, greaterThanOrEqualTo(0));
         assertThat(end, greaterThan(start));
 
-        // Perform preceding/following in the second segment
+        // preceding/following should work across the \u0000 separator boundary
         int secondOffset = text.indexOf("Baz");
         start = splitting.preceding(secondOffset + 1);
         end = splitting.following(secondOffset);

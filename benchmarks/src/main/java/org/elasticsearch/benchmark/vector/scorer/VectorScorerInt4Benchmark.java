@@ -36,10 +36,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104ScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104Scorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createInt4QuantizedVectorValues;
-import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createScalarQueryScorer;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4DotProductCorrections;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4EuclideanCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4QuantizedVectorValues;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4ScalarQueryScorer;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4DotProductCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4EuclideanCorrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
@@ -88,7 +88,7 @@ public class VectorScorerInt4Benchmark {
             byte[] packed = values.vectorValue(node);
             int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
             var nodeCorrections = values.getCorrectiveTerms(node);
-            return applyInt4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, values.getCentroidDP());
+            return applyI4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, values.getCentroidDP());
         }
 
         @Override
@@ -120,7 +120,7 @@ public class VectorScorerInt4Benchmark {
             byte[] packed = values.vectorValue(node);
             int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
             var nodeCorrections = values.getCorrectiveTerms(node);
-            return applyInt4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
+            return applyI4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         }
 
         @Override
@@ -151,7 +151,7 @@ public class VectorScorerInt4Benchmark {
                 randomInt4Bytes(random, unpacked);
                 packedVectors[v] = packNibbles(unpacked);
             }
-            values = createInt4QuantizedVectorValues(dims, packedVectors);
+            values = createI4QuantizedVectorValues(dims, packedVectors);
             queryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = random.nextFloat();
@@ -175,7 +175,7 @@ public class VectorScorerInt4Benchmark {
                     case EUCLIDEAN -> new ScalarEuclidean(values);
                     case MAXIMUM_INNER_PRODUCT -> throw new IllegalArgumentException("MIP not implemented for scalar int4 benchmark");
                 };
-                queryScorer = createScalarQueryScorer(values, sim, vectorData.queryVector);
+                queryScorer = createI4ScalarQueryScorer(values, sim, vectorData.queryVector);
                 break;
             case LUCENE:
                 scorer = lucene104ScoreSupplier(values, sim).scorer();

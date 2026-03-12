@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4DotProductCorrections;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4EuclideanCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4DotProductCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4EuclideanCorrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
 
 public class Int4BenchmarkUtils {
@@ -106,7 +106,7 @@ public class Int4BenchmarkUtils {
         }
     }
 
-    static QuantizedByteVectorValues createInt4QuantizedVectorValues(int dims, byte[][] packedVectors) {
+    static QuantizedByteVectorValues createI4QuantizedVectorValues(int dims, byte[][] packedVectors) {
         var random = ThreadLocalRandom.current();
         var correctiveTerms = new OptimizedScalarQuantizer.QuantizationResult[packedVectors.length];
         for (int i = 0; i < packedVectors.length; i++) {
@@ -125,7 +125,7 @@ public class Int4BenchmarkUtils {
         return new InMemoryInt4QuantizedByteVectorValues(dims, packedVectors, correctiveTerms, centroid, centroidDP);
     }
 
-    static RandomVectorScorer createScalarQueryScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
+    static RandomVectorScorer createI4ScalarQueryScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         int dims = values.dimension();
         OptimizedScalarQuantizer quantizer = values.getQuantizer();
@@ -147,9 +147,9 @@ public class Int4BenchmarkUtils {
                 int rawDot = dotProductI4SinglePacked(queryQuantized, packed);
                 var nodeCorrections = values.getCorrectiveTerms(node);
                 if (sim == VectorSimilarityFunction.EUCLIDEAN) {
-                    return applyInt4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
+                    return applyI4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
                 } else {
-                    return applyInt4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP);
+                    return applyI4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP);
                 }
             }
         };

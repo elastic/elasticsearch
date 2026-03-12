@@ -20,6 +20,8 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
  */
 class ScalarOperations {
 
+    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+
     static float cosine(byte[] a, byte[] b) {
         int sum = 0;
         int norm1 = 0;
@@ -81,9 +83,7 @@ class ScalarOperations {
         return total;
     }
 
-    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
-
-    private static float applyInt4CommonCorrections(
+    private static float applyI4CommonCorrections(
         int rawDot,
         int dims,
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
@@ -98,25 +98,25 @@ class ScalarOperations {
         return ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
     }
 
-    static float applyInt4DotProductCorrections(
+    static float applyI4DotProductCorrections(
         int rawDot,
         int dims,
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
         OptimizedScalarQuantizer.QuantizationResult queryCorrections,
         float centroidDP
     ) {
-        float score = applyInt4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
+        float score = applyI4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
         return (1f + Math.clamp(score, -1, 1)) / 2f;
     }
 
-    static float applyInt4EuclideanCorrections(
+    static float applyI4EuclideanCorrections(
         int rawDot,
         int dims,
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
         OptimizedScalarQuantizer.QuantizationResult queryCorrections
     ) {
-        float score = applyInt4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
+        float score = applyI4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
         return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
     }

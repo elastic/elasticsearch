@@ -630,6 +630,80 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testStaleBlobDeletionsDeferredDuringRelocationAndReprocessedOnFailure() throws Exception {
+        doTestDeferredStaleBlobDeletionsDuringRelocation(false);
+    }
+
+    public void testStaleBlobDeletionsDeferredDuringRelocationAndDiscardedOnSuccess() throws Exception {
+        doTestDeferredStaleBlobDeletionsDuringRelocation(true);
+    }
+
+    private void doTestDeferredStaleBlobDeletionsDuringRelocation(boolean relocationSucceeds) throws Exception {
+        int numInitialCommits = randomIntBetween(1, 4);
+        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
+            List<StatelessCommitRef> initialCommits = testHarness.generateIndexCommits(numInitialCommits, randomBoolean());
+            List<StatelessCommitRef> allCommits = new ArrayList<>(initialCommits);
+            allCommits.addAll(testHarness.generateIndexCommits(1, true));
+            StatelessCommitRef mergedCommit = allCommits.getLast();
+
+            for (StatelessCommitRef commit : allCommits) {
+                testHarness.commitService.onCommitCreation(commit);
+                testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
+                waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit.getGeneration());
+            }
+
+            final var future = new PlainActionFuture<Void>();
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(
+                testHarness.shardId,
+                mergedCommit.getGeneration(),
+                future
+            );
+            safeGet(future);
+
+            final Set<String> mergedCommitFiles = new HashSet<>(mergedCommit.getCommitFiles());
+            final List<String> filesUniqueToInitialCommits = initialCommits.stream()
+                .flatMap(c -> c.getCommitFiles().stream())
+                .filter(f -> mergedCommitFiles.contains(f) == false)
+                .distinct()
+                .toList();
+            assertFalse("initial commits should have files unique to them", filesUniqueToInitialCommits.isEmpty());
+
+            markDeletedAndLocalUnused(List.of(mergedCommit), initialCommits, testHarness.commitService, testHarness.shardId);
+
+            Set<String> filesDuringRelocation = testHarness.commitService.getFilesWithBlobLocations(testHarness.shardId);
+            assertThat(
+                "files unique to initial commits should still be present during relocation (deletion deferred)",
+                filesDuringRelocation,
+                hasItems(filesUniqueToInitialCommits.toArray(String[]::new))
+            );
+
+            if (relocationSucceeds) {
+                relocationListener.onResponse(null);
+
+                Set<String> filesAfterRelocation = testHarness.commitService.getFilesWithBlobLocations(testHarness.shardId);
+                assertThat(
+                    "files unique to initial commits should still be present after successful relocation (deletions discarded)",
+                    filesAfterRelocation,
+                    hasItems(filesUniqueToInitialCommits.toArray(String[]::new))
+                );
+            } else {
+                relocationListener.onFailure(new IllegalStateException("relocation failed"));
+
+                Set<String> filesAfterFailedRelocation = testHarness.commitService.getFilesWithBlobLocations(testHarness.shardId);
+                assertThat(
+                    "files unique to initial commits should be cleared after relocation failure",
+                    filesAfterFailedRelocation,
+                    not(hasItems(filesUniqueToInitialCommits.toArray(String[]::new)))
+                );
+                assertThat(
+                    "merged commit files should still be present",
+                    filesAfterFailedRelocation,
+                    hasItems(mergedCommit.getCommitFiles().toArray(String[]::new))
+                );
+            }
+        }
+    }
+
     public void testMapIsPrunedOnIndexDelete() throws Exception {
         try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run(), 1)) {
             List<StatelessCommitRef> refs = testHarness.generateIndexCommits(2, true);

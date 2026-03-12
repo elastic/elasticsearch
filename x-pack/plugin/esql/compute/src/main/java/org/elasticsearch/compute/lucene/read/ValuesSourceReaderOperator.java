@@ -227,6 +227,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private long sourceLoadingReservation;
 
     /**
+     * The largest total byte size of column-at-a-time blocks observed in a single batch read
+     * across all pages so far. This persists across pages so the pre-reservation can protect
+     * against concurrent large column-at-a-time loads on other drivers.
+     */
+    long lastKnownColumnBatchBytes;
+
+    /**
+     * Persistent reservation on the circuit breaker for the expected peak memory of
+     * column-at-a-time block reads. During a column-at-a-time read, a temporary block is
+     * allocated and then copied into the final builder, so both exist simultaneously.
+     * This reservation accounts for that temporary block overhead.
+     */
+    private long columnBatchReservation;
+
+    /**
      * Creates a new extractor
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
@@ -260,6 +275,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
+        acquireColumnBatchReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         return appendBlockArrays(page, valuesReader(docVector));
     }
@@ -299,6 +315,34 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             if (log.isDebugEnabled()) {
                 log.debug("reserve {}/{} bytes on circuit breaker for source loading", additional, sourceLoadingReservation);
             }
+        }
+    }
+
+    /**
+     * Acquires or increases the persistent column-at-a-time batch reservation on the circuit
+     * breaker. Called at the start of each page. If the breaker trips, the exception propagates
+     * and prevents further loading.
+     */
+    void acquireColumnBatchReservation() {
+        long needed = lastKnownColumnBatchBytes;
+        long additional = needed - columnBatchReservation;
+        if (additional > 0) {
+            driverContext.blockFactory().adjustBreaker(additional);
+            columnBatchReservation = needed;
+            if (log.isDebugEnabled()) {
+                log.debug("reserve {}/{} bytes on circuit breaker for column batch loading", additional, columnBatchReservation);
+            }
+        }
+    }
+
+    /**
+     * Updates {@link #lastKnownColumnBatchBytes} if the given batch size exceeds the previous
+     * maximum, then acquires an increased reservation if needed.
+     */
+    void trackColumnBatchBytes(long batchBytes) {
+        if (batchBytes > lastKnownColumnBatchBytes) {
+            lastKnownColumnBatchBytes = batchBytes;
+            acquireColumnBatchReservation();
         }
     }
 
@@ -377,6 +421,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             sourceLoadingReservation = 0;
             if (log.isDebugEnabled()) {
                 log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
+            }
+        }
+        if (columnBatchReservation > 0) {
+            driverContext.blockFactory().adjustBreaker(-columnBatchReservation);
+            columnBatchReservation = 0;
+            if (log.isDebugEnabled()) {
+                log.debug("release {} bytes from circuit breaker after column batch loading", columnBatchReservation);
             }
         }
         Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));

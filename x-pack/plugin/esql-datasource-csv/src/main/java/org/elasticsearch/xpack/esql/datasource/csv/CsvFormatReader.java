@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -41,9 +43,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -77,41 +79,48 @@ import java.util.regex.Pattern;
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
  *
  * <table>
- *   <caption>CSV options and their equivalents in other engines</caption>
- *   <tr><th>ES/ESQL key</th><th>Default</th><th>Spark</th><th>DuckDB</th><th>ClickHouse</th></tr>
- *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>{@code sep}</td>
- *       <td>{@code delim}</td><td>{@code format_csv_delimiter}</td></tr>
- *   <tr><td>{@code quote}</td><td>{@code "}</td><td>{@code quote}</td>
- *       <td>{@code quote}</td><td>{@code format_csv_allow_single_quotes}</td></tr>
- *   <tr><td>{@code escape}</td><td>{@code \}</td><td>{@code escape}</td>
- *       <td>{@code escape}</td><td>—</td></tr>
- *   <tr><td>{@code comment}</td><td>{@code //}</td><td>{@code comment}</td>
- *       <td>{@code comment}</td><td>—</td></tr>
- *   <tr><td>{@code null_value}</td><td>(empty)</td><td>{@code nullValue}</td>
- *       <td>{@code nullstr}</td><td>{@code format_csv_null_representation}</td></tr>
- *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>{@code encoding}</td>
- *       <td>—</td><td>—</td></tr>
- *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>{@code timestampFormat}</td>
- *       <td>{@code timestampformat}</td><td>{@code date_time_input_format}</td></tr>
- *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>{@code maxCharsPerColumn}</td>
- *       <td>{@code max_line_size}</td><td>—</td></tr>
+ *   <caption>CSV options</caption>
+ *   <tr><th>ES/ESQL key</th><th>Default</th><th>Description</th></tr>
+ *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>Field separator character</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character</td></tr>
+ *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character inside quoted fields</td></tr>
+ *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
+ *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
+ *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
+ *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
+ *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>Multi-value field syntax</td></tr>
  * </table>
+ *
+ * <h2>Bracket multi-value syntax</h2>
+ * When {@code multi_value_syntax} is {@code brackets}, array-like values support:
+ * <ul>
+ *   <li>{@code [a,b,c]} — unquoted elements</li>
+ *   <li>{@code ["a","b","c"]} — quoted elements (quotes stripped)</li>
+ *   <li>{@code [a,"b,c"]} — mixed; commas inside quotes are literal</li>
+ * </ul>
+ * <p>With comma delimiter, a cell like {@code [hello,world]} is treated as one column:
+ * commas inside {@code [...]} are not column delimiters.
  *
  * <h2>Error handling</h2>
  * Controlled by {@link ErrorPolicy} and its {@link ErrorPolicy.Mode}:
  * <table>
- *   <caption>Error mode comparison</caption>
- *   <tr><th>ES/ESQL key</th><th>Spark</th><th>DuckDB</th><th>Behaviour</th></tr>
- *   <tr><td>{@code fail_fast}</td><td>FAILFAST</td><td>(default)</td><td>Abort on first error</td></tr>
- *   <tr><td>{@code skip_row}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
- *       <td>Drop the entire bad row</td></tr>
- *   <tr><td>{@code null_field}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>Null-fill unparseable fields, keep the row</td></tr>
+ *   <caption>Error modes</caption>
+ *   <tr><th>ES/ESQL key</th><th>Behaviour</th></tr>
+ *   <tr><td>{@code fail_fast}</td><td>Abort on first error (default)</td></tr>
+ *   <tr><td>{@code skip_row}</td><td>Drop the entire bad row</td></tr>
+ *   <tr><td>{@code null_field}</td><td>Null-fill unparseable fields, keep the row</td></tr>
  * </table>
  *
- * <h2>Example</h2>
+ * <h2>Examples</h2>
  * <pre>{@code
- *   FROM s3://bucket/data.tsv WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
+ *   EXTERNAL "s3://bucket/data.tsv" WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
+ * }</pre>
+ * <pre>{@code
+ *   EXTERNAL "s3://bucket/employees.csv" WITH {"multi_value_syntax": "brackets"}
+ * }</pre>
+ * <pre>{@code
+ *   EXTERNAL "s3://bucket/data.csv" WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
  * }</pre>
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
@@ -124,23 +133,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final int READER_BUFFER_SIZE = 64 * 1024;
 
     private final BlockFactory blockFactory;
-
-    /**
-     * Jackson CsvMapper is thread-safe after configuration (all enable/disable
-     * calls happen in the constructor). Shared across all CsvBatchIterator
-     * instances to avoid repeated configuration overhead.
-     */
     private final CsvMapper sharedCsvMapper;
-
     private final CsvFormatOptions options;
+    private final String format;
+    private final List<String> extensions;
 
     public CsvFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, CsvFormatOptions.DEFAULT);
+        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"));
     }
 
-    private CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options) {
+    public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
+        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions);
+    }
+
+    public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
         this.blockFactory = blockFactory;
         this.options = options;
+        this.format = format;
+        this.extensions = extensions;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -164,6 +174,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Charset encoding = parseEncoding(config.get("encoding"));
         DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"));
         int maxFieldSize = parseInt(config.get("max_field_size"), CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE);
+        CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(config.get("multi_value_syntax"));
 
         if (delimiter == ','
             && quoteChar == '"'
@@ -172,10 +183,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
             && "".equals(nullValue)
             && StandardCharsets.UTF_8.equals(encoding)
             && datetimeFormatter == null
-            && maxFieldSize == CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE) {
+            && maxFieldSize == CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE
+            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return null;
         }
-        return new CsvFormatOptions(delimiter, quoteChar, escapeChar, commentPrefix, nullValue, encoding, datetimeFormatter, maxFieldSize);
+        return new CsvFormatOptions(
+            delimiter,
+            quoteChar,
+            escapeChar,
+            commentPrefix,
+            nullValue,
+            encoding,
+            datetimeFormatter,
+            maxFieldSize,
+            multiValueSyntax
+        );
+    }
+
+    private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value) {
+        if (value == null || value.toString().isEmpty()) {
+            return CsvFormatOptions.MultiValueSyntax.BRACKETS;
+        }
+        String s = value.toString().trim().toLowerCase(Locale.ROOT);
+        if ("none".equals(s)) {
+            return CsvFormatOptions.MultiValueSyntax.NONE;
+        }
+        if ("brackets".equals(s)) {
+            return CsvFormatOptions.MultiValueSyntax.BRACKETS;
+        }
+        throw new IllegalArgumentException("Invalid multi_value_syntax [" + value + "]. Accepted values: \"none\", \"brackets\"");
     }
 
     private static char parseChar(Object value, char defaultValue) {
@@ -244,11 +280,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /**
-     * Returns a new CsvFormatReader configured with the given options.
-     */
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions);
+        return new CsvFormatReader(blockFactory, newOptions, format, extensions);
     }
 
     @Override
@@ -272,16 +305,60 @@ public class CsvFormatReader implements SegmentableFormatReader {
             InputStream stream = object.newStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE)
         ) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || (options.commentPrefix().isEmpty() == false && line.startsWith(options.commentPrefix()))) {
+            String headerLine = null;
+            while ((headerLine = reader.readLine()) != null) {
+                headerLine = headerLine.trim();
+                if (headerLine.isEmpty()
+                    || (options.commentPrefix().isEmpty() == false && headerLine.startsWith(options.commentPrefix()))) {
                     continue;
                 }
-                return parseSchema(line);
+                break;
             }
-            throw new IOException("CSV file has no schema line");
+            if (headerLine == null) {
+                throw new IOException("CSV file has no schema line");
+            }
+            List<Attribute> typedSchema = parseSchema(headerLine);
+            if (typedSchema != null) {
+                return typedSchema;
+            }
+            return inferSchemaFromSample(headerLine, reader);
         }
+    }
+
+    private List<Attribute> inferSchemaFromSample(String headerLine, BufferedReader reader) throws IOException {
+        String[] columnNames = headerLine.split(Pattern.quote(Character.toString(options.delimiter())));
+        Iterator<List<?>> csvIterator = newCsvIterator(reader);
+        List<String[]> sampleRows = collectSampleRows(csvIterator, options.commentPrefix());
+        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows);
+    }
+
+    private Iterator<List<?>> newCsvIterator(Reader reader) throws IOException {
+        CsvSchema csvSchema = CsvSchema.emptySchema()
+            .withColumnSeparator(options.delimiter())
+            .withQuoteChar(options.quoteChar())
+            .withEscapeChar(options.escapeChar())
+            .withNullValue(options.nullValue());
+        return sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+    }
+
+    static List<String[]> collectSampleRows(Iterator<List<?>> csvIterator, String commentPrefix) {
+        List<String[]> sampleRows = new ArrayList<>();
+        boolean hasCommentFilter = commentPrefix != null && commentPrefix.isEmpty() == false;
+        while (sampleRows.size() < CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE && csvIterator.hasNext()) {
+            List<?> rowList = csvIterator.next();
+            String[] row = new String[rowList.size()];
+            for (int i = 0; i < rowList.size(); i++) {
+                Object val = rowList.get(i);
+                row[i] = val != null ? val.toString() : null;
+            }
+            if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                if (row[0].trim().startsWith(commentPrefix)) {
+                    continue;
+                }
+            }
+            sampleRows.add(row);
+        }
+        return sampleRows;
     }
 
     @Override
@@ -329,21 +406,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, resolvedAttributes, effective);
     }
 
-    /**
-     * Quote-aware record boundary detection for parallel parsing.
-     * Tracks CSV quoting state so that newlines inside quoted fields are not
-     * treated as record boundaries. Handles RFC 4180 escaped quotes ({@code ""})
-     * correctly — a pair of double-quotes inside a quoted field does not toggle
-     * the quoting state. Safe for TSV (which has no quoting, so the
-     * {@code inQuotes} flag never toggles).
-     * <p>
-     * <b>Limitation:</b> this method only handles RFC 4180 doubled-quote escaping
-     * ({@code ""}). Backslash-based escaping ({@code \"}) is not recognized here;
-     * when {@code escapeChar} differs from {@code quoteChar}, boundaries may be
-     * mis-detected inside fields that use backslash escaping. This is acceptable
-     * because split-based parallel reads are an optimisation — the Jackson parser
-     * in each split handles escape characters correctly.
-     */
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
         long consumed = 0;
@@ -396,46 +458,70 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public String formatName() {
-        return "csv";
+        return format;
     }
 
     @Override
     public List<String> fileExtensions() {
-        return List.of(".csv", ".tsv");
+        return extensions;
     }
 
     @Override
-    public void close() throws IOException {
-        // No resources to close at reader level
-    }
+    public void close() throws IOException {}
 
     private List<Attribute> parseSchema(String schemaLine) {
         String[] columns = schemaLine.split(Pattern.quote(Character.toString(options.delimiter())));
-        List<Attribute> attributes = new ArrayList<>(columns.length);
+        if (hasTypeAnnotations(columns)) {
+            return parseTypedSchema(columns);
+        }
+        return null;
+    }
 
+    private boolean hasTypeAnnotations(String[] columns) {
+        char quote = options.quoteChar();
+        for (String column : columns) {
+            String trimmed = column.trim();
+            if (trimmed.length() >= 2 && trimmed.charAt(0) == quote && trimmed.charAt(trimmed.length() - 1) == quote) {
+                continue;
+            }
+            if (trimmed.contains(":")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Attribute> parseTypedSchema(String[] columns) {
+        List<Attribute> attributes = new ArrayList<>(columns.length);
         for (String column : columns) {
             String trimmedColumn = column.trim();
             String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
                 throw new ParsingException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
             }
-
             String name = parts[0].trim();
             String trimmedType = parts[1].trim();
-            String typeName = trimmedType.toUpperCase(java.util.Locale.ROOT);
+            String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
-
-            EsField field = new EsField(name, dataType, java.util.Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+            EsField field = new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             attributes.add(new FieldAttribute(Source.EMPTY, name, field));
         }
-
         return attributes;
     }
 
+    /**
+     * Parse CSV type names to ESQL DataType. Small numeric types (SHORT, BYTE, FLOAT, etc.)
+     * are widened to INTEGER/DOUBLE since the planner expects widened types.
+     */
     private DataType parseDataType(String typeName) {
-        return switch (typeName) {
+        String upper = typeName.toUpperCase(Locale.ROOT);
+        return switch (upper) {
+            // Widened to INTEGER/DOUBLE: ESQL's compute engine lacks native blocks for these small numeric types.
+            // Remove widening once https://github.com/elastic/elasticsearch/issues/112691 lands.
+            case "SHORT", "BYTE" -> DataType.INTEGER;
             case "INTEGER", "INT", "I" -> DataType.INTEGER;
             case "LONG", "L" -> DataType.LONG;
+            case "FLOAT", "F", "HALF_FLOAT", "SCALED_FLOAT" -> DataType.DOUBLE;
             case "DOUBLE", "D" -> DataType.DOUBLE;
             case "KEYWORD", "K", "STRING", "S" -> DataType.KEYWORD;
             case "TEXT", "TXT" -> DataType.TEXT;
@@ -447,19 +533,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Iterator that reads CSV data in batches and converts to ESQL Pages.
-     * <p>
-     * Performance-critical design choices:
-     * <ul>
-     *   <li>Pre-computed {@code int[]} for projected column indices — avoids autoboxing
-     *   <li>Pre-computed {@code DataType[]} and {@code Attribute[]} arrays — avoids list lookups per field
-     *   <li>Hoisted invariant flags ({@code hasCommentFilter}, {@code hasCustomNullValue}) — avoids per-row checks
-     *   <li>Exception-free error path: {@code tryConvertValue} returns {@code null} on failure and sets
-     *       {@code lastFieldError} — avoids exception allocation/stack-fill on the hot path
-     *   <li>Reusable {@code Object[]} buffer across rows — avoids per-row allocation
-     *   <li>Mode ordinal resolved once at construction — single int comparison per row instead of method calls
-     * </ul>
+     * Returns accumulated warnings from a CSV iterator, for testing.
      */
+    static List<String> getWarnings(CloseableIterator<Page> iterator) {
+        if (iterator instanceof CsvBatchIterator cbi) {
+            return List.copyOf(cbi.warnings);
+        }
+        return List.of();
+    }
+
     private class CsvBatchIterator implements CloseableIterator<Page> {
         private final BufferedReader reader;
         private final InputStream stream;
@@ -467,14 +549,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final int batchSize;
         private final List<Attribute> preResolvedSchema;
         private final ErrorPolicy errorPolicy;
-
         private final int modeOrdinal;
         private final boolean logErrors;
         private final boolean hasCommentFilter;
         private final boolean hasCustomNullValue;
         private final String nullValueStr;
         private final DateTimeFormatter datetimeFormatter;
-
+        private final boolean bracketMultiValues;
+        private static final int MAX_WARNINGS = 20;
+        private final List<String> warnings = new ArrayList<>();
         private List<Attribute> schema;
         private int[] projectedIdx;
         private DataType[] projectedTypes;
@@ -482,11 +565,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private int columnCount;
         private Object[] rowBuffer;
         private Iterator<List<?>> csvIterator;
+        private List<String[]> prefetchedRows;
         private Page nextPage;
         private boolean closed = false;
         private long errorCount = 0;
         private long totalRowCount = 0;
-
         private String lastFieldError;
 
         CsvBatchIterator(
@@ -509,6 +592,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.hasCustomNullValue = options.nullValue().isEmpty() == false;
             this.nullValueStr = options.nullValue();
             this.datetimeFormatter = options.datetimeFormatter();
+            this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
         }
 
         @Override
@@ -541,6 +625,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         public void close() throws IOException {
             if (closed == false) {
                 closed = true;
+                if (modeOrdinal != ErrorPolicy.Mode.FAIL_FAST.ordinal() && errorCount > 0) {
+                    logger.info(
+                        "CSV parsing completed with [{}] errors out of [{}] rows (policy: {})",
+                        errorCount,
+                        totalRowCount,
+                        errorPolicy.mode()
+                    );
+                }
                 reader.close();
                 stream.close();
             }
@@ -551,45 +643,63 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (preResolvedSchema != null) {
                     schema = preResolvedSchema;
                 } else {
+                    String headerLine = null;
                     String line;
                     while ((line = reader.readLine()) != null) {
                         line = line.trim();
                         if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
                             continue;
                         }
-                        schema = parseSchema(line);
+                        headerLine = line;
                         break;
+                    }
+                    if (headerLine == null) {
+                        return null;
+                    }
+                    schema = parseSchema(headerLine);
+                    if (schema == null) {
+                        schema = inferSchemaFromBatchReader(headerLine);
                     }
                     if (schema == null) {
                         return null;
                     }
                 }
                 initProjection();
-                CsvSchema csvSchema = CsvSchema.emptySchema()
-                    .withColumnSeparator(options.delimiter())
-                    .withQuoteChar(options.quoteChar())
-                    .withEscapeChar(options.escapeChar())
-                    .withNullValue(options.nullValue());
 
-                csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+                boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
+                if (useBracketAwareParsing == false && csvIterator == null) {
+                    CsvSchema csvSchema = CsvSchema.emptySchema()
+                        .withColumnSeparator(options.delimiter())
+                        .withQuoteChar(options.quoteChar())
+                        .withEscapeChar(options.escapeChar())
+                        .withNullValue(options.nullValue());
+                    csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+                }
             }
-
             while (true) {
                 List<String[]> rows = new ArrayList<>();
-                while (rows.size() < batchSize && csvIterator.hasNext()) {
-                    List<?> rowList = csvIterator.next();
-                    String[] row = new String[rowList.size()];
-                    for (int i = 0; i < rowList.size(); i++) {
-                        Object val = rowList.get(i);
-                        row[i] = val != null ? val.toString() : null;
-                    }
-                    if (hasCommentFilter && row.length > 0 && row[0] != null) {
-                        String trimmedFirstCell = row[0].trim();
-                        if (trimmedFirstCell.startsWith(options.commentPrefix())) {
-                            continue;
+                if (prefetchedRows != null) {
+                    rows.addAll(prefetchedRows);
+                    prefetchedRows = null;
+                }
+                if (csvIterator == null && bracketMultiValues && options.delimiter() == ',') {
+                    rows.addAll(readRowsBracketAware(batchSize - rows.size()));
+                } else {
+                    while (rows.size() < batchSize && csvIterator.hasNext()) {
+                        List<?> rowList = csvIterator.next();
+                        String[] row = new String[rowList.size()];
+                        for (int i = 0; i < rowList.size(); i++) {
+                            Object val = rowList.get(i);
+                            row[i] = val != null ? val.toString() : null;
                         }
+                        if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                            String trimmedFirstCell = row[0].trim();
+                            if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                                continue;
+                            }
+                        }
+                        rows.add(row);
                     }
-                    rows.add(row);
                 }
 
                 if (rows.isEmpty()) {
@@ -601,6 +711,140 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return page;
                 }
             }
+        }
+
+        /**
+         * Reads CSV rows using bracket-aware parsing. When a cell starts with {@code [} after a comma
+         * and ends with {@code ]} before a comma, commas inside are not column delimiters.
+         * The cell value is kept as {@code [a,b,c]} so multi-value conversion can parse it.
+         * Supports multi-line quoted fields.
+         */
+        private List<String[]> readRowsBracketAware(int batchSize) throws IOException {
+            List<String[]> rows = new ArrayList<>();
+            String line;
+            while (rows.size() < batchSize && (line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
+                    continue;
+                }
+                StringBuilder logicalLine = new StringBuilder(line);
+                while (hasUnclosedQuote(logicalLine.toString(), options.quoteChar())) {
+                    String next = reader.readLine();
+                    if (next == null) {
+                        break;
+                    }
+                    logicalLine.append('\n').append(next);
+                }
+                String[] row = splitLineBracketAware(logicalLine.toString());
+                rows.add(row);
+            }
+            return rows;
+        }
+
+        private static boolean hasUnclosedQuote(String s, char quote) {
+            boolean inQuotes = false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == quote) {
+                    if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
+                        i++;
+                        continue;
+                    }
+                    inQuotes = !inQuotes;
+                }
+            }
+            return inQuotes;
+        }
+
+        /**
+         * Splits a CSV line by delimiter, treating quoted fields and {@code [..,..,..]} as single cells.
+         * Commas inside quotes or brackets are not delimiters. Escaped commas ({@code \,}) are skipped.
+         */
+        private String[] splitLineBracketAware(String line) {
+            List<String> entries = new ArrayList<>();
+            char delim = options.delimiter();
+            char quote = options.quoteChar();
+            char esc = options.escapeChar();
+            StringBuilder current = new StringBuilder();
+            boolean inQuotes = false;
+            boolean inBrackets = false;
+            int i = 0;
+            while (i < line.length()) {
+                char c = line.charAt(i);
+                if (inQuotes) {
+                    if (c == quote) {
+                        if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
+                            current.append(quote);
+                            i += 2;
+                            continue;
+                        }
+                        inQuotes = false;
+                    } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
+                        current.append(delim);
+                        i += 2;
+                        continue;
+                    } else {
+                        current.append(c);
+                    }
+                    i++;
+                } else if (inBrackets) {
+                    current.append(c);
+                    if (c == ']') {
+                        inBrackets = false;
+                        entries.add(current.toString());
+                        current = new StringBuilder();
+                        i++;
+                        while (i < line.length() && line.charAt(i) == ' ') {
+                            i++;
+                        }
+                        if (i < line.length() && line.charAt(i) == delim) {
+                            i++;
+                            continue;
+                        }
+                        continue;
+                    }
+                    i++;
+                } else if (c == quote) {
+                    inQuotes = true;
+                    i++;
+                } else if (c == '[' && current.length() == 0) {
+                    inBrackets = true;
+                    current.append(c);
+                    i++;
+                } else if (c == delim) {
+                    if (i > 0 && line.charAt(i - 1) == esc) {
+                        current.append(c);
+                    } else {
+                        entries.add(current.toString().trim());
+                        current = new StringBuilder();
+                    }
+                    i++;
+                } else {
+                    current.append(c);
+                    i++;
+                }
+            }
+            if (inQuotes) {
+                throw new EsqlIllegalArgumentException("Unclosed quoted field in line [{}]", line);
+            }
+            if (inBrackets) {
+                throw new EsqlIllegalArgumentException("Unclosed bracket cell in line [{}]", line);
+            }
+            if (current.length() > 0) {
+                entries.add(current.toString().trim());
+            }
+            return entries.toArray(String[]::new);
+        }
+
+        private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
+            String[] columnNames = headerLine.split(Pattern.quote(Character.toString(options.delimiter())));
+            csvIterator = newCsvIterator(reader);
+            List<String[]> sampleRows = collectSampleRows(csvIterator, options.commentPrefix());
+            if (sampleRows.isEmpty()) {
+                return null;
+            }
+            prefetchedRows = sampleRows;
+            return CsvSchemaInferrer.inferSchema(columnNames, sampleRows);
         }
 
         private void initProjection() {
@@ -645,11 +889,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        org.elasticsearch.compute.data.ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
                         rows.size()
                     );
                 }
-
                 int schemaSize = schema.size();
                 int acceptedRows = 0;
                 for (String[] row : rows) {
@@ -665,27 +908,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         acceptedRows++;
                     }
                 }
-
                 if (acceptedRows == 0) {
                     return null;
                 }
-
                 Block[] blocks = new Block[columnCount];
                 for (int i = 0; i < columnCount; i++) {
                     blocks[i] = builders[i].builder().build();
                 }
-
                 return new Page(acceptedRows, blocks);
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
         }
 
-        /**
-         * Converts a raw CSV row into {@link #rowBuffer} in place.
-         * Returns {@code true} if the row was accepted, {@code false} if it was skipped.
-         * Throws on budget exceeded or strict-mode failure.
-         */
         private boolean convertRowInPlace(String[] row) {
             int mode = this.modeOrdinal;
             for (int i = 0; i < columnCount; i++) {
@@ -713,17 +948,96 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return true;
         }
 
-        /**
-         * Attempts to convert a string value to the target type.
-         * On success, returns the converted value and {@code lastFieldError} is null.
-         * On failure, returns null and sets {@code lastFieldError} to a description.
-         * This avoids exception allocation on the hot path.
-         */
         private Object tryConvertValue(String value, DataType dataType) {
             if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
                 return null;
             }
             if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
+            if (bracketMultiValues && value.startsWith("[") && value.endsWith("]")) {
+                return tryConvertMultiValue(value, dataType);
+            }
+            return switch (dataType) {
+                case INTEGER -> tryParseInt(value);
+                case LONG -> tryParseLong(value);
+                case DOUBLE -> tryParseDouble(value);
+                case KEYWORD, TEXT -> new BytesRef(value);
+                case BOOLEAN -> tryParseBoolean(value);
+                case DATETIME -> tryParseDatetime(value);
+                case NULL -> null;
+                default -> {
+                    lastFieldError = "Unsupported data type: " + dataType;
+                    yield null;
+                }
+            };
+        }
+
+        private Object tryConvertMultiValue(String value, DataType dataType) {
+            String content = value.substring(1, value.length() - 1).trim();
+            if (content.isEmpty()) {
+                return null;
+            }
+            List<String> parts = splitBracketContent(content);
+            List<Object> result = new ArrayList<>(parts.size());
+            for (String part : parts) {
+                Object elem = parseElement(part, dataType);
+                if (lastFieldError != null) {
+                    return null;
+                }
+                if (elem != null) {
+                    result.add(elem);
+                }
+            }
+            return result.isEmpty() ? null : result;
+        }
+
+        private List<String> splitBracketContent(String content) {
+            List<String> result = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            char esc = options.escapeChar();
+            char quote = options.quoteChar();
+            boolean inQuotes = false;
+            int i = 0;
+            while (i < content.length()) {
+                char c = content.charAt(i);
+                if (c == quote) {
+                    if (inQuotes) {
+                        if (i + 1 < content.length() && content.charAt(i + 1) == quote) {
+                            current.append(quote);
+                            i += 2;
+                            continue;
+                        }
+                        inQuotes = false;
+                    } else {
+                        inQuotes = true;
+                    }
+                    i++;
+                } else if (c == ',' && inQuotes == false) {
+                    result.add(current.toString().trim());
+                    current = new StringBuilder();
+                    i++;
+                } else if (c == esc && inQuotes == false && i + 1 < content.length() && content.charAt(i + 1) == ',') {
+                    current.append(',');
+                    i += 2;
+                } else {
+                    current.append(c);
+                    i++;
+                }
+            }
+            result.add(current.toString().trim());
+            return result;
+        }
+
+        private Object parseElement(String value, DataType dataType) {
+            if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                return null;
+            }
+            if (hasCustomNullValue && value.equals(nullValueStr)) {
+                return null;
+            }
+            value = unquoteElement(value);
+            if (value.isEmpty()) {
                 return null;
             }
             return switch (dataType) {
@@ -739,6 +1053,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     yield null;
                 }
             };
+        }
+
+        /**
+         * Unquotes an element that is wrapped in the configured quote character.
+         * Removes leading/trailing quotes and replaces {@code ""} with {@code "} in the inner content.
+         */
+        private String unquoteElement(String value) {
+            char quote = options.quoteChar();
+            if (value.length() >= 2 && value.charAt(0) == quote && value.charAt(value.length() - 1) == quote) {
+                String inner = value.substring(1, value.length() - 1);
+                return inner.replace(String.valueOf(quote) + quote, String.valueOf(quote));
+            }
+            return value;
         }
 
         private Object tryParseInt(String value) {
@@ -770,7 +1097,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private Object tryParseBoolean(String value) {
             try {
-                return Booleans.parseBoolean(value);
+                return Booleans.parseBoolean(value.toLowerCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [BOOLEAN]";
                 return null;
@@ -781,9 +1108,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (looksNumeric(value)) {
                 try {
                     return Long.parseLong(value);
-                } catch (NumberFormatException e) {
-                    // overflow — fall through
-                }
+                } catch (NumberFormatException e) {}
             }
             if (datetimeFormatter != null) {
                 try {
@@ -793,8 +1118,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return null;
                 }
             }
+            // Handles ISO-8601 with zone, zone-less timestamps, date-only, and whitespace-separated date-times
             try {
-                return Instant.parse(value).toEpochMilli();
+                return DateUtils.asDateTime(value).toInstant().toEpochMilli();
             } catch (DateTimeParseException e) {
                 lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
                 return null;
@@ -806,25 +1132,42 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new EsqlIllegalArgumentException(cause, message);
             }
             errorCount++;
+            addWarning("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
-                logger.warn("Skipping malformed CSV row (error {}/{}): {}", errorCount, errorPolicy.maxErrors(), message);
+                logger.warn(
+                    "Skipping malformed CSV row [{}] (error {}/{}): {}",
+                    totalRowCount,
+                    errorCount,
+                    errorPolicy.maxErrors(),
+                    message
+                );
             }
             checkBudget(message, cause);
         }
 
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
+            addWarning("Row [" + totalRowCount + "] field [" + attr.name() + "] value [" + value + "]: " + message);
             if (logErrors) {
                 logger.warn(
-                    "Null-filling unparseable field [{}] value [{}] (error {}/{}): {}",
+                    "Null-filling unparseable field [{}] value [{}] in row [{}] (error {}/{}): {}",
                     attr.name(),
                     value,
+                    totalRowCount,
                     errorCount,
                     errorPolicy.maxErrors(),
                     message
                 );
             }
             checkBudget(message, null);
+        }
+
+        private void addWarning(String warning) {
+            if (warnings.size() < MAX_WARNINGS) {
+                warnings.add(warning);
+            } else if (warnings.size() == MAX_WARNINGS) {
+                warnings.add("... further warnings suppressed (total errors so far: " + errorCount + ")");
+            }
         }
 
         private void checkBudget(String message, Exception cause) {
@@ -853,6 +1196,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private static boolean looksNumeric(String value) {
+            if (value == null || value.isEmpty()) {
+                return false;
+            }
             int start = (value.charAt(0) == '-') ? 1 : 0;
             if (start >= value.length()) {
                 return false;

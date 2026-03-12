@@ -23,7 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
@@ -80,11 +80,10 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
         }
-
         return new UnifiedCompletionAction.Request(
             instance.getInferenceEntityId(),
             instance.getTaskType(),
-            instance.getUnifiedCompletionRequest(),
+            UnifiedCompletionRequestTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest(), version),
             context,
             instance.getTimeout()
         );

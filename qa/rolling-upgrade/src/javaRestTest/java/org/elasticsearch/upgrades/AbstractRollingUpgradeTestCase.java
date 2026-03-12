@@ -86,7 +86,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
         final var response = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
         final var persistentTasks = response.evaluate("metadata.persistent_tasks");
         final List<?> tasks = response.evaluate("metadata.persistent_tasks.tasks");
-        assertThat("persistent tasks must exist in: " + persistentTasks, tasks, notNullValue());
+        assertThat("tasks cannot be null in metadata.persistent_tasks [" + persistentTasks + "]", tasks, notNullValue());
         String executorNode = null;
         for (int i = 0; i < tasks.size(); i++) {
             String taskId = response.evaluate("metadata.persistent_tasks.tasks." + i + ".id");
@@ -95,7 +95,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
                 break;
             }
         }
-        assertThat("health node task must be assigned in: " + persistentTasks, executorNode, notNullValue());
+        assertThat("health task in metadata.persistent_tasks [" + persistentTasks + "] must be assigned", executorNode, notNullValue());
     }
 
     private void assertHealthReportAvailable() throws IOException {

@@ -38,16 +38,11 @@ public final class AllLastBytesRefByIntGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public AllLastBytesRefByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastBytesRefByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastBytesRefByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastBytesRefByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastBytesRefByIntGroupingAggregatorFunction(channels, AllLastBytesRefByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastBytesRefByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

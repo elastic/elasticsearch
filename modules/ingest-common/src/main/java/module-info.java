@@ -15,6 +15,7 @@ module org.elasticsearch.ingest.common {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.web;
+    requires org.elasticsearch.useragent.api;
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.analysis.common;

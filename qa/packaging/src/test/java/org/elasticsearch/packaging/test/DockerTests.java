@@ -648,7 +648,7 @@ public class DockerTests extends PackagingTestCase {
         );
 
         try {
-            waitForElasticsearch(installation, "elastic", "hunter2");
+            waitForElasticsearch(installation, "elastic", xpackPassword);
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "

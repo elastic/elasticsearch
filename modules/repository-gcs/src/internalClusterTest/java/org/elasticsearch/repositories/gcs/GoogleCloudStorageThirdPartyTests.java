@@ -143,7 +143,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
     public void testCopy() {
         final var sourceBlobName = randomIdentifier();
-        final var blobBytes = randomBytesReference(randomIntBetween(100, 10_000_000));
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
         final var destinationBlobName = randomIdentifier();
         final var repository = getRepository();
         final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {

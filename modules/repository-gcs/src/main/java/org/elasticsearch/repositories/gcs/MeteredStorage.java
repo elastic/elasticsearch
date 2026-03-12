@@ -338,12 +338,12 @@ public class MeteredStorage {
         }
     }
 
-    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobId blobId, long maxMegabytesCopiedPerChunk) {
+    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobId blobId, long megabytesCopiedPerChunk) {
         var stats = new OperationStats(purpose, COPY);
         var copyRequest = Storage.CopyRequest.newBuilder()
             .setSource(sourceBlobId)
             .setTarget(blobId)
-            .setMegabytesCopiedPerChunk(maxMegabytesCopiedPerChunk)
+            .setMegabytesCopiedPerChunk(megabytesCopiedPerChunk)
             .build();
         CopyWriter copyWriter = statsCollector.continueWithSupplier(stats, () -> storage.copy(copyRequest));
         while (!copyWriter.isDone()) {

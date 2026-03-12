@@ -28,6 +28,12 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
 public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
+    private final EsqlCapabilities capabilities;
+
+    public RestEsqlQueryAction(EsqlCapabilities capabilities) {
+        this.capabilities = capabilities;
+    }
+
     @Override
     public String getName() {
         return "esql_query";
@@ -40,7 +46,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return EsqlCapabilities.CAPABILITIES;
+        return capabilities.capabilities();
     }
 
     @Override

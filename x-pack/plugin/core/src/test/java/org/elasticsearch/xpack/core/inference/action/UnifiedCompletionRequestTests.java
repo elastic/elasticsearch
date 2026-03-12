@@ -15,6 +15,26 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Content;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile.ContentObjectFileFields;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetailTests;
+import org.elasticsearch.inference.completion.ReasoningTests;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.inference.completion.ToolChoice;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,7 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
@@ -70,6 +91,31 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                             },
                             "type": "function"
                         }
+                    ],
+                    "reasoning": "some reasoning",
+                    "reasoning_details": [
+                        {
+                            "type": "reasoning.encrypted",
+                            "format": "some encrypted reasoning detail format",
+                            "id": "some id 0",
+                            "index": 0,
+                            "data": "some encrypted data"
+                        },
+                        {
+                            "type": "reasoning.summary",
+                            "format": "some summary reasoning detail format",
+                            "id": "some id 1",
+                            "index": 1,
+                            "summary": "some summary"
+                        },
+                        {
+                            "type": "reasoning.text",
+                            "format": "some text reasoning detail format",
+                            "id": "some id 2",
+                            "index": 2,
+                            "text": "some text",
+                            "signature": "some signature"
+                        }
                     ]
                   }
                 ],
@@ -95,7 +141,13 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ],
                 "top_p": 0.2,
                 "max_completion_tokens": 100,
-                "model": "gpt-4o"
+                "model": "gpt-4o",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "detailed",
+                    "exclude": false,
+                    "enabled": false
+                }
             }
             """;
 
@@ -103,28 +155,43 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             var request = UnifiedCompletionRequest.PARSER.apply(parser, null);
             var expected = new UnifiedCompletionRequest(
                 List.of(
-                    new UnifiedCompletionRequest.Message(
-                        new UnifiedCompletionRequest.ContentObjects(
+                    new Message(
+                        new ContentObjects(
                             List.of(
-                                new UnifiedCompletionRequest.ContentObjectText("some text"),
-                                new UnifiedCompletionRequest.ContentObjectImage(
-                                    new UnifiedCompletionRequest.ContentObjectImageUrl(
-                                        "image url value",
-                                        UnifiedCompletionRequest.ImageUrlDetail.AUTO
-                                    )
-                                ),
-                                new UnifiedCompletionRequest.ContentObjectFile(
-                                    new UnifiedCompletionRequest.ContentObjectFileFields("file data value", null, "file name value")
-                                )
+                                new ContentObjectText("some text"),
+                                new ContentObjectImage(new ContentObjectImageUrl("image url value", ImageUrlDetail.AUTO)),
+                                new ContentObjectFile(new ContentObjectFileFields("file data value", null, "file name value"))
                             )
                         ),
                         "user",
                         "100",
                         List.of(
-                            new UnifiedCompletionRequest.ToolCall(
+                            new ToolCall(
                                 "call_62136354",
-                                new UnifiedCompletionRequest.ToolCall.FunctionField("{'order_id': 'order_12345'}", "get_delivery_date"),
+                                new ToolCall.FunctionField("{'order_id': 'order_12345'}", "get_delivery_date"),
                                 "function"
+                            )
+                        ),
+                        "some reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some encrypted reasoning detail format",
+                                "some id 0",
+                                0L,
+                                "some encrypted data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some summary reasoning detail format",
+                                "some id 1",
+                                1L,
+                                "some summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some text reasoning detail format",
+                                "some id 2",
+                                2L,
+                                "some text",
+                                "some signature"
                             )
                         )
                     )
@@ -133,14 +200,11 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 100L,
                 List.of("stop"),
                 0.1F,
-                new UnifiedCompletionRequest.ToolChoiceObject(
-                    "function",
-                    new UnifiedCompletionRequest.ToolChoiceObject.FunctionField("some function")
-                ),
+                new ToolChoiceObject("function", new ToolChoiceObject.FunctionField("some function")),
                 List.of(
-                    new UnifiedCompletionRequest.Tool(
+                    new Tool(
                         "function",
-                        new UnifiedCompletionRequest.Tool.FunctionField(
+                        new Tool.FunctionField(
                             "Get the current weather in a given location",
                             "get_current_weather",
                             Map.of("type", "object"),
@@ -148,7 +212,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         )
                     )
                 ),
-                0.2F
+                0.2F,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, Reasoning.ReasoningSummary.DETAILED, false, false)
             );
 
             assertThat(request, is(expected));
@@ -190,23 +255,16 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = UnifiedCompletionRequest.PARSER.apply(parser, null);
             var expected = new UnifiedCompletionRequest(
-                List.of(
-                    new UnifiedCompletionRequest.Message(
-                        new UnifiedCompletionRequest.ContentString("What is the weather like in Boston today?"),
-                        "user",
-                        null,
-                        null
-                    )
-                ),
+                List.of(new Message(new ContentString("What is the weather like in Boston today?"), "user", null, null)),
                 "gpt-4o",
                 null,
                 List.of("none"),
                 null,
-                new UnifiedCompletionRequest.ToolChoiceString("auto"),
+                new ToolChoiceString("auto"),
                 List.of(
-                    new UnifiedCompletionRequest.Tool(
+                    new Tool(
                         "function",
-                        new UnifiedCompletionRequest.Tool.FunctionField(
+                        new Tool.FunctionField(
                             "Get the current weather in a given location",
                             "get_current_weather",
                             Map.of("type", "object"),
@@ -480,7 +538,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull()
         );
     }
 
@@ -493,38 +552,41 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull()
         );
     }
 
-    public static UnifiedCompletionRequest.Message randomMessage() {
+    public static Message randomMessage() {
         return randomMessage(true);
     }
 
-    public static UnifiedCompletionRequest.Message randomMessage(boolean allowMultimodal) {
-        return new UnifiedCompletionRequest.Message(
+    public static Message randomMessage(boolean allowMultimodal) {
+        return new Message(
             randomContent(allowMultimodal),
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
-            randomToolCallListOrNull()
+            randomToolCallListOrNull(),
+            randomAlphaOfLengthOrNull(10),
+            randomReasoningDetailListOrNull()
         );
     }
 
-    public static UnifiedCompletionRequest.Content randomContent() {
+    public static Content randomContent() {
         return randomContent(true);
     }
 
-    public static UnifiedCompletionRequest.Content randomContent(boolean allowMultimodal) {
+    public static Content randomContent(boolean allowMultimodal) {
         return randomBoolean()
-            ? new UnifiedCompletionRequest.ContentString(randomAlphaOfLength(10))
-            : new UnifiedCompletionRequest.ContentObjects(randomList(10, () -> randomContentObject(allowMultimodal)));
+            ? new ContentString(randomAlphaOfLength(10))
+            : new ContentObjects(randomList(10, () -> randomContentObject(allowMultimodal)));
     }
 
-    public static UnifiedCompletionRequest.ContentObject randomContentObject(boolean allowMultimodal) {
+    public static ContentObject randomContentObject(boolean allowMultimodal) {
         if (allowMultimodal == false) {
             return randomContentObjectText();
         } else {
-            return switch (randomFrom(UnifiedCompletionRequest.ContentObject.ContentObjectType.values())) {
+            return switch (randomFrom(ContentObject.ContentObjectType.values())) {
                 case TEXT -> randomContentObjectText();
                 case IMAGE_URL -> randomContentObjectImage();
                 case FILE -> randomContentObjectFile();
@@ -532,35 +594,34 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
-    public static UnifiedCompletionRequest.ContentObjectText randomContentObjectText() {
-        return new UnifiedCompletionRequest.ContentObjectText(randomAlphaOfLength(10));
+    public static ContentObjectText randomContentObjectText() {
+        return new ContentObjectText(randomAlphaOfLength(10));
     }
 
-    public static UnifiedCompletionRequest.ContentObjectImage randomContentObjectImage() {
-        return new UnifiedCompletionRequest.ContentObjectImage(
-            new UnifiedCompletionRequest.ContentObjectImageUrl(
-                randomAlphaOfLength(10),
-                randomFrom(UnifiedCompletionRequest.ImageUrlDetail.values())
-            )
+    public static ContentObjectImage randomContentObjectImage() {
+        return new ContentObjectImage(new ContentObjectImageUrl(randomAlphaOfLength(10), randomFrom(ImageUrlDetail.values())));
+    }
+
+    public static ContentObjectFile randomContentObjectFile() {
+        return new ContentObjectFile(
+            new ContentObjectFileFields(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
         );
     }
 
-    public static UnifiedCompletionRequest.ContentObjectFile randomContentObjectFile() {
-        return new UnifiedCompletionRequest.ContentObjectFile(
-            new UnifiedCompletionRequest.ContentObjectFileFields(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
-        );
-    }
-
-    public static List<UnifiedCompletionRequest.ToolCall> randomToolCallListOrNull() {
+    public static List<ToolCall> randomToolCallListOrNull() {
         return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomToolCall) : null;
     }
 
-    public static UnifiedCompletionRequest.ToolCall randomToolCall() {
-        return new UnifiedCompletionRequest.ToolCall(randomAlphaOfLength(10), randomToolCallFunctionField(), randomAlphaOfLength(10));
+    public static ToolCall randomToolCall() {
+        return new ToolCall(randomAlphaOfLength(10), randomToolCallFunctionField(), randomAlphaOfLength(10));
     }
 
-    public static UnifiedCompletionRequest.ToolCall.FunctionField randomToolCallFunctionField() {
-        return new UnifiedCompletionRequest.ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    public static ToolCall.FunctionField randomToolCallFunctionField() {
+        return new ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    public static List<ReasoningDetail> randomReasoningDetailListOrNull() {
+        return randomBoolean() ? randomList(10, ReasoningDetailTests::randomReasoningDetail) : null;
     }
 
     public static List<String> randomStopOrNull() {
@@ -571,41 +632,61 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return randomList(5, () -> randomAlphaOfLength(10));
     }
 
-    public static UnifiedCompletionRequest.ToolChoice randomToolChoiceOrNull() {
+    public static ToolChoice randomToolChoiceOrNull() {
         return randomBoolean() ? randomToolChoice() : null;
     }
 
-    public static UnifiedCompletionRequest.ToolChoice randomToolChoice() {
+    public static ToolChoice randomToolChoice() {
         return randomBoolean()
-            ? new UnifiedCompletionRequest.ToolChoiceString(randomAlphaOfLength(10))
-            : new UnifiedCompletionRequest.ToolChoiceObject(randomAlphaOfLength(10), randomToolChoiceObjectFunctionField());
+            ? new ToolChoiceString(randomAlphaOfLength(10))
+            : new ToolChoiceObject(randomAlphaOfLength(10), randomToolChoiceObjectFunctionField());
     }
 
-    public static UnifiedCompletionRequest.ToolChoiceObject.FunctionField randomToolChoiceObjectFunctionField() {
-        return new UnifiedCompletionRequest.ToolChoiceObject.FunctionField(randomAlphaOfLength(10));
+    public static ToolChoiceObject.FunctionField randomToolChoiceObjectFunctionField() {
+        return new ToolChoiceObject.FunctionField(randomAlphaOfLength(10));
     }
 
-    public static List<UnifiedCompletionRequest.Tool> randomToolListOrNull() {
+    public static List<Tool> randomToolListOrNull() {
         return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomTool) : null;
     }
 
-    public static UnifiedCompletionRequest.Tool randomTool() {
-        return new UnifiedCompletionRequest.Tool(randomAlphaOfLength(10), randomToolFunctionField());
+    public static Tool randomTool() {
+        return new Tool(randomAlphaOfLength(10), randomToolFunctionField());
     }
 
-    public static UnifiedCompletionRequest.Tool.FunctionField randomToolFunctionField() {
-        return new UnifiedCompletionRequest.Tool.FunctionField(
-            randomAlphaOfLengthOrNull(10),
-            randomAlphaOfLength(10),
-            null,
-            randomOptionalBoolean()
-        );
+    public static Tool.FunctionField randomToolFunctionField() {
+        return new Tool.FunctionField(randomAlphaOfLengthOrNull(10), randomAlphaOfLength(10), null, randomOptionalBoolean());
+    }
+
+    public static Reasoning randomReasoningOrNull() {
+        return randomBoolean() ? ReasoningTests.randomReasoning() : null;
     }
 
     @Override
     protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
-        // No need to mutate the instance for backwards compatibility, because unsupported content types cause an exception to be thrown
-        // when serializing to older nodes
+        return mutateInstanceForTransportVersion(instance, version);
+    }
+
+    public static UnifiedCompletionRequest mutateInstanceForTransportVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+        // Unsupported content types cause an exception to be thrown when serializing to older nodes,
+        // so there is no need to mutate the instance for backwards compatibility for versions that don't support multimodal content.
+        // This is tested in testMultimodalContentIsNotBackwardsCompatible
+
+        if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
+            instance = new UnifiedCompletionRequest(
+                instance.messages()
+                    .stream()
+                    .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
+                    .toList(),
+                instance.model(),
+                instance.maxCompletionTokens(),
+                instance.stop(),
+                instance.temperature(),
+                instance.toolChoice(),
+                instance.tools(),
+                instance.topP()
+            );
+        }
         return instance;
     }
 
@@ -621,15 +702,16 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected UnifiedCompletionRequest mutateInstance(UnifiedCompletionRequest instance) throws IOException {
-        List<UnifiedCompletionRequest.Message> messages = instance.messages();
+        List<Message> messages = instance.messages();
         String model = instance.model();
         Long maxCompletionTokens = instance.maxCompletionTokens();
         List<String> stop = instance.stop();
         Float temperature = instance.temperature();
-        UnifiedCompletionRequest.ToolChoice toolChoice = instance.toolChoice();
-        List<UnifiedCompletionRequest.Tool> tools = instance.tools();
+        ToolChoice toolChoice = instance.toolChoice();
+        List<Tool> tools = instance.tools();
         Float topP = instance.topP();
-        switch (between(0, 7)) {
+        Reasoning reasoning = instance.reasoning();
+        switch (between(0, 8)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
@@ -638,9 +720,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestTests::randomToolChoiceOrNull);
             case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
             case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
+            case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestTests::randomReasoningOrNull);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP);
+        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP, reasoning);
     }
 
     @Override

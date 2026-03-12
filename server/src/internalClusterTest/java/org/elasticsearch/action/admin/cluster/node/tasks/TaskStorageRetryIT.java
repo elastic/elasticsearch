@@ -9,81 +9,86 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockLog;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.concurrent.Semaphore;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
 /**
- * Makes sure that tasks that attempt to store themselves on completion retry if
- * they don't succeed at first.
+ * Makes sure that tasks that attempt to store themselves on completion retry if they don't succeed at first.
  */
 public class TaskStorageRetryIT extends ESSingleNodeTestCase {
+
+    private static final Logger logger = LogManager.getLogger(TaskStorageRetryIT.class);
+
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestTaskPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.getPlugins(), TestTaskPlugin.class, WriteRejectingPlugin.class);
     }
 
-    /**
-     * Lower the queue sizes to be small enough that both bulk and searches will time out and have to be retried.
-     */
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put("thread_pool.write.size", 2).put("thread_pool.write.queue_size", 0).build();
-    }
+    public void testRetry() {
+        final var permits = getInstanceFromNode(WriteRejectionPermits.class);
+        permits.rejectAlways = true;
+        permits.release(2);
 
-    public void testRetry() throws Exception {
-        logger.info("block the write executor");
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        getInstanceFromNode(ThreadPool.class).executor(ThreadPool.Names.WRITE).execute(() -> {
-            try {
-                barrier.await();
-                logger.info("blocking the write executor");
-                barrier.await();
-                logger.info("unblocked the write executor");
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        barrier.await();
-        Task task;
-        PlainActionFuture<TestTaskPlugin.NodesResponse> future = new PlainActionFuture<>();
+        final Task task;
+        final var future = new PlainActionFuture<TestTaskPlugin.NodesResponse>();
         try {
             logger.info("start a task that will store its results");
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");
             req.setShouldStoreResult(true);
             req.setShouldBlock(false);
-            task = nodeClient().executeLocally(TestTaskPlugin.TEST_TASK_ACTION, req, future);
 
-            logger.info("verify that the task has started and is still running");
-            assertBusy(() -> {
-                GetTaskResponse runningTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
-                assertNotNull(runningTask.getTask());
-                assertFalse(runningTask.getTask().isCompleted());
-                assertEquals(emptyMap(), runningTask.getTask().getErrorAsMap());
-                assertEquals(emptyMap(), runningTask.getTask().getResponseAsMap());
-                assertFalse(future.isDone());
-            });
+            logger.info("wait for failure log message");
+            try (var mockLog = MockLog.capture(TaskResultsService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "task store failure message",
+                        TaskResultsService.class.getCanonicalName(),
+                        Level.WARN,
+                        "failed to store task result, retrying in [*]"
+                    )
+                );
+                task = nodeClient().executeLocally(TestTaskPlugin.TEST_TASK_ACTION, req, future);
+                mockLog.awaitAllExpectationsMatched();
+            }
+
+            GetTaskResponse runningTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
+            assertNotNull(runningTask.getTask());
+            assertFalse(runningTask.getTask().isCompleted());
+            assertEquals(emptyMap(), runningTask.getTask().getErrorAsMap());
+            assertEquals(emptyMap(), runningTask.getTask().getResponseAsMap());
+            assertFalse(future.isDone());
         } finally {
-            logger.info("unblock the write executor");
-            barrier.await();
+            permits.rejectAlways = false;
         }
 
         logger.info("wait for the task to finish");
-        future.get(10, TimeUnit.SECONDS);
+        safeGet(future);
 
         logger.info("check that it was written successfully");
         GetTaskResponse finishedTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
@@ -102,5 +107,50 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
          * places.
          */
         return (NodeClient) client();
+    }
+
+    public static class WriteRejectionPermits extends Semaphore {
+
+        public volatile boolean rejectAlways;
+
+        public WriteRejectionPermits() {
+            super(0);
+        }
+    }
+
+    public static class WriteRejectingPlugin extends Plugin implements ActionPlugin {
+
+        private final WriteRejectionPermits writeRejectionPermits = new WriteRejectionPermits();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            return List.of(writeRejectionPermits);
+        }
+
+        @Override
+        public Collection<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter.Simple() {
+                @Override
+                protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                    if (TransportIndexAction.NAME.equals(action) == false) {
+                        return true;
+                    }
+
+                    assertArrayEquals(asInstanceOf(IndexRequest.class, request).indices(), new String[] { TaskResultsService.TASK_INDEX });
+
+                    if (writeRejectionPermits.rejectAlways == false && writeRejectionPermits.tryAcquire() == false) {
+                        return true;
+                    }
+
+                    listener.onFailure(new EsRejectedExecutionException("simulated"));
+                    return false;
+                }
+
+                @Override
+                public int order() {
+                    return 0;
+                }
+            });
+        }
     }
 }

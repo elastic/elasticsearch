@@ -1,0 +1,316 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-azure'
+  description = 'Azure Blob Storage provider for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.azure.AzureDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-azure'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+
+  // Azure Blob Storage - minimal set, versions aligned with repository-azure
+  implementation 'com.azure:azure-storage-blob:12.27.1'
+  implementation 'com.azure:azure-storage-common:12.26.1'
+  implementation 'com.azure:azure-core:1.51.0'
+  implementation 'com.azure:azure-identity:1.13.2'
+  implementation 'com.azure:azure-core-http-netty:1.15.3'
+  implementation "io.projectreactor.netty:reactor-netty-core:1.0.45"
+  implementation "io.projectreactor.netty:reactor-netty-http:1.0.45"
+  implementation "io.projectreactor:reactor-core:3.4.38"
+  // Netty - must be bundled as plugin classloader is isolated from server
+  implementation "io.netty:netty-buffer:${versions.netty}"
+  implementation "io.netty:netty-codec:${versions.netty}"
+  implementation "io.netty:netty-codec-http:${versions.netty}"
+  implementation "io.netty:netty-codec-http2:${versions.netty}"
+  implementation "io.netty:netty-common:${versions.netty}"
+  implementation "io.netty:netty-handler:${versions.netty}"
+  implementation "io.netty:netty-codec-socks:${versions.netty}"
+  implementation "io.netty:netty-handler-proxy:${versions.netty}"
+  implementation "io.netty:netty-resolver:${versions.netty}"
+  implementation "io.netty:netty-resolver-dns:${versions.netty}"
+  implementation "io.netty:netty-transport:${versions.netty}"
+  implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
+  mapping from: /reactor-core.*/, to: 'reactor-core'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // from reactor-netty metric collection
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.context.ContextAccessor',
+
+    // from reactor-core kotlin extensions
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // from io.netty.util.internal.Hidden (netty-common optional dependency)
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    // Netty NIO transports (platform-specific)
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
+
+    // from reactor.netty.http.server.HttpServer (reactor-netty)
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // Netty DNS (optional)
+    'io.netty.handler.codec.dns.AbstractDnsOptPseudoRrRecord',
+    'io.netty.handler.codec.dns.DatagramDnsQueryEncoder',
+    'io.netty.handler.codec.dns.DatagramDnsResponse',
+    'io.netty.handler.codec.dns.DatagramDnsResponseDecoder',
+    'io.netty.handler.codec.dns.DefaultDnsRecordDecoder',
+    'io.netty.handler.codec.dns.DnsQuery',
+    'io.netty.handler.codec.dns.DnsQuestion',
+    'io.netty.handler.codec.dns.DnsRecord',
+    'io.netty.handler.codec.dns.DnsRecordType',
+    'io.netty.handler.codec.dns.DnsResponse',
+    'io.netty.handler.codec.dns.DnsResponseCode',
+    'io.netty.handler.codec.dns.DnsSection',
+    'io.netty.handler.codec.dns.TcpDnsQueryEncoder',
+
+    // Netty SSL (optional tcnative)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    // from jackson-dataformat-xml (woodstox/stax2)
+    'org.codehaus.stax2.LocationInfo',
+    'org.codehaus.stax2.XMLStreamLocation2',
+    'org.codehaus.stax2.XMLStreamReader2',
+    'org.codehaus.stax2.XMLStreamWriter2',
+    'org.codehaus.stax2.ri.Stax2ReaderAdapter',
+    'org.codehaus.stax2.ri.Stax2WriterAdapter',
+    'org.codehaus.stax2.typed.Base64Variant',
+    'org.codehaus.stax2.typed.Base64Variants',
+
+    // Jetty ALPN/NPN (optional)
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+
+    // from azure-identity (msal4j optional)
+    'com.microsoft.aad.msal4j.AbstractClientApplicationBase',
+    'com.microsoft.aad.msal4j.AppTokenProviderParameters',
+    'com.microsoft.aad.msal4j.AuthenticationResultMetadata',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters$AuthorizationCodeParametersBuilder',
+    'com.microsoft.aad.msal4j.ClaimsRequest',
+    'com.microsoft.aad.msal4j.ClientCredentialFactory',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters$ClientCredentialParametersBuilder',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication$Builder',
+    'com.microsoft.aad.msal4j.DeviceCode',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters$DeviceCodeFlowParametersBuilder',
+    'com.microsoft.aad.msal4j.HttpMethod',
+    'com.microsoft.aad.msal4j.HttpRequest',
+    'com.microsoft.aad.msal4j.HttpResponse',
+    'com.microsoft.aad.msal4j.IAccount',
+    'com.microsoft.aad.msal4j.IAuthenticationResult',
+    'com.microsoft.aad.msal4j.IHttpClient',
+    'com.microsoft.aad.msal4j.IHttpResponse',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessAspect',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessContext',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters$InteractiveRequestParametersBuilder',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters$OnBehalfOfParametersBuilder',
+    'com.microsoft.aad.msal4j.Prompt',
+    'com.microsoft.aad.msal4j.PublicClientApplication',
+    'com.microsoft.aad.msal4j.PublicClientApplication$Builder',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters$RefreshTokenParametersBuilder',
+    'com.microsoft.aad.msal4j.RequestedClaimAdditionalInfo',
+    'com.microsoft.aad.msal4j.SilentParameters',
+    'com.microsoft.aad.msal4j.SilentParameters$SilentParametersBuilder',
+    'com.microsoft.aad.msal4j.SystemBrowserOptions',
+    'com.microsoft.aad.msal4j.SystemBrowserOptions$SystemBrowserOptionsBuilder',
+    'com.microsoft.aad.msal4j.TokenProviderResult',
+    'com.microsoft.aad.msal4j.UserAssertion',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters$UserNamePasswordParametersBuilder',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings$Builder',
+    'com.microsoft.aad.msal4jextensions.PersistenceTokenCacheAccessAspect',
+    'com.microsoft.aad.msal4jextensions.persistence.CacheFileAccessor',
+    'com.microsoft.aad.msal4jextensions.persistence.linux.ISecurityLibrary',
+    'com.microsoft.aad.msal4jextensions.persistence.mac.KeyChainAccessor',
+
+    // from azure-storage (compression, JNA, protobuf, etc. - optional)
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
+    'com.github.luben.zstd.util.Native',
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.MessageLite',
+    'com.google.protobuf.MessageLite$Builder',
+    'com.google.protobuf.MessageLiteOrBuilder',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'com.sun.jna.LastErrorException',
+    'com.sun.jna.Native',
+    'com.sun.jna.Platform',
+    'com.sun.jna.Pointer',
+    'com.sun.jna.Structure',
+    'com.sun.jna.Structure$ByReference',
+    'com.sun.jna.platform.win32.Crypt32Util',
+    'com.sun.jna.platform.win32.Kernel32',
+    'com.sun.jna.platform.win32.Kernel32Util',
+    'com.sun.jna.platform.win32.WinBase$FILETIME',
+    'com.sun.jna.win32.StdCallLibrary',
+    'com.sun.jna.win32.W32APIOptions',
+    'lzma.sdk.lzma.Encoder',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+  )
+
+  ignoreViolations(
+    // Netty uses sun.misc.Unsafe
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+  )
+}

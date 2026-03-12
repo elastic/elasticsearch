@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: General
 applies_to:
   stack: all
+  serverless: all
 ---
 # General index settings [index-modules]
 

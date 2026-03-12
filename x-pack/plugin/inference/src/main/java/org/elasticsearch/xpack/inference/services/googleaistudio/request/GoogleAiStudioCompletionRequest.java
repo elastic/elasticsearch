@@ -41,7 +41,7 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         var httpPost = createHttpPost();
         var requestEntity = Strings.toString(new GoogleAiStudioCompletionRequestEntity(input.getInputs()));
 

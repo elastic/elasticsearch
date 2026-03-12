@@ -45,7 +45,7 @@ public class AzureAiStudioRerankRequest extends AzureAiStudioRequest {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8));

@@ -46,7 +46,7 @@ public class OpenShiftAiChatCompletionRequest implements Request {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.getServiceSettings().uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(

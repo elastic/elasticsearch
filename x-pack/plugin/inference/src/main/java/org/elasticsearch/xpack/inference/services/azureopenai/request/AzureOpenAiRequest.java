@@ -46,7 +46,7 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         var httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

@@ -63,7 +63,7 @@ public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchReque
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(

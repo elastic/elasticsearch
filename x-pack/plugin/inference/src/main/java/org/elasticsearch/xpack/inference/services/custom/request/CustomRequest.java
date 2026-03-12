@@ -92,7 +92,7 @@ public class CustomRequest implements Request {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         try {
             HttpPost httpRequest = new HttpPost(uri);
 

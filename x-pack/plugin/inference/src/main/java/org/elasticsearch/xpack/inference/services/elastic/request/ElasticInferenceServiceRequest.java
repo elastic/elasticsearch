@@ -40,7 +40,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
     }
 
     @Override
-    public final void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 

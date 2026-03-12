@@ -53,7 +53,7 @@ public class ContextualAiRerankRequest implements Request {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         var requestEntity = new ContextualAiRerankRequestEntity(query, documents, getTopN(), instruction, model);

@@ -39,7 +39,7 @@ public class FireworksAiEmbeddingsRequest implements Request {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         // Only include dimensions in the request if explicitly set by the user.

@@ -36,7 +36,7 @@ public class GroqUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new GroqUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)

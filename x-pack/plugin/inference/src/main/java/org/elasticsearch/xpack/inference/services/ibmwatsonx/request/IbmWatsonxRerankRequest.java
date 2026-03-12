@@ -41,7 +41,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         URI uri;
 
         try {

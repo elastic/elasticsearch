@@ -684,7 +684,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             ActionListener<HttpRequest> listener = invocation.getArgument(0);
             listener.onResponse(HttpRequestTests.createMock(inferenceEntityId));
             return Void.TYPE;
-        }).when(request).createHttpRequestAsync(any());
+        }).when(request).createHttpRequest(any());
         when(request.getInferenceEntityId()).thenReturn(inferenceEntityId);
 
         return request;

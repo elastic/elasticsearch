@@ -139,7 +139,7 @@ public class RetryingHttpSender implements RequestSender {
 
             SubscribableListener.<HttpRequest>newForked(
                 httpRequestActionListener -> wrapThrownException(
-                    () -> request.createHttpRequestAsync(httpRequestActionListener),
+                    () -> request.createHttpRequest(httpRequestActionListener),
                     httpRequestActionListener
                 )
             )

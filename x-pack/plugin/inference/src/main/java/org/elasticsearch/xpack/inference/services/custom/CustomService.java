@@ -152,7 +152,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     private static void validateConfigurationAsync(CustomModel model, ActionListener<Model> listener) {
         var request = new CustomRequest(createParameters(model), model);
 
-        request.createHttpRequestAsync(
+        request.createHttpRequest(
             ActionListener.wrap(httpRequest -> listener.onResponse(model), e -> listener.onFailure(wrapIllegalStateAsValidation(e)))
         );
     }

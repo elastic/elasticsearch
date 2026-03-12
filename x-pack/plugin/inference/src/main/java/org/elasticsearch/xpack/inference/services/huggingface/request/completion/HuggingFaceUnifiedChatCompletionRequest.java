@@ -46,7 +46,7 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
      * The request includes the necessary headers and the input data as a JSON entity.
      */
     @Override
-    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(

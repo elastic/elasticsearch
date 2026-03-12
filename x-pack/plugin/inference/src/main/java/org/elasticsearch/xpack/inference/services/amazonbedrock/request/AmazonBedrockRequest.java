@@ -41,7 +41,7 @@ public abstract class AmazonBedrockRequest implements Request {
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
      */
     @Override
-    public final void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
         listener.onFailure(new UnsupportedOperationException("Amazon Bedrock does not use Http Requests"));
     }
 

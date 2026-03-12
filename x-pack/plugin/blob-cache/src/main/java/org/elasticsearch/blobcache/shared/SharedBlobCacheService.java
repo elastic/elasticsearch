@@ -567,6 +567,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * <p>
      * If a region cannot be acquired (no free pages and no evictable regions), that region and all
      * subsequent regions are skipped.
+     * <p>
+     * Using this method to warm many regions has the impact of sequentially fetching them, which will block
+     * other cache attempts to read the regions near the end. For example, fetching 1GB worth of regions
+     * could cause unexpected high latency for another call which comes in to read data near the end of the
+     * regions and must wait for this connection to fetch all 1GB.
      *
      * @param cacheKey      the key to fetch data for
      * @param firstRegion   the first region to fetch (inclusive)

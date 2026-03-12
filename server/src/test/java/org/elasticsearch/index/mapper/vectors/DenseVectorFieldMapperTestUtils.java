@@ -22,14 +22,14 @@ public class DenseVectorFieldMapperTestUtils {
 
     public static List<SimilarityMeasure> getSupportedSimilarities(DenseVectorFieldMapper.ElementType elementType) {
         return switch (elementType) {
-            case FLOAT, BYTE -> List.of(SimilarityMeasure.values());
+            case FLOAT, BFLOAT16, BYTE -> List.of(SimilarityMeasure.values());
             case BIT -> List.of(SimilarityMeasure.L2_NORM);
         };
     }
 
     public static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
         return switch (elementType) {
-            case FLOAT, BYTE -> dimensions;
+            case FLOAT, BFLOAT16, BYTE -> dimensions;
             case BIT -> {
                 assert dimensions % Byte.SIZE == 0;
                 yield dimensions / Byte.SIZE;
@@ -43,7 +43,7 @@ public class DenseVectorFieldMapperTestUtils {
         }
 
         return switch (elementType) {
-            case FLOAT, BYTE -> RandomNumbers.randomIntBetween(random(), 1, max);
+            case FLOAT, BFLOAT16, BYTE -> RandomNumbers.randomIntBetween(random(), 1, max);
             case BIT -> {
                 if (max < 8) {
                     throw new IllegalArgumentException("max must be at least 8 for bit vectors");

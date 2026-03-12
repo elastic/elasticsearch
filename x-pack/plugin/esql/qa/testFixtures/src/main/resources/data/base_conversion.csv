@@ -1,0 +1,208 @@
+// base_conversion.csv
+// test data for TO_LONG(string, base)
+// 
+// note format from x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/CsvTestsDataLoader.java
+// - commented lines should start with "//"
+// - the first non-comment line from the file is the schema line (comma separated field_name:ES_data_type elements)
+//   - sub-fields should be placed after the root field using a dot notation for the name:
+//       root_field:long,root_field.sub_field:integer
+//   - a special _id field can be used in the schema and the values of this field will be used in the bulk request as actual doc ids
+// - all subsequent non-comment lines represent the values that will be used to build the _bulk request
+// - an empty string "" refers to a null value
+// - a value starting with an opening square bracket "[" and ending with a closing square bracket "]" refers to a multi-value field
+//   - multi-values are comma separated
+//   - commas inside multivalue fields can be escaped with \ (backslash) character
+//
+// schema line
+group:integer,string:keyword,base:integer,expect_long:long,expect_integer:integer,notes:keyword
+
+//
+// Test Group 0 - example of the data with an without nulls
+// 
+// column           content
+// ──────────────── ──────────────────────────────────────────────────────────────────
+// group            test group for WHERE
+// string           string for test
+// base             base for test
+// expect_long      result of TO_LONG(string,base)
+// expect_integer   result of TO_INTEGER(string,base)
+// notes            comments on the test, typically reason for failure or null result
+//
+0,0xff,16,255,255,
+0,0xff,,,,                                                      null because base is null
+0,,16,,,                                                        null because string is null
+0,,,,,                                                          null because all args are null
+
+//
+// Test Group 1
+//
+//     from GitHub issue https://github.com/elastic/elasticsearch/issues/133728
+//     This is for converting a string value to a number given a base.
+//     Something similar to what ES EQL does:
+//     https://www.elastic.co/docs/reference/query-languages/eql/eql-function-ref#eql-fn-number
+//     
+//         number("0x32", 16)
+//         number("31", 13)
+//         number("5")
+//             
+1,0x32,16,50,50,
+1,31,13,40,40,
+1,5,10,5,5,
+
+//
+// Test Group 2
+// 
+//     base 10 tests from "Test the `number` function" 
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("314")
+//         number("-314", 10)
+//         number("+314", 10)
+//
+2,314,10,314,314,
+2,314,,,,                                                       null because base is null
+2,-314,10,-314,-314,
+2,-314,,,,                                                      null because base is null
+2,+314,10,314,314,
+2,+314,,,,                                                      null because base is null
+
+//
+// Test Group 3
+//
+//     base 16 tests from "Test the `number` function"
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("0x1337")
+//         number("0x1337", 16) 
+//         number("0xdeadbeef")
+//         number("deadbeef", 16)
+//
+//     this test will generate InvalidArgumentException parse warnings
+//
+3,1337,10,1337,1337,
+3,1337,16,4919,4919,
+3,0x1337,,,,                                                    null because base is null
+3,0x1337,10,,,                                                  null because string is invalid in base 10
+3,0x1337,16,4919,4919,
+3,0xdeadbeef,,,,                                                null because base is null
+3,0xdeadbeef,16,3735928559,,                                    int null because > 2147483647
+3,deadbeef,,,,                                                  null because base is null
+3,deadbeef,16,3735928559,,                                      int null because > 2147483647
+//
+//     also include some negative values for base 16
+//     observe how the eql "number" function allows 0x prefix (and 0x- !) but not -0x
+//     
+3,1,16,1,1,
+3,0x1,16,1,1,
+3,-1,16,-1,-1,
+3,-0x1,16,,,                                                    null because implementation doesn't recognize -0x prefix
+3,0x-1,16,,,                                                    implementation just strips 0x before calling Long.parseLong
+3,f,16,15,15,
+3,0xf,16,15,15,
+3,-f,16,-15,-15,
+3,-0xf,16,,,                                                    null because implementation doesn't recognize -0x prefix
+3,0x-f,16,-15,,                                                 implementation just strips 0x before calling Long.parseLong
+
+//
+// Test Group 4
+//
+//     other base tests from "Test the `number` function"
+//     x-pack/plugin/eql/src/test/resources/test_string_functions.toml
+//
+//         number("52403")
+//         number("052403", 8)
+//         number("52403", 7)
+//
+4,52403,,,,                                                     null because base is null
+4,52403,8,21763,21763,                                          MultiValuesPushedDownExcluded-Ignore does not like leading 0
+4,52403,7,12890,12890,
+
+//
+// Test Group 5
+//
+//     Values to use for overflow and underflow tests
+//
+//
+5,2147483647,10,2147483647,2147483647,                          max int base 10
+5,2147483648,10,2147483648,,                                    max int base 10 + 1
+//
+5,9223372036854775807,10,9223372036854775807,,                  max long base 10
+5,9223372036854775808,10,9223372036854775807,,                  max long base 10 + 1 returns INCORRECT value WITHOUT warning
+//
+5,7fffffff,16,2147483647,2147483647,                            max int base 16
+5,80000000,16,2147483648,,                                      max int base 16 + 1
+//
+5,7fffffffffffffff,16,9223372036854775807,,                     max long base 16
+5,8000000000000000,16,,,                                        max long base 16 + 1 overflows and returns null with warning
+//
+5,-2147483648,10,-2147483648,-2147483648,                       min int base 10
+5,-2147483649,10,-2147483649,,                                  min int base 10 - 1
+//
+5,-9223372036854775808,10,-9223372036854775808,,                min long base 10
+5,-9223372036854775809,10,-9223372036854775808,,                min long base 10 - 1 returns INCORRECT value WITHOUT warning
+//
+5,-7fffffff,16,-2147483647,-2147483647,                         near min int base 16
+5,-80000000,16,-2147483648,-2147483648,                         min int base 16
+5,-80000001,16,-2147483649,,                                    min int base 16 - 1 underflows and returns null with warning
+//
+5,-7fffffffffffffff,16,-9223372036854775807,,                   near min long base 16
+5,-8000000000000000,16,-9223372036854775808,,                   min long base 16
+5,-8000000000000001,16,,,                                       min long base 16 - 1 underflows and returns null with warning
+
+//
+// Test Group 6
+//
+//     For nested calls test    ┌────────────────────────────────────────────┐
+//     which revealed a bug                              8              + 2
+//                                              ┌──────────────────────┐
+//                                      "1000"          "1000"   2
+//                                TO_LONG(string, TO_LONG(string, base) + 2 ) == 1000
+//                                TO_INT(string,  TO_INT(string, base)  + 2 ) == 1000
+6,1000,2,1000,1000,
+
+//
+// Test Group 7
+//
+//     test cases from javadoc for public static long parseLong(String s, int radix)
+//     https://docs.oracle.com/javase/8/docs/api/java/lang/Long.html#parseLong-java.lang.String-int-
+//
+//         parseLong("0", 10) returns 0L
+//         parseLong("473", 10) returns 473L
+//         parseLong("+42", 10) returns 42L
+//         parseLong("-0", 10) returns 0L
+//         parseLong("-FF", 16) returns -255L
+//         parseLong("1100110", 2) returns 102L
+//         parseLong("99", 8) throws a NumberFormatException
+//         parseLong("Hazelnut", 10) throws a NumberFormatException
+//         parseLong("Hazelnut", 36) returns 1356099454469L
+//
+//     test cases from javadoc for public static int parseInt(String s, int radix)
+//     https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html#parseInt-java.lang.String-int-
+//
+//         parseInt("0", 10) returns 0
+//         parseInt("473", 10) returns 473
+//         parseInt("+42", 10) returns 42
+//         parseInt("-0", 10) returns 0
+//         parseInt("-FF", 16) returns -255
+//         parseInt("1100110", 2) returns 102
+//         parseInt("2147483647", 10) returns 2147483647
+//         parseInt("-2147483648", 10) returns -2147483648
+//         parseInt("2147483648", 10) throws a NumberFormatException
+//         parseInt("99", 8) throws a NumberFormatException
+//         parseInt("Kona", 10) throws a NumberFormatException
+//         parseInt("Kona", 27) returns 411787
+//
+7,0,10,0,0,
+7,473,10,473,473,
+7,+42,10,42,42,
+7,-0,10,0,0,
+7,-FF,16,-255,-255,
+7,1100110,2,102,102,
+7,99,8,,,                                                       NumberFormatException
+7,Hazelnut,10,,,                                                NumberFormatException
+7,Hazelnut,36,1356099454469,,                                   int NumberFormatException
+7,2147483647,10,2147483647,2147483647,
+7,-2147483648,10,-2147483648,-2147483648,
+7,2147483648,10,2147483648,,                                    int NumberFormatException
+7,Kona,10,,,                                                    NumberFormatException
+7,Kona,27,411787,411787,

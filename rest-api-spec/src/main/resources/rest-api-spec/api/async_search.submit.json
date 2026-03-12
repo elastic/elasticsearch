@@ -68,6 +68,7 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "ccs_minimize_roundtrips": {
@@ -102,7 +103,8 @@
       },
       "from": {
         "type": "int",
-        "description": "Starting offset (default: 0)"
+        "default": 0,
+        "description": "Starting offset"
       },
       "ignore_unavailable": {
         "type": "boolean",
@@ -117,7 +119,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -135,10 +137,6 @@
       "preference": {
         "type": "string",
         "description": "Specify the node or shard the operation should be performed on (default: random)"
-      },
-      "project_routing": {
-        "type": "string",
-        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       },
       "rest_total_hits_as_int": {
         "type": "boolean",
@@ -163,7 +161,8 @@
       },
       "size": {
         "type": "int",
-        "description": "Number of hits to return (default: 10)"
+        "default": 10,
+        "description": "Number of hits to return"
       },
       "sort": {
         "type": "list",

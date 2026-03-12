@@ -13,10 +13,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -430,11 +431,15 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignsWithSearchIndex() {
-        boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
+        var ft = fieldType();
+        // Text fields have doc values that don't align with the search index because the indexed form is tokenized (ex. "foo", "bar")
+        // while doc values store the raw string (ex. "foo bar")
+        boolean isTextField = ft instanceof TextFieldMapper.TextFieldType;
         return script() == null
             && missing() == null
-            && fieldType() != null
-            && (fieldType().indexType().supportsSortShortcuts() || hasDocValuesSkipper);
+            && ft != null
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts())
+            && isTextField == false;
     }
 
     /**

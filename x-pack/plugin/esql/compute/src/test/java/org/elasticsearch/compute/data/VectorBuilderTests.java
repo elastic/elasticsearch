@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,7 +34,9 @@ public class VectorBuilderTests extends ESTestCase {
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
                 || e == ElementType.AGGREGATE_METRIC_DOUBLE
-                || e == ElementType.EXPONENTIAL_HISTOGRAM) {
+                || e == ElementType.TDIGEST
+                || e == ElementType.EXPONENTIAL_HISTOGRAM
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             params.add(new Object[] { e });
@@ -98,7 +99,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
                 try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
@@ -119,7 +120,8 @@ public class VectorBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, UNKNOWN ->
+                throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
             case FLOAT -> blockFactory.newFloatVectorBuilder(estimatedSize);
@@ -131,7 +133,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, TDIGEST, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.Builder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

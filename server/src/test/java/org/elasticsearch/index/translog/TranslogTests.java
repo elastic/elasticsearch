@@ -124,6 +124,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogOperationsUtils.indexOp;
@@ -875,7 +876,7 @@ public class TranslogTests extends ESTestCase {
                         Translog.Index expIndexOp = (Translog.Index) expectedOp;
                         assertEquals(expIndexOp.uid(), indexOp.uid());
                         assertEquals(expIndexOp.routing(), indexOp.routing());
-                        assertEquals(expIndexOp.source(), indexOp.source());
+                        assertThat(indexOp.source(), equalBytes(expIndexOp.source()));
                         assertEquals(expIndexOp.version(), indexOp.version());
                     }
                     case DELETE -> {
@@ -3470,11 +3471,7 @@ public class TranslogTests extends ESTestCase {
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
-        TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        TransportVersion wireVersion = TransportVersionUtils.randomCompatibleVersion();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(wireVersion);
         index.writeTo(out);

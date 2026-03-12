@@ -13,5 +13,5 @@ FROM books METADATA _score
 | title:text | _score:double |
 | --- | --- |
 | Poems from the Hobbit | 0.0015673980815336108 |
-| A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 0.007936508394777775 |
-| Return of the King Being the Third Part of The Lord of the Rings | 9.960159659385681E-4 |
+| The Lord of the Rings - Boxed Set | 0.0011135857785120606 |
+| Letters of J R R Tolkien | 0.0024999999441206455 |

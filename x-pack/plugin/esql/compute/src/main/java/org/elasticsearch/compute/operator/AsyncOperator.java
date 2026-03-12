@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -199,6 +198,13 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        synchronized (this) {
+            return checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint();
+        }
+    }
+
     /**
      * Get a {@link Fetched} from the buffer.
      * @return a result if one is ready or {@code null} if none are available.
@@ -337,7 +343,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

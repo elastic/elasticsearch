@@ -212,7 +212,7 @@ public class CellBoundaryTests extends ESTestCase {
             int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
             int lat2 = GeoEncodingUtils.encodeLatitude(latLng2.getLatDeg());
             // edges are in opposite directions.
-            if (clon1 == lon2 & clat1 == lat2 && clon2 == lon1 && clat2 == lat1) {
+            if (clon1 == lon2 && clat1 == lat2 && clon2 == lon1 && clat2 == lat1) {
                 return true;
             }
         }

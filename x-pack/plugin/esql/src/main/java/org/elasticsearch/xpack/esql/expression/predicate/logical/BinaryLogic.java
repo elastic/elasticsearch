@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
@@ -45,12 +45,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     protected BinaryLogic(StreamInput in, BinaryLogicOperation op) throws IOException {
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            op
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class), op);
     }
 
     @Override

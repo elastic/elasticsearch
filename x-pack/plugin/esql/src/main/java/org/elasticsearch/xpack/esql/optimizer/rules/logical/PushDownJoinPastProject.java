@@ -86,7 +86,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
                 if (leftOutput.contains(coreAttr) && lookupFieldNames.contains(coreAttr.name())) {
                     // Conflict - the core attribute will be shadowed by the `LOOKUP JOIN` and we need to alias it in an upstream Eval.
                     Alias renaming = aliasesForReplacedAttributesBuilder.computeIfAbsent(coreAttr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                        String tempName = TemporaryNameGenerator.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
 

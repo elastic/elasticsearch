@@ -32,10 +32,12 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMu
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -158,7 +160,8 @@ public class MetadataUpdateSettingsService {
                 .build();
             Settings.Builder settingsForClosedIndices = Settings.builder();
             Settings.Builder settingsForOpenIndices = Settings.builder();
-            final Set<String> skippedSettings = new HashSet<>();
+            final Set<String> finalSkippedSettings = new HashSet<>();
+            final Set<String> nonFinalSkippedSettings = new HashSet<>();
 
             indexScopedSettings.validate(
                 normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
@@ -175,7 +178,11 @@ public class MetadataUpdateSettingsService {
                 if (isWildcard || setting.isDynamic()) {
                     settingsForOpenIndices.copy(key, normalizedSettings);
                 } else {
-                    skippedSettings.add(key);
+                    if (setting.isFinal()) {
+                        finalSkippedSettings.add(key);
+                    } else {
+                        nonFinalSkippedSettings.add(key);
+                    }
                 }
             }
             final Settings closedSettings = settingsForClosedIndices.build();
@@ -214,6 +221,7 @@ public class MetadataUpdateSettingsService {
                 }
             }
 
+            final Set<String> skippedSettings = Sets.union(finalSkippedSettings, nonFinalSkippedSettings);
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
                 if (request.onStaticSetting() == UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES) {
                     // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
@@ -253,13 +261,26 @@ public class MetadataUpdateSettingsService {
                         }
                     }
                 } else {
+                    final String suggestedPathForwardForUser;
+                    final boolean canUseReopen = finalSkippedSettings.isEmpty();
+                    if (canUseReopen) {
+                        suggestedPathForwardForUser = "You can either resubmit the update with `?reopen=true`, "
+                            + "or create a new index with the desired setting(s) and reindex your data. "
+                            + "See https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex";
+                    } else {
+                        suggestedPathForwardForUser = Strings.format(
+                            "The setting(s) [%s] cannot be modified on an index once it is created. You will need to create a "
+                                + "new index with the desired setting(s) and reindex your data. "
+                                + "See https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex",
+                            finalSkippedSettings
+                        );
+                    }
                     throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s unless the `reopen` query parameter is set to "
-                                + "true. Alternatively, close the indices, apply the settings changes, and reopen the indices",
+                        Strings.format(
+                            "Can't update non dynamic setting(s) [%s] for open indices %s. %s",
                             skippedSettings,
-                            openIndices
+                            openIndices,
+                            suggestedPathForwardForUser
                         )
                     );
                 }

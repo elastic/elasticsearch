@@ -42,12 +42,16 @@
         "description": "Ignore if the source indices expressions resolves to no concrete indices (default: true). Only set if datafeed_config is provided."
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
+        },
         "type": "boolean",
         "default": true,
         "description": "Ignore indices that are marked as throttled (default: true). Only set if datafeed_config is provided."
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

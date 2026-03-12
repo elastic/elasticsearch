@@ -77,6 +77,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + leafName() + "] but wasn't.");
@@ -164,7 +169,13 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, hasDocValues),
+            store
+        );
     }
 
     /**

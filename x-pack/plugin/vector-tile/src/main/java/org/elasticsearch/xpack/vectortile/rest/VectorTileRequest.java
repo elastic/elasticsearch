@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectortile.rest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -61,6 +62,7 @@ class VectorTileRequest {
     protected static final ParseField BUFFER_FIELD = new ParseField("buffer");
     protected static final ParseField EXACT_BOUNDS_FIELD = new ParseField("exact_bounds");
     protected static final ParseField WITH_LABELS_FIELD = new ParseField("with_labels");
+    protected static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     protected static class Defaults {
         public static final int SIZE = 10000;
@@ -131,6 +133,7 @@ class VectorTileRequest {
                 return p.intValue();
             }
         }, SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD, ObjectParser.ValueType.VALUE);
+        PARSER.declareString(VectorTileRequest::setProjectRouting, PROJECT_ROUTING);
     }
 
     static VectorTileRequest parseRestRequest(RestRequest restRequest, Consumer<SearchUsage> searchUsageConsumer) throws IOException {
@@ -220,6 +223,9 @@ class VectorTileRequest {
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
     private boolean with_labels = Defaults.WITH_LABELS;
     private int trackTotalHitsUpTo = Defaults.TRACK_TOTAL_HITS_UP_TO;
+
+    @Nullable
+    private String projectRouting;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
         this.indexes = indexes;
@@ -320,6 +326,23 @@ class VectorTileRequest {
 
     public int getGridPrecision() {
         return gridPrecision;
+    }
+
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    public void setProjectRouting(String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return this.projectRouting;
     }
 
     private void setGridPrecision(int gridPrecision) {

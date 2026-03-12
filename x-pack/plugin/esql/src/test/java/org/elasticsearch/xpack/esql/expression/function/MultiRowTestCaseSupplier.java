@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -21,7 +23,9 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -57,6 +61,8 @@ public final class MultiRowTestCaseSupplier {
             case UNSIGNED_LONG -> ulongCases(minRows, maxRows, BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
             case DOUBLE -> doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true);
             case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
+            case IP -> ipCases(minRows, maxRows);
+            case BOOLEAN -> booleanCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -491,6 +497,41 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "empty exponential histogram",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "random exponential histogram",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            EsqlTestUtils::randomExponentialHistogram
+        );
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> tdigestCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
+        addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> histogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty histogram", DataType.HISTOGRAM, () -> new BytesRef(""));
+        addSuppliers(cases, minRows, maxRows, "random histogram", DataType.HISTOGRAM, EsqlTestUtils::randomHistogram);
+        return cases;
+    }
+
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -654,4 +695,45 @@ public final class MultiRowTestCaseSupplier {
             );
         }
     }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        cases.addAll(denseVectorCases(minRows, maxRows, TestCaseSupplier::randomDenseVector, "dense vector"));
+        if (maxRows > 1) {
+            cases.addAll(denseVectorCases(minRows, maxRows, (d) -> {
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> Float.MAX_VALUE);
+                return vector;
+            }, "dense vector with positive overflow"));
+            cases.addAll(denseVectorCases(maxRows, maxRows, (d) -> {
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> -Float.MAX_VALUE);
+                return vector;
+            }, "dense vector with negative overflow"));
+        }
+        return cases;
+    }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases(
+        int minRows,
+        int maxRows,
+        Function<Integer, List<Float>> vectorSupplier,
+        String testCaseName
+    ) {
+        Holder<Integer> dimensions = new Holder<>();
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, testCaseName, DataType.DENSE_VECTOR, () -> {
+            if (dimensions.get() == null) {
+                dimensions.set(randomIntBetween(64, 128));
+            }
+            return vectorSupplier.apply(dimensions.get());
+        });
+
+        return cases;
+    }
+
 }

@@ -12,13 +12,13 @@ package org.elasticsearch.aggregations.pipeline;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -127,7 +127,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
      */
     public void testDocCountDerivative() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(interval);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
@@ -165,7 +165,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
      */
     public void testSingleValuedField_normalised() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(interval)
             .minDocCount(0);
@@ -203,7 +203,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValueAggDerivative() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(interval);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
@@ -253,7 +253,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testMultiValueAggDerivative() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(interval);
         aggBuilder.subAggregation(new StatsAggregationBuilder("stats").field(SINGLE_VALUED_FIELD_NAME));
@@ -305,7 +305,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testUnmapped() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(interval);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
@@ -324,7 +324,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testDocCountDerivativeWithGaps() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"));
 
@@ -362,7 +362,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testDocCountDerivativeWithGaps_random() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(1)
             .extendedBounds(0L, numBuckets_empty_rnd - 1);
@@ -409,7 +409,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testDocCountDerivativeWithGaps_insertZeros() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(
             new DerivativePipelineAggregationBuilder("deriv", "_count").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
@@ -448,7 +448,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValueAggDerivativeWithGaps() throws Exception {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"));
@@ -499,7 +499,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValueAggDerivativeWithGaps_insertZeros() throws IOException {
         setupValueCounts();
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(SINGLE_VALUED_FIELD_NAME));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum").gapPolicy(GapPolicy.INSERT_ZEROS));
@@ -549,7 +549,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
     public void testSingleValueAggDerivativeWithGaps_random() throws IOException {
         setupValueCounts();
         BucketHelpers.GapPolicy gapPolicy = randomFrom(GapPolicy.values());
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME)
             .interval(1)
             .extendedBounds(0L, (long) numBuckets_empty_rnd - 1);
@@ -614,7 +614,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValueAggDerivative_invalidPath() throws IOException {
         try {
-            Query query = new MatchAllDocsQuery();
+            Query query = Queries.ALL_DOCS_INSTANCE;
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1);
             aggBuilder.subAggregation(
                 new FiltersAggregationBuilder("filters", QueryBuilders.termQuery("tag", "foo")).subAggregation(
@@ -643,7 +643,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
     public void testDerivDerivNPE() throws IOException {
         try (Directory directory = newDirectory()) {
-            Query query = new MatchAllDocsQuery();
+            Query query = Queries.ALL_DOCS_INSTANCE;
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field("tick").interval(1);
             aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field("value"));
             aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("deriv1", "avg"));

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -504,6 +505,42 @@ public class Iterators {
                 throw new IllegalArgumentException("Cannot cycle over empty iterable");
             }
             return iterator.next();
+        }
+    }
+
+    /**
+     * Adds a wrapper around {@code iterator} which asserts that {@link Iterator#remove()} is not called.
+     */
+    public static <T> Iterator<T> assertReadOnly(final Iterator<T> iterator) {
+        return Assertions.ENABLED ? new AssertReadOnlyIterator<>(Objects.requireNonNull(iterator)) : iterator;
+    }
+
+    private static class AssertReadOnlyIterator<T> implements Iterator<T> {
+
+        private final Iterator<T> delegate;
+
+        AssertReadOnlyIterator(Iterator<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            delegate.forEachRemaining(action);
+        }
+
+        @Override
+        public void remove() {
+            throw new AssertionError();
         }
     }
 

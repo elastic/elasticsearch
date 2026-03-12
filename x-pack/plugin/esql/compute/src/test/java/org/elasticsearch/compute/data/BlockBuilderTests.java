@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,7 +42,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     private static boolean supportsVectors(ElementType type) {
         return switch (type) {
-            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM -> false;
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE -> false;
             default -> true;
         };
     }
@@ -162,7 +161,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
@@ -183,7 +182,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testCrankyConstantBlock() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(randomInt(10), blockFactory)) {
@@ -207,6 +206,9 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     private void assumeMultiValued() {
-        assumeTrue("Type must support multi-values", elementType != ElementType.AGGREGATE_METRIC_DOUBLE);
+        assumeTrue(
+            "Type must support multi-values",
+            elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.LONG_RANGE
+        );
     }
 }

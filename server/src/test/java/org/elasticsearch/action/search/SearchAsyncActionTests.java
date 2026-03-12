@@ -20,6 +20,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -99,6 +102,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             transportService,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
@@ -115,7 +119,9 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of(),
+            false
         ) {
 
             @Override
@@ -207,6 +213,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -223,7 +230,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -324,6 +333,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -340,7 +350,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -455,6 +467,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -471,7 +484,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -564,6 +579,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 null,
                 transportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
                 (cluster, node) -> {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node);
@@ -580,7 +596,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -664,6 +682,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             new SearchTransportService(null, null, null),
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
@@ -680,7 +699,9 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of(),
+            false
         ) {
 
             @Override

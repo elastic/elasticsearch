@@ -77,7 +77,22 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "shards",
+          "shards.undesired",
+          "write_load.forecast",
+          "disk.indices.forecast",
+          "disk.indices",
+          "disk.used",
+          "disk.avail",
+          "disk.total",
+          "disk.percent",
+          "host",
+          "ip",
+          "node",
+          "node.role"
+        ]
       },
       "help": {
         "type": "boolean",

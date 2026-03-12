@@ -33,7 +33,7 @@ import java.util.Map;
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends StreamOutput implements org.elasticsearch.xpack.esql.core.util.PlanStreamOutput {
+public final class PlanStreamOutput extends StreamOutput {
 
     /**
      * max number of attributes that can be cached for serialization
@@ -100,6 +100,11 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     }
 
     @Override
+    public long position() {
+        return delegate.position();
+    }
+
+    @Override
     public void flush() throws IOException {
         delegate.flush();
     }
@@ -149,7 +154,13 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         nextCachedBlock++;
     }
 
-    @Override
+    /**
+     * Writes a cache header for an {@link Attribute} and caches it if it is not already in the cache.
+     * In that case, the attribute will have to serialize itself into this stream immediately after this method call.
+     * @param attribute The attribute to serialize
+     * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
+     * @throws IOException
+     */
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
         Integer cacheId = attributeIdFromCache(attribute);
         if (cacheId != null) {
@@ -178,8 +189,15 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         return id;
     }
 
-    @Override
-    public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
+    /**
+     * Writes a cache header for an {@link org.elasticsearch.xpack.esql.core.type.EsField} and caches it if it is not already in the cache.
+     * In that case, the field will have to serialize itself into this stream immediately after this method call.
+     * @param field The EsField to serialize
+     * @param transportVersion The transport version to use for serialization,
+     *                         needed to get the correct field name in case of versioned fields.
+     * @return true if the attribute needs to serialize itself, false otherwise (ie. if already cached)
+     */
+    public boolean writeEsFieldCacheHeader(EsField field, TransportVersion transportVersion) throws IOException {
         Integer cacheId = esFieldIdFromCache(field);
         if (cacheId != null) {
             writeZLong(cacheId);
@@ -188,8 +206,23 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
         cacheId = cacheEsField(field);
         writeZLong(-1 - cacheId);
-        writeCachedString(field.getWriteableName());
+        writeCachedString(field.getWriteableName(transportVersion));
         return true;
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        delegate.writeString(str);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        delegate.writeOptionalString(str);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        delegate.writeGenericString(value);
     }
 
     /**
@@ -198,7 +231,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      *
      * Values serialized with this method have to be deserialized with {@link PlanStreamInput#readCachedString()}
      */
-    @Override
     public void writeCachedString(String string) throws IOException {
         Integer cacheId = stringCache.get(string);
         if (cacheId != null) {
@@ -215,7 +247,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
         writeString(string);
     }
 
-    @Override
     public void writeOptionalCachedString(String str) throws IOException {
         if (str == null) {
             writeBoolean(false);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,10 +66,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (in.readBoolean()) {
                 this.config = new TransformConfig(in);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                if (in.readBoolean()) {
-                    this.authState = new AuthorizationState(in);
-                }
+            if (in.readBoolean()) {
+                this.authState = new AuthorizationState(in);
             }
         }
 
@@ -77,9 +75,10 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             final XContentParser parser,
             final String id,
             final boolean deferValidation,
-            final TimeValue timeout
+            final TimeValue timeout,
+            final TransformParsingContext transformParsingContext
         ) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
+            return new Request(TransformConfigUpdate.fromXContent(parser, transformParsingContext), id, deferValidation, timeout);
         }
 
         /**
@@ -153,13 +152,11 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 config.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                if (authState == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    authState.writeTo(out);
-                }
+            if (authState == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                authState.writeTo(out);
             }
         }
 
@@ -190,11 +187,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public boolean match(Task task) {
-            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
-                return taskId.equals(this.id);
-            }
-            return false;
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

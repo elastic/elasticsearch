@@ -58,7 +58,6 @@ public class JobDataDeleterTests extends ESTestCase {
 
     @After
     public void verifyNoMoreInteractionsWithClient() {
-        verify(client, times(2)).threadPool();
         verifyNoMoreInteractions(client);
     }
 
@@ -85,6 +84,7 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteAnnotations_TimestampFiltering() {
@@ -115,6 +115,7 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteAnnotations_EventFiltering() {
@@ -145,6 +146,22 @@ public class JobDataDeleterTests extends ESTestCase {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
         });
+        verify(client, times(2)).threadPool();
+    }
+
+    public void testDeleteResultsFromTime() {
+        MockWritableIndexExpander.create(true);
+        long fromEpochMs = randomNonNegativeLong();
+        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, randomBoolean());
+        jobDataDeleter.deleteResultsFromTime(fromEpochMs, ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
+
+        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+
+        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+        assertThat(deleteRequest.indices(), is(arrayContaining(".ml-anomalies-my-job-id")));
+        String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
+        assertThat(dbqQueryString, containsString("{\"term\":{\"job_id\":{\"value\":\"my-job-id\"}}"));
+        verify(client, times(1)).threadPool();
     }
 
     public void testDeleteDatafeedTimingStats() {
@@ -162,6 +179,7 @@ public class JobDataDeleterTests extends ESTestCase {
             DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
             assertThat(deleteRequest.indices(), is(arrayContaining(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID))));
         });
+        verify(client, times(2)).threadPool();
     }
 
     public void testDeleteDatafeedTimingStats_WhenIndexReadOnly_ShouldNotDeleteAnything() {
@@ -178,5 +196,6 @@ public class JobDataDeleterTests extends ESTestCase {
                 client.threadPool();
             }
         });
+        verify(client, times(2)).threadPool();
     }
 }

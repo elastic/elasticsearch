@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -48,7 +49,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static Analyzer makeAnalyzer(String indexName, String mappingFileName) {
         var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        EsIndex test = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
 
         return new Analyzer(
             testAnalyzerContext(
@@ -58,7 +59,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -71,7 +72,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
         );
     }
 

@@ -52,7 +52,7 @@ public class NodeDeprecationChecker {
                         .collect(Collectors.toList());
                     logger.warn("nodes failed to run deprecation checks: {}", failedNodeIds);
                     for (FailedNodeException failure : response.failures()) {
-                        logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
+                        logger.atWarn().withThrowable(failure).log("node {} failed to run deprecation checks", failure.nodeId());
                     }
                 }
                 l.onResponse(reduceToDeprecationIssues(response));

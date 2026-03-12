@@ -38,7 +38,7 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
 
-    private static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = TransportVersion.fromName("rescore_vector_allow_zero");
+    public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = TransportVersion.fromName("rescore_vector_allow_zero");
 
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float oversample;

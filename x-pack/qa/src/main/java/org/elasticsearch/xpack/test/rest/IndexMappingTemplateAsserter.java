@@ -95,67 +95,42 @@ public class IndexMappingTemplateAsserter {
     }
 
     /**
-     * Compares the mappings from the legacy template and the index and asserts
-     * they are the same. The assertion error message details the differences in
-     * the mappings.
      *
-     * The Mappings, which are maps of maps, are flattened with the keys built
-     * from the keys of the sub-maps appended to the parent key.
-     * This makes diffing the 2 maps easier and diffs more comprehensible.
-     *
-     * The _meta field is not compared as it contains version numbers that
-     * change even when the mappings don't.
-     *
-     * Mistakes happen and some indices may be stuck with the incorrect mappings
-     * that cannot be fixed without re-index. In this case use the {@code exceptions}
-     * parameter to filter out fields in the index mapping that are not in the
-     * template. Each exception should be a '.' separated path to the value
-     * e.g. {@code properties.analysis.analysis_field.type}.
-     *
-     * @param client                        The rest client to use
-     * @param templateName                  The template
-     * @param indexName                     The index
-     * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
-     *                                      the template. If {@code true} then the missing
-     *                                      index does not cause an error
-     * @param exceptions                    List of keys to ignore in the index mappings.
-     *                                      Each key is a '.' separated path.
-     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
+     * @param client The Rest client
+     * @param templateName Template
+     * @param version      Expected template version
+     * @param indexPatterns Expected index patterns
+     * @throws Exception Assertion
      */
     @SuppressWarnings("unchecked")
-    public static void assertLegacyTemplateMatchesIndexMappings(
-        RestClient client,
-        String templateName,
-        String indexName,
-        boolean notAnErrorIfIndexDoesNotExist,
-        Set<String> exceptions,
-        boolean allowSystemIndexWarnings
-    ) throws Exception {
+    public static void assertTemplateVersionAndPattern(RestClient client, String templateName, int version, List<String> indexPatterns)
+        throws Exception {
 
         AtomicReference<Response> templateResponse = new AtomicReference<>();
 
         ESRestTestCase.assertBusy(() -> {
-            Request getTemplate = new Request("GET", "_template/" + templateName);
+            Request getTemplate = new Request("GET", "_index_template/" + templateName);
             templateResponse.set(client.performRequest(getTemplate));
             assertEquals("missing template [" + templateName + "]", 200, templateResponse.get().getStatusLine().getStatusCode());
         });
 
-        Map<String, Object> templateMappings = (Map<String, Object>) XContentMapValues.extractValue(
-            ESRestTestCase.entityAsMap(templateResponse.get()),
-            templateName,
-            "mappings"
-        );
-        assertNotNull(templateMappings);
+        var responseMap = ESRestTestCase.entityAsMap(templateResponse.get());
+        Integer templateVersion = ((List<Integer>) XContentMapValues.extractValue(
+            responseMap,
+            "index_templates",
+            "index_template",
+            "version"
+        )).getFirst();
+        assertEquals(version, templateVersion.intValue());
 
-        assertTemplateMatchesIndexMappingsCommon(
-            client,
-            templateName,
-            templateMappings,
-            indexName,
-            notAnErrorIfIndexDoesNotExist,
-            exceptions,
-            allowSystemIndexWarnings
-        );
+        var templateIndexPatterns = ((List<String>) XContentMapValues.extractValue(
+            responseMap,
+            "index_templates",
+            "index_template",
+            "index_patterns"
+        ));
+
+        assertEquals(responseMap.toString(), templateIndexPatterns, indexPatterns);
     }
 
     /**

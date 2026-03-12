@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -135,7 +134,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         useSearchInferenceId = randomBoolean();
     }
 
@@ -219,11 +221,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         );
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-            mapperService.merge(
-                "_doc",
-                parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
-                MapperService.MergeReason.MAPPING_UPDATE
-            );
+            mapperService.merge("_doc", parsedDocument.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 
@@ -277,7 +275,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
+            case FLOAT, BFLOAT16 -> KnnFloatVectorQuery.class;
             case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
@@ -437,11 +435,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_15_0,
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
             assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
         }
 
@@ -488,11 +482,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_15_0,
-                TransportVersion.current()
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
     }
@@ -507,11 +497,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                originalQuery.getMinimalSupportedVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
 
             if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
                 QueryBuilder deserializedQuery = copyNamedWriteable(

@@ -20,8 +20,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+              "type": "list",
+              "description": "Comma-separated list or wildcard expression of index names used to limit the request."
             }
           }
         }
@@ -42,7 +42,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

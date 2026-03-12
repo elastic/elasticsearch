@@ -28,6 +28,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public class Types {
     private static final String PACKAGE = "org.elasticsearch.compute";
     private static final String AGGREGATION_PACKAGE = PACKAGE + ".aggregation";
+    private static final String EXPRESSION_PACKAGE = PACKAGE + ".expression";
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
@@ -54,6 +55,7 @@ public class Types {
     public static final ClassName FLOAT_BLOCK = ClassName.get(DATA_PACKAGE, "FloatBlock");
     public static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlock");
     public static final ClassName EXPONENTIAL_HISTOGRAM_SCRATCH = ClassName.get(DATA_PACKAGE, "ExponentialHistogramScratch");
+    public static final ClassName TDIGEST_BLOCK = ClassName.get(DATA_PACKAGE, "TDigestBlock");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
@@ -61,7 +63,8 @@ public class Types {
     static final ClassName LONG_BLOCK_BUILDER = LONG_BLOCK.nestedClass("Builder");
     static final ClassName DOUBLE_BLOCK_BUILDER = DOUBLE_BLOCK.nestedClass("Builder");
     static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
-    static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlockBuilder");
+    static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = EXPONENTIAL_HISTOGRAM_BLOCK.nestedClass("Builder");
+    static final ClassName TDIGEST_BLOCK_BUILDER = TDIGEST_BLOCK.nestedClass("Builder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
@@ -108,13 +111,8 @@ public class Types {
         "GroupingAggregatorEvaluationContext"
     );
 
-    public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
-    public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(
-        OPERATOR_PACKAGE,
-        "EvalOperator",
-        "ExpressionEvaluator",
-        "Factory"
-    );
+    public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator");
+    public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator", "Factory");
     public static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
@@ -132,11 +130,13 @@ public class Types {
     );
 
     static final ClassName WARNINGS = ClassName.get("org.elasticsearch.compute.operator", "Warnings");
+    static final ClassName WARNING_SOURCE_LOCATION = ClassName.get("org.elasticsearch.compute.operator", "WarningSourceLocation");
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
     public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
+    public static final ClassName TDIGEST = ClassName.get("org.elasticsearch.compute.data", "TDigestHolder");
 
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
@@ -161,7 +161,8 @@ public class Types {
         TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector", null),
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector", null),
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
-        TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH)
+        TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH),
+        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -242,6 +243,10 @@ public class Types {
         if (resultType.equals(EXPONENTIAL_HISTOGRAM_BLOCK)) {
             return EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER;
         }
+        if (resultType.equals(TDIGEST_BLOCK)) {
+            return TDIGEST_BLOCK_BUILDER;
+        }
+
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
 
@@ -285,6 +290,9 @@ public class Types {
         }
         if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK) || t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
             return EXPONENTIAL_HISTOGRAM;
+        }
+        if (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
+            return TDIGEST;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

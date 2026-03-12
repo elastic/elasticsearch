@@ -11,27 +11,31 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.MvEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvMin extends AbstractMultivalueFunction {
+public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
 
     @FunctionInfo(
@@ -68,7 +72,7 @@ public class MvMin extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
+        return isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -79,7 +83,7 @@ public class MvMin extends AbstractMultivalueFunction {
             case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvMinIntEvaluator.Factory(fieldEval);
             case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -128,5 +132,13 @@ public class MvMin extends AbstractMultivalueFunction {
      */
     static int ascendingIndex(int count) {
         return 0;
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (field instanceof FieldAttribute f) {
+            return new PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.MV_MIN);
+        }
+        return null;
     }
 }

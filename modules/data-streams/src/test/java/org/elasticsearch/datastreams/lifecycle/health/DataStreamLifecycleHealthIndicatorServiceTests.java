@@ -19,9 +19,9 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

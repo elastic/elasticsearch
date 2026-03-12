@@ -86,6 +86,8 @@ public class ShowColumns extends Command {
                 IndexResolver.ALL_FIELDS,
                 withFrozen,
                 emptyMap(),
+                session.configuration().crossProject(),
+                session.configuration().projectRouting(),
                 listener.delegateFailureAndWrap((l, indexResult) -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {

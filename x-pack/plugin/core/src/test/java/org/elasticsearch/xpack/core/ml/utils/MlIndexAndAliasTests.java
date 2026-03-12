@@ -509,10 +509,15 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testBuildIndexAliasesRequest() {
         var anomaliesIndex = ".ml-anomalies-sharedindex";
+        var newIndex = anomaliesIndex + "-000001";
+
         var jobs = List.of("job1", "job2");
-        IndexMetadata.Builder indexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder oldIndexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder newIndexMetadata = createEmptySharedResultsIndex(newIndex, IndexVersion.current());
+
         Metadata.Builder metadata = Metadata.builder();
-        metadata.put(indexMetadata);
+        metadata.put(oldIndexMetadata);
+        metadata.put(newIndexMetadata);
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
 
@@ -522,8 +527,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT
         );
 
-        var newIndex = anomaliesIndex + "-000001";
-        var request = MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        String[] currentIndices = { anomaliesIndex };
+        var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            csBuilder.build(),
+            Arrays.asList(currentIndices)
+        );
         var actions = request.request().getAliasActions();
         assertThat(actions, hasSize(6));
 
@@ -535,6 +545,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 newIndex,
                 IndicesAliasesRequest.AliasActions.Type.ADD
             );
+
             assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
 
             expected = new AliasActionMatcher(
@@ -544,12 +555,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
             );
             assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
 
-            expected = new AliasActionMatcher(
+            // This alias action request ensures that every index has a read alias, even if the old index was missing one.
+            var expected1 = new AliasActionMultiIndicesMatcher(
                 AnomalyDetectorsIndex.jobResultsAliasedName(job),
-                newIndex,
+                new String[] { anomaliesIndex, newIndex },
                 IndicesAliasesRequest.AliasActions.Type.ADD
             );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+            assertThat(actions.stream().filter(expected1::matches).count(), equalTo(1L));
         }
     }
 
@@ -561,7 +573,15 @@ public class MlIndexAndAliasTests extends ESTestCase {
         }
     }
 
-    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+    private record AliasActionMultiIndicesMatcher(String aliasName, String[] indices, IndicesAliasesRequest.AliasActions.Type actionType) {
+        boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
+            return aliasAction.actionType() == actionType
+                && aliasAction.aliases()[0].equals(aliasName)
+                && Arrays.stream(aliasAction.indices()).toList().equals(Arrays.stream(indices).toList());
+        }
+    }
+
+    private IndexMetadata.Builder createEmptySharedResultsIndex(String indexName, IndexVersion indexVersion) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
         indexMetadata.settings(
             Settings.builder()
@@ -570,6 +590,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
         );
+
+        return indexMetadata;
+    }
+
+    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+
+        var indexMetadata = createEmptySharedResultsIndex(indexName, indexVersion);
 
         for (var jobId : jobs) {
             indexMetadata.putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).isHidden(true).build());

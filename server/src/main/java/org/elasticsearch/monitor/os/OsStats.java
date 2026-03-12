@@ -12,7 +12,6 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -295,17 +294,13 @@ public class OsStats implements Writeable, ToXContentFragment {
                 total = 0;
             }
             this.total = total;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                long adjustedTotal = in.readLong();
-                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
-                if (adjustedTotal < 0) {
-                    logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
-                    adjustedTotal = 0;
-                }
-                this.adjustedTotal = adjustedTotal;
-            } else {
-                this.adjustedTotal = total;
+            long adjustedTotal = in.readLong();
+            assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
+            if (adjustedTotal < 0) {
+                logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
+                adjustedTotal = 0;
             }
+            this.adjustedTotal = adjustedTotal;
             long free = in.readLong();
             assert free >= 0 : "expected free memory to be positive, got: " + free;
             if (free < 0) {
@@ -318,9 +313,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeLong(adjustedTotal);
-            }
+            out.writeLong(adjustedTotal);
             out.writeLong(free);
         }
 
@@ -505,11 +498,7 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         Cgroup(final StreamInput in) throws IOException {
             cpuAcctControlGroup = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                cpuAcctUsageNanos = in.readBigInteger();
-            } else {
-                cpuAcctUsageNanos = BigInteger.valueOf(in.readLong());
-            }
+            cpuAcctUsageNanos = in.readBigInteger();
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
@@ -522,11 +511,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                out.writeBigInteger(cpuAcctUsageNanos);
-            } else {
-                out.writeLong(cpuAcctUsageNanos.longValue());
-            }
+            out.writeBigInteger(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
@@ -622,28 +607,16 @@ public class OsStats implements Writeable, ToXContentFragment {
             }
 
             CpuStat(final StreamInput in) throws IOException {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                    numberOfElapsedPeriods = in.readBigInteger();
-                    numberOfTimesThrottled = in.readBigInteger();
-                    timeThrottledNanos = in.readBigInteger();
-                } else {
-                    numberOfElapsedPeriods = BigInteger.valueOf(in.readLong());
-                    numberOfTimesThrottled = BigInteger.valueOf(in.readLong());
-                    timeThrottledNanos = BigInteger.valueOf(in.readLong());
-                }
+                numberOfElapsedPeriods = in.readBigInteger();
+                numberOfTimesThrottled = in.readBigInteger();
+                timeThrottledNanos = in.readBigInteger();
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                    out.writeBigInteger(numberOfElapsedPeriods);
-                    out.writeBigInteger(numberOfTimesThrottled);
-                    out.writeBigInteger(timeThrottledNanos);
-                } else {
-                    out.writeLong(numberOfElapsedPeriods.longValue());
-                    out.writeLong(numberOfTimesThrottled.longValue());
-                    out.writeLong(timeThrottledNanos.longValue());
-                }
+                out.writeBigInteger(numberOfElapsedPeriods);
+                out.writeBigInteger(numberOfTimesThrottled);
+                out.writeBigInteger(timeThrottledNanos);
             }
 
             @Override

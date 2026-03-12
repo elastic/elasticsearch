@@ -66,44 +66,21 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
-    }
+    maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
@@ -118,9 +95,6 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
         continue;
       }
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
@@ -185,9 +159,6 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
         continue;
       }
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
@@ -249,9 +220,6 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
   private void addRawInput(int positionOffset, IntVector groups, IntBlock valuesBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
-      if (valuesBlock.isNull(valuesPosition)) {
-        continue;
-      }
       int groupId = groups.getInt(groupPosition);
       SpatialExtentGeoShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }

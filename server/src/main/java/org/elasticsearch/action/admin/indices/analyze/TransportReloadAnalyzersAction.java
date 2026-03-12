@@ -50,7 +50,8 @@ import java.util.Set;
 public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeAction<
     ReloadAnalyzersRequest,
     ReloadAnalyzersResponse,
-    TransportReloadAnalyzersAction.ReloadResult> {
+    TransportReloadAnalyzersAction.ReloadResult,
+    Void> {
 
     public static final ActionType<ReloadAnalyzersResponse> TYPE = new ActionType<>("indices:admin/reload_analyzers");
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
@@ -122,6 +123,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         ReloadAnalyzersRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<ReloadResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {

@@ -12,13 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelTests;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class JinaAIRerankRequestEntityTests extends ESTestCase {
     public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {
@@ -27,8 +26,7 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
             List.of("abc"),
             Boolean.TRUE,
             12,
-            new JinaAIRerankTaskSettings(8, Boolean.FALSE),
-            "model"
+            JinaAIRerankModelTests.createModel("url", "model", 8, Boolean.FALSE)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -49,7 +47,7 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), null, null, new JinaAIRerankTaskSettings(null, null), "model");
+        var entity = new JinaAIRerankRequestEntity("query", List.of("abc"), null, null, JinaAIRerankModelTests.createModel("model"));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -72,8 +70,7 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
             List.of("abc", "def"),
             Boolean.FALSE,
             12,
-            new JinaAIRerankTaskSettings(8, Boolean.TRUE),
-            "model"
+            JinaAIRerankModelTests.createModel("url", "model", 8, Boolean.TRUE)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -95,7 +92,7 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_MultipleRequests_WritesMinimalFields() throws IOException {
-        var entity = new JinaAIRerankRequestEntity("query", List.of("abc", "def"), null, null, null, "model");
+        var entity = new JinaAIRerankRequestEntity("query", List.of("abc", "def"), null, null, JinaAIRerankModelTests.createModel("model"));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -119,8 +116,7 @@ public class JinaAIRerankRequestEntityTests extends ESTestCase {
             List.of("abc"),
             null,
             null,
-            new JinaAIRerankTaskSettings(8, Boolean.FALSE),
-            "model"
+            JinaAIRerankModelTests.createModel("url", "model", 8, Boolean.FALSE)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

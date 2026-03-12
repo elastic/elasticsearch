@@ -77,17 +77,7 @@ public record StoredFieldsSpec(
             mergedFields = new HashSet<>(this.requiredStoredFields);
             mergedFields.addAll(other.requiredStoredFields);
         }
-        Set<String> mergedSourcePaths;
-        if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = new HashSet<>(this.sourcePaths);
-            mergedSourcePaths.addAll(other.sourcePaths);
-        } else if (this.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = this.sourcePaths;
-        } else if (other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = other.sourcePaths;
-        } else {
-            mergedSourcePaths = Set.of();
-        }
+        Set<String> mergedSourcePaths = mergeSourcePaths(other);
         IgnoredSourceFormat mergedFormat;
         if (this.ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
             mergedFormat = other.ignoredSourceFormat;
@@ -112,6 +102,33 @@ public record StoredFieldsSpec(
             mergedFormat,
             mergedSourcePaths
         );
+    }
+
+    /**
+     * Returns the unique source paths that should be loaded from source. Other source paths may be filtered out.
+     * If an empty set is returned, then all source paths need to be loaded.
+     */
+    private Set<String> mergeSourcePaths(StoredFieldsSpec other) {
+        Set<String> mergedSourcePaths;
+        if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
+            mergedSourcePaths = new HashSet<>(this.sourcePaths);
+            mergedSourcePaths.addAll(other.sourcePaths);
+        } else if (this.sourcePaths.isEmpty() == false) {
+            if (other.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = this.sourcePaths;
+            }
+        } else if (other.sourcePaths.isEmpty() == false) {
+            if (this.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = other.sourcePaths;
+            }
+        } else {
+            mergedSourcePaths = Set.of();
+        }
+        return mergedSourcePaths;
     }
 
     public Set<String> requiredStoredFields() {

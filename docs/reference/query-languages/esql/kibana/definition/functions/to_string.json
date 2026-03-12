@@ -104,6 +104,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -153,6 +165,18 @@
         {
           "name" : "field",
           "type" : "geotile",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "histogram",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }

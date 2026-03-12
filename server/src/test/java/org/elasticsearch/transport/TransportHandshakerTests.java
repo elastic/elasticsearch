@@ -112,7 +112,7 @@ public class TransportHandshakerTests extends ESTestCase {
         StreamInput input = bytesStreamOutput.bytes().streamInput();
         input.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
 
-        if (handshakeRequest.transportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
+        if (handshakeRequest.transportVersion.id() >= TransportVersion.minimumCompatible().id()) {
 
             final PlainActionFuture<TransportResponse> responseFuture = new PlainActionFuture<>();
             final TestTransportChannel channel = new TestTransportChannel(responseFuture);
@@ -184,7 +184,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        final var remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var remoteVersion = TransportVersionUtils.randomCompatibleVersion();
         handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, randomIdentifier()));
 
         assertTrue(versionFuture.isDone());
@@ -203,7 +203,7 @@ public class TransportHandshakerTests extends ESTestCase {
         final var randomIncompatibleTransportVersion = getRandomIncompatibleTransportVersion();
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(randomIncompatibleTransportVersion, randomIdentifier());
 
-        if (randomIncompatibleTransportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
+        if (randomIncompatibleTransportVersion.id() >= (TransportVersion.minimumCompatible().id())) {
             // we fall back to the best known version
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),
@@ -333,7 +333,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV8HandshakeRequest() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final var requestPayloadStreamOutput = new BytesStreamOutput();
         requestPayloadStreamOutput.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
@@ -353,7 +353,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV8HandshakeResponse() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final var responseBytesStreamOutput = new BytesStreamOutput();
         responseBytesStreamOutput.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
@@ -368,7 +368,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV9HandshakeRequest() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
         final var releaseVersion = randomIdentifier();
 
         final var requestPayloadStreamOutput = new BytesStreamOutput();
@@ -390,7 +390,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     public void testReadV9HandshakeResponse() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final var transportVersion = TransportVersionUtils.randomCompatibleVersion();
         final var releaseVersion = randomIdentifier();
 
         final var responseBytesStreamOutput = new BytesStreamOutput();

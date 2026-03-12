@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Strings;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,12 +19,12 @@ import java.util.Map;
 /**
  * Summarizes the impact to the cluster as a result of a rebalancing round.
  *
- * @param nodeNameToWeightChanges The shard balance weight changes for each node (by name), comparing a previous DesiredBalance shard
+ * @param nodeToWeightChanges The shard balance weight changes for each DiscoveryNode, comparing a previous DesiredBalance shard
  *                                allocation to a new DesiredBalance allocation.
  * @param numberOfShardsToMove The number of shard moves required to move from the previous desired balance to the new one. Does not include
  *                             new (index creation) or removed (index deletion) shard assignements.
  */
-public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToWeightChanges, long numberOfShardsToMove) {
+public record BalancingRoundSummary(Map<DiscoveryNode, NodesWeightsChanges> nodeToWeightChanges, long numberOfShardsToMove) {
 
     /**
      * Represents the change in weights for a node going from an old DesiredBalance to a new DesiredBalance
@@ -75,8 +78,8 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
     @Override
     public String toString() {
         return "BalancingRoundSummary{"
-            + "nodeNameToWeightChanges"
-            + nodeNameToWeightChanges
+            + "nodeToWeightChanges"
+            + nodeToWeightChanges
             + ", numberOfShardsToMove="
             + numberOfShardsToMove
             + '}';
@@ -93,16 +96,33 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
      * latest desired balance.
      *
      * @param numberOfBalancingRounds How many balancing round summaries are combined in this report.
-     * @param nodeNameToWeightChanges
+     * @param nodeToWeightChanges
      * @param numberOfShardMoves The sum of shard moves for each balancing round being combined into a single summary.
      */
     public record CombinedBalancingRoundSummary(
         int numberOfBalancingRounds,
-        Map<String, NodesWeightsChanges> nodeNameToWeightChanges,
+        Map<DiscoveryNode, NodesWeightsChanges> nodeToWeightChanges,
         long numberOfShardMoves
     ) {
 
         public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(0, new HashMap<>(), 0);
+
+        /**
+         * Serialize the CombinedBalancingRoundSummary to a compact log representation, where {@link DiscoveryNode#getName()} is used
+         * instead of the entire {@link DiscoveryNode#toString()} method.
+         */
+        @Override
+        public String toString() {
+            Map<String, NodesWeightsChanges> nodeNameToWeightChanges = new HashMap<>(nodeToWeightChanges.size());
+            nodeToWeightChanges.forEach((node, nodesWeightChanges) -> nodeNameToWeightChanges.put(node.getName(), nodesWeightChanges));
+
+            return Strings.format(
+                "CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, numberOfShardMoves=%d]",
+                numberOfBalancingRounds,
+                nodeNameToWeightChanges,
+                numberOfShardMoves
+            );
+        }
 
         /**
          * Merges multiple {@link BalancingRoundSummary} summaries into a single {@link CombinedBalancingRoundSummary}.
@@ -113,7 +133,7 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
             }
 
             // We will loop through the summaries and sum the weight diffs for each node entry.
-            Map<String, NodesWeightsChanges> combinedNodeNameToWeightChanges = new HashMap<>();
+            Map<DiscoveryNode, NodesWeightsChanges> combinedNodeNameToWeightChanges = new HashMap<>();
 
             // Number of shards moves are simply summed across summaries. Each new balancing round is built upon the last one, so it is
             // possible that a shard is reassigned back to a node before it even moves away, and that will still be counted as 2 moves here.
@@ -128,7 +148,7 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
 
                 // We'll build the weight changes by keeping the node weight base from the first summary in which a node appears and then
                 // summing the weight diffs in each summary to get total weight diffs across summaries.
-                for (var nodeNameAndWeights : summary.nodeNameToWeightChanges.entrySet()) {
+                for (var nodeNameAndWeights : summary.nodeToWeightChanges.entrySet()) {
                     var combined = combinedNodeNameToWeightChanges.get(nodeNameAndWeights.getKey());
                     if (combined == null) {
                         // Either this is the first summary, and combinedNodeNameToWeightChanges hasn't been initialized yet for this node;

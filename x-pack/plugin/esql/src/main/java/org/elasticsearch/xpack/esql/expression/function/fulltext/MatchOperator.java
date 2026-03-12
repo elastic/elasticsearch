@@ -43,7 +43,26 @@ public class MatchOperator extends Match {
             <<esql-match,match function>>.
 
             `:` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-operator", tag = "match-with-field") }
+        examples = {
+            @Example(
+                file = "match-operator",
+                tag = "match-with-text-field",
+                description = "The match operator can be used to perform full-text search on a `text` field. "
+                    + "Notice how the match operator handles multi-valued columns, if a single value matches the query string, "
+                    + "the expression evaluates to `TRUE`."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-keyword-field",
+                description = " The match operator can also be used with `keyword` columns to filter multi-values."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-semantic-text-field",
+                description = "This example illustrates how to do semantic search using the match operator on `semantic_text` fields. "
+                    + "By including the metadata field `_score` and sorting on `_score`, "
+                    + "we can retrieve the most relevant results in order."
+            ), }
     )
     public MatchOperator(
         Source source,

@@ -7,18 +7,25 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -34,6 +41,8 @@ import java.util.List;
  * the compute engine)
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
+
+    protected Logger log = LogManager.getLogger(getClass());
 
     private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
@@ -52,6 +61,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
+        log.debug("Local Physical plan:\n{}", optimizedPlan);
         return optimizedPlan;
     }
 
@@ -61,15 +71,24 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(10);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
+            esSourceRules.add(new PushLimitToExternalSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
+        }
+        esSourceRules.add(new ReplaceSampledStatsByExactStats());
+        if (optimizeForEsSource) {
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new PushStatsToExternalSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
+        }
+        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
+        if (optimizeForEsSource) {
+            esSourceRules.add(new PushSampleToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -79,10 +98,15 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
         // done, and it should be executed only once.
-        var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
+        var substitutionRules = new Batch<>(
+            "Substitute RoundTo with QueryAndTags",
+            Limiter.ONCE,
+            new ReplaceRoundToWithQueryAndTags(),
+            new PushCountQueryAndTagsToSource()
+        );
 
         // add the field extraction in just one pass
-        // add it at the end after all the other rules have ran
+        // add it at the end after all the other rules have run
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
@@ -91,6 +115,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialDocValuesExtraction(),
             new SpatialShapeBoundsExtraction()
         );
+
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
 }

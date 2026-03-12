@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -29,8 +30,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Avg extends AggregateFunction implements SurrogateExpression {
+public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     private final Expression summationMode;
 
@@ -52,7 +54,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long" },
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -72,10 +74,13 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == AGGREGATE_METRIC_DOUBLE
+                || dt == EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double or numeric except unsigned_long or counter types"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 
@@ -123,7 +128,9 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE
+            || field.dataType() == EXPONENTIAL_HISTOGRAM
+            || field.dataType() == DataType.TDIGEST) {
             return new Div(
                 s,
                 new Sum(s, field, filter(), window(), summationMode).surrogate(),

@@ -338,8 +338,15 @@ public abstract class TransportReplicationAction<
 
     /**
      * During Resharding, we might need to split the primary request.
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. In other words, the primary shard has moved ahead due to a split reshard
+     * operation after the request was created by the coordinator.
+     * We can assume that the request is exactly 1 reshard split behind the current state of the primary shard.
+     * This is because requests that are more than 1 reshard operation behind are rejected in
+     * {@link org.elasticsearch.action.support.replication.ReplicationSplitHelper
+     * #needsSplitCoordination(org.apache.logging.log4j.Logger, ReplicationRequest, IndexMetadata)}
      */
-    protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
+    protected Map<ShardId, Request> splitRequestOnPrimary(Request request, ProjectMetadata project) {
         return Map.of(request.shardId(), request);
     }
 
@@ -483,7 +490,7 @@ public abstract class TransportReplicationAction<
                 primaryRequest.getRequest(),
                 ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
                     if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
                     } else {
                         onFailure(e);
                     }
@@ -530,7 +537,7 @@ public abstract class TransportReplicationAction<
                             TransportResponseHandler.TRANSPORT_WORKER
                         )
                     );
-                } else if (ReplicationSplitHelper.needsSplitCoordination(primaryRequest.getRequest(), indexMetadata)) {
+                } else if (ReplicationSplitHelper.needsSplitCoordination(logger, primaryRequest.getRequest(), indexMetadata)) {
                     ReplicationSplitHelper<Request, ReplicaRequest, Response>.SplitCoordinator splitCoordinator = splitHelper
                         .newSplitRequest(
                             TransportReplicationAction.this,
@@ -544,7 +551,7 @@ public abstract class TransportReplicationAction<
                     splitCoordinator.coordinate();
                 } else {
                     setPhase(replicationTask, "primary");
-                    executePrimaryRequest(primaryShardReference, setFinishedListener);
+                    executePrimaryRequest(primaryShardReference, primaryRequest.getRequest(), setFinishedListener);
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference);
@@ -554,6 +561,7 @@ public abstract class TransportReplicationAction<
 
         private void executePrimaryRequest(
             final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
+            Request request,
             final ActionListener<Response> listener
         ) throws Exception {
             final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
@@ -586,7 +594,7 @@ public abstract class TransportReplicationAction<
             });
 
             new ReplicationOperation<>(
-                primaryRequest.getRequest(),
+                request,
                 primaryShardReference,
                 responseListener.map(result -> result.replicationResponse),
                 newReplicasProxy(),
@@ -1069,7 +1077,11 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
-                            retry(exp);
+                            boolean possiblyExecuted = true;
+                            if (cause instanceof ReplicationOperation.RetryOnPrimaryException retryOnPrimaryException) {
+                                possiblyExecuted = retryOnPrimaryException.possiblyExecutedOnPrimary();
+                            }
+                            retry(exp, possiblyExecuted);
                         } else {
                             finishAsFailed(exp);
                         }
@@ -1082,6 +1094,10 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
+            retry(failure, true);
+        }
+
+        void retry(Exception failure, boolean possiblyExecuted) {
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
@@ -1089,7 +1105,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
-            request.onRetry();
+            request.onRetry(possiblyExecuted);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

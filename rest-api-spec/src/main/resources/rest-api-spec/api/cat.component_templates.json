@@ -52,7 +52,16 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "name",
+          "version",
+          "alias_count",
+          "mapping_count",
+          "settings_count",
+          "metadata_count",
+          "included_in"
+        ]
       },
       "help": {
         "type": "boolean",

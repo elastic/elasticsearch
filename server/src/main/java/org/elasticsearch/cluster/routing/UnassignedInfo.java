@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -76,8 +75,6 @@ public record UnassignedInfo(
     Set<String> failedNodeIds,
     @Nullable String lastAllocatedNodeId
 ) implements ToXContentFragment, Writeable {
-
-    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -328,9 +325,7 @@ public record UnassignedInfo(
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
-            out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
-        } else if (reason.equals(Reason.RESHARD_ADDED) && out.getTransportVersion().supports(UNASSIGENEDINFO_RESHARD_ADDED) == false) {
+        if (reason.equals(Reason.RESHARD_ADDED) && out.getTransportVersion().supports(UNASSIGENEDINFO_RESHARD_ADDED) == false) {
             // We should have protection to ensure we do not reshard in mixed clusters
             assert false;
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());

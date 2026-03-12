@@ -40,7 +40,13 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "insertOrder",
+          "timeInQueue",
+          "priority",
+          "source"
+        ]
       },
       "help": {
         "type": "boolean",

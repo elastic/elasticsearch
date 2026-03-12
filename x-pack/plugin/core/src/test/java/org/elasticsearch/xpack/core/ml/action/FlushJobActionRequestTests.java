@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Request;
@@ -53,9 +52,6 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_9_X)) {
-            instance.setRefreshRequired(true);
-        }
         return instance;
     }
 }

@@ -54,7 +54,7 @@ public class ElasticSparseEmbeddingPayload implements ElasticPayload {
             new ParseField("embedding")
         );
         EMBEDDINGS_PARSER.declareBoolean(constructorArg(), new ParseField("is_truncated"));
-        PARSER.declareObjectArray(constructorArg(), EMBEDDINGS_PARSER::apply, new ParseField("sparse_embedding"));
+        PARSER.declareObjectArray(constructorArg(), EMBEDDINGS_PARSER::apply, new ParseField(SparseEmbeddingResults.SPARSE_EMBEDDING));
     }
 
     @Override

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -79,11 +78,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                finishPendingWork = in.readBoolean();
-            } else {
-                finishPendingWork = false;
-            }
+            finishPendingWork = in.readBoolean();
         }
 
         private Request() {}
@@ -132,9 +127,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                out.writeBoolean(finishPendingWork);
-            }
+            out.writeBoolean(finishPendingWork);
         }
 
         @Override

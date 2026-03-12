@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
@@ -19,15 +20,18 @@ import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.
 
 public record ChunkedInferenceEmbedding(List<EmbeddingResults.Chunk> chunks) implements ChunkedInference {
 
-    public static List<ChunkedInference> listOf(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
-        validateInputSizeAgainstEmbeddings(inputs, sparseEmbeddingResults.embeddings().size());
+    public static List<ChunkedInference> listOf(List<InferenceString> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
+        validateInputSizeAgainstEmbeddings(inputs.size(), sparseEmbeddingResults.embeddings().size());
 
         var results = new ArrayList<ChunkedInference>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
             results.add(
                 new ChunkedInferenceEmbedding(
                     List.of(
-                        new EmbeddingResults.Chunk(sparseEmbeddingResults.embeddings().get(i), new TextOffset(0, inputs.get(i).length()))
+                        new EmbeddingResults.Chunk(
+                            sparseEmbeddingResults.embeddings().get(i),
+                            new TextOffset(0, inputs.get(i).value().length())
+                        )
                     )
                 )
             );

@@ -30,18 +30,21 @@ import static org.elasticsearch.lz4.LZ4Constants.LAST_LITERALS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
 import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
+import static org.elasticsearch.lz4.LZ4Utils.lengthOfEncodedInteger;
+import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
 
 /**
- * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
- * net.jpountz.lz4.LZ4SafeUtils.
+ * This file is a vendored version of {@code net.jpountz.lz4.LZ4SafeUtils} from
+ * <a href="https://github.com/yawkat/lz4-java">yawkat/lz4-java</a>.
+ * <p>
+ * Differences from the original are annotated with [ES change from upstream]
  *
- * It modifies the original implementation to use Java9 array mismatch method and varhandle performance
- * improvements. Comments are included to mark the changes.
+ * @see <a href="https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java/net/jpountz/lz4/LZ4SafeUtils.java">LZ4SafeUtils.java</a>
  */
 enum LZ4SafeUtils {
     ;
 
-    // Added VarHandle
+    // [ES change from upstream]: define VarHandles allowing us to do operations without direct byte[] operations
     private static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, Utils.NATIVE_BYTE_ORDER);
     private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, Utils.NATIVE_BYTE_ORDER);
 
@@ -54,6 +57,7 @@ enum LZ4SafeUtils {
     }
 
     static boolean readIntEquals(byte[] buf, int i, int j) {
+        // [ES change from upstream]: use SafeUtils.readInt instead of comparing byte-by-byte
         return SafeUtils.readInt(buf, i) == SafeUtils.readInt(buf, j);
     }
 
@@ -63,16 +67,20 @@ enum LZ4SafeUtils {
         }
     }
 
-    // Modified wildIncrementalCopy to mirror version in LZ4UnsafeUtils
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
+        // [ES change from upstream]: use the implementation from LZ4UnsafeUtils#wildIncrementalCopy
+        // see https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java-unsafe/net/jpountz/lz4/LZ4UnsafeUtils.java#L55-L99
+        // with further modifications as noted with [ES change from upstream] comments
         if (dOff - matchOff < 4) {
             for (int i = 0; i < 4; ++i) {
+                // [ES change from upstream]: just copy the byte directly, don't use readByte and writeByte
                 dest[dOff + i] = dest[matchOff + i];
             }
             dOff += 4;
             matchOff += 4;
             int dec = 0;
             assert dOff >= matchOff && dOff - matchOff < 8;
+            // [ES change from upstream]: use enhanced switch
             switch (dOff - matchOff) {
                 case 1 -> matchOff -= 3;
                 case 2 -> matchOff -= 2;
@@ -85,32 +93,35 @@ enum LZ4SafeUtils {
                 case 7 -> dec = 3;
             }
 
+            // [ES change from upstream]: use copy4Bytes instead of readInt and writeInt
             copy4Bytes(dest, matchOff, dest, dOff);
             dOff += 4;
             matchOff -= dec;
         } else if (dOff - matchOff < LZ4Constants.COPY_LENGTH) {
+            // [ES change from upstream]: use copy8Bytes instead of readLong and writeLong
             copy8Bytes(dest, matchOff, dest, dOff);
             dOff += dOff - matchOff;
         }
         while (dOff < matchCopyEnd) {
+            // [ES change from upstream]: use copy8Bytes instead of readLong and writeLong
             copy8Bytes(dest, matchOff, dest, dOff);
             dOff += 8;
             matchOff += 8;
         }
     }
 
-    // Modified to use VarHandle
     static void copy8Bytes(byte[] src, int sOff, byte[] dest, int dOff) {
+        // [ES change from upstream]: use VarHandles instead of a byte-by-byte loop
         longPlatformNative.set(dest, dOff, (long) longPlatformNative.get(src, sOff));
     }
 
-    // Added to copy single int
+    // [ES change from upstream]: add this method to copy a single int (using VarHandles similarly to copy8Bytes)
     static void copy4Bytes(byte[] src, int sOff, byte[] dest, int dOff) {
         intPlatformNative.set(dest, dOff, (int) intPlatformNative.get(src, sOff));
     }
 
-    // Modified to use Arrays.mismatch
     static int commonBytes(byte[] b, int o1, int o2, int limit) {
+        // [ES change from upstream]: use Arrays#mismatch instead of a byte-by-byte loop
         int mismatch = Arrays.mismatch(b, o1, limit, b, o2, limit);
         return mismatch == -1 ? limit : mismatch;
     }
@@ -132,8 +143,8 @@ enum LZ4SafeUtils {
             for (int i = 0; i < len; i += 8) {
                 copy8Bytes(src, sOff + i, dest, dOff + i);
             }
-            // Modified to catch IndexOutOfBoundsException instead of ArrayIndexOutOfBoundsException.
-            // VarHandles throw IndexOutOfBoundsException
+            // [ES change from upstream]: Varhandles throw an IndexOutOfBoundsException instead of ArrayIndexOutOfBoundsException so we
+            // change the type of exception caught here.
         } catch (IndexOutOfBoundsException e) {
             throw new LZ4Exception("Malformed input at offset " + sOff);
         }
@@ -184,7 +195,7 @@ enum LZ4SafeUtils {
     static int lastLiterals(byte[] src, int sOff, int srcLen, byte[] dest, int dOff, int destEnd) {
         final int runLen = srcLen;
 
-        if (dOff + runLen + 1 + (runLen + 255 - RUN_MASK) / 255 > destEnd) {
+        if (notEnoughSpace(destEnd - dOff, 1 + lengthOfEncodedInteger(runLen) + runLen)) {
             throw new LZ4Exception();
         }
 

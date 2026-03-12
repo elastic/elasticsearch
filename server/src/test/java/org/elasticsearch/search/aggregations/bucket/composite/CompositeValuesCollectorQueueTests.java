@@ -39,7 +39,6 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -49,6 +48,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -344,7 +344,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     if (last != null) {
                         queue.setAfterKey(last);
                     }
-                    final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
+                    final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE);
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         if (docsProducer != null && withProducer) {
                             assertEquals(DocIdSet.EMPTY, docsProducer.processLeaf(queue, leafReaderContext, false));

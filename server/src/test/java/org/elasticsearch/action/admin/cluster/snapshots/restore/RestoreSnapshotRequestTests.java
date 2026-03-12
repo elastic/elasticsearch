@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -174,6 +175,17 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testToStringWillIncludeSkipOperatorOnlyState() {
         RestoreSnapshotRequest original = createTestInstance();
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    public void testRenameReplacementNameTooLong() {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.indices("b".repeat(255));
+        request.renamePattern("b");
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
+
+        ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("rename_replacement"));
     }
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {

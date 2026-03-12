@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -32,9 +34,46 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution
     ) {
-        super(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, minimumVersion);
+        this(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution,
+            null
+        );
+    }
+
+    public MutableAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
+        super(
+            configuration,
+            functionRegistry,
+            null,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            ExternalSourceResolution.EMPTY,
+            minimumVersion,
+            unmappedResolution,
+            timestampBounds
+        );
         this.currentVersion = minimumVersion;
     }
 
@@ -52,7 +91,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public RestoreTransportVersion setTemporaryTransportVersionOnOrAfter(TransportVersion minVersion) {
         TransportVersion oldVersion = this.currentVersion;
         // Set to a random version between minVersion and current
-        this.currentVersion = TransportVersionUtils.randomVersionBetween(ESTestCase.random(), minVersion, TransportVersion.current());
+        this.currentVersion = TransportVersionUtils.randomVersionSupporting(minVersion);
         return new RestoreTransportVersion(oldVersion);
     }
 

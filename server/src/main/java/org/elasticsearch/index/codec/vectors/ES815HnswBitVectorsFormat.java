@@ -13,11 +13,15 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 
 public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -26,11 +30,11 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
     private static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
 
     public ES815HnswBitVectorsFormat() {
-        super(NAME);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, DEFAULT_HNSW_GRAPH_THRESHOLD);
     }
 
-    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth) {
-        super(NAME, maxConn, beamWidth);
+    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
     }
 
     @Override
@@ -40,7 +44,7 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        throw new UnsupportedOperationException();
     }
 
     @Override

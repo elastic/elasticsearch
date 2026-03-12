@@ -51,7 +51,7 @@ public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCo
                 .counterBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longMeasurementCallback(observer));
+                .buildWithCallback(OtelHelper.longMeasurementCallback(name, observer));
         }
     }
 }

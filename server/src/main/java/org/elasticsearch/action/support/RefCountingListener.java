@@ -23,49 +23,58 @@ import java.util.concurrent.atomic.AtomicReference;
  * A mechanism to complete a listener on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
  *
  * <pre>
- * try (var refs = new RefCountingListener(finalListener)) {
+ * try (var listeners = new RefCountingListener(finalListener)) {
  *     for (var item : collection) {
- *         runAsyncAction(item, refs.acquire()); // completes the acquired listener on completion
+ *         runAsyncAction(item, listeners.acquire()); // completes the acquired listener on completion
  *     }
  * }
  * </pre>
  *
- * The delegate listener is completed when execution leaves the try-with-resources block and every acquired reference is released. The
- * {@link RefCountingListener} collects (a bounded number of) exceptions received by its subsidiary listeners, and completes the delegate
- * listener with an exception if (and only if) any subsidiary listener fails. However, unlike a {@link GroupedActionListener} it leaves it
- * to the caller to collect the results of successful completions by accumulating them in a data structure of its choice. Also unlike a
- * {@link GroupedActionListener} there is no need to declare the number of subsidiary listeners up front: listeners can be acquired
- * dynamically as needed. Finally, you can continue to acquire additional listeners even outside the try-with-resources block, perhaps in a
- * separate thread, as long as there's at least one listener outstanding:
+ * The delegate listener is completed when execution leaves the try-with-resources block and every acquired listener is completed. The
+ * {@link RefCountingListener} collects a bounded number of the exceptions received by the acquired listeners, and completes the delegate
+ * listener with an exception if and only if any acquired listener fails. If more than one acquired listener fails, the resulting exception
+ * is the first such failure, to which other tracked exceptions are added using {@link Exception#addSuppressed}.
+ * <p>
+ * A {@link RefCountingListener}, unlike a {@link GroupedActionListener}, leaves it to the caller to collect the results of successful
+ * completions by accumulating them in a data structure of its choice: a {@link RefCountingListener} itself adds only a small and
+ * {@code O(1)} amount of heap overhead. Also unlike a {@link GroupedActionListener} there is no need to declare the number of subsidiary
+ * listeners up front: listeners can be acquired dynamically as needed, and you can continue to acquire additional listeners outside the
+ * try-with-resources block, even in a separate thread, as long as you ensure there's at least one listener outstanding:
  *
  * <pre>
- * try (var refs = new RefCountingListener(finalListener)) {
+ * try (var listeners = new RefCountingListener(finalListener)) {
  *     for (var item : collection) {
  *         if (condition(item)) {
- *             runAsyncAction(item, refs.acquire(results::add));
+ *             runAsyncAction(item, listeners.acquire(results::add));
  *         }
  *     }
  *     if (flag) {
- *         runOneOffAsyncAction(refs.acquire(results::add));
+ *         runOneOffAsyncAction(listeners.acquire(results::add));
  *         return;
  *     }
  *     for (var item : otherCollection) {
- *         var itemRef = refs.acquire(); // delays completion while the background action is pending
+ *         var itemListener = listeners.acquire(); // delays completion while the background action is pending
  *         executorService.execute(() -> {
  *             try {
  *                 if (condition(item)) {
- *                     runOtherAsyncAction(item, refs.acquire(results::add));
+ *                     runOtherAsyncAction(item, listeners.acquire(results::add));
  *                 }
  *             } finally {
- *                 itemRef.onResponse(null);
+ *                 itemListener.onResponse(null);
  *             }
  *         });
  *     }
  * }
  * </pre>
  *
- * In particular (and also unlike a {@link GroupedActionListener}) this works even if you don't acquire any extra refs at all: in that case,
- * the delegate listener is completed at the end of the try-with-resources block.
+ * In particular (and also unlike a {@link GroupedActionListener}) this works even if you don't acquire any extra listeners at all: in that
+ * case, the delegate listener is completed at the end of the try-with-resources block.
+ * <p>
+ * The delegate listener is completed on the thread that completes the last acquired listener, or the thread that closes the
+ * try-with-resources block if there are no incomplete acquired listeners when this happens.
+ * <p>
+ * See also {@link RefCountingRunnable}, which fulfils a similar role in situations where the subsidiary actions cannot fail (or at least
+ * where you do not need such failures to propagate automatically to the final action).
  */
 public final class RefCountingListener implements Releasable {
 
@@ -77,22 +86,22 @@ public final class RefCountingListener implements Releasable {
     private final AtomicInteger droppedExceptionsRef = new AtomicInteger();
 
     /**
-     * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.
-     * @param delegate The listener to complete when all refs are released. This listener must not throw any exception on completion. If all
-     *                 the acquired listeners completed successfully then so is the delegate. If any of the acquired listeners completed
-     *                 with failure then the delegate is completed with the first exception received, with other exceptions added to its
-     *                 collection of suppressed exceptions.
+     * Construct a {@link RefCountingListener} which completes {@code delegate} when all acquired listeners have been completed.
+     * @param delegate The listener to complete when all acquired listeners are completed. This listener must not throw any exception on
+     *                 completion. If all the acquired listeners completed successfully then so is the delegate. If any of the acquired
+     *                 listeners completed exceptionally then the delegate is completed with the first exception received, with up to 10
+     *                 other exceptions added to its collection of suppressed exceptions.
      */
     public RefCountingListener(ActionListener<Void> delegate) {
         this(10, delegate);
     }
 
     /**
-     * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.
-     * @param delegate The listener to complete when all refs are released. This listener must not throw any exception on completion. If all
-     *                 the acquired listeners completed successfully then so is the delegate. If any of the acquired listeners completed
-     *                 with failure then the delegate is completed with the first exception received, with other exceptions added to its
-     *                 collection of suppressed exceptions.
+     * Construct a {@link RefCountingListener} which completes {@code delegate} when all acquired listeners have been completed.
+     * @param delegate The listener to complete when all acquired listeners are completed. This listener must not throw any exception on
+     *                 completion. If all the acquired listeners completed successfully then so is the delegate. If any of the acquired
+     *                 listeners completed exceptionally then the delegate is completed with the first exception received, with other
+     *                 exceptions added to its collection of suppressed exceptions.
      * @param maxExceptions The maximum number of exceptions to accumulate on failure.
      */
     public RefCountingListener(int maxExceptions, ActionListener<Void> delegate) {
@@ -105,8 +114,9 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no other references.
-     *
+     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no incomplete
+     * acquired listeners.
+     * <p>
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
@@ -134,12 +144,12 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Acquire a reference to this object and return a listener which releases it. The delegate {@link ActionListener} is called when all
-     * its references have been released.
-     *
-     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
-     * will throw an {@link IllegalStateException} otherwise.
-     *
+     * Acquire a listener which awaits a {@link Void} response. The delegate {@link ActionListener} is called when all such acquired
+     * listeners are completed, on the thread that completes the last such listener.
+     * <p>
+     * It is invalid to call this method once all acquired listeners have been completed and the original try-with-resources block is
+     * closed. Doing so will trip an assertion if assertions are enabled, and will throw an {@link IllegalStateException} otherwise.
+     * <p>
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
      */
@@ -167,13 +177,14 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate {@link
-     * ActionListener} is called when all its references have been released. If the consumer throws an exception, the exception is passed
-     * to the final listener as if the returned listener was completed exceptionally.
-     *
-     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
-     * will throw an {@link IllegalStateException} otherwise.
-     *
+     * Acquire a listener which consumes a response, for instance by storing the response in some kind of data structure. The delegate
+     * {@link ActionListener} is called when all such acquired listeners are completed, on the thread that completes the last such listener.
+     * If the {@code consumer} throws an exception then that exception is passed to the final listener as if the returned listener was
+     * completed exceptionally.
+     * <p>
+     * It is invalid to call this method once all acquired listeners have been completed and the original try-with-resources block is
+     * closed. Doing so will trip an assertion if assertions are enabled, and will throw an {@link IllegalStateException} otherwise.
+     * <p>
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
      */

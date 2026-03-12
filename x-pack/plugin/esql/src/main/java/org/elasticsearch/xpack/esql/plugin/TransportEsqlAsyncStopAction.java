@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -98,13 +97,6 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         }
     }
 
-    /**
-    * Returns the ID for stored compute session. See {@link TransportEsqlQueryAction#sessionID(Task)}
-    */
-    private String sessionID(AsyncExecutionId asyncId) {
-        return new TaskId(clusterService.localNode().getId(), asyncId.getTaskId().getId()).toString();
-    }
-
     private void stopQueryAndReturnResult(Task task, AsyncExecutionId asyncId, ActionListener<EsqlQueryResponse> listener) {
         String asyncIdStr = asyncId.getEncoded();
         EsqlQueryTask asyncTask = getEsqlQueryTask(asyncId);
@@ -116,13 +108,14 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             getResultsAction.execute(task, getAsyncResultRequest, listener);
             return;
         }
+        String sessionId = asyncTask.sessionId();
         logger.debug("Async stop for task {} - stopping", asyncIdStr);
         final EsqlExecutionInfo esqlExecutionInfo = asyncTask.executionInfo();
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
         }
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
-        exchangeService.finishSessionEarly(sessionID(asyncId), ActionListener.running(() -> {
+        exchangeService.finishSessionEarly(sessionId, ActionListener.running(() -> {
             if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {
                 getResults.run();
             }

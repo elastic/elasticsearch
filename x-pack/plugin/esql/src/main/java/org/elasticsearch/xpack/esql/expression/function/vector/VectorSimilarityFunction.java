@@ -14,13 +14,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +82,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         VectorValueProviderFactory leftVectorProviderFactory = getVectorValueProviderFactory(left(), toEvaluator);
         VectorValueProviderFactory rightVectorProviderFactory = getVectorValueProviderFactory(right(), toEvaluator);
         return new SimilarityEvaluatorFactory(
@@ -124,10 +125,10 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         VectorValueProviderFactory rightVectorProviderFactory,
         DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName
-    ) implements EvalOperator.ExpressionEvaluator.Factory {
+    ) implements ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new SimilarityEvaluator(
                 leftVectorProviderFactory.build(context),
@@ -150,7 +151,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName,
         BlockFactory blockFactory
-    ) implements EvalOperator.ExpressionEvaluator {
+    ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SimilarityEvaluator.class);
 
@@ -207,17 +208,52 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public MappedFieldType.BlockLoaderFunctionConfig getBlockLoaderFunctionConfig() {
-        // PushDownVectorSimilarityFunctions checks that one of the sides is a literal
-        Literal literal = (Literal) (left() instanceof Literal ? left() : right());
-        @SuppressWarnings("unchecked")
-        List<Number> numberList = (List<Number>) literal.value();
-        float[] vector = new float[numberList.size()];
-        for (int i = 0; i < numberList.size(); i++) {
-            vector[i] = numberList.get(i).floatValue();
+    public final PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        // Bail if we're not directly comparing a field with a literal.
+        Literal literal;
+        FieldAttribute field;
+        if (left() instanceof Literal lit && right() instanceof FieldAttribute f) {
+            literal = lit;
+            field = f;
+        } else if (left() instanceof FieldAttribute f && right() instanceof Literal lit) {
+            literal = lit;
+            field = f;
+        } else {
+            return null;
         }
 
-        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vector);
+        // Bail if the field isn't indexed.
+        if (stats.isIndexed(field.fieldName()) == false) {
+            return null;
+        }
+
+        List<?> vectorList = (List<?>) literal.value();
+        DenseVectorFieldMapper.ElementType elementType = null;
+        var fieldType = stats.fieldType(field.fieldName());
+        if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
+            elementType = ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getElementType();
+        }
+        if (elementType == null
+            || elementType == DenseVectorFieldMapper.ElementType.FLOAT
+            || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16) {
+            float[] floatVector = new float[vectorList.size()];
+            for (int i = 0; i < vectorList.size(); i++) {
+                floatVector[i] = ((Number) vectorList.get(i)).floatValue();
+            }
+            return new PushedBlockLoaderExpression(
+                field,
+                new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), floatVector)
+            );
+        } else {
+            byte[] byteVector = new byte[vectorList.size()];
+            for (int i = 0; i < vectorList.size(); i++) {
+                byteVector[i] = ((Number) vectorList.get(i)).byteValue();
+            }
+            return new PushedBlockLoaderExpression(
+                field,
+                new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), byteVector)
+            );
+        }
     }
 
     interface VectorValueProvider extends Releasable {
@@ -300,7 +336,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
     private static class ExpressionVectorProvider implements VectorValueProvider {
 
-        record Factory(EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory) implements VectorValueProviderFactory {
+        record Factory(ExpressionEvaluator.Factory expressionEvaluatorFactory) implements VectorValueProviderFactory {
             public VectorValueProvider build(DriverContext context) {
                 return new ExpressionVectorProvider(expressionEvaluatorFactory.get(context));
             }
@@ -313,11 +349,11 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ExpressionVectorProvider.class);
 
-        private final EvalOperator.ExpressionEvaluator expressionEvaluator;
+        private final ExpressionEvaluator expressionEvaluator;
         private FloatBlock block;
         private float[] scratch;
 
-        ExpressionVectorProvider(EvalOperator.ExpressionEvaluator expressionEvaluator) {
+        ExpressionVectorProvider(ExpressionEvaluator expressionEvaluator) {
             assert expressionEvaluator != null;
             this.expressionEvaluator = expressionEvaluator;
         }

@@ -47,39 +47,38 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan plan = aggregateExec;
         if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-            var tuple = pushableStats(aggregateExec, context);
+            var tuple = pushableStats(aggregateExec.groupings(), aggregateExec.aggregates(), context);
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() != 1) {
+            if (stats.size() != 1 || stats.size() != aggregateExec.aggregates().size()) {
                 return aggregateExec;
             }
 
             // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
             // use the stats since the attributes are larger in size (due to seen)
-            if (tuple.v2().size() == aggregateExec.aggregates().size()) {
-                plan = new EsStatsQueryExec(
-                    aggregateExec.source(),
-                    queryExec.indexPattern(),
-                    queryExec.query(),
-                    queryExec.limit(),
-                    tuple.v1(),
-                    tuple.v2()
-                );
-            }
+            plan = new EsStatsQueryExec(
+                aggregateExec.source(),
+                queryExec.indexPattern(),
+                queryExec.query(),
+                queryExec.limit(),
+                tuple.v1(),
+                stats.get(0)
+            );
         }
         return plan;
     }
 
-    private Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
-        AggregateExec aggregate,
+    static Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
         LocalPhysicalOptimizerContext context
     ) {
         AttributeMap.Builder<EsStatsQueryExec.Stat> statsBuilder = AttributeMap.builder();
         Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
-        if (aggregate.groupings().isEmpty()) {
-            for (NamedExpression agg : aggregate.aggregates()) {
+        if (groupings.isEmpty()) {
+            for (NamedExpression agg : aggregates) {
                 var attribute = agg.toAttribute();
                 EsStatsQueryExec.Stat stat = statsBuilder.computeIfAbsent(attribute, a -> {
                     if (agg instanceof Alias as) {
@@ -117,7 +116,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
-                                return new EsStatsQueryExec.Stat(fieldName, COUNT, query);
+                                return new EsStatsQueryExec.BasicStat(fieldName, COUNT, query);
                             }
                         }
                     }

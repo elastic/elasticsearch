@@ -11,7 +11,6 @@ module org.elasticsearch.application {
     requires com.fasterxml.jackson.databind;
     requires json.schema.validator;
     requires org.apache.lucene.core;
-    requires org.slf4j;
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;

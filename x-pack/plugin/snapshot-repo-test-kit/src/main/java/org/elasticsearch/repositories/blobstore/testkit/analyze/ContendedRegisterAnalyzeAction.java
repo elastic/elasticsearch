@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -195,7 +194,6 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
 
         Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
@@ -205,7 +203,6 @@ class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedReg
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeString(containerPath);

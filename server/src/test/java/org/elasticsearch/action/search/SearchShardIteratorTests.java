@@ -125,7 +125,7 @@ public class SearchShardIteratorTests extends ESTestCase {
                 s.getSearchContextKeepAlive(),
                 s.prefiltered(),
                 s.skip(),
-                s.getReshardSplitShardCountSummary()
+                s.getSplitShardCountSummary()
             ),
             s -> {
                 if (randomBoolean()) {
@@ -144,7 +144,7 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getSearchContextKeepAlive(),
                         s.prefiltered(),
                         s.skip(),
-                        s.getReshardSplitShardCountSummary()
+                        s.getSplitShardCountSummary()
                     );
                 } else {
                     ShardId shardId = new ShardId(
@@ -161,7 +161,7 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getSearchContextKeepAlive(),
                         s.prefiltered(),
                         s.skip(),
-                        s.getReshardSplitShardCountSummary()
+                        s.getSplitShardCountSummary()
                     );
                 }
             }
@@ -233,7 +233,7 @@ public class SearchShardIteratorTests extends ESTestCase {
             shardIterator1.getSearchContextKeepAlive(),
             shardIterator1.prefiltered(),
             shardIterator1.skip(),
-            shardIterator1.getReshardSplitShardCountSummary()
+            shardIterator1.getSplitShardCountSummary()
         );
         assertEquals(shardIterator1, shardIterator2);
         assertEquals(0, shardIterator1.compareTo(shardIterator2));

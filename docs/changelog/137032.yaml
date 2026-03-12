@@ -1,7 +1,0 @@
-pr: 137032
-summary: Fix handling equality with MV constants properly
-area: ES|QL
-type: bug
-issues:
- - 136998
- - 136939

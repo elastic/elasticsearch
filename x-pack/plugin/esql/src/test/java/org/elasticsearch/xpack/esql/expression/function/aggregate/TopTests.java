@@ -14,6 +14,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -22,13 +23,15 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TopTests extends AbstractAggregationTestCase {
     public TopTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -52,14 +55,40 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
                 )
                     .flatMap(List::stream)
-                    .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))
+                    .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order, null))
                     .collect(Collectors.toCollection(() -> suppliers));
+            }
+        }
+
+        for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
+            for (String order : Arrays.asList("asc", "desc")) {
+                int rows = 100;
+                List<TestCaseSupplier.TypedDataSupplier> fieldCaseSuppliers = Stream.of(
+                    MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.dateCases(rows, rows)
+                ).flatMap(List::stream).toList();
+                for (var fieldCaseSupplier : fieldCaseSuppliers) {
+                    List<TestCaseSupplier.TypedDataSupplier> outputFieldCaseSuppliers = Stream.of(
+                        MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.dateCases(rows, rows)
+                    ).flatMap(List::stream).toList();
+                    for (var outputFieldCaseSupplier : outputFieldCaseSuppliers) {
+                        if (fieldCaseSupplier.name().equals(outputFieldCaseSupplier.name())) {
+                            continue;
+                        }
+                        suppliers.add(TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order, outputFieldCaseSupplier));
+                    }
+                }
             }
         }
 
         suppliers.addAll(
             List.of(
-                // Surrogates
+                // Surrogates for cases where limit == 1
                 new TestCaseSupplier(
                     List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
@@ -147,7 +176,63 @@ public class TopTests extends AbstractAggregationTestCase {
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
                     )
                 ),
-
+                // For cases where we have limit == 1 and an outputField, we should not use the surrogate
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "outputField")
+                        ),
+                        "TopDoubleInt",
+                        DataType.INTEGER,
+                        equalTo(1)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "outputField")
+                        ),
+                        "TopDoubleInt",
+                        DataType.INTEGER,
+                        equalTo(3)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "outputField")
+                        ),
+                        "TopIntDouble",
+                        DataType.DOUBLE,
+                        equalTo(1.41)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
+                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
+                            new TestCaseSupplier.TypedData(new BytesRef("asc"), DataType.KEYWORD, "order").forceLiteral(),
+                            TestCaseSupplier.TypedData.multiRow(List.of(3.14, 2.71, 1.41), DataType.DOUBLE, "outputField")
+                        ),
+                        "TopIntDouble",
+                        DataType.DOUBLE,
+                        equalTo(3.14)
+                    )
+                ),
                 // Folding
                 new TestCaseSupplier(
                     List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD),
@@ -230,52 +315,6 @@ public class TopTests extends AbstractAggregationTestCase {
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
-                ),
-
-                // Resolution errors
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(0, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Limit must be greater than 0 in [source], found [0]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(2, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("wrong-order"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Invalid order value in [source], expected [ASC, DESC] but got [wrong-order]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(null, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Limit must be a constant integer in [source], found [null]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Invalid order value in [source], expected [ASC, DESC] but got [null]"
-                    )
                 )
             )
         );
@@ -285,38 +324,77 @@ public class TopTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Top(source, args.get(0), args.get(1), args.size() == 3 ? args.get(2) : null);
+        Expression field = args.get(0);
+        Expression outputField = args.size() > 3 ? args.get(3) : null;
+        if (field instanceof FieldAttribute f && outputField instanceof FieldAttribute of && f.fieldName().equals(of.fieldName())) {
+            // In order to avoid passing the same field twice as two different FieldAttribute objects, we use `field` as the fourth argument
+            // if `field`'s and `outputField`'s `fieldName` match. In such case TOP will use surrogate.
+            return new Top(source, field, args.get(1), args.size() > 2 ? args.get(2) : null, field);
+        } else {
+            return new Top(source, field, args.get(1), args.size() > 2 ? args.get(2) : null, outputField);
+        }
     }
 
     @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier fieldSupplier,
         TestCaseSupplier.TypedDataSupplier limitCaseSupplier,
-        String order
+        String order,
+        TestCaseSupplier.TypedDataSupplier outputFieldSupplier
     ) {
         boolean isAscending = order == null || order.equalsIgnoreCase("asc");
-        boolean noOrderSupplied = order == null;
+        boolean orderSupplied = order != null;
+        boolean outputFieldSupplied = outputFieldSupplier != null;
 
-        List<DataType> dataTypes = noOrderSupplied
-            ? List.of(fieldSupplier.type(), DataType.INTEGER)
-            : List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD);
+        List<DataType> dataTypes = new ArrayList<>();
+        dataTypes.add(fieldSupplier.type());
+        dataTypes.add(DataType.INTEGER);
+        if (orderSupplied) {
+            dataTypes.add(DataType.KEYWORD);
+        }
+        if (outputFieldSupplied) {
+            dataTypes.add(outputFieldSupplier.type());
+        }
 
-        return new TestCaseSupplier(fieldSupplier.name(), dataTypes, () -> {
+        DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type() : fieldSupplier.type();
+        String name = fieldSupplier.name() + ", " + limitCaseSupplier.name() + ", " + order;
+        if (outputFieldSupplied) {
+            name += ", " + outputFieldSupplier.name();
+        }
+
+        return new TestCaseSupplier(name, dataTypes, () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
-            var expected = fieldTypedData.multiRowData()
-                .stream()
-                .map(v -> (Comparable<? super Comparable<?>>) v)
-                .sorted(isAscending ? Comparator.naturalOrder() : Comparator.reverseOrder())
+            TestCaseSupplier.TypedData outputFieldTypedData;
+            if (outputFieldSupplied) {
+                outputFieldTypedData = outputFieldSupplier.get();
+                assertThat(outputFieldTypedData.multiRowData(), hasSize(equalTo(fieldTypedData.multiRowData().size())));
+            } else {
+                outputFieldTypedData = fieldTypedData;
+            }
+            var comparator = Map.Entry.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>comparingByKey()
+                .thenComparing(Map.Entry::getValue);
+            if (isAscending == false) {
+                comparator = comparator.reversed();
+            }
+            List<?> expected = IntStream.range(0, fieldTypedData.multiRowData().size())
+                .mapToObj(
+                    i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
+                        (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
+                        (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i)
+                    )
+                )
+                .sorted(comparator)
+                .map(Map.Entry::getValue)
                 .limit(limit)
                 .toList();
 
             String baseName;
-            if (limit != 1) {
+            if (limit != 1 || outputFieldSupplied) {
                 baseName = "Top";
             } else {
-                // If the limit is 1 we rewrite TOP into MIN or MAX and never run our lovely TOP code.
+                // If the limit is 1 and there is no `outputField` we rewrite TOP into MIN or MAX and never run our lovely TOP code.
                 if (isAscending) {
                     baseName = "Min";
                 } else {
@@ -324,18 +402,22 @@ public class TopTests extends AbstractAggregationTestCase {
                 }
             }
 
-            List<TestCaseSupplier.TypedData> typedData = noOrderSupplied
-                ? List.of(fieldTypedData, limitTypedData)
-                : List.of(
-                    fieldTypedData,
-                    limitTypedData,
-                    new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
-                );
+            List<TestCaseSupplier.TypedData> typedData = new ArrayList<>();
+            typedData.add(fieldTypedData);
+            typedData.add(limitTypedData);
+            if (orderSupplied) {
+                typedData.add(new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral());
+            }
+            if (outputFieldSupplied) {
+                typedData.add(outputFieldTypedData);
+            }
 
             return new TestCaseSupplier.TestCase(
                 typedData,
-                standardAggregatorName(baseName, fieldTypedData.type()),
-                fieldSupplier.type(),
+                outputFieldSupplied && (fieldTypedData.name().equals(outputFieldTypedData.name()) == false)
+                    ? standardAggregatorName(standardAggregatorName(baseName, fieldTypedData.type()), outputFieldTypedData.type())
+                    : standardAggregatorName(baseName, fieldTypedData.type()),
+                expectedType,
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );
         });

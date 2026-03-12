@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
  *       whether CPS processing is available at all. In the future, all Serverless projects
  *       will support CPS, so this distinction will depend on whether the cluster is a
  *       Serverless cluster or not.</li>
- *   <li><b>API level:</b> The {@link org.elasticsearch.action.IndicesRequest.Replaceable#allowsCrossProject()}
+ *   <li><b>API level:</b> The {@link org.elasticsearch.action.IndicesRequest.CrossProjectCandidate#allowsCrossProject()}
  *       method determines whether a particular request type supports CPS processing.</li>
  *   <li><b>Request level:</b> An {@link org.elasticsearch.action.support.IndicesOptions} flag
  *       determines whether CPS should apply to the current
@@ -44,11 +44,16 @@ public class CrossProjectModeDecider {
         return crossProjectEnabled;
     }
 
-    public boolean resolvesCrossProject(IndicesRequest.Replaceable request) {
+    public boolean resolvesCrossProject(IndicesRequest.CrossProjectCandidate request) {
         if (crossProjectEnabled == false) {
             return false;
         }
-        // TODO: The following check can be an method on the request itself
-        return request.allowsCrossProject() && request.indicesOptions().resolveCrossProjectIndexExpression();
+        if (request.allowsCrossProject() == false) {
+            return false;
+        }
+        if (request instanceof IndicesRequest indicesRequest) {
+            return indicesRequest.indicesOptions().resolveCrossProjectIndexExpression();
+        }
+        return true;
     }
 }

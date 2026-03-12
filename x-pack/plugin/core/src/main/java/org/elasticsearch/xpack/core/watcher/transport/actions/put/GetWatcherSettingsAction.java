@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -45,13 +44,9 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS);
-            }
+            return new Request(in);
         }
 
         private Request(StreamInput in) throws IOException {
@@ -81,7 +76,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             this.settings.writeTo(out);

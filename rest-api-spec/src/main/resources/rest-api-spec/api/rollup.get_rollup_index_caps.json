@@ -6,6 +6,10 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -20,8 +24,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The rollup index or index pattern to obtain rollup capabilities from."
+              "type": "list",
+              "description": "Comma-separated list of data streams or indices to check for rollup capabilities. Wildcard (`*`) expressions are supported."
             }
           }
         }

@@ -136,7 +136,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Override
@@ -166,7 +166,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(syncEsqlQueryRequest().query(esqlCommands).pragmas(getPragmas()));
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()));
     }
 
     /** A hook for overriding. */

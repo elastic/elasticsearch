@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:dea9b73186c5565a5bfa820a68f63ff497fdc9f06a0afc777159d819c5f01dc4 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -104,7 +104,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:dea9b73186c5565a5bfa820a68f63ff497fdc9f06a0afc777159d819c5f01dc4
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -124,6 +124,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
@@ -163,7 +164,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.6.jar \
+  -providerpath lib/bc-fips-${bc_fips_version}.jar \
   -destprovidername BCFIPS
 
 

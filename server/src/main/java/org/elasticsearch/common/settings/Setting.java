@@ -1469,9 +1469,19 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, Property... properties) {
+        boolean isFiltered = isFiltered(properties);
+        return new Setting<>(key, fallbackSetting, s -> parseLong(s, minValue, key, isFiltered), properties);
+    }
+
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
         boolean isFiltered = isFiltered(properties);
         return new Setting<>(key, Long.toString(defaultValue), s -> parseLong(s, minValue, key, isFiltered), properties);
+    }
+
+    public static Setting<Long> longSetting(String key, Function<Settings, String> defaultValueFn, long minValue, Property... properties) {
+        boolean isFiltered = isFiltered(properties);
+        return new Setting<>(key, defaultValueFn, s -> parseLong(s, minValue, key, isFiltered), properties);
     }
 
     public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {

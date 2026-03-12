@@ -11,6 +11,7 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -19,8 +20,12 @@ import java.io.IOException;
  */
 public final class NoMatchingProjectException extends ResourceNotFoundException {
 
-    public NoMatchingProjectException(String projectName) {
-        super("No such project: [" + projectName + "]");
+    public NoMatchingProjectException(String message) {
+        super(message);
+    }
+
+    public NoMatchingProjectException(String projectAlias, @Nullable String projectRouting) {
+        super("No such project: [" + projectAlias + "]" + (projectRouting != null ? " with project routing [" + projectRouting + "]" : ""));
     }
 
     public NoMatchingProjectException(StreamInput in) throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -39,7 +39,7 @@ public class KqlErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Kql(source, args.getFirst(), args.size() > 1 ? args.get(1) : null);
+        return new Kql(source, args.getFirst(), args.size() > 1 ? args.get(1) : null, EsqlTestUtils.TEST_CFG);
     }
 
     @Override
@@ -70,11 +70,6 @@ public class KqlErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
     }
 }

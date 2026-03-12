@@ -32,7 +32,7 @@
     },
     "params": {
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

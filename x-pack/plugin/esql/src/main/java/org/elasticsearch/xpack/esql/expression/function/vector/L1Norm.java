@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -49,14 +50,26 @@ public class L1Norm extends VectorSimilarityFunction {
             }
             return result;
         }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_L1NORM;
+        }
+
+        @Override
+        public String toString() {
+            return "V_L1_NORM";
+        }
     };
 
     @FunctionInfo(
         returnType = "double",
-        preview = true,
         description = "Calculates the l1 norm between two dense_vectors.",
         examples = { @Example(file = "vector-l1-norm", tag = "vector-l1-norm") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
+        depthOffset = 1  // So this appears as a subsection of vector similarity functions
     )
     public L1Norm(
         Source source,

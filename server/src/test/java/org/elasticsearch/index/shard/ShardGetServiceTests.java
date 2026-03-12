@@ -11,6 +11,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -270,7 +271,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
         } else {
@@ -289,7 +300,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
         } else {
@@ -342,7 +363,16 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         // Issue a get that would enforce safe access mode and switches the maps from unsafe to safe
         var getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
         // last unsafe generation is set to last committed gen after the refresh triggered by realtime get
@@ -366,12 +396,23 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
-                false
+                false,
+                SplitShardCountSummary.UNSET
             );
         assertNull(getResult);
         // But normal get would still work!
         getResult = primary.getService()
-            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                indexResult.getId(),
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -382,11 +423,29 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         // The first get in safe mode, would trigger a refresh, since we need to start tracking translog locations in the live version map
         getResult = primary.getService()
-            .getFromTranslog("1", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "1",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
         getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
 
@@ -404,7 +463,16 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
         getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         var lastUnsafeGeneration2 = engine.getLastUnsafeSegmentGenerationForGets();
         assertTrue(lastUnsafeGeneration2 > lastUnsafeGeneration);

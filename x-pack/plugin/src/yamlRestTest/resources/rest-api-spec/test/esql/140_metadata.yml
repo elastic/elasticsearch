@@ -210,3 +210,73 @@ setup:
     "keyword" : "ok",
     "case" : "ok"
   }}
+
+---
+"source meta field and dynamic false":
+  - requires:
+      cluster_features: [ "mapper.stored_fields_spec_merge_bug" ]
+      reason: "Test can only run on clusters with the bug fix"
+  - do:
+      indices.create:
+        index: my-index2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: text
+
+  - do:
+      bulk:
+        index: my-index2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "baz": "dasd" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index2 METADATA _source | LIMIT 10'
+
+  - match: {columns.0.name: "foo"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "_source"}
+  - match: {columns.1.type: "_source"}
+
+  - match: {values.0.0: null}
+  - match: {values.0.1: { "baz": "dasd" }}
+
+---
+"source meta field and keep":
+  - requires:
+      cluster_features: [ "mapper.stored_fields_spec_merge_bug" ]
+      reason: "Test can only run on clusters with the bug fix"
+  - do:
+      indices.create:
+        index: my-index2
+        body:
+          mappings:
+            properties:
+              foo:
+                type: text
+
+  - do:
+      bulk:
+        index: my-index2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "baz": "dasd" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index2 METADATA _source | KEEP foo, _source | LIMIT 10'
+
+  - match: {columns.0.name: "foo"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "_source"}
+  - match: {columns.1.type: "_source"}
+
+  - match: {values.0.0: null}
+  - match: {values.0.1: { "baz": "dasd" }}
+

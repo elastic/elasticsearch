@@ -16,9 +16,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,6 +41,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,10 +93,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
@@ -116,7 +112,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Page row = row(testCase.getDataValues());
             try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
-                result = toJavaObjectUnsignedLongAware(block, 0);
+                result = toJavaObject(block, 0);
                 extraBlockTests(row, block);
             } finally {
                 row.releaseBlocks();
@@ -228,10 +224,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
@@ -290,29 +282,33 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
+    private int evaluateInManyThreadsCountMax() {
+        for (TestCaseSupplier.TypedData dt : testCase.getData()) {
+            if (dt.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                return 500;
+            }
+        }
+        return 10_000;
+    }
+
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        int count = 10_000;
+        int count = scaledRandomIntBetween(100, evaluateInManyThreadsCountMax());
         int threads = 5;
         var evalSupplier = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
 
-        ExecutorService exec = Executors.newFixedThreadPool(threads);
-        try {
+        try (ExecutorService exec = Executors.newFixedThreadPool(threads)) {
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
                 List<Object> simpleData = testCase.getDataValues();
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {
-                    try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
+                    try (ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
                                 assertThat(block.getPositionCount(), is(1));
@@ -325,17 +321,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             for (Future<?> f : futures) {
                 f.get();
             }
-        } finally {
-            exec.shutdown();
         }
     }
 
     public final void testEvaluatorToString() {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
@@ -348,10 +338,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public final void testFactoryToString() {
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(buildFieldExpression(testCase));
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
@@ -362,10 +348,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         if (expression instanceof SurrogateExpression s) {
             Expression surrogate = s.surrogate();
@@ -412,7 +394,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(AbstractFunctionTestCase::allPermutations)
             .filter(types -> valid.contains(types) == false)
             .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
                 throw new IllegalStateException("must implement a case for " + types);

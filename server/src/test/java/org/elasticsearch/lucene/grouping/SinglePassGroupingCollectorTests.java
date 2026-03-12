@@ -20,7 +20,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -36,6 +35,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -134,7 +134,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         }
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, Integer.MAX_VALUE);
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         searcher.search(query, collapsingCollector);
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
@@ -193,7 +193,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         }
 
         final TopFieldGroups[] shardHits = new TopFieldGroups[subSearchers.length];
-        final Weight weight = searcher.createWeight(searcher.rewrite(new MatchAllDocsQuery()), ScoreMode.COMPLETE, 1f);
+        final Weight weight = searcher.createWeight(searcher.rewrite(Queries.ALL_DOCS_INSTANCE), ScoreMode.COMPLETE, 1f);
         for (int shardIDX = 0; shardIDX < subSearchers.length; shardIDX++) {
             final SegmentSearcher subSearcher = subSearchers[shardIDX];
             final SinglePassGroupingCollector<?> c;
@@ -391,7 +391,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -436,7 +436,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);

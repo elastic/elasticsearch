@@ -16,13 +16,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.IndexType;
@@ -183,7 +183,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     /**
      * Wraps a NumericDocValues and exposes a single 16-bit float per document.
      */
-    static final class SingleHalfFloatValues extends NumericDoubleValues {
+    static final class SingleHalfFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleHalfFloatValues(NumericDocValues in) {
@@ -276,7 +276,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     /**
      * Wraps a NumericDocValues and exposes a single 32-bit float per document.
      */
-    static final class SingleFloatValues extends NumericDoubleValues {
+    static final class SingleFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleFloatValues(NumericDocValues in) {

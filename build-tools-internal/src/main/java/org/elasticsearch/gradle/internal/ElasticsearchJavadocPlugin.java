@@ -115,20 +115,21 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                 var options = (StandardJavadocDocletOptions) javadoc.getOptions();
                 options.linksOffline(
                     artifactHost(project) + "/javadoc/" + artifactPath,
-                    upstreamProject.getBuildDir().getPath() + "/docs/javadoc/"
+                    project.getProjectDir().toPath().relativize(upstreamProject.getBuildDir().toPath()) + "/docs/javadoc/"
                 );
                 /*
                  *some dependent javadoc tasks are explicitly skipped. We need to ignore those external links as
                  * javadoc would fail otherwise.
                  * Using Action here instead of lambda to keep gradle happy and don't trigger deprecation
                  */
+                File projectDir = project.getProjectDir();
                 javadoc.doFirst(new Action<Task>() {
                     @Override
                     public void execute(Task task) {
                         List<JavadocOfflineLink> existingJavadocOfflineLinks = ((StandardJavadocDocletOptions) javadoc.getOptions())
                             .getLinksOffline()
                             .stream()
-                            .filter(javadocOfflineLink -> new File(javadocOfflineLink.getPackagelistLoc()).exists())
+                            .filter(javadocOfflineLink -> new File(projectDir, javadocOfflineLink.getPackagelistLoc()).exists())
                             .toList();
                         ((StandardJavadocDocletOptions) javadoc.getOptions()).setLinksOffline(existingJavadocOfflineLinks);
 

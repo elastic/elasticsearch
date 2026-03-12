@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name = 'diskbbq'
+  description = 'A plugin for doing vector search with DiskBBQ'
+  classname = 'org.elasticsearch.xpack.diskbbq.DiskBBQPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-diskbbq'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
+}

@@ -42,11 +42,22 @@ public interface LeafQueryGenerator {
         };
     }
 
+    private static boolean extendedDocValuesEnabled(Map<String, Object> fieldMapping) {
+        Object configuredValue = fieldMapping.getOrDefault("doc_values", true);
+        if (configuredValue instanceof Boolean b) {
+            return b;
+        } else if (configuredValue instanceof Map) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unexpected value [" + configuredValue + "] for mapping parameter [doc_values]");
+        }
+    }
+
     class KeywordQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
             if (fieldMapping != null) {
                 boolean isIndexed = (Boolean) fieldMapping.getOrDefault("index", true);
-                boolean hasDocValues = (Boolean) fieldMapping.getOrDefault("doc_values", true);
+                boolean hasDocValues = LeafQueryGenerator.extendedDocValuesEnabled(fieldMapping);
                 if (isIndexed == false && hasDocValues == false) {
                     return List.of();
                 }

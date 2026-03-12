@@ -23,8 +23,13 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "text_embedding",
+                "completion",
+                "chat_completion"
+              ]
             },
             "mistral_inference_id": {
               "type": "string",

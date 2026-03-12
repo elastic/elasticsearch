@@ -1857,7 +1857,7 @@ public class DataStreamIT extends ESIntegTestCase {
             var e = expectThrows(InvalidAliasNameException.class, indicesAdmin().aliases(aliasesAddRequest));
             assertThat(
                 e.getMessage(),
-                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+                equalTo("Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias")
             );
         }
         {
@@ -1879,7 +1879,7 @@ public class DataStreamIT extends ESIntegTestCase {
             );
             assertThat(
                 e.getCause().getMessage(),
-                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+                equalTo("Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias")
             );
         }
     }

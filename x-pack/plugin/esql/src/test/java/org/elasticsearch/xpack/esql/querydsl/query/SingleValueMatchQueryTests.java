@@ -13,6 +13,7 @@ import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
@@ -25,11 +26,13 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -39,6 +42,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -59,8 +64,20 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             params.add(new Object[] { new SneakyTwo(fieldType) });
             for (boolean multivaluedField : new boolean[] { true, false }) {
                 for (boolean allowEmpty : new boolean[] { true, false }) {
-                    for (boolean docValuesOnly : new boolean[] { true, false }) {
-                        params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesOnly, allowEmpty, 100) });
+                    for (DocValuesMode docValuesMode : new DocValuesMode[] { DocValuesMode.DEFAULT, DocValuesMode.DOC_VALUES_ONLY }) {
+                        params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
+                    }
+                    if (fieldType.equals("keyword") && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                        params.add(
+                            new Object[] {
+                                new StandardSetup(
+                                    fieldType,
+                                    multivaluedField,
+                                    DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY,
+                                    allowEmpty,
+                                    100
+                                ) }
+                        );
                     }
                 }
             }
@@ -82,7 +99,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
@@ -98,11 +115,17 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    private record TestWarningsSource(String text, String viewName, int lineNumber, int columnNumber) implements WarningSourceLocation {
+        private TestWarningsSource(String text) {
+            this(text, null, 1, 1);
         }
     }
 
@@ -128,16 +151,21 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
     }
 
-    private record StandardSetup(String fieldType, boolean multivaluedField, boolean docValuesOnly, boolean empty, int count)
+    private record StandardSetup(String fieldType, boolean multivaluedField, DocValuesMode docValuesMode, boolean empty, int count)
         implements
             Setup {
         @Override
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
-            if (docValuesOnly) {
-                return builder.startObject("foo").field("type", fieldType).field("index", false).endObject();
-            } else {
-                return builder.startObject("foo").field("type", fieldType).endObject();
-            }
+            return switch (docValuesMode) {
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY -> builder.startObject("foo")
+                    .field("type", fieldType)
+                    .startObject("doc_values")
+                    .field("cardinality", "high")
+                    .endObject()
+                    .endObject();
+                case DOC_VALUES_ONLY -> builder.startObject("foo").field("type", fieldType).field("doc_values", true).endObject();
+                case DEFAULT -> builder.startObject("foo").field("type", fieldType).endObject();
+            };
         }
 
         @Override
@@ -146,7 +174,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             for (int i = 0; i < count; i++) {
                 List<Object> values = values(i);
                 docs.add(values);
-                iw.addDocument(docFor(values, docValuesOnly));
+                iw.addDocument(docFor(values, docValuesMode));
             }
             return docs;
         }
@@ -179,6 +207,12 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
     }
 
+    enum DocValuesMode {
+        DEFAULT,
+        DOC_VALUES_ONLY,
+        DOC_VALUES_ONLY_HIGH_CARDINALITY,
+    }
+
     /**
      * Tests a scenario where we were incorrectly rewriting {@code keyword} fields to
      * {@link MatchAllDocsQuery} when:
@@ -199,8 +233,8 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             Object second = randomValue(fieldType);
             List<Object> justFirst = List.of(first);
             List<Object> both = List.of(first, second);
-            iw.addDocument(docFor(justFirst, false));
-            iw.addDocument(docFor(both, false));
+            iw.addDocument(docFor(justFirst, DocValuesMode.DEFAULT));
+            iw.addDocument(docFor(both, DocValuesMode.DEFAULT));
             return List.of(justFirst, both);
         }
 
@@ -224,26 +258,46 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         };
     }
 
-    private static List<IndexableField> docFor(Iterable<Object> values, boolean docValuesOnly) {
+    private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
+        long count = 0;
+        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", false);
         List<IndexableField> fields = new ArrayList<>();
+
         for (Object v : values) {
-            if (docValuesOnly) {
-                fields.add(switch (v) {
-                    case Double n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
-                    case Float n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
-                    case Number n -> new SortedNumericDocValuesField("foo", n.longValue());
-                    case String s -> new SortedSetDocValuesField("foo", new BytesRef(s));
-                    default -> throw new UnsupportedOperationException();
-                });
-            } else {
-                fields.add(switch (v) {
-                    case Double n -> new DoubleField("foo", n, Field.Store.NO);
-                    case Float n -> new DoubleField("foo", n, Field.Store.NO);
-                    case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
-                    case String s -> new KeywordField("foo", s, Field.Store.NO);
-                    default -> throw new UnsupportedOperationException();
-                });
+            switch (docValuesMode) {
+                case DOC_VALUES_ONLY_HIGH_CARDINALITY -> {
+                    switch (v) {
+                        case String s -> {
+                            mvField.add(new BytesRef(s));
+                            count++;
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    }
+                }
+                case DOC_VALUES_ONLY -> {
+                    fields.add(switch (v) {
+                        case Double n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Float n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Number n -> new SortedNumericDocValuesField("foo", n.longValue());
+                        case String s -> new SortedSetDocValuesField("foo", new BytesRef(s));
+                        default -> throw new UnsupportedOperationException();
+                    });
+                }
+                case DEFAULT -> {
+                    fields.add(switch (v) {
+                        case Double n -> new DoubleField("foo", n, Field.Store.NO);
+                        case Float n -> new DoubleField("foo", n, Field.Store.NO);
+                        case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
+                        case String s -> new KeywordField("foo", s, Field.Store.NO);
+                        default -> throw new UnsupportedOperationException();
+                    });
+                }
+                default -> throw new IllegalStateException();
             }
+        }
+        if (count > 0) {
+            fields.add(NumericDocValuesField.indexedField("foo" + COUNT_FIELD_SUFFIX, count));
+            fields.add(mvField);
         }
         return fields;
     }

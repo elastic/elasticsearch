@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
+import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -14,34 +16,40 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
+ * {@link ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateParseEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateParseEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
-  private final EvalOperator.ExpressionEvaluator formatter;
+  private final ExpressionEvaluator formatter;
+
+  private final ZoneId zoneId;
+
+  private final Locale locale;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, DriverContext driverContext) {
+  public DateParseEvaluator(Source source, ExpressionEvaluator val, ExpressionEvaluator formatter,
+      ZoneId zoneId, Locale locale, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.formatter = formatter;
+    this.zoneId = zoneId;
+    this.locale = locale;
     this.driverContext = driverContext;
   }
 
@@ -100,7 +108,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
         BytesRef formatter = formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch);
         try {
-          result.appendLong(DateParse.process(val, formatter));
+          result.appendLong(DateParse.process(val, formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -119,7 +127,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         BytesRef val = valVector.getBytesRef(p, valScratch);
         BytesRef formatter = formatterVector.getBytesRef(p, formatterScratch);
         try {
-          result.appendLong(DateParse.process(val, formatter));
+          result.appendLong(DateParse.process(val, formatter, this.zoneId, this.locale));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -131,7 +139,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
   }
 
   @Override
@@ -141,38 +149,39 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    private final EvalOperator.ExpressionEvaluator.Factory formatter;
+    private final ExpressionEvaluator.Factory formatter;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        EvalOperator.ExpressionEvaluator.Factory formatter) {
+    private final ZoneId zoneId;
+
+    private final Locale locale;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val,
+        ExpressionEvaluator.Factory formatter, ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.formatter = formatter;
+      this.zoneId = zoneId;
+      this.locale = locale;
     }
 
     @Override
     public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), context);
+      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, locale, context);
     }
 
     @Override
     public String toString() {
-      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + ", locale=" + locale + "]";
     }
   }
 }

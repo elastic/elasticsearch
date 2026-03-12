@@ -267,6 +267,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final long maxTimestamp;
 
         public DataStreamShardStats(ShardRouting shardRouting, StoreStats storeStats, long maxTimestamp) {
+            assert maxTimestamp >= 0 : "Negative values for maxTimestamp are not allowed";
             this.shardRouting = shardRouting;
             this.storeStats = storeStats;
             this.maxTimestamp = maxTimestamp;

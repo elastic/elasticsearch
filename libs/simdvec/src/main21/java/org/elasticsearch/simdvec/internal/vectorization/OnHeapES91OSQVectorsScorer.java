@@ -43,9 +43,9 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
 
     private final byte[] bytes;
 
-    public OnHeapES91OSQVectorsScorer(IndexInput in, int dimensions) {
-        super(in, dimensions);
-        bytes = new byte[BULK_SIZE * length];
+    public OnHeapES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
+        bytes = new byte[bulkSize * length];
     }
 
     @Override
@@ -209,9 +209,9 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         int j = 0;
-        for (; j < count - 15; j += BULK_SIZE) {
-            in.readBytes(bytes, 0, BULK_SIZE * length);
-            for (int iter = 0; iter < BULK_SIZE; iter++) {
+        for (; j < count - 15; j += this.bulkSize) {
+            in.readBytes(bytes, 0, this.bulkSize * length);
+            for (int iter = 0; iter < this.bulkSize; iter++) {
                 long subRet0 = 0;
                 long subRet1 = 0;
                 long subRet2 = 0;
@@ -269,9 +269,9 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         int j = 0;
-        for (; j < count - 15; j += BULK_SIZE) {
-            in.readBytes(bytes, 0, BULK_SIZE * length);
-            for (int iter = 0; iter < BULK_SIZE; iter++) {
+        for (; j < count - 15; j += this.bulkSize) {
+            in.readBytes(bytes, 0, this.bulkSize * length);
+            for (int iter = 0; iter < this.bulkSize; iter++) {
                 long subRet0 = 0;
                 long subRet1 = 0;
                 long subRet2 = 0;
@@ -412,14 +412,14 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore128Bulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        quantizeScore128Bulk(q, this.bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, this.bulkSize);
+        in.readFloats(upperIntervals, 0, this.bulkSize);
+        for (int i = 0; i < this.bulkSize; i++) {
             targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
         }
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
-        int limit = FLOAT_SPECIES_128.loopBound(BULK_SIZE);
+        in.readFloats(additionalCorrections, 0, this.bulkSize);
+        int limit = FLOAT_SPECIES_128.loopBound(this.bulkSize);
         int i = 0;
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
@@ -476,14 +476,14 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
-        quantizeScore256Bulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        quantizeScore256Bulk(q, this.bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, this.bulkSize);
+        in.readFloats(upperIntervals, 0, this.bulkSize);
+        for (int i = 0; i < this.bulkSize; i++) {
             targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
         }
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
-        int limit = FLOAT_SPECIES_256.loopBound(BULK_SIZE);
+        in.readFloats(additionalCorrections, 0, this.bulkSize);
+        int limit = FLOAT_SPECIES_256.loopBound(this.bulkSize);
         int i = 0;
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;

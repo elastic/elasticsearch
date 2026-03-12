@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -38,10 +39,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -59,14 +62,38 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
     }
 
-    // TODO update Current to Version1 once version is incremented
-    public void testMixedIndexDocValueVersion0ToCurrent() throws Exception {
+    public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+    }
+
+    public void testMixedIndexDocValueVersion2ToCurrent() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819Version3);
+    }
+
+    public void testMixedIndexDocValueBinaryCompressionFeatureDisabledOldCodec() throws Exception {
+        // Mimic the behavior of BINARY_DV_COMPRESSION_FEATURE_FLAG being disabled in the oldCodec, but enabled in the newCodec.
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS));
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+    }
+
+    public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        );
+        var newCodec = TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        );
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
@@ -80,9 +107,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 return docValuesFormat;
             }
         };
-        var newCodec = new Elasticsearch92Lucene103Codec() {
-
-            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+        var newCodec = new Elasticsearch93Lucene104Codec() {
+            final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
+            );
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -112,8 +140,14 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     }
 
     void assertVersion819(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
-        assert819DocValuesFormatVersion(reader);
+        assert819DocValuesFormatVersion(reader, "ES819TSDB_0");
         assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDB");
+    }
+
+    void assertVersion819Version3(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException,
+        IllegalAccessException {
+        assert819DocValuesFormatVersion(reader, "ES8193TSDB_0");
+        assertFieldInfoDocValuesFormat(reader, "0", "ES8193TSDB");
     }
 
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
@@ -148,8 +182,9 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
 
                         if (r % 10 < 8) {
-                            // Most of the time store counter:
+                            // Most of the time store counter and binary value:
                             d.add(new NumericDocValuesField("counter_1", counter1++));
+                            d.add(new BinaryDocValuesField("binary_tag", new BytesRef(tags[j % tags.length])));
                         }
 
                         if (r % 10 == 5) {
@@ -191,6 +226,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 if (tagsDV == null) {
                     tagsDV = DocValues.emptySortedSet();
                 }
+                var binaryDV = MultiDocValues.getBinaryValues(reader, "binary_tag");
+                if (binaryDV == null) {
+                    binaryDV = DocValues.emptyBinary();
+                }
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
                     String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
@@ -220,6 +259,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
                             assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                         }
+                    }
+                    if (binaryDV.advanceExact(i)) {
+                        String actualBinary = binaryDV.binaryValue().utf8ToString();
+                        assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
                     }
                 }
             }
@@ -251,6 +294,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     if (tagsDV == null) {
                         tagsDV = DocValues.emptySortedSet();
                     }
+                    var binaryDV = MultiDocValues.getBinaryValues(reader, "binary_tag");
+                    if (binaryDV == null) {
+                        binaryDV = DocValues.emptyBinary();
+                    }
                     for (int i = 0; i < numDocs; i++) {
                         assertEquals(i, hostNameDV.nextDoc());
                         String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
@@ -281,6 +328,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                                 assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                             }
                         }
+                        if (binaryDV.advanceExact(i)) {
+                            String actualBinary = binaryDV.binaryValue().utf8ToString();
+                            assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                        }
                     }
                 }
             }
@@ -310,7 +361,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         new ES819TSDBDocValuesFormat(
                             random().nextInt(16, 128),
                             nextOrdinalRangeThreshold.getAsInt(),
-                            random().nextBoolean()
+                            random().nextBoolean(),
+                            ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                            randomBoolean(),
+                            ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
                         )
                     )
                 );
@@ -425,8 +479,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    private void assert819DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException,
-        ClassNotFoundException {
+    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws NoSuchFieldException,
+        IllegalAccessException, IOException, ClassNotFoundException {
 
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
@@ -436,7 +490,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
                 var formats = perFieldDvReader.getFormats();
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = formats.get("ES819TSDB_0");
+                var tsdbDvReader = formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
@@ -453,7 +507,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
                 Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDB_0");
+                var tsdbDvReader = (DocValuesProducer) formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,

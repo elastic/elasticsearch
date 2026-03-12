@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -29,9 +30,14 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -92,6 +98,7 @@ import static org.elasticsearch.xpack.inference.services.mistral.completion.Mist
 import static org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettingsTests.createRequestSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -105,6 +112,9 @@ import static org.mockito.Mockito.when;
 
 public class MistralServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID_VALUE = "id";
+    private static final String MODEL_ID_VALUE = "model_name";
+    private static final String API_KEY_VALUE = "secret";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -131,13 +141,13 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 var embeddingsModel = (MistralEmbeddingsModel) model;
                 var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
                 assertThat(serviceSettings.modelId(), is("mistral-embed"));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
@@ -152,17 +162,17 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
                 assertThat(serviceSettings.modelId(), is("mistral-embed"));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     getEmbeddingsServiceSettingsMap(null, null),
                     getTaskSettingsMap(),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -178,13 +188,13 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
                 assertThat(serviceSettings.modelId(), is("mistral-embed"));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
@@ -192,7 +202,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_CreatesChatCompletionsModel() throws IOException {
         var model = "model";
-        var secret = "secret";
+        var secret = API_KEY_VALUE;
 
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
@@ -206,7 +216,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(getServiceSettingsMap(model), getSecretSettingsMap(secret)),
                 modelVerificationListener
@@ -215,7 +225,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsException_WithoutModelId() throws IOException {
-        var secret = "secret";
+        var secret = API_KEY_VALUE;
 
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
@@ -235,7 +245,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(Collections.emptyMap(), getSecretSettingsMap(secret)),
                 modelVerificationListener
@@ -311,13 +321,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
+            var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -356,13 +364,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
+            var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, "model");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -424,7 +430,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = MistralChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
+            var model = MistralChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -478,9 +484,9 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
-                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
@@ -488,21 +494,21 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
-            getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap("secret")),
+            getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE)),
             TaskType.TEXT_EMBEDDING
         );
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig_Completion() throws IOException {
         testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
-            getRequestConfigMap(getServiceSettingsMap("mistral-completion"), getSecretSettingsMap("secret")),
+            getRequestConfigMap(getServiceSettingsMap("mistral-completion"), getSecretSettingsMap(API_KEY_VALUE)),
             TaskType.COMPLETION
         );
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig_ChatCompletion() throws IOException {
         testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
-            getRequestConfigMap(getServiceSettingsMap("mistral-chat-completion"), getSecretSettingsMap("secret")),
+            getRequestConfigMap(getServiceSettingsMap("mistral-chat-completion"), getSecretSettingsMap(API_KEY_VALUE)),
             TaskType.CHAT_COMPLETION
         );
     }
@@ -523,7 +529,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", chatCompletion, secret, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, chatCompletion, secret, modelVerificationListener);
         }
     }
 
@@ -556,7 +562,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             var taskSettings = new HashMap<String, Object>();
             taskSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettingsMap, taskSettings, getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettingsMap, taskSettings, getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -569,13 +575,13 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", chatCompletion, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, chatCompletion, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), secretSettings);
@@ -591,7 +597,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -606,7 +612,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     private void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap(String modelId, TaskType chatCompletion)
         throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(getServiceSettingsMap(modelId), secretSettings);
@@ -622,7 +628,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", chatCompletion, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, chatCompletion, config, modelVerificationListener);
         }
     }
 
@@ -631,10 +637,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap(1024, 512),
                 getTaskSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -642,7 +650,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().modelId(), is("mistral-embed"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -656,15 +664,17 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     private void testParsePersistedConfig_CreatesAMistralModel(String modelId, TaskType chatCompletion) throws IOException {
         try (var service = createService()) {
-            var config = getPersistedConfigMap(getServiceSettingsMap(modelId), getTaskSettingsMap(), getSecretSettingsMap("secret"));
+            var config = getPersistedConfigMap(getServiceSettingsMap(modelId), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE));
 
-            var model = service.parsePersistedConfigWithSecrets("id", chatCompletion, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, chatCompletion, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralChatCompletionModel.class));
 
             var embeddingsModel = (MistralChatCompletionModel) model;
             assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -674,10 +684,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 getEmbeddingsServiceSettingsMap(1024, 512),
                 getTaskSettingsMap(),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -686,7 +698,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -695,10 +707,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap(1024, 512),
                 getTaskSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -707,7 +721,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -722,25 +736,27 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
-                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getEmbeddingsServiceSettingsMap(null, null), getTaskSettingsMap(), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap(null, null),
                 getTaskSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
+                () -> service.parsePersistedConfig(
+                    new UnparsedModel(INFERENCE_ID_VALUE, TaskType.SPARSE_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+                )
             );
 
             assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [mistral] service"));
@@ -779,11 +795,13 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     ) throws IOException {
         try (var service = createService()) {
             var taskSettings = getTaskSettingsMap();
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettingsMap, taskSettings, secretSettings);
             config.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets("id", chatCompletion, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, chatCompletion, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, matcher);
         }
@@ -822,10 +840,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             serviceSettingsMap.put("extra_key", "value");
 
             var taskSettings = getTaskSettingsMap();
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettingsMap, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", chatCompletion, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, chatCompletion, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, matcher);
         }
@@ -837,10 +857,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
             var taskSettings = new HashMap<String, Object>();
             taskSettings.put("extra_key", "value");
 
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
         }
@@ -877,12 +899,14 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     ) throws IOException {
         try (var service = createService()) {
             var taskSettings = getTaskSettingsMap();
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getPersistedConfigMap(serviceSettingsMap, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", chatCompletion, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, chatCompletion, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, matcher);
         }
@@ -890,9 +914,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_WithoutSecretsCreatesEmbeddingsModel() throws IOException {
         try (var service = createService()) {
-            var config = getPersistedConfigMap(getEmbeddingsServiceSettingsMap(1024, 512), getTaskSettingsMap(), Map.of());
+            var config = getPersistedConfigMap(getEmbeddingsServiceSettingsMap(1024, 512), getTaskSettingsMap(), null);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -909,10 +935,12 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 getEmbeddingsServiceSettingsMap(1024, 512),
                 getTaskSettingsMap(),
                 createRandomChunkingSettingsMap(),
-                Map.of()
+                null
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -926,9 +954,11 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
-            var config = getPersistedConfigMap(getEmbeddingsServiceSettingsMap(1024, 512), getTaskSettingsMap(), Map.of());
+            var config = getPersistedConfigMap(getEmbeddingsServiceSettingsMap(1024, 512), getTaskSettingsMap(), null);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, MistralService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(MistralEmbeddingsModel.class));
 
@@ -1026,7 +1056,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
+        var model = MistralEmbeddingModelTests.createModel(INFERENCE_ID_VALUE, "mistral-embed", "apikey", null, null, null, null);
 
         try (var service = new MistralService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1060,7 +1090,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", null, "apikey", null, null, null, null);
+        var model = MistralEmbeddingModelTests.createModel(INFERENCE_ID_VALUE, "mistral-embed", null, "apikey", null, null, null, null);
         model.setURI(getUrl(webServer));
 
         testChunkedInfer(model);
@@ -1068,7 +1098,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = MistralEmbeddingModelTests.createModel(
-            "id",
+            INFERENCE_ID_VALUE,
             "mistral-embed",
             createRandomChunkingSettings(),
             "apikey",
@@ -1080,6 +1110,31 @@ public class MistralServiceTests extends InferenceServiceTestCase {
         model.setURI(getUrl(webServer));
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = MistralEmbeddingModelTests.createModel(INFERENCE_ID_VALUE, "mistral-embed", "apikey");
+        model.setURI(getUrl(webServer));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     public void testChunkedInfer(MistralEmbeddingsModel model) throws IOException {
@@ -1186,7 +1241,7 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = MistralEmbeddingModelTests.createModel("id", "mistral-embed", "apikey", null, null, null, null);
+            var model = MistralEmbeddingModelTests.createModel(INFERENCE_ID_VALUE, "mistral-embed", "apikey", null, null, null, null);
             model.setURI(getUrl(webServer));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1328,5 +1383,66 @@ public class MistralServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createService();
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
+        var model = createTestModel(TaskType.CHAT_COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            TaskType.SPARSE_EMBEDDING,
+            MistralService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        MistralService.NAME,
+                        MistralService.NAME,
+                        TaskType.SPARSE_EMBEDDING
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> MistralEmbeddingModelTests.createModel(INFERENCE_ID_VALUE, MODEL_ID_VALUE, API_KEY_VALUE);
+            case COMPLETION -> MistralChatCompletionModelTests.createCompletionModel(API_KEY_VALUE, MODEL_ID_VALUE);
+            case CHAT_COMPLETION -> MistralChatCompletionModelTests.createChatCompletionModel(API_KEY_VALUE, MODEL_ID_VALUE);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

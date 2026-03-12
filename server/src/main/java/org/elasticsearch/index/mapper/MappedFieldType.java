@@ -30,11 +30,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -642,6 +645,10 @@ public abstract class MappedFieldType {
         return null;
     }
 
+    public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+        return false;
+    }
+
     public enum FieldExtractPreference {
         /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
@@ -667,6 +674,9 @@ public abstract class MappedFieldType {
      * Arguments for {@link #blockLoader}.
      */
     public interface BlockLoaderContext {
+        ByteSizeValue DEFAULT_ORDINALS_BYTE_SIZE = ByteSizeValue.ofKb(100);
+        ByteSizeValue DEFAULT_SCRIPT_BYTE_SIZE = ByteSizeValue.ofKb(300);
+
         /**
          * The name of the index.
          */
@@ -704,17 +714,29 @@ public abstract class MappedFieldType {
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
-        @Nullable
-        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-            return null;
-        }
-    }
+        /**
+         * MappingLookup for the queried index.
+         */
+        MappingLookup mappingLookup();
 
-    /**
-     * Marker interface that contains the configuration needed to transform loaded values into blocks.
-     * Is retrievable from the {@link BlockLoaderContext}. The {@link MappedFieldType} can use this configuration to choose the appropriate
-     * implementation for transforming loaded values into blocks.
-     */
-    public interface BlockLoaderFunctionConfig {}
+        @Nullable
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig();
+
+        /**
+         * Warnings collector for the block loader. May be {@code null} if warnings are not supported.
+         */
+        @Nullable
+        Warnings warnings();
+
+        /**
+         * Number of bytes reserved for each ordinals {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue ordinalsByteSize();
+
+        /**
+         * Number of bytes reserved for each script {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue scriptByteSize();
+    }
 
 }

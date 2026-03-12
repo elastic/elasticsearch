@@ -17,11 +17,7 @@ The *Elastic SharePoint Online connector* is a [connector](/reference/search-con
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_online.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-sharepoint-online-connector-client-reference]
 
@@ -281,7 +277,7 @@ You can deploy the SharePoint Online connector as a self-managed connector using
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 

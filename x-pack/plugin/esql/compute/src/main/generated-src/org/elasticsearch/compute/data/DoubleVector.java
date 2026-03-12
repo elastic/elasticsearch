@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,7 +28,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     DoubleBlock asBlock();
 
     @Override
-    DoubleVector filter(int... positions);
+    DoubleVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     DoubleBlock keepMask(BooleanVector mask);

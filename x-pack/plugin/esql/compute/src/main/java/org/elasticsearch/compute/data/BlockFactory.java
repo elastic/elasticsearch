@@ -29,32 +29,40 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD
+    public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
+    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
+
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    private final long bytesRefRamOverestimateThreshold;
+    private final double bytesRefRamOverestimateFactor;
+
+    /**
+     * {@return a builder for constructing a {@link BlockFactory}}
+     */
+    public static BlockFactoryBuilder builder(BigArrays bigArrays) {
+        return new BlockFactoryBuilder(bigArrays);
+    }
+
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this.bigArrays = builder.bigArrays;
+        this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
+        this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
+        this.parent = parent;
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
+    }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
-    }
-
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
-    }
-
-    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        assert breaker instanceof LocalCircuitBreaker == false
-            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
-            : "use local breaker without parent block factory";
-        this.breaker = breaker;
-        this.bigArrays = bigArrays;
-        this.parent = parent;
-        this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
-    }
-
-    public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
+        this(BlockFactory.builder(bigArrays).breaker(breaker), null);
     }
 
     // For testing
@@ -71,11 +79,26 @@ public class BlockFactory {
         return parent != null ? parent : this;
     }
 
+    public long bytesRefRamOverestimateThreshold() {
+        return bytesRefRamOverestimateThreshold;
+    }
+
+    public double bytesRefRamOverestimateFactor() {
+        return bytesRefRamOverestimateFactor;
+    }
+
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
         if (childBreaker.parentBreaker() != breaker) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new BlockFactory(childBreaker, bigArrays, ByteSizeValue.ofBytes(maxPrimitiveArrayBytes), this);
+        return new BlockFactory(
+            BlockFactory.builder(bigArrays)
+                .breaker(childBreaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            this
+        );
     }
 
     /**
@@ -415,15 +438,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesEstimated(value, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -434,8 +455,31 @@ public class BlockFactory {
         return b;
     }
 
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
     }
 
     public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
@@ -469,28 +513,55 @@ public class BlockFactory {
         }
     }
 
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
     public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
         return new ExponentialHistogramBlockBuilder(estimatedSize, this);
     }
 
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
     public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
-        try (ExponentialHistogramBlockBuilder builder = newExponentialHistogramBlockBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.append(value);
-            }
-            return builder.build();
-        }
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
     }
 
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
         return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
@@ -505,6 +576,28 @@ public class BlockFactory {
         DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
         IntBlock count = newIntArrayVector(countValues, positions).asBlock();
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**

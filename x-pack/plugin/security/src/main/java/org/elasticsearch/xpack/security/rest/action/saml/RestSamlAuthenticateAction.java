@@ -102,6 +102,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
                         if (response.getAuthentication() != null) {
                             builder.field("authentication", response.getAuthentication());
                         }
+                        if (response.getInResponseTo() != null) {
+                            builder.field("in_response_to", response.getInResponseTo());
+                        }
                         builder.endObject();
                         return new RestResponse(RestStatus.OK, builder);
                     }

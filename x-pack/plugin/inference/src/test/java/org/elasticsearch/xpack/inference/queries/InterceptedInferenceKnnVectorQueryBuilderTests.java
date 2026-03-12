@@ -9,31 +9,44 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.core.ml.search.TokenPruningConfigTests;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
@@ -45,6 +58,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     protected Collection<? extends Plugin> getPlugins() {
         List<Plugin> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(new FakeMlPlugin());
+        plugins.add(new XPackPlugin(Settings.EMPTY));
         return plugins;
     }
 
@@ -66,8 +80,12 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     }
 
     @Override
-    protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
-        return new SemanticKnnVectorQueryRewriteInterceptor();
+    protected List<QueryRewriteInterceptor> createQueryRewriteInterceptors() {
+        return List.of(
+            new SemanticKnnVectorQueryRewriteInterceptor(),
+            new SemanticMatchQueryRewriteInterceptor(),
+            new SemanticSparseVectorQueryRewriteInterceptor()
+        );
     }
 
     @Override
@@ -86,10 +104,13 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
 
+            // Rewrite the original query to populate the query vector
+            QueryBuilder originalWithQueryVector = rewriteAndFetch(original, queryRewriteContext);
+
             InterceptedInferenceKnnVectorQueryBuilder intercepted = (InterceptedInferenceKnnVectorQueryBuilder) rewritten;
-            assertThat(intercepted.originalQuery, equalTo(original));
+            assertThat(intercepted.originalQuery, equalTo(originalWithQueryVector));
             assertThat(intercepted.inferenceResultsMap, notNullValue());
-            assertThat(intercepted.inferenceResultsMap.size(), equalTo(1));
+            assertThat(intercepted.inferenceResultsMap.isEmpty(), is(true));
         } else {
             // Rewrite using the query rewrite context to populate the inference results
             @SuppressWarnings("deprecation")
@@ -165,18 +186,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
         // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
         coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
-        assertThat(coordinatorRewritten, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
-        InterceptedInferenceKnnVectorQueryBuilder coordinatorIntercepted = (InterceptedInferenceKnnVectorQueryBuilder) coordinatorRewritten;
-        assertThat(coordinatorIntercepted.originalQuery, equalTo(knnQuery));
-        assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
-        assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
-
-        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
-            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
-        );
-        assertThat(inferenceResults, notNullValue());
-        assertThat(inferenceResults, instanceOf(MlDenseEmbeddingResults.class));
-        VectorData queryVector = new VectorData(((MlDenseEmbeddingResults) inferenceResults).getInferenceAsFloat());
+        VectorData queryVector = assertQueryIsInterceptedKnnWithValidResults(coordinatorRewritten);
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(
@@ -184,7 +194,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             testIndex1.semanticTextFields(),
             testIndex1.nonInferenceFields()
         );
-        QueryBuilder dataRewrittenTestIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex1);
+        QueryBuilder dataRewrittenTestIndex1 = rewriteAndFetch(coordinatorRewritten, indexMetadataContextTestIndex1);
         NestedQueryBuilder expectedDataRewrittenTestIndex1 = buildExpectedNestedQuery(
             knnQuery,
             queryVector,
@@ -198,9 +208,242 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             testIndex2.semanticTextFields(),
             testIndex2.nonInferenceFields()
         );
-        QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex2);
+        QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorRewritten, indexMetadataContextTestIndex2);
         QueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedKnnQuery(knnQuery, queryVector, indexMetadataContextTestIndex2);
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
+    }
+
+    public void testCoordinatorNodeRewrite_GivenKnnQueryWithSemanticFilters_ShouldInterceptFilters() throws Exception {
+        final String denseField1 = "dense_field_1";
+        final String denseField2 = "dense_field_2";
+        final String sparseField = "sparse_field";
+        final TestIndex testIndex = new TestIndex(
+            "test-index",
+            Map.of(denseField1, DENSE_INFERENCE_ID, denseField2, DENSE_INFERENCE_ID, sparseField, SPARSE_INFERENCE_ID),
+            Map.of()
+        );
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            denseField1,
+            new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"),
+            50,
+            500,
+            50f,
+            null
+        ).boost(3.0f)
+            .queryName("bar")
+            .addFilterQuery(
+                QueryBuilders.boolQuery()
+                    .filter(
+                        new KnnVectorQueryBuilder(
+                            denseField2,
+                            new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "some query"),
+                            50,
+                            500,
+                            50f,
+                            null
+                        )
+                    )
+            )
+            .addFilterQuery(
+                new KnnVectorQueryBuilder(
+                    denseField2,
+                    new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "some query"),
+                    50,
+                    500,
+                    50f,
+                    null
+                ).addFilterQuery(
+                    new SparseVectorQueryBuilder(
+                        sparseField,
+                        null,
+                        SPARSE_INFERENCE_ID,
+                        "some other query",
+                        randomBoolean(),
+                        TokenPruningConfigTests.testInstance()
+                    )
+                )
+            )
+            .addFilterQuery(new MatchQueryBuilder(sparseField, "some other query"));
+
+        // Perform coordinator node rewrite
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+
+        assertQueryIsInterceptedKnnWithValidResults(coordinatorRewritten);
+        InterceptedInferenceKnnVectorQueryBuilder coordinatorIntercepted = (InterceptedInferenceKnnVectorQueryBuilder) coordinatorRewritten;
+        assertThat(coordinatorIntercepted.originalQuery.filterQueries(), hasSize(3));
+
+        // Assertions on first filter
+        {
+            assertThat(coordinatorIntercepted.originalQuery.filterQueries().get(0), instanceOf(BoolQueryBuilder.class));
+            BoolQueryBuilder filter = (BoolQueryBuilder) coordinatorIntercepted.originalQuery.filterQueries().get(0);
+            assertThat(filter.filter(), hasSize(1));
+            assertQueryIsInterceptedKnnWithValidResults(filter.filter().get(0));
+        }
+
+        // Assertions on second filter
+        {
+            assertQueryIsInterceptedKnnWithValidResults(coordinatorIntercepted.originalQuery.filterQueries().get(1));
+            InterceptedInferenceKnnVectorQueryBuilder filter =
+                (InterceptedInferenceKnnVectorQueryBuilder) coordinatorIntercepted.originalQuery.filterQueries().get(1);
+            assertThat(filter.originalQuery.filterQueries(), hasSize(1));
+            assertQueryIsInterceptedSparseVectorWithValidResults(filter.originalQuery.filterQueries().get(0));
+        }
+
+        // Assertions on third filter
+        {
+            assertQueryIsInterceptedMatchWithValidResults(
+                coordinatorIntercepted.originalQuery.filterQueries().get(2),
+                Map.of(SPARSE_INFERENCE_ID, TextExpansionResults.class)
+            );
+        }
+    }
+
+    public void testCoordinatorNodeRewrite_GenericQueryVectorBuilder_Success() throws Exception {
+        final String field = "test_field";
+        final TestIndex testIndex1 = new TestIndex("test-index-1", Map.of(field, DENSE_INFERENCE_ID), Map.of());
+        final TestIndex testIndex2 = new TestIndex(
+            "test-index-2",
+            Map.of(),
+            Map.of(
+                field,
+                Map.of(
+                    "type",
+                    "dense_vector",
+                    "element_type",
+                    DENSE_INFERENCE_ID_SETTINGS.elementType().toString(),
+                    "dims",
+                    DENSE_INFERENCE_ID_SETTINGS.dimensions()
+                )
+            )
+        );
+
+        final float[] expectedQueryVector = new float[DENSE_INFERENCE_ID_SETTINGS.dimensions()];
+        Arrays.fill(expectedQueryVector, 1.0f);
+
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new GenericQueryVectorBuilder(expectedQueryVector),
+            10,
+            100,
+            10f,
+            null
+        );
+
+        final CheckedConsumer<List<TestIndex>, IOException> assertQueryInferenceField = (testIndices) -> {
+            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(testIndices, Map.of(), TransportVersion.current(), null);
+            QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+            // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+            coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+            VectorData vectorData = assertQueryIsInterceptedKnnWithValidResults(coordinatorRewritten);
+            assertThat(vectorData.floatVector(), equalTo(expectedQueryVector));
+        };
+
+        final CheckedConsumer<List<TestIndex>, IOException> assertQueryDenseVectorField = (testIndices) -> {
+            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(testIndices, Map.of(), TransportVersion.current(), null);
+            QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
+
+            // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+            coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+            assertThat(coordinatorRewritten, instanceOf(KnnVectorQueryBuilder.class));
+            VectorData vectorData = ((KnnVectorQueryBuilder) coordinatorRewritten).queryVector();
+            assertThat(vectorData.floatVector(), equalTo(expectedQueryVector));
+        };
+
+        assertQueryInferenceField.accept(List.of(testIndex1));
+        assertQueryInferenceField.accept(List.of(testIndex1, testIndex2));
+        assertQueryDenseVectorField.accept(List.of(testIndex2));
+    }
+
+    public void testCoordinatorNodeRewrite_GenericQueryVectorBuilder_Error() {
+        final String field = "test_field";
+        final TestIndex testIndex1 = new TestIndex("test-index-1", Map.of(field, DENSE_INFERENCE_ID), Map.of());
+        final TestIndex testIndex2 = new TestIndex(
+            "test-index-2",
+            Map.of(),
+            Map.of(
+                field,
+                Map.of(
+                    "type",
+                    "dense_vector",
+                    "element_type",
+                    DENSE_INFERENCE_ID_SETTINGS.elementType().toString(),
+                    "dims",
+                    DENSE_INFERENCE_ID_SETTINGS.dimensions()
+                )
+            )
+        );
+
+        final Exception genericQueryVectorBuilderError = new IllegalArgumentException("foo");
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new GenericQueryVectorBuilder(genericQueryVectorBuilderError),
+            10,
+            100,
+            10f,
+            null
+        );
+
+        final Consumer<List<TestIndex>> assertQuery = (testIndices) -> {
+            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(testIndices, Map.of(), TransportVersion.current(), null);
+            assertThrows(genericQueryVectorBuilderError.getClass(), () -> rewriteAndFetch(knnQuery, queryRewriteContext));
+        };
+
+        assertQuery.accept(List.of(testIndex1));
+        assertQuery.accept(List.of(testIndex1, testIndex2));
+        assertQuery.accept(List.of(testIndex2));
+    }
+
+    @Override
+    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
+    }
+
+    private static VectorData assertQueryIsInterceptedKnnWithValidResults(QueryBuilder query) {
+        assertThat(query, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
+        InterceptedInferenceKnnVectorQueryBuilder interceptedKnn = (InterceptedInferenceKnnVectorQueryBuilder) query;
+        assertThat(interceptedKnn.inferenceResultsMap, notNullValue());
+        assertThat(interceptedKnn.inferenceResultsMap.isEmpty(), is(true));
+        assertThat(interceptedKnn.originalQuery.queryVector(), notNullValue());
+
+        return interceptedKnn.originalQuery.queryVector();
+    }
+
+    private static void assertQueryIsInterceptedSparseVectorWithValidResults(QueryBuilder query) {
+        assertThat(query, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
+        InterceptedInferenceSparseVectorQueryBuilder interceptedSparse = (InterceptedInferenceSparseVectorQueryBuilder) query;
+        assertThat(interceptedSparse.inferenceResultsMap, notNullValue());
+        assertThat(interceptedSparse.inferenceResultsMap.isEmpty(), is(true));
+        assertThat(interceptedSparse.originalQuery.getQueryVectors(), notNullValue());
+    }
+
+    private static void assertQueryIsInterceptedMatchWithValidResults(
+        QueryBuilder query,
+        Map<String, Class<? extends InferenceResults>> expectedInferenceResults
+    ) {
+        assertThat(query, instanceOf(InterceptedInferenceMatchQueryBuilder.class));
+        InterceptedInferenceMatchQueryBuilder interceptedMatch = (InterceptedInferenceMatchQueryBuilder) query;
+
+        assertThat(interceptedMatch.inferenceResultsMap, notNullValue());
+        assertThat(interceptedMatch.inferenceResultsMap.size(), equalTo(expectedInferenceResults.size()));
+        for (var entry : expectedInferenceResults.entrySet()) {
+            String inferenceId = entry.getKey();
+            Class<? extends InferenceResults> expectedInferenceResultsClass = entry.getValue();
+
+            InferenceResults actualInferenceResults = interceptedMatch.inferenceResultsMap.get(
+                new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, inferenceId)
+            );
+            assertThat(actualInferenceResults, instanceOf(expectedInferenceResultsClass));
+        }
     }
 
     private static NestedQueryBuilder buildExpectedNestedQuery(

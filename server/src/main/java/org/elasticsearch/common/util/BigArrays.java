@@ -538,7 +538,7 @@ public class BigArrays {
                 }
             } else {
                 // even if we are not checking the breaker, we need to adjust
-                // its' totals, so add without breaking
+                // its totals, so add without breaking
                 breaker.addWithoutBreaking(delta);
             }
         }
@@ -595,6 +595,11 @@ public class BigArrays {
         return bytesRefRecycler;
     }
 
+    /** Returns the page cache recycler, may be null */
+    public PageCacheRecycler recycler() {
+        return recycler;
+    }
+
     /**
      * Allocate a new {@link ByteArray}.
      * @param size          the initial length of the array
@@ -612,6 +617,10 @@ public class BigArrays {
         } else {
             return validate(new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize));
         }
+    }
+
+    public ByteArray newByteArrayWrapper(byte[] bytes) {
+        return validate(new ByteArrayWrapper(this, bytes, bytes.length, null, false));
     }
 
     /**

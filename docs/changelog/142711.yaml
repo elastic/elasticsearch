@@ -1,0 +1,5 @@
+area: Engine
+issues: []
+pr: 142711
+summary: Fix `ShardFieldStats.liveDocsBytes`
+type: bug

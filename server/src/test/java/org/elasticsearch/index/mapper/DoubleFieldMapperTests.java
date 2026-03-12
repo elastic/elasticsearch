@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -163,5 +164,13 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         return new NumberSyntheticSourceSupportForKeepTests(Number::doubleValue, ignoreMalformed, sourceKeepMode);
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
     }
 }

@@ -8,11 +8,14 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -58,7 +61,10 @@ public interface ShardContext extends RefCounted {
         String name,
         boolean asUnsupportedSource,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
-        MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+        org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+        ByteSizeValue blockLoaderSizeOrdinals,
+        ByteSizeValue blockLoaderSizeScript
     );
 
     /**
@@ -66,4 +72,6 @@ public interface ShardContext extends RefCounted {
      * By default, this delegate to {@link org.elasticsearch.index.query.SearchExecutionContext#getFieldType(String)}
      */
     MappedFieldType fieldType(String name);
+
+    ShardSearchStats stats();
 }

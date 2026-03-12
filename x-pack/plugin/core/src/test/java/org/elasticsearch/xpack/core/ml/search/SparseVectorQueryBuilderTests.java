@@ -111,7 +111,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         // index versions after its reintroduction.
         final IndexVersion indexVersionCreated = randomBoolean()
             ? IndexVersion.current()
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
+            : IndexVersionUtils.randomVersionBetween(IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 

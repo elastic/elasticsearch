@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,14 +43,6 @@ public class ResolveClusterActionResponse extends ActionResponse implements ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least version "
-                    + TransportVersions.V_8_13_0.toReleaseVersion()
-                    + " but was "
-                    + out.getTransportVersion().toReleaseVersion()
-            );
-        }
         out.writeMap(infoMap, StreamOutput::writeWriteable);
     }
 

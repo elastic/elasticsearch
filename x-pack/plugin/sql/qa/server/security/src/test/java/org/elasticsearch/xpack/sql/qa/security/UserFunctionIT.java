@@ -14,12 +14,14 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 
@@ -39,12 +41,20 @@ import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 
 public class UserFunctionIT extends ESRestTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
     private static final String SQL = "SELECT USER()";
     // role defined in roles.yml
     private static final String MINIMAL_ACCESS_ROLE = "rest_minimal";
     private List<String> users;
     @Rule
     public TestName name = new TestName();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

@@ -10,7 +10,6 @@
 package org.elasticsearch.script.field;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,6 +70,6 @@ public class IPAddress implements ToXContentObject, GenericNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 }

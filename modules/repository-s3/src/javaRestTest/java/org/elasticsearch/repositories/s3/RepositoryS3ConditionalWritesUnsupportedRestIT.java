@@ -10,12 +10,12 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicRegionSupplier;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 @SuppressForbidden("HttpExchange and Headers are ok here")
 public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepositoryS3RestTestCase {
 
@@ -58,6 +57,7 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
         true,
         BUCKET,
         BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     ) {
         @Override
@@ -97,7 +97,7 @@ public class RepositoryS3ConditionalWritesUnsupportedRestIT extends AbstractRepo
     protected Settings extraRepositorySettings() {
         return Settings.builder()
             .put(super.extraRepositorySettings())
-            .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.getKey(), true)
+            .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), true)
             .build();
     }
 

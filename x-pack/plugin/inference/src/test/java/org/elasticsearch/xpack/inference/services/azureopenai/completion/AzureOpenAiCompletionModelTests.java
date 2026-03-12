@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 
@@ -120,15 +122,59 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
+        return createAzureOpenAiModelWithTaskType(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            TaskType.COMPLETION
+        );
+    }
+
+    public static AzureOpenAiCompletionModel createChatCompletionModel(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId
+    ) {
+        return createAzureOpenAiModelWithTaskType(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            inferenceEntityId,
+            TaskType.CHAT_COMPLETION
+        );
+    }
+
+    private static AzureOpenAiCompletionModel createAzureOpenAiModelWithTaskType(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        String user,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String inferenceEntityId,
+        TaskType taskType
+    ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
 
         return new AzureOpenAiCompletionModel(
             inferenceEntityId,
-            TaskType.COMPLETION,
+            taskType,
             "service",
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
-            new AzureOpenAiCompletionTaskSettings(user),
+            new AzureOpenAiCompletionTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }

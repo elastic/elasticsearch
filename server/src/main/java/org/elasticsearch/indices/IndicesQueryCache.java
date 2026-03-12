@@ -11,9 +11,10 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -26,10 +27,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.XLRUQueryCache;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndicesQueryCache implements QueryCache, Closeable {
 
@@ -65,7 +69,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
-    private final LRUQueryCache cache;
+    private final XLRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -76,6 +80,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * participate in the cache, shards whose calculated share is zero will not be contained in the map at all. As a consequence, the
      * correct pattern for using the returned map will be via {@link Map#getOrDefault(Object, Object)} with a {@code defaultValue} of
      * {@code 0L}.
+     * @return an unmodifiable map from {@link ShardId} to the calculated share of the query cache's shared RAM size for each shard,
+     *         omitting shards with a zero share
      */
     public static Map<ShardId, Long> getSharedRamSizeForAllShards(IndicesService indicesService) {
         Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
@@ -125,11 +131,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     /**
-     * This computes the total cache size in bytes, and the total shard count in the cache for all shards.
-     * @param indicesService
+     * Computes the total cache size in bytes, and the total shard count in the cache for all shards.
+     * @param indicesService the IndicesService instance to retrieve cache information from
      * @return A CacheTotals object containing the computed total number of items in the cache and the number of shards seen in the cache
      */
-    private static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
+    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
         IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         boolean hasQueryCache = queryCache != null;
         long totalItemsInCache = 0L;
@@ -146,19 +152,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return new CacheTotals(totalItemsInCache, shardCount);
     }
 
-    public static long getSharedRamSizeForShard(IndicesService indicesService, ShardId shardId) {
-        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-        final var queryCache = indicesService.getIndicesQueryCache();
-        return (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(shardId, cacheTotals);
-    }
-
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
-     * @param shardId The shard to compute the shared RAM size for
-     * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
+     * @param shardId The shard to compute the shared RAM size for.
+     * @param cacheTotals Shard totals computed in {@link #getCacheTotalsForAllShards(IndicesService)}.
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
-    private long getSharedRamSizeForShard(ShardId shardId, CacheTotals cacheTotals) {
+    public long getSharedRamSizeForShard(ShardId shardId, CacheTotals cacheTotals) {
         long sharedRamBytesUsed = getSharedRamBytesUsed();
         if (sharedRamBytesUsed == 0L) {
             return 0L;
@@ -196,12 +196,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return additionalRamBytesUsed;
     }
 
-    private record CacheTotals(long totalItemsInCache, int shardCount) {}
+    public record CacheTotals(long totalItemsInCache, int shardCount) {}
 
     /** Get usage statistics for the given shard. */
-    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
+    public QueryCacheStats getStats(ShardId shard, Supplier<Long> precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
-        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed.get());
         return queryCacheStats;
     }
 
@@ -339,7 +339,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         shardStats.remove(shardId);
     }
 
-    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
+    private class ElasticsearchLRUQueryCache extends XLRUQueryCache {
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
@@ -435,5 +435,43 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             final Stats shardStats = getOrCreateStats(readerCoreKey);
             shardStats.missCount += 1;
         }
+
+        @Override
+        protected CacheAndCount tryPopulateCache(
+            IndexReader.CacheHelper cacheKey,
+            Weight weight,
+            ScorerSupplier scorerSupplier,
+            LeafReaderContext context
+        ) throws IOException {
+            if (weight instanceof OptionalCachingWeight cachingWeight) {
+                try (Releasable onComplete = cachingWeight.startCaching(context)) {
+                    if (onComplete != null) {
+                        return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+                    } else {
+                        return null;
+                    }
+                }
+            }
+            return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+        }
+    }
+
+    /**
+     * A {@link Weight} that controls whether cache population should proceed for a given leaf.
+     * This is useful when multiple threads query different ranges of the same segment concurrently;
+     * ideally only one thread populates the cache while others fall back to uncached iteration
+     * or wait for caching to complete and then use the cached result.
+     */
+    public abstract static class OptionalCachingWeight extends FilterWeight {
+        protected OptionalCachingWeight(Weight weight) {
+            super(weight);
+        }
+
+        /**
+         * Attempts to claim the right to populate the cache for the given leaf.
+         * Returns a {@link Releasable} that must be closed once caching is complete,
+         * or {@code null} if another thread is already caching this segment.
+         */
+        protected abstract Releasable startCaching(LeafReaderContext leaf);
     }
 }

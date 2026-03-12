@@ -57,4 +57,9 @@ public abstract class GeoFieldMapperTests extends MapperTestCase {
     }
 
     protected abstract String getFieldName();
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

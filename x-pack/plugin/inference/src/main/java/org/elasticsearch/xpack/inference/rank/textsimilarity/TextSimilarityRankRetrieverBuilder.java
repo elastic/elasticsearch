@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,11 +118,18 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return PARSER.apply(parser, context);
     }
 
+    private static void validateChunkScorerConfig(ChunkScorerConfig chunkScorerConfig) {
+        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
+            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
+        }
+    }
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
     private final boolean failuresAllowed;
     private final ChunkScorerConfig chunkScorerConfig;
+    private final SetOnce<Integer> windowSizeSupplier;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
@@ -131,11 +141,13 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         ChunkScorerConfig chunkScorerConfig
     ) {
         super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.failuresAllowed = failuresAllowed;
         this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = null;
     }
 
     public TextSimilarityRankRetrieverBuilder(
@@ -154,9 +166,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
         }
-        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
-            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
-        }
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
@@ -165,6 +175,32 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         this.retrieverName = retrieverName;
         this.preFilterQueryBuilders = preFilterQueryBuilders;
         this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = null;
+    }
+
+    private TextSimilarityRankRetrieverBuilder(
+        List<RetrieverSource> retrieverSource,
+        String inferenceId,
+        String inferenceText,
+        String field,
+        int rankWindowSize,
+        Float minScore,
+        boolean failuresAllowed,
+        String retrieverName,
+        List<QueryBuilder> preFilterQueryBuilders,
+        ChunkScorerConfig chunkScorerConfig,
+        SetOnce<Integer> windowSizeSupplier
+    ) {
+        super(retrieverSource, rankWindowSize);
+        this.inferenceId = inferenceId;
+        this.inferenceText = inferenceText;
+        this.field = field;
+        this.minScore = minScore;
+        this.failuresAllowed = failuresAllowed;
+        this.retrieverName = retrieverName;
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
+        this.chunkScorerConfig = chunkScorerConfig;
+        this.windowSizeSupplier = windowSizeSupplier;
     }
 
     @Override
@@ -182,8 +218,64 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             failuresAllowed,
             retrieverName,
             newPreFilterQueryBuilders,
-            chunkScorerConfig
+            chunkScorerConfig,
+            windowSizeSupplier
         );
+    }
+
+    @Override
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+        // Case 1: Waiting for async window size fetch to complete
+        if (windowSizeSupplier != null && windowSizeSupplier.get() == null) {
+            return this;
+        }
+        // Case 2: Async completed - build resolved config with fetched window size
+        if (windowSizeSupplier != null && windowSizeSupplier.get() != null) {
+            ChunkScorerConfig resolvedConfig = new ChunkScorerConfig(
+                chunkScorerConfig.size(),
+                chunkScorerConfig.inferenceText(),
+                ChunkScorerConfig.defaultChunkingSettings(windowSizeSupplier.get())
+            );
+            return new TextSimilarityRankRetrieverBuilder(
+                innerRetrievers,
+                inferenceId,
+                inferenceText,
+                field,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                retrieverName,
+                preFilterQueryBuilders,
+                resolvedConfig,
+                null
+            );
+        }
+        // Case 3: Need to fetch window size from inference endpoint
+        if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
+            SetOnce<Integer> supplier = new SetOnce<>();
+            ctx.registerAsyncAction((client, listener) -> {
+                GetRerankerWindowSizeAction.Request request = new GetRerankerWindowSizeAction.Request(inferenceId);
+                client.execute(GetRerankerWindowSizeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
+                    supplier.set(response.getWindowSize());
+                    l.onResponse(null);
+                }));
+            });
+            return new TextSimilarityRankRetrieverBuilder(
+                innerRetrievers,
+                inferenceId,
+                inferenceText,
+                field,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                retrieverName,
+                preFilterQueryBuilders,
+                chunkScorerConfig,
+                supplier
+            );
+        }
+        // Case 4: No async needed, delegate to parent for inner retriever rewrite
+        return super.doRewrite(ctx);
     }
 
     @Override

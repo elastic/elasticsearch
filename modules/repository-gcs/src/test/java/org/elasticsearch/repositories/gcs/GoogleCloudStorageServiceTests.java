@@ -58,6 +58,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             + ":"
             + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final int maxRetries = randomIntBetween(0, 10);
         final Settings settings = Settings.builder()
             .put(
                 GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
@@ -76,6 +77,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "HTTP")
             .put(GoogleCloudStorageClientSettings.PROXY_HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "192.168.52.15")
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
+            .put(GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries)
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
         final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
@@ -100,6 +102,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
         assertThat(storage.getOptions().getTransportOptions(), Matchers.instanceOf(HttpTransportOptions.class));
+        assertThat(storage.getOptions().getRetrySettings().getMaxAttempts(), equalTo(maxRetries + 1));
         assertThat(
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
             Matchers.is((int) connectTimeValue.millis())

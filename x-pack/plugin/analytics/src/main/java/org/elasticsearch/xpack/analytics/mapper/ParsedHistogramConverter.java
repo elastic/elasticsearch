@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
+import org.elasticsearch.exponentialhistogram.TDigestToExponentialHistogramConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,48 @@ public class ParsedHistogramConverter {
         return new HistogramParser.ParsedHistogram(centroids, counts);
     }
 
+    /**
+     * Converts t-digest histograms to exponential histograms, trying to do the inverse
+     * of {@link #exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram)}
+     * as accurately as possible.
+     * <br>
+     * On a round-trip conversion from exponential histogram to T-Digest and back,
+     * the bucket centers will be preserved, however the bucket widths are lost.
+     * The conversion algorithm works by generating tiny buckets (scale set to MAX_SCALE)
+     * containing the T-Digest centroids.
+     *
+     * @param tDigest the t-digest histogram to convert
+     * @return the resulting exponential histogram
+     */
+    public static ExponentialHistogramParser.ParsedExponentialHistogram tDigestToExponential(HistogramParser.ParsedHistogram tDigest) {
+        List<Double> centroids = tDigest.values();
+        List<Long> counts = tDigest.counts();
+
+        TDigestToExponentialHistogramConverter.LazyConversion converted = TDigestToExponentialHistogramConverter.convertLazy(
+            new TDigestToExponentialHistogramConverter.ArrayBasedCentroidIterator(centroids, counts)
+        );
+
+        return new ExponentialHistogramParser.ParsedExponentialHistogram(
+            converted.getScale(),
+            0.0,
+            converted.getZeroCount(),
+            IndexWithCount.fromIterator(converted.negativeBuckets()),
+            IndexWithCount.fromIterator(converted.positiveBuckets()),
+            null, // sum, min, max will be estimated
+            null,
+            null
+        );
+    }
+
+    private static void appendCentroidWithCountAsBucket(double centroid, long count, int scale, List<IndexWithCount> outputBuckets) {
+        if (count == 0) {
+            return; // zero counts are allowed in T-Digests but not in exponential histograms
+        }
+        long index = ExponentialScaleUtils.computeIndex(centroid, scale);
+        assert outputBuckets.isEmpty() || outputBuckets.getLast().index() < index;
+        outputBuckets.add(new IndexWithCount(index, count));
+    }
+
     private static void appendBucketCentroid(
         List<Double> centroids,
         List<Long> counts,
@@ -52,7 +95,13 @@ public class ParsedHistogramConverter {
         double lowerBound = ExponentialScaleUtils.getLowerBucketBoundary(expHistoBucket.index(), scale);
         double upperBound = ExponentialScaleUtils.getUpperBucketBoundary(expHistoBucket.index(), scale);
         double center = sign * (lowerBound + upperBound) / 2.0;
-        centroids.add(center);
-        counts.add(expHistoBucket.count());
+        // the index + scale representation is higher precision than the centroid representation,
+        // so we can have multiple exp histogram buckets map to the same centroid.
+        if (centroids.isEmpty() == false && centroids.getLast() == center) {
+            counts.add(counts.removeLast() + expHistoBucket.count());
+        } else {
+            centroids.add(center);
+            counts.add(expHistoBucket.count());
+        }
     }
 }

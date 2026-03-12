@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -103,6 +104,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -117,13 +119,16 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchResponse.Clusters clusters,
         Client client,
         boolean batchQueryPhase,
-        SearchResponseMetrics searchResponseMetrics
+        boolean pitRelocationEnabled,
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes
     ) {
         super(
             "query",
             logger,
             namedWriteableRegistry,
             searchTransportService,
+            bigArrays,
             nodeIdToConnection,
             aliasFilter,
             concreteIndexBoosts,
@@ -137,7 +142,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchResponseMetrics
+            searchResponseMetrics,
+            searchRequestAttributes,
+            pitRelocationEnabled
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -401,7 +408,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new),
                 in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)
-                    ? SplitShardCountSummary.fromInt(in.readVInt())
+                    ? new SplitShardCountSummary(in)
                     : SplitShardCountSummary.UNSET
             );
         }
@@ -414,7 +421,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary.asInt());
+                reshardSplitShardCountSummary.writeTo(out);
             }
         }
     }
@@ -496,7 +503,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId(),
-                            shardRoutings.getReshardSplitShardCountSummary()
+                            shardRoutings.getSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
@@ -867,8 +874,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             var channelListener = new ChannelActionListener<>(channel);
-            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
+            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
             out.setTransportVersion(channel.getVersion());
+
+            boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
@@ -876,11 +885,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
+                success = true;
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                if (success == false) {
+                    out.close();
+                }
             }
+
             ActionListener.respondAndRelease(
                 channelListener,
                 new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
@@ -982,7 +997,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
-                out = dependencies.transportService.newNetworkBytesStream();
+                out = dependencies.transportService.newNetworkBytesStream(null);
                 out.setTransportVersion(channel.getVersion());
                 try {
                     out.writeVInt(resultCount);

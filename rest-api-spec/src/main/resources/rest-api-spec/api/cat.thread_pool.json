@@ -65,7 +65,29 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "active",
+          "completed",
+          "core",
+          "ephemeral_id",
+          "host",
+          "ip",
+          "keep_alive",
+          "largest",
+          "max",
+          "name",
+          "node_id",
+          "node_name",
+          "pid",
+          "pool_size",
+          "port",
+          "queue",
+          "queue_size",
+          "rejected",
+          "size",
+          "type"
+        ]
       },
       "help": {
         "type": "boolean",

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryRequestTests extends ESTestCase {
 
@@ -695,12 +696,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(KEYWORD));
-        try (
-            BytesRefBlock.Builder builder = new BlockFactory(
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                BigArrays.NON_RECYCLING_INSTANCE
-            ).newBytesRefBlockBuilder(10)
-        ) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(10)) {
             builder.appendBytesRef(new BytesRef("a"));
             builder.appendBytesRef(new BytesRef("b"));
             builder.appendNull();
@@ -727,10 +723,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(INTEGER));
-        try (
-            IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newIntBlockBuilder(10)
-        ) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(10)) {
             builder.appendInt(1);
             builder.appendInt(2);
             builder.appendInt(3);
@@ -755,10 +748,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(LONG));
-        try (
-            LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newLongBlockBuilder(10)
-        ) {
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(10)) {
             builder.appendLong(1);
             builder.appendLong(2);
             builder.appendLong(3);
@@ -783,10 +773,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(DOUBLE));
-        try (
-            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newDoubleBlockBuilder(10)
-        ) {
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(10)) {
             builder.appendDouble(1.1);
             builder.appendDouble(2);
             builder.appendDouble(3.1415);
@@ -861,20 +848,46 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
-        String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
-        expected = expected.replaceAll("\r\n", "\n")
-            .replaceAll("\s*<\\d+>", "")
-            .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
-            .replaceAll("5326", Integer.toString(id))
-            .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
-            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
-            .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())
-            .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
-            .trim();
+        String expected = Strings.format(
+            """
+                {
+                  "node" : "%s",
+                  "id" : %d,
+                  "type" : "transport",
+                  "action" : "indices:data/read/esql",
+                  "status" : {
+                    "request_id" : "%s"
+                  },
+                  "description" : "%s",
+                  "start_time" : "%s",
+                  "start_time_in_millis" : %d,
+                  "running_time" : "%s",
+                  "running_time_in_nanos" : %d,
+                  "cancellable" : true,
+                  "cancelled" : false,
+                  "headers" : { }
+                }
+                """.trim(),
+            localNode,
+            id,
+            ((EsqlQueryStatus) taskInfo.status()).id().getEncoded(),
+            query,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()),
+            taskInfo.startTime(),
+            TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString(),
+            taskInfo.runningTimeNanos()
+        );
         assertThat(json, equalTo(expected));
+    }
+
+    public void testProjectRouting() throws IOException {
+        String json = """
+            {
+                "query": "FROM test",
+                "project_routing": "_alias:_origin"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.projectRouting(), is("_alias:_origin"));
     }
 
     private List<QueryParam> randomParameters() {
@@ -964,5 +977,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
             new RangeQueryBuilder(randomAlphaOfLength(5)).gt(randomIntBetween(0, 1000))
         );
+    }
+
+    private BlockFactory blockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
     }
 }

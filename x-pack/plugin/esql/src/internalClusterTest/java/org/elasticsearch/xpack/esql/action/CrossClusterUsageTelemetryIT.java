@@ -32,6 +32,7 @@ import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelemetryIT {
@@ -202,11 +203,10 @@ public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelem
         populateRuntimeIndex(REMOTE1, "pause", INDEX_WITH_RUNTIME_MAPPING);
         populateRuntimeIndex(REMOTE2, "pause", INDEX_WITH_RUNTIME_MAPPING);
 
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query("from logs-*,c*:logs-*,c*:blocking | eval v1=coalesce(const, v) | stats sum (v1)");
-        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
-        request.columnar(randomBoolean());
-        request.includeCCSMetadata(randomBoolean());
+        EsqlQueryRequest request = asyncEsqlQueryRequest("from logs-*,c*:logs-*,c*:blocking | eval v1=coalesce(const, v) | stats sum (v1)")
+            .pragmas(AbstractEsqlIntegTestCase.randomPragmas())
+            .columnar(randomBoolean())
+            .includeCCSMetadata(randomBoolean());
 
         AtomicReference<String> asyncExecutionId = new AtomicReference<>();
         assertResponse(cluster(LOCAL_CLUSTER).client(queryNode).execute(EsqlQueryAction.INSTANCE, request), resp -> {

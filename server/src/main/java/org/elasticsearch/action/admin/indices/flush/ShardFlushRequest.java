@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -21,8 +22,13 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
     private final FlushRequest request;
 
-    public ShardFlushRequest(FlushRequest request, ShardId shardId) {
-        super(shardId);
+    /**
+     * Creates a request for a resolved shard id and SplitShardCountSummary (used
+     * to determine if the request needs to be executed on a split shard not yet seen by the
+     * coordinator that sent the request)
+     */
+    public ShardFlushRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
+        super(shardId, reshardSplitShardCountSummary);
         this.request = request;
         this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }

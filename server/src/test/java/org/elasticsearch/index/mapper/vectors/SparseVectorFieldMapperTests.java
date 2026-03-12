@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -53,6 +54,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +91,27 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     private static final Map<String, Float> MEDIUM_TOKENS = Map.of("medium1_keep_strict", 0.5f, "medium2_keep_default", 0.25f);
 
     private static final Map<String, Float> RARE_TOKENS = Map.of("rare1_keep_strict", 0.9f, "rare2_keep_strict", 0.85f);
+
+    @Override
+    protected Set<IndexVersion> getSupportedVersions() {
+        Set<IndexVersion> supported = new HashSet<>();
+        // versions 7.x are "supported" but deprecated
+        supported.addAll(KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_7_0_0, true, IndexVersions.V_8_0_0, false));
+        supported.addAll(KnownIndexVersions.ALL_VERSIONS.tailSet(NEW_SPARSE_VECTOR, true));
+        return supported;
+    }
+
+    @Override
+    protected Set<IndexVersion> getUnsupportedVersions() {
+        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.FIRST_DETACHED_INDEX_VERSION, true);
+    }
+
+    @Override
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        if (indexVersion.between(IndexVersions.V_7_0_0, IndexVersions.V_8_0_0)) {
+            assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
+        }
+    }
 
     @Override
     protected Object getSampleValueForDocument() {
@@ -300,7 +323,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     public void testDefaultsWithAndWithoutIncludeDefaultsOlderIndexVersion() throws Exception {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             UPGRADE_TO_LUCENE_10_0_0,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
@@ -529,11 +551,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public void testSparseVectorUnsupportedIndex() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.V_8_0_0,
-            IndexVersions.FIRST_DETACHED_INDEX_VERSION
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersions.FIRST_DETACHED_INDEX_VERSION);
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");
         })));
@@ -926,6 +944,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public static IndexVersion getIndexOptionsCompatibleIndexVersion() {
-        return IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        return IndexVersionUtils.randomVersionBetween(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 }

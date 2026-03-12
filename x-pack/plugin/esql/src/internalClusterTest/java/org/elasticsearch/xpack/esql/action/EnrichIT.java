@@ -69,6 +69,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -337,10 +338,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.pragmas(randomPragmas());
-        request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
-        request.profile(true);
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist"
+        ).pragmas(randomPragmas()).profile(true);
         try (var resp = run(request)) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));

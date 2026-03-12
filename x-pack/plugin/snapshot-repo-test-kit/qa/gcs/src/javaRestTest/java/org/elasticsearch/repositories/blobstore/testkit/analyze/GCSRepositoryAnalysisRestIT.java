@@ -31,6 +31,7 @@ public class GCSRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestT
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-gcs")
         .module("snapshot-repo-test-kit")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("gcs.client.repository_test_kit.endpoint", () -> fixture.getAddress(), s -> USE_FIXTURE)
         .setting("gcs.client.repository_test_kit.token_uri", () -> fixture.getAddress() + "/o/oauth2/token", s -> USE_FIXTURE)
         .apply(c -> {

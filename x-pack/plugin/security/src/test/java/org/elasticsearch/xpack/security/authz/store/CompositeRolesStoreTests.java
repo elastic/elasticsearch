@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -60,7 +59,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -75,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -207,6 +206,7 @@ import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1014,7 +1014,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         Role role = future.actionGet();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
                 new IndexMetadata.Builder("test").settings(
                     Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
@@ -1023,7 +1023,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getProject(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), projectMetadata, cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -2232,7 +2232,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var mgr = mock(SecurityIndexManager.class);
         return mgr.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
-            true, true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            true, true, null, false, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set
+                .of()
         );
     }
 
@@ -2681,10 +2682,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2766,10 +2764,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2924,24 +2919,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], equalTo("cross_cluster"));
 
         // Smoke-test for authorization
-        final Metadata indexMetadata = Metadata.builder()
-            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)))
-            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)))
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getProject(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), projectMetadata, emptyCache).isGranted(),
             is(false)
         );
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -47,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Flow;
 
@@ -127,6 +129,10 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case COMPLETION -> listener.onResponse(makeChatCompletionResults(input));
                 case SPARSE_EMBEDDING -> {
@@ -159,6 +165,10 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
                 default -> listener.onFailure(
@@ -168,6 +178,21 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     )
                 );
             }
+        }
+
+        @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
         }
 
         private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {

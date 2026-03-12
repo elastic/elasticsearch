@@ -14,22 +14,13 @@ import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
 public class MlConfigVersionUtils {
     private static final List<MlConfigVersion> ALL_VERSIONS = KnownMlConfigVersions.ALL_VERSIONS;
-
-    /** Returns all released versions */
-    public static List<MlConfigVersion> allReleasedVersions() {
-        return ALL_VERSIONS;
-    }
-
-    /** Returns the oldest known {@link MlConfigVersion} */
-    public static MlConfigVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
-    }
 
     /** Returns a random {@link MlConfigVersion} from all available versions. */
     public static MlConfigVersion randomVersion() {
@@ -41,17 +32,8 @@ public class MlConfigVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link MlConfigVersion} from all available versions. */
-    public static MlConfigVersion randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
-    }
-
     /** Returns a random {@link MlConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static MlConfigVersion randomVersionBetween(
-        Random random,
-        @Nullable MlConfigVersion minVersion,
-        @Nullable MlConfigVersion maxVersion
-    ) {
+    public static MlConfigVersion randomVersionBetween(@Nullable MlConfigVersion minVersion, @Nullable MlConfigVersion maxVersion) {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
@@ -71,7 +53,7 @@ public class MlConfigVersionUtils {
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
-            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
+            return ALL_VERSIONS.get(minVersionIndex + random().nextInt(range));
         }
     }
 
@@ -94,29 +76,8 @@ public class MlConfigVersionUtils {
         return ALL_VERSIONS.get(place - 1);
     }
 
-    public static MlConfigVersion getNextVersion(MlConfigVersion version) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
-        if (place < 0) {
-            // version does not exist - need the item at the index this version should be inserted
-            place = -(place + 1);
-        } else {
-            // need the *next* version
-            place++;
-        }
-
-        if (place < 0 || place >= ALL_VERSIONS.size()) {
-            throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
-        }
-        return ALL_VERSIONS.get(place);
-    }
-
     /** Returns a random {@code MlConfigVersion} that is compatible with {@link MlConfigVersion#CURRENT} */
-    public static MlConfigVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.CURRENT);
-    }
-
-    /** Returns a random {@code MlConfigVersion} that is compatible with the previous version to {@code version} */
-    public static MlConfigVersion randomPreviousCompatibleVersion(Random random, MlConfigVersion version) {
-        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, getPreviousVersion(version));
+    public static MlConfigVersion randomCompatibleVersion() {
+        return randomVersionBetween(MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.CURRENT);
     }
 }

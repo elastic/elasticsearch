@@ -1,0 +1,40 @@
+{
+  "reindex_cancel": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "description": "Cancel a reindex operation"
+    },
+    "stability": "beta",
+    "visibility": "feature_flag",
+    "feature_flag": "reindex_resilience",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_reindex/{task_id}/_cancel",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "task_id": {
+              "type": "string",
+              "description": "Cancel the reindex operation with specified id"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": true,
+        "description": "Should the request block until the cancellation of the reindex operation is completed. Defaults to true"
+      }
+    }
+  }
+}
+

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
@@ -160,6 +161,13 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
+
+        ClusterPrivilege cloneApiKeyClusterPrivilege = ClusterPrivilegeResolver.resolve("clone_api_key");
+        assertThat(cloneApiKeyClusterPrivilege, is(ClusterPrivilegeResolver.CLONE_API_KEY));
+        verifyClusterActionAllowed(cloneApiKeyClusterPrivilege, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_SECURITY, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(allClusterPrivilege, CloneApiKeyAction.NAME);
+
     }
 
     public void testClusterTemplateActions() throws Exception {
@@ -209,7 +217,10 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
-        assertThat(IndexPrivilege.READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"), is(true));
+        assertThat(
+            IndexPrivilege.DEPRECATED_READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"),
+            is(true)
+        );
     }
 
     public void testIndexCollapse() {

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,8 +26,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
-
-    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersions.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -54,21 +50,12 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
-            dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
-        } else {
-            dataPath = in.readString();
-        }
+        dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            isSearchIdle = in.readBoolean();
-            searchIdleTime = in.readVLong();
-        } else {
-            isSearchIdle = false;
-            searchIdleTime = 0;
-        }
+        isSearchIdle = in.readBoolean();
+        searchIdleTime = in.readVLong();
     }
 
     public ShardStats(
@@ -208,18 +195,12 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
-            out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
-        } else {
-            out.writeString(dataPath);
-        }
+        out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeBoolean(isSearchIdle);
-            out.writeVLong(searchIdleTime);
-        }
+        out.writeBoolean(isSearchIdle);
+        out.writeVLong(searchIdleTime);
     }
 
     @Override

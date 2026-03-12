@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,7 +28,7 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
     FloatBlock asBlock();
 
     @Override
-    FloatVector filter(int... positions);
+    FloatVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     FloatBlock keepMask(BooleanVector mask);

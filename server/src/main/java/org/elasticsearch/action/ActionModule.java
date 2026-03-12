@@ -66,6 +66,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestore
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
@@ -127,24 +128,6 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -232,16 +215,16 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectIdResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
@@ -268,6 +251,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.readiness.TransportReadinessAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -443,7 +428,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -459,16 +443,13 @@ public class ActionModule extends AbstractModule {
     private static final RestHandler placeholderRestHandler = (request, channel, client) -> {};
 
     private final Settings settings;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final NamedWriteableRegistry namedWriteableRegistry;
-    private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler> actions;
     private final ActionFilters actionFilters;
     private final IncrementalBulkService bulkService;
-    private final ProjectIdResolver projectIdResolver;
+    private final ProjectResolver projectResolver;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -481,10 +462,8 @@ public class ActionModule extends AbstractModule {
     private final ClusterService clusterService;
 
     public ActionModule(
-        Settings settings,
+        Environment env,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexScopedSettings indexScopedSettings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
         ThreadPool threadPool,
@@ -500,19 +479,16 @@ public class ActionModule extends AbstractModule {
         List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers,
         RestExtension restExtension,
         IncrementalBulkService bulkService,
-        ProjectIdResolver projectIdResolver
+        ProjectResolver projectResolver
     ) {
-        this.settings = settings;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.indexScopedSettings = indexScopedSettings;
+        this.settings = env.settings();
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        actions = setupActions(actionPlugins);
+        actions = setupActions(env, actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
-        this.projectIdResolver = projectIdResolver;
+        this.projectResolver = projectResolver;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -631,7 +607,7 @@ public class ActionModule extends AbstractModule {
         return actions;
     }
 
-    static Map<String, ActionHandler> setupActions(List<ActionPlugin> actionPlugins) {
+    static Map<String, ActionHandler> setupActions(Environment env, List<ActionPlugin> actionPlugins) {
         // Subclass NamedRegistry for easy registration
         class ActionRegistry extends NamedRegistry<ActionHandler> {
             ActionRegistry() {
@@ -650,6 +626,10 @@ public class ActionModule extends AbstractModule {
             }
         }
         ActionRegistry actions = new ActionRegistry();
+
+        if (ReadinessService.enabled(env)) {
+            actions.register(TransportReadinessAction.TYPE, TransportReadinessAction.class);
+        }
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
         actions.register(TransportNodeUsageStatsForThreadPoolsAction.TYPE, TransportNodeUsageStatsForThreadPoolsAction.class);
@@ -814,6 +794,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
         actions.register(TransportPrevalidateShardPathAction.TYPE, TransportPrevalidateShardPathAction.class);
+        actions.register(TransportAwaitClusterStateVersionAppliedAction.TYPE, TransportAwaitClusterStateVersionAppliedAction.class);
 
         // desired nodes
         actions.register(GetDesiredNodesAction.INSTANCE, TransportGetDesiredNodesAction.class);
@@ -831,15 +812,6 @@ public class ActionModule extends AbstractModule {
         actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
-
-        if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
-            actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
-            actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
-            actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
-            actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
-            actions.register(GetAllSampleConfigurationAction.INSTANCE, TransportGetAllSampleConfigurationAction.class);
-        }
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -880,7 +852,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesCapabilitiesAction());
-        registerHandler.accept(new RestNodesStatsAction(projectIdResolver));
+        registerHandler.accept(new RestNodesStatsAction(projectResolver));
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
@@ -891,7 +863,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
-        registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectIdResolver));
+        registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectResolver));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
         registerHandler.accept(new RestPutRepositoryAction());
@@ -957,9 +929,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResolveClusterAction());
         registerHandler.accept(new RestResolveIndexAction(settings));
 
-        registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
-        registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
-        registerHandler.accept(new AutoIdHandler(clusterService, projectIdResolver));
+        registerHandler.accept(new RestIndexAction(clusterService, projectResolver));
+        registerHandler.accept(new CreateHandler(clusterService, projectResolver));
+        registerHandler.accept(new AutoIdHandler(clusterService, projectResolver));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
@@ -1016,9 +988,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
-        registerHandler.accept(new RestClusterInfoAction(projectIdResolver));
+        registerHandler.accept(new RestClusterInfoAction(projectResolver));
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(projectIdResolver));
+        registerHandler.accept(new RestIndicesAction(projectResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings));
@@ -1035,7 +1007,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
-        registerHandler.accept(new RestCatComponentTemplateAction(projectIdResolver));
+        registerHandler.accept(new RestCatComponentTemplateAction(projectResolver));
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
 
@@ -1044,18 +1016,14 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateDesiredNodesAction());
         registerHandler.accept(new RestDeleteDesiredNodesAction());
 
+        ActionPlugin.RestHandlersServices restHandlersServices = new ActionPlugin.RestHandlersServices(
+            settings,
+            restController,
+            projectResolver
+        );
+
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(
-                settings,
-                namedWriteableRegistry,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster,
-                clusterSupportsFeature
-            )) {
+            for (RestHandler handler : plugin.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature)) {
                 registerHandler.accept(handler);
             }
         }
@@ -1069,15 +1037,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
-
-        if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            registerHandler.accept(new RestGetSampleAction());
-            registerHandler.accept(new RestPutSampleConfigurationAction());
-            registerHandler.accept(new RestGetSampleStatsAction());
-            registerHandler.accept(new RestDeleteSampleConfigurationAction());
-            registerHandler.accept(new RestGetSampleConfigurationAction());
-            registerHandler.accept(new RestGetAllSampleConfigurationAction());
-        }
     }
 
     @Override
@@ -1085,10 +1044,8 @@ public class ActionModule extends AbstractModule {
         bind(RestController.class).toInstance(restController);
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {
-        }).toInstance(mappingRequestValidators);
-        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
-        }).toInstance(indicesAliasesRequestRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
 
         // register ActionType -> transportAction Map used by NodeClient

@@ -48,6 +48,7 @@ public class ChangePoint extends UnaryPlan
     implements
         SurrogateLogicalPlan,
         PostAnalysisVerificationAware,
+        SortPreserving,
         LicenseAware,
         ExecutesOn.Coordinator {
 
@@ -135,7 +136,7 @@ public class ChangePoint extends UnaryPlan
     }
 
     private Order order() {
-        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.ANY);
+        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
     }
 
     @Override

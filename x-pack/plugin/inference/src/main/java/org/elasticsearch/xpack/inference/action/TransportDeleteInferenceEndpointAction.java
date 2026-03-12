@@ -132,8 +132,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             Model model;
             if (service.isPresent()) {
                 try {
-                    model = service.get()
-                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                    model = service.get().parsePersistedConfig(unparsedModel);
                 } catch (Exception e) {
                     if (request.isForceDelete()) {
                         listener.onResponse(true);
@@ -221,7 +220,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private boolean isInferenceIdReserved(String inferenceEndpointId) {
-        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+        return modelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId);
     }
 
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {

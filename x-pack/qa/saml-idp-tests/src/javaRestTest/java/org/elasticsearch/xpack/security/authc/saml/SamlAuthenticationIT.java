@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -46,6 +47,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.idp.IdpTestContainer;
 import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.Junit4NetworkRule;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +62,6 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.testcontainers.containers.Network;
-import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -155,7 +156,10 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(network).around(openLdapTestContainer).around(idpFixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(Junit4NetworkRule.from(network))
+        .around(openLdapTestContainer)
+        .around(idpFixture)
+        .around(cluster);
 
     private static String calculateIdpMetaData() {
         Resource resource = Resource.fromClasspath("/idp/shibboleth-idp/metadata/idp-metadata.xml");

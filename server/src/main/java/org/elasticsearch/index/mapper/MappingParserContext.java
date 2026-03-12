@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +48,7 @@ public class MappingParserContext {
     private long mappingObjectDepth = 0;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
+    private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -61,8 +63,8 @@ public class MappingParserContext {
         IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders,
-        RootObjectMapperNamespaceValidator namespaceValidator
-
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -78,6 +80,7 @@ public class MappingParserContext {
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
+        this.projectMetadataSupplier = projectMetadataSupplier;
     }
 
     public MappingParserContext(
@@ -107,6 +110,7 @@ public class MappingParserContext {
             idFieldMapper,
             bitSetProducer,
             vectorsFormatProviders,
+            null,
             null
         );
     }
@@ -205,6 +209,10 @@ public class MappingParserContext {
         return new MultiFieldParserContext(this);
     }
 
+    public Supplier<ProjectMetadata> getProjectMetadata() {
+        return projectMetadataSupplier;
+    }
+
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
             super(
@@ -220,7 +228,8 @@ public class MappingParserContext {
                 in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
-                in.namespaceValidator
+                in.namespaceValidator,
+                null
             );
         }
 
@@ -252,7 +261,8 @@ public class MappingParserContext {
                 in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
-                in.namespaceValidator
+                in.namespaceValidator,
+                null
             );
             this.dateFormatter = dateFormatter;
         }

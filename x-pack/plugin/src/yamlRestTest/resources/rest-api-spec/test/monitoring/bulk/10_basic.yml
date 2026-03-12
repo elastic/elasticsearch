@@ -139,36 +139,6 @@
 
   - match: { hits.total: 0 }
 
-  # Missing a system_id causes it to fail
-  - do:
-      catch: bad_request
-      monitoring.bulk:
-        system_api_version: "7"
-        interval:           "10s"
-        body:
-          - '{"index": {"_type": "default_type"}}'
-          - '{"field_1": "value_1"}'
-
-  # Missing a system_api_version causes it to fail
-  - do:
-      catch: bad_request
-      monitoring.bulk:
-        system_id:          "kibana"
-        interval:           "10s"
-        body:
-          - '{"index": {"_type": "default_type"}}'
-          - '{"field_1": "value_1"}'
-
-  # Missing an interval causes it to fail
-  - do:
-      catch: bad_request
-      monitoring.bulk:
-        system_id:          "kibana"
-        system_api_version: "7"
-        body:
-          - '{"index": {"_type": "default_type"}}'
-          - '{"field_1": "value_1"}'
-
 ---
 "Bulk indexing of monitoring data on closed indices should throw an export exception":
   - skip:

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -35,6 +34,7 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
         NAME,
         CartesianBoundsAggregationBuilder::new
     );
+
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
     }
@@ -101,6 +101,6 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_6_0;
+        return TransportVersion.minimumCompatible();
     }
 }

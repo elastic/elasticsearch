@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -44,11 +43,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            isSimulated = in.readBoolean();
-        } else {
-            isSimulated = false;
-        }
+        isSimulated = in.readBoolean();
     }
 
     public BulkShardRequest(
@@ -166,9 +161,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
         super.writeTo(out);
         out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(isSimulated);
-        }
+        out.writeBoolean(isSimulated);
     }
 
     @Override
@@ -214,12 +207,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     @Override
-    public void onRetry() {
+    public void onRetry(boolean possiblyExecuted) {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
-                ((ReplicationRequest<?>) item.request()).onRetry();
+                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
             }
         }
     }

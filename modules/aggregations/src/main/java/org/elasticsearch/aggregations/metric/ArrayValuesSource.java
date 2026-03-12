@@ -9,7 +9,7 @@
 package org.elasticsearch.aggregations.metric;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -34,7 +34,7 @@ public abstract class ArrayValuesSource<VS extends ValuesSource> {
             }
         }
 
-        public NumericDoubleValues getField(final int ordinal, LeafReaderContext ctx) throws IOException {
+        public DoubleValues getField(final int ordinal, LeafReaderContext ctx) throws IOException {
             if (ordinal > names.length) {
                 throw new IndexOutOfBoundsException("ValuesSource array index " + ordinal + " out of bounds");
             }

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,7 +28,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongBlock asBlock();
 
     @Override
-    LongVector filter(int... positions);
+    LongVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     LongBlock keepMask(BooleanVector mask);

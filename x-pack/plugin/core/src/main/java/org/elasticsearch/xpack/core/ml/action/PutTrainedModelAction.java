@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -85,11 +84,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super(in);
             this.config = new TrainedModelConfig(in);
             this.deferDefinitionDecompression = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.waitForCompletion = in.readBoolean();
-            } else {
-                this.waitForCompletion = false;
-            }
+            this.waitForCompletion = in.readBoolean();
         }
 
         public TrainedModelConfig getTrainedModelConfig() {
@@ -125,9 +120,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super.writeTo(out);
             config.writeTo(out);
             out.writeBoolean(deferDefinitionDecompression);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeBoolean(waitForCompletion);
-            }
+            out.writeBoolean(waitForCompletion);
         }
 
         @Override

@@ -121,7 +121,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
             if ("GET".equals(requestMethod)) {
                 if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH) && dynamicProfileNames) {
-                    final var profileName = "imds_profile_" + randomIdentifier();
+                    final var profileName = randomIdentifier("imds_profile_");
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
                     sendStringResponse(exchange, profileName);
                     return;

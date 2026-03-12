@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -207,7 +208,7 @@ public class TestShardRouting {
 
     public static ShardRouting newShardRouting(
         ShardId shardId,
-        String currentNodeId,
+        @Nullable String currentNodeId,
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state

@@ -76,7 +76,7 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
     /**
      * Retrieves the secret settings from the provided map of secrets.
      * If the map is null or empty, it returns an instance of EmptySecretSettings.
-     * Caused by the fact that Llama model doesn't have out of the box security settings and can be used witout authentication.
+     * Caused by the fact that Llama model doesn't have out of the box security settings and can be used without authentication.
      *
      * @param secrets the map containing secret settings
      * @return an instance of SecretSettings

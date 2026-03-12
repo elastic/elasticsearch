@@ -61,7 +61,7 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
     private Expression limitFilterExpressions(Expression condition, Limit limit, LogicalOptimizerContext ctx) {
         return condition.transformDown(exp -> {
             if (exp instanceof Knn knn) {
-                return knn.replaceK((Integer) limit.limit().fold(ctx.foldCtx()));
+                return knn.withImplicitK((Integer) limit.limit().fold(ctx.foldCtx()));
             }
             return exp;
         });

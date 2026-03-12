@@ -10,21 +10,24 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int O_RDONLY = 0;
-    public static final int O_WRONLY = 1;
+    private static final int MCL_CURRENT = 1;
+    private static final int ENOMEM = 12;
+    private static final int O_RDONLY = 0;
+    private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
@@ -189,6 +192,11 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
         return Optional.ofNullable(vectorDistance);
+    }
+
+    @Override
+    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return PosixCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
     }
 
     String rlimitToString(long value) {

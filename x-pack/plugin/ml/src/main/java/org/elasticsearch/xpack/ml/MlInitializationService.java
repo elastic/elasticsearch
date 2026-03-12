@@ -71,7 +71,8 @@ public final class MlInitializationService implements ClusterStateListener {
         IndexNameExpressionResolver indexNameExpressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             client,
@@ -86,7 +87,8 @@ public final class MlInitializationService implements ClusterStateListener {
                 indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             ),
             adaptiveAllocationsScalerService,
             clusterService

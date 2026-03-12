@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -58,19 +57,19 @@ import static org.mockito.Mockito.when;
 
 public class ReplicationSplitHelperTests extends ESTestCase {
 
-    public void testNeedsSplitCoordinationWithUnsetSummary() {
+    public void testNeedsSplitCoordinationWithUnsetSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0));
-        assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertFalse(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMatchingSummary() {
+    public void testNeedsSplitCoordinationWithMatchingSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
@@ -82,12 +81,12 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), currentSummary);
 
         // Should return false because the split summary matches
-        assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertFalse(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMismatchedSummary() {
+    public void testNeedsSplitCoordinationWithMismatchedSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
@@ -109,7 +108,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), staleSummary);
 
         // Should return true because the split summary does not match
-        assertTrue(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertTrue(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
     @SuppressWarnings("unchecked")
@@ -118,18 +117,19 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final int numSourceShards = 2;
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(numSourceShards).build();
 
         TestReplicationRequest originalRequest = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0));
 
         AtomicBoolean primaryExecuted = new AtomicBoolean(false);
+        AtomicReference<TestReplicationRequest> primaryRequest = new AtomicReference<>();
         AtomicReference<Exception> primaryException = new AtomicReference<>();
 
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 // All documents go to the source shard (current primary)
                 return Map.of(request.shardId(), request);
             }
@@ -147,11 +147,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedBiConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
+                primaryRequest.set(request);
                 try {
                     listener.onResponse(new TestResponse());
                 } catch (Exception e) {
@@ -177,6 +176,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         // Verify that the primary request was executed
         assertTrue("executePrimaryRequest should have been called", primaryExecuted.get());
+        assertSame("Source executed unexpected request", primaryRequest.get(), originalRequest);
         assertNull("No exception should have occurred", primaryException.get());
 
         // Verify the response completed successfully
@@ -195,7 +195,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
@@ -206,12 +206,13 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         // Track the sender call
         AtomicBoolean senderCalled = new AtomicBoolean(false);
+        AtomicReference<TestReplicationRequest> senderRequest = new AtomicReference<>();
         AtomicReference<ActionListener<TestResponse>> senderListener = new AtomicReference<>();
 
         // Create a test action that returns only the target shard
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 // All documents go to the target shard
                 return Map.of(targetShardId, request);
             }
@@ -227,6 +228,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             TimeValue.timeValueHours(1),
             (node, concreteRequest, listener) -> {
                 senderCalled.set(true);
+                senderRequest.set(concreteRequest.getRequest());
                 senderListener.set(listener);
             }
         );
@@ -234,10 +236,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedBiConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
                 listener.onResponse(new TestResponse());
             };
@@ -287,6 +287,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         // Verify the sender was called
         assertTrue("Sender should have been called", senderCalled.get());
+        assertSame("Target executed unexpected request", senderRequest.get(), originalRequest);
         assertNotNull("Sender listener should be captured", senderListener.get());
 
         // Complete the sender listener with success
@@ -308,27 +309,26 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
         TestReplicationRequest originalRequest = new TestReplicationRequest(sourceShardId);
 
         AtomicBoolean primaryExecuted = new AtomicBoolean(false);
+        AtomicReference<TestReplicationRequest> primaryRequest = new AtomicReference<>();
         AtomicReference<ActionListener<TestResponse>> primaryListener = new AtomicReference<>();
 
         AtomicBoolean senderCalled = new AtomicBoolean(false);
+        AtomicReference<TestReplicationRequest> senderRequest = new AtomicReference<>();
         AtomicReference<ActionListener<TestResponse>> senderListener = new AtomicReference<>();
 
+        final TestReplicationRequest sourceShardRequest = new TestReplicationRequest(sourceShardId);
+        final TestReplicationRequest targetShardRequest = new TestReplicationRequest(targetShardId);
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
-                return Map.of(
-                    sourceShardId,
-                    new TestReplicationRequest(sourceShardId),
-                    targetShardId,
-                    new TestReplicationRequest(targetShardId)
-                );
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
+                return Map.of(sourceShardId, sourceShardRequest, targetShardId, targetShardRequest);
             }
 
             @Override
@@ -351,6 +351,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             TimeValue.timeValueHours(1),
             (node, concreteRequest, listener) -> {
                 senderCalled.set(true);
+                senderRequest.set(concreteRequest.getRequest());
                 senderListener.set(listener);
             }
         );
@@ -358,11 +359,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedBiConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
+                primaryRequest.set(request);
                 primaryListener.set(listener);
             };
 
@@ -402,8 +402,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         // Verify that BOTH the primary request and sender were called
         assertTrue("executePrimaryRequest should have been called", primaryExecuted.get());
+        assertSame("Source executed unexpected request", primaryRequest.get(), sourceShardRequest);
         assertTrue("Sender should have been called", senderCalled.get());
         assertNotNull("Primary listener should be captured", primaryListener.get());
+        assertSame("Target executed unexpected request", senderRequest.get(), targetShardRequest);
         assertNotNull("Sender listener should be captured", senderListener.get());
 
         // Verify the primary shard reference was NOT closed
@@ -447,7 +449,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
@@ -458,7 +460,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 return Map.of(
                     sourceShardId,
                     new TestReplicationRequest(sourceShardId),
@@ -491,10 +493,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedBiConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, listener) -> primaryListener.set(listener);
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> primaryListener.set(listener);
 
         PlainActionFuture<TestResponse> completionListener = new PlainActionFuture<>();
 
@@ -608,7 +608,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             );
         }
 
-        protected abstract Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request);
+        protected abstract Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(
+            TestReplicationRequest request,
+            ProjectMetadata project
+        );
 
         @Override
         protected Tuple<TestResponse, Exception> combineSplitResponses(

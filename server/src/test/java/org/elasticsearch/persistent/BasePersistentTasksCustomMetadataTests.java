@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,10 +32,7 @@ import java.util.Optional;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
-import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.contains;
 
 public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.MetadataCustom<T>> extends
@@ -200,17 +198,11 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
     @SuppressWarnings("unchecked")
     public void testMinVersionSerialization() throws IOException {
         PersistentTasks.Builder<?> tasks = builder();
-
-        TransportVersion minVersion = getFirstVersion();
-        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
+        TransportVersion streamVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
-            new TestPersistentTasksPlugin.TestParams(
-                null,
-                randomVersionBetween(random(), minVersion, streamVersion),
-                randomBoolean() ? Optional.empty() : Optional.of("test")
-            ),
+            new TestPersistentTasksPlugin.TestParams(null, streamVersion, randomBoolean() ? Optional.empty() : Optional.of("test")),
             randomAssignment()
         );
         tasks.addTask(
@@ -218,7 +210,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
             TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME,
             new TestPersistentTasksPlugin.TestParams(
                 null,
-                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
+                getNextVersion(streamVersion, true),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()

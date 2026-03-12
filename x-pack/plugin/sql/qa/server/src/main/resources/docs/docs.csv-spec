@@ -3345,15 +3345,15 @@ SELECT TODAY() AS result;
 
 filterToday
 // tag::filterToday
-SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 5;
+SELECT first_name FROM emp WHERE hire_date > DATE_TRUNC('CENTURY', TODAY()) - INTERVAL 11 YEARS ORDER BY first_name ASC LIMIT 5;
 
  first_name
 ------------
 Alejandro
 Amabile
+Anneke
 Anoosh
 Basil
-Cristinel
 // end::filterToday
 ;
 

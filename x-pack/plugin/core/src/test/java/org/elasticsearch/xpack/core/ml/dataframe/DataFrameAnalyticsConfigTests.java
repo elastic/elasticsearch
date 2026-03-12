@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -116,9 +115,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (instance.getAnalysis() instanceof Classification) {
             builder.setAnalysis(ClassificationTests.mutateForVersion((Classification) instance.getAnalysis(), version));
-        }
-        if (version.before(TransportVersions.V_8_8_0)) {
-            builder.setMeta(null);
         }
         return builder.build();
     }

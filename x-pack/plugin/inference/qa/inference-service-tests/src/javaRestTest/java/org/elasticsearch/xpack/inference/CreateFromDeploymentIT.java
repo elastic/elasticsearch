@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,7 +50,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
 
         deleteModel(inferenceId);
         // assert deployment not stopped
@@ -108,7 +109,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
 
         deleteModel(inferenceId);
 

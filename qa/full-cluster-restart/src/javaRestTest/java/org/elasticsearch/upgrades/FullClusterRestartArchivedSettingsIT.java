@@ -66,7 +66,7 @@ public class FullClusterRestartArchivedSettingsIT extends ParameterizedFullClust
         return cluster;
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this test is just about v8->v9 upgrades, remove it in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // this test is just about v8->v9 upgrades, remove it in v10
     public void testBalancedShardsAllocatorThreshold() throws Exception {
         assumeTrue("test only applies for v8->v9 upgrades", getOldClusterTestVersion().getMajor() == 8);
 

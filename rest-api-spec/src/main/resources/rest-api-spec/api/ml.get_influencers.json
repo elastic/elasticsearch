@@ -48,12 +48,12 @@
         "description": "specifies a max number of influencers to get"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "start timestamp for the requested influencers"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "end timestamp for the requested influencers"
       },

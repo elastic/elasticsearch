@@ -154,6 +154,25 @@ public class BwcVersions implements Serializable {
         return unreleased.keySet().stream().sorted().toList();
     }
 
+    public Optional<UnreleasedVersionInfo> getUnmaintainedPreviousMajor() {
+
+        return getUnreleased().stream()
+            .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
+            .min(Comparator.reverseOrder())
+            .isPresent()
+                ? Optional.empty()
+                : getReleased().stream()
+                    .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
+                    .min(Comparator.reverseOrder())
+                    .map(
+                        version -> new UnreleasedVersionInfo(
+                            version,
+                            String.format("%d.%d", version.getMajor(), version.getMinor()),
+                            ":distribution:bwc:major1"
+                        )
+                    );
+    }
+
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
         Set<Version> notReallyReleased = new HashSet<>(getReleased());
         notReallyReleased.removeAll(authoritativeReleasedVersions);
@@ -178,7 +197,7 @@ public class BwcVersions implements Serializable {
         }
     }
 
-    private List<Version> getReleased() {
+    public List<Version> getReleased() {
         return versions.stream()
             .filter(v -> v.getMajor() >= currentVersion.getMajor() - 1)
             .filter(v -> unreleased.containsKey(v) == false)

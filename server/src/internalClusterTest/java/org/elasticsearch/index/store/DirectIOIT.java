@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -73,7 +74,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.<Object[]>of(new Object[] { "bbq_disk" });
+        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw").map(s -> new Object[] { s }).toList();
     }
 
     public DirectIOIT(String type) {
@@ -113,15 +114,14 @@ public class DirectIOIT extends ESIntegTestCase {
             indexDoc(indexName, Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
-        assertBBQIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
+        assertIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
         return indexName;
     }
 
-    @SuppressWarnings("unchecked")
-    static void assertBBQIndexType(String indexName, String type) {
+    static void assertIndexType(String indexName, String type) {
         var response = indicesAdmin().prepareGetFieldMappings(indexName).setFields("fooVector").get();
-        var map = (Map<String, Object>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
-        assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
+        var map = (Map<?, ?>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
+        assertThat(((Map<?, ?>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
@@ -146,7 +146,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(true);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
@@ -174,7 +174,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(false);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

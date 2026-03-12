@@ -10,10 +10,10 @@
 package org.elasticsearch.entitlement.tools.jdkapi;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.AccessibleMethod;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.ModuleClass;
+import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.Result;
 import org.elasticsearch.entitlement.tools.Utils;
 
 import java.io.IOException;
@@ -89,11 +89,14 @@ public class JdkApiExtractor {
     }
 
     @SuppressForbidden(reason = "cli tool printing to standard err/out")
-    private static void writeFile(Path path, Stream<Tuple<ModuleClass, AccessibleMethod>> methods, boolean deprecationsOnly)
-        throws IOException {
+    private static void writeFile(Path path, Stream<Result> methods, boolean deprecationsOnly) throws IOException {
         System.out.println("Writing result for " + Runtime.version() + " to " + path.toAbsolutePath());
-        Predicate<Tuple<ModuleClass, AccessibleMethod>> predicate = deprecationsOnly ? t -> t.v2().isDeprecated() : t -> true;
-        Files.write(path, () -> methods.filter(predicate).map(t -> writeLine(t.v1(), t.v2())).iterator(), StandardCharsets.UTF_8);
+        Predicate<Result> predicate = deprecationsOnly ? t -> t.accessibleMethod().isDeprecated() : t -> true;
+        Files.write(
+            path,
+            () -> methods.filter(predicate).map(t -> writeLine(t.moduleClass(), t.accessibleMethod())).iterator(),
+            StandardCharsets.UTF_8
+        );
     }
 
 }

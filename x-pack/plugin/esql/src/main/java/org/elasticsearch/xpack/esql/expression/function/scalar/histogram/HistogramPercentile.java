@@ -10,11 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
+import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -50,7 +56,7 @@ public class HistogramPercentile extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "double" })
     public HistogramPercentile(
         Source source,
-        @Param(name = "histogram", type = { "exponential_histogram" }) Expression histogram,
+        @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,
         @Param(name = "percentile", type = { "double", "integer", "long", "unsigned_long" }) Expression percentile
     ) {
         super(source, List.of(histogram, percentile));
@@ -72,9 +78,14 @@ public class HistogramPercentile extends EsqlScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(histogram, dt -> dt == DataType.EXPONENTIAL_HISTOGRAM, sourceText(), DEFAULT, "exponential_histogram").and(
-            isType(percentile, DataType::isNumeric, sourceText(), DEFAULT, "numeric types")
-        );
+        return isType(
+            histogram,
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "exponential_histogram",
+            "tdigest"
+        ).and(isType(percentile, DataType::isNumeric, sourceText(), DEFAULT, "numeric types"));
     }
 
     @Override
@@ -109,11 +120,9 @@ public class HistogramPercentile extends EsqlScalarFunction {
         out.writeNamedWriteable(percentile);
     }
 
-    @Evaluator(warnExceptions = ArithmeticException.class)
+    @Evaluator(warnExceptions = ArithmeticException.class, extraName = "ExponentialHistogram")
     static void process(DoubleBlock.Builder resultBuilder, ExponentialHistogram value, double percentile) {
-        if (percentile < 0.0 || percentile > 100.0) {
-            throw new ArithmeticException("Percentile value must be in the range [0, 100], got: " + percentile);
-        }
+        checkPercentileRange(percentile);
         double result = ExponentialHistogramQuantile.getQuantile(value, percentile / 100.0);
         if (Double.isNaN(result)) { // can happen if the histogram is empty
             resultBuilder.appendNull();
@@ -122,10 +131,50 @@ public class HistogramPercentile extends EsqlScalarFunction {
         }
     }
 
+    @Evaluator(warnExceptions = ArithmeticException.class, extraName = "TDigest")
+    static void process(
+        DoubleBlock.Builder resultBuilder,
+        TDigestHolder value,
+        double percentile,
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) MemoryTrackingTDigestArrays tdigestArrays
+    ) {
+        checkPercentileRange(percentile);
+        // TODO: add a way of clearing a TDigestState, so that we can reuse it via @Fixed across calls
+        try (TDigest scratch = TDigest.createMergingDigest(tdigestArrays, TDigestStates.COMPRESSION)) {
+            scratch.add(value);
+            double result = scratch.quantile(percentile / 100.0);
+            if (Double.isNaN(result)) { // can happen if the histogram is empty
+                resultBuilder.appendNull();
+            } else {
+                resultBuilder.appendDouble(result);
+            }
+        }
+    }
+
+    private static void checkPercentileRange(double percentile) {
+        if (percentile < 0.0 || percentile > 100.0) {
+            throw new ArithmeticException("Percentile value must be in the range [0, 100], got: " + percentile);
+        }
+    }
+
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(histogram);
         var percentileEvaluator = Cast.cast(source(), percentile.dataType(), DataType.DOUBLE, toEvaluator.apply(percentile));
-        return new HistogramPercentileEvaluator.Factory(source(), fieldEvaluator, percentileEvaluator);
+        DataType valueType = histogram.dataType();
+        return switch (valueType) {
+            case EXPONENTIAL_HISTOGRAM -> new HistogramPercentileExponentialHistogramEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                percentileEvaluator
+            );
+            case TDIGEST -> new HistogramPercentileTDigestEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                percentileEvaluator,
+                driverContext -> new MemoryTrackingTDigestArrays(driverContext.breaker())
+            );
+            default -> throw EsqlIllegalArgumentException.illegalDataType(valueType);
+        };
     }
 }

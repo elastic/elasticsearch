@@ -33,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,7 +80,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
-    private final boolean crossProjectEnabled;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
@@ -96,11 +97,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-        /*
-         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
-         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
-         */
-        this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
@@ -224,7 +221,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * it returns an empty value where we default/fall back to true.
      */
     public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
-        if (crossProjectEnabled) {
+        if (crossProjectEnabled()) {
             return Optional.empty();
         } else {
             return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
@@ -232,7 +229,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public boolean crossProjectEnabled() {
-        return crossProjectEnabled;
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**
@@ -294,6 +291,27 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
+    public synchronized void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+        final var connectionMap = getConnectionsMapForProject(originProjectId);
+        // Remove the entry so no new incoming requests attempt to use the connection while we are closing it.
+        final var remote = connectionMap.remove(linkedProjectAlias);
+        try {
+            IOUtils.close(remote);
+        } catch (IOException e) {
+            logger.warn(
+                "project [" + originProjectId + "] failed to close remote cluster connections for cluster: " + linkedProjectAlias,
+                e
+            );
+        }
+        logger.info(
+            "project [{}] remote cluster connection [{}] removed: {}",
+            originProjectId,
+            linkedProjectAlias,
+            RemoteClusterConnectionStatus.DISCONNECTED
+        );
+    }
+
+    @Override
     public void updateLinkedProject(LinkedProjectConfig config) {
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
@@ -343,20 +361,10 @@ public final class RemoteClusterService extends RemoteClusterAware
         final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
-        if (config.isConnectionEnabled() == false) {
-            try {
-                IOUtils.close(remote);
-            } catch (IOException e) {
-                logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
-            }
-            connectionMap.remove(clusterAlias);
-            listener.onResponse(RemoteClusterConnectionStatus.DISCONNECTED);
-            return;
-        }
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled());
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
@@ -367,7 +375,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled());
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else if (remote.isSkipUnavailable() != config.skipUnavailable()) {

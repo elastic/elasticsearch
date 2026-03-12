@@ -1,0 +1,4 @@
+pr: 142648
+summary: "[Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream."
+area: Authorization
+type: enhancement

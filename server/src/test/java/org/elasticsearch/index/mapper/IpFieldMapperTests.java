@@ -98,6 +98,30 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
+    public void testIPv6WithMaxHextets() throws Exception {
+        // IPv6 addresses starting with "::" followed by exactly 7 hextets.
+        // These are valid addresses that should be indexed correctly.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        final String[] ipAddresses = {
+            "::1:2:3:4:5:6:7",
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            "::1:0:0:0:0:0:1",
+            "::0:0:0:0:0:0:1",
+            "::1:1:1:1:1:1:1" };
+
+        for (final String ipAddress : ipAddresses) {
+            final ParsedDocument doc = mapper.parse(source(b -> b.field("field", ipAddress)));
+
+            final List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.size());
+            final IndexableField pointField = fields.get(0);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), pointField.binaryValue());
+            final IndexableField dvField = fields.get(1);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), dvField.binaryValue());
+        }
+    }
+
     public void testNotIndexed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
@@ -238,6 +262,8 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
         assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -246,30 +272,14 @@ public class IpFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -363,11 +373,15 @@ public class IpFieldMapperTests extends MapperTestCase {
                 .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
                 .collect(Collectors.toSet())
                 .stream()
-                .sorted()
+                .sorted(BytesRef::compareTo)
                 .map(v -> InetAddressPoint.decode(v.bytes))
                 .map(NetworkAddress::format)
                 .collect(Collectors.toCollection(ArrayList::new));
-            values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
+            values.stream()
+                .filter(v -> false == v.v2() instanceof InetAddress)
+                .map(Tuple::v2)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }

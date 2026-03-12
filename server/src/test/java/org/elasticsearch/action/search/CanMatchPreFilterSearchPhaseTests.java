@@ -81,6 +81,7 @@ import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIt
 import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -164,7 +165,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of()
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -180,11 +182,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         } else if (shard1 == false && shard2 == false) {
             assertFalse(result.get().get(0).skip());
             assertTrue(result.get().get(1).skip());
+            assertEquals(2, result.get().size());
         } else {
-            assertEquals(0, result.get().get(0).shardId().id());
-            assertEquals(1, result.get().get(1).shardId().id());
-            assertEquals(shard1, result.get().get(0).skip() == false);
-            assertEquals(shard2, result.get().get(1).skip() == false);
+            assertEquals(shard1 ? 0 : 1, result.get().get(0).shardId().id());
         }
     }
 
@@ -260,7 +260,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of()
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -268,14 +269,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         latch.await();
 
-        assertEquals(0, result.get().get(0).shardId().id());
-        assertEquals(1, result.get().get(1).shardId().id());
         if (fullFailure) {
-            assertFalse(result.get().get(0).skip()); // never skip the failure
+            assertFalse(result.get().get(1).skip()); // never skip the failure
+            assertEquals(0, result.get().get(0).shardId().id());
+            assertEquals(1, result.get().get(1).shardId().id());
         } else {
-            assertEquals(shard1, result.get().get(0).skip() == false);
+            assertEquals(2, result.get().size());
         }
-        assertFalse(result.get().get(1).skip()); // never skip the failure
+        assertFalse(result.get().get(0).skip()); // never skip the failure
     }
 
     public void testSortShards() throws InterruptedException {
@@ -310,15 +311,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         Long max = min == null ? null : randomLongBetween(min, Long.MAX_VALUE);
                         MinAndMax<?> minMax = min == null ? null : new MinAndMax<>(min, max);
                         boolean canMatch = frequently();
+                        boolean usePrevMinMax = randomBoolean();
                         synchronized (shardIds) {
                             shardIds.add(shard.shardId());
-                            minAndMaxes.add(minMax);
+                            if (usePrevMinMax && minAndMaxes.isEmpty() == false) {
+                                minAndMaxes.add(minAndMaxes.getLast());
+                            } else {
+                                minAndMaxes.add(minMax);
+                            }
                             if (canMatch == false) {
                                 shardToSkip.add(shard.shardId());
                             }
                         }
 
-                        responses.add(new ResponseOrFailure(new CanMatchShardResponse(canMatch, minMax)));
+                        responses.add(new ResponseOrFailure(new CanMatchShardResponse(canMatch, minAndMaxes.getLast())));
                     }
 
                     new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
@@ -352,7 +358,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 EMPTY_CONTEXT_PROVIDER,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -452,7 +459,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -461,8 +469,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             latch.await();
             int shardId = 0;
             for (SearchShardIterator i : result.get()) {
-                assertThat(i.shardId().id(), equalTo(shardId++));
-                assertEquals(shardToSkip.contains(i.shardId()), i.skip());
+                while (shardToSkip.stream().map(ShardId::id).toList().contains(shardId)) {
+                    shardId++;
+                }
+                if (i.skip() == false) {
+                    assertThat(i.shardId().id(), equalTo(shardId++));
+                }
             }
             assertThat(result.get().size(), equalTo(numShards));
         }
@@ -566,6 +578,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean allRequestMadeToHotIndices = requests.stream()
                     .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
                 assertThat(allRequestMadeToHotIndices, equalTo(true));
+                int prevShardId = -1;
+                for (SearchShardIterator shardIt : updatedSearchShardIterators) {
+                    if (shardIt.skip() == false) {
+                        assertThat(shardIt.shardId().id(), greaterThanOrEqualTo(prevShardId));
+                        prevShardId = shardIt.shardId().id();
+                    }
+                }
             }
         );
     }
@@ -695,12 +714,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     .toList();
 
                 if (timestampQueryOutOfRange || eventIngestedQueryOutOfRange) {
-                    // data stream shards should have been skipped
                     assertThat(skippedShards.size(), greaterThan(0));
                     boolean allSkippedShardAreFromDataStream = skippedShards.stream()
                         .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
                     assertThat(allSkippedShardAreFromDataStream, equalTo(true));
-
                     boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
                         .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
                     assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
@@ -1425,7 +1442,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 contextProvider,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ),
             requests
         );

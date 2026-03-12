@@ -120,7 +120,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
     }
 
     private void findAndInvalidateTokens(SamlRealm realm, SamlLogoutRequestHandler.Result result, ActionListener<Integer> listener) {
-        final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession());
+        final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession(), null);
         if (Strings.isNullOrEmpty((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE))) {
             // If we don't have a valid name-id to match against, don't do anything
             LOGGER.debug("Logout request [{}] has no NameID value, so cannot invalidate any sessions", result);

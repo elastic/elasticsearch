@@ -13,12 +13,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -48,7 +47,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -56,7 +55,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -65,7 +64,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
             assertEquals(9, agg.getBuckets().size());

@@ -32,9 +32,16 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
-    private static final String INDEX_NAME = "supplementary_char_mapping";
-    // U+1F3B5 MUSICAL NOTE encoded as a Java surrogate pair
-    private static final String SUPPLEMENTARY_FIELD = "music_\uD83C\uDFB5_field";
+    // U+1F3B5 MUSICAL NOTE
+    private static final String FIELD_NOTE = "music_\uD83C\uDFB5_field";
+    // U+1F60A SMILING FACE WITH SMILING EYES
+    private static final String FIELD_SMILE = "smile_\uD83D\uDE0A_field";
+    // U+1F389 PARTY POPPER
+    private static final String FIELD_PARTY = "party_\uD83C\uDF89_field";
+
+    private static final String INDEX_OLD = "supplementary_char_old";
+    private static final String INDEX_MIXED = "supplementary_char_mixed";
+    private static final String INDEX_UPGRADED = "supplementary_char_upgraded";
 
     public MappingSupplementaryCharacterRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -42,37 +49,55 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
 
     public void testMappingWithSupplementaryCharacterFieldName() throws IOException {
         if (isOldCluster()) {
-            createIndexWithSupplementaryCharField();
-            indexDocument("1", "hello");
-            assertDocumentExists("1", "hello");
+            // Old node creates index — all nodes must parse this mapping from cluster state
+            createIndex(INDEX_OLD, FIELD_NOTE);
+            indexDocument(INDEX_OLD, FIELD_NOTE, "1", "hello");
+            assertDocumentExists(INDEX_OLD, FIELD_NOTE, "1", "hello");
         } else if (isMixedCluster()) {
-            ensureGreen(INDEX_NAME);
-            assertMappingContainsField();
-            assertDocumentExists("1", "hello");
-            // Index a document while old and new nodes coexist to exercise cross-version cluster state propagation
+            ensureGreen(INDEX_OLD);
+            assertMappingContainsField(INDEX_OLD, FIELD_NOTE);
+            assertDocumentExists(INDEX_OLD, FIELD_NOTE, "1", "hello");
+
             if (isFirstMixedCluster()) {
-                indexDocument("2", "mixed1");
-                assertDocumentExists("2", "mixed1");
-                // Add a new field to force a mapping update that must be parsed by all nodes
-                addFieldToMapping();
+                // New node creates index while old nodes are still present — old nodes must parse this
+                createIndex(INDEX_MIXED, FIELD_SMILE);
+                indexDocument(INDEX_MIXED, FIELD_SMILE, "1", "mixed1");
+                assertDocumentExists(INDEX_MIXED, FIELD_SMILE, "1", "mixed1");
+
+                // Also force a mapping update on the old index so every node re-parses it
+                addFieldToMapping(INDEX_OLD, FIELD_PARTY);
             } else {
-                indexDocument("3", "mixed2");
-                assertDocumentExists("3", "mixed2");
+                ensureGreen(INDEX_MIXED);
+                assertMappingContainsField(INDEX_MIXED, FIELD_SMILE);
+                assertMappingContainsField(INDEX_OLD, FIELD_PARTY);
+                indexDocument(INDEX_OLD, FIELD_NOTE, "2", "mixed2");
+                assertDocumentExists(INDEX_OLD, FIELD_NOTE, "2", "mixed2");
+                indexDocument(INDEX_MIXED, FIELD_SMILE, "2", "mixed2");
+                assertDocumentExists(INDEX_MIXED, FIELD_SMILE, "2", "mixed2");
             }
         } else {
             assert isUpgradedCluster();
-            ensureGreen(INDEX_NAME);
-            assertDocumentExists("1", "hello");
-            assertDocumentExists("2", "mixed1");
-            assertDocumentExists("3", "mixed2");
-            indexDocument("4", "upgraded");
-            assertDocumentExists("4", "upgraded");
-            assertMappingContainsField();
+            ensureGreen(INDEX_OLD);
+            ensureGreen(INDEX_MIXED);
+
+            // Verify everything from previous phases survived
+            assertDocumentExists(INDEX_OLD, FIELD_NOTE, "1", "hello");
+            assertDocumentExists(INDEX_OLD, FIELD_NOTE, "2", "mixed2");
+            assertDocumentExists(INDEX_MIXED, FIELD_SMILE, "1", "mixed1");
+            assertDocumentExists(INDEX_MIXED, FIELD_SMILE, "2", "mixed2");
+            assertMappingContainsField(INDEX_OLD, FIELD_NOTE);
+            assertMappingContainsField(INDEX_OLD, FIELD_PARTY);
+            assertMappingContainsField(INDEX_MIXED, FIELD_SMILE);
+
+            // Fully upgraded cluster creates its own index
+            createIndex(INDEX_UPGRADED, FIELD_NOTE);
+            indexDocument(INDEX_UPGRADED, FIELD_NOTE, "1", "upgraded");
+            assertDocumentExists(INDEX_UPGRADED, FIELD_NOTE, "1", "upgraded");
         }
     }
 
-    private void createIndexWithSupplementaryCharField() throws IOException {
-        Request createIndex = new Request("PUT", "/" + INDEX_NAME);
+    private void createIndex(String indexName, String fieldName) throws IOException {
+        Request createIndex = new Request("PUT", "/" + indexName);
         XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("settings")
@@ -81,7 +106,7 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
             .endObject()
             .startObject("mappings")
             .startObject("properties")
-            .startObject(SUPPLEMENTARY_FIELD)
+            .startObject(fieldName)
             .field("type", "keyword")
             .endObject()
             .endObject()
@@ -91,30 +116,24 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
         assertThat(client().performRequest(createIndex).getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
-    private void indexDocument(String id, String value) throws IOException {
-        Request indexRequest = new Request("PUT", "/" + INDEX_NAME + "/_doc/" + id);
+    private void indexDocument(String indexName, String fieldName, String id, String value) throws IOException {
+        Request indexRequest = new Request("PUT", "/" + indexName + "/_doc/" + id);
         indexRequest.addParameter("refresh", "true");
-        XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .field(SUPPLEMENTARY_FIELD, value)
-            .endObject();
+        XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().field(fieldName, value).endObject();
         indexRequest.setJsonEntity(Strings.toString(doc));
         assertThat(client().performRequest(indexRequest).getStatusLine().getStatusCode(), equalTo(RestStatus.CREATED.getStatus()));
     }
 
     /**
-     * Adds a new field with a supplementary character to the existing mapping, forcing a mapping
-     * update that must be serialized and parsed by every node in the cluster, including old nodes
-     * running a different Jackson version.
+     * Adds a new field with a supplementary character to an existing mapping, forcing a mapping
+     * update that must be serialized and parsed by every node in the cluster.
      */
-    private void addFieldToMapping() throws IOException {
-        Request putMapping = new Request("PUT", "/" + INDEX_NAME + "/_mapping");
-        // U+1F60A SMILING FACE WITH SMILING EYES
-        String newField = "smile_\uD83D\uDE0A_field";
+    private void addFieldToMapping(String indexName, String fieldName) throws IOException {
+        Request putMapping = new Request("PUT", "/" + indexName + "/_mapping");
         XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("properties")
-            .startObject(newField)
+            .startObject(fieldName)
             .field("type", "keyword")
             .endObject()
             .endObject()
@@ -124,20 +143,20 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
     }
 
     @SuppressWarnings("unchecked")
-    private void assertDocumentExists(String id, String expectedValue) throws IOException {
-        Response response = client().performRequest(new Request("GET", "/" + INDEX_NAME + "/_doc/" + id));
+    private void assertDocumentExists(String indexName, String fieldName, String id, String expectedValue) throws IOException {
+        Response response = client().performRequest(new Request("GET", "/" + indexName + "/_doc/" + id));
         Map<String, Object> responseMap = entityAsMap(response);
         Map<String, Object> source = (Map<String, Object>) responseMap.get("_source");
-        assertThat(source.get(SUPPLEMENTARY_FIELD), equalTo(expectedValue));
+        assertThat(source.get(fieldName), equalTo(expectedValue));
     }
 
     @SuppressWarnings("unchecked")
-    private void assertMappingContainsField() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/" + INDEX_NAME + "/_mapping"));
+    private void assertMappingContainsField(String indexName, String fieldName) throws IOException {
+        Response response = client().performRequest(new Request("GET", "/" + indexName + "/_mapping"));
         Map<String, Object> responseMap = entityAsMap(response);
-        Map<String, Object> indexMapping = (Map<String, Object>) responseMap.get(INDEX_NAME);
+        Map<String, Object> indexMapping = (Map<String, Object>) responseMap.get(indexName);
         Map<String, Object> mappings = (Map<String, Object>) indexMapping.get("mappings");
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        assertNotNull("Mapping should contain the supplementary character field", properties.get(SUPPLEMENTARY_FIELD));
+        assertNotNull("Mapping for [" + indexName + "] should contain field [" + fieldName + "]", properties.get(fieldName));
     }
 }

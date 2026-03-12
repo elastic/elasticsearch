@@ -35,14 +35,7 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
      * Verifies that the health node task is always assigned and succeeds as expected during rolling node shutdowns.
      */
     public void testHealthNodeReassignedOnShutdown() {
-        final var dataNodeNames = internalCluster().clusterService()
-            .state()
-            .nodes()
-            .getDataNodes()
-            .values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .toArray(String[]::new);
+        final var dataNodeNames = internalCluster().clusterService().state().nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         assertThat("exactly 2 data nodes", dataNodeNames.length, equalTo(2));
 
         try {
@@ -54,21 +47,21 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
             final int passes = randomIntBetween(1, 4);
             var currentHealthNodeName = initialHealthNode.getName();
             for (int pass = 0; pass < passes; pass++) {
-                final var otherNodeName = dataNodeNames[0].equals(currentHealthNodeName) ? dataNodeNames[1] : dataNodeNames[0];
+                final var otherNode = dataNodeNames[0].getName().equals(currentHealthNodeName) ? dataNodeNames[1] : dataNodeNames[0];
                 logger.info(
                     "Pass {}: marking [{}] for shutdown, expecting reassignment to [{}]",
                     pass,
                     currentHealthNodeName,
-                    otherNodeName
+                    otherNode.getName()
                 );
 
                 try (var mockLog = MockLog.capture(HealthNodeTaskExecutor.class)) {
                     mockLog.addExpectation(
                         new MockLog.SeenEventExpectation(
-                            "health node selected on [" + otherNodeName + "]",
+                            "health node selected on [" + otherNode.getName() + "]",
                             HealthNodeTaskExecutor.class.getCanonicalName(),
                             Level.INFO,
-                            "Node [" + otherNodeName + "]*is selected as the current health node*"
+                            "Node [" + otherNode.getShortNodeDescription() + "] is selected as the current health node*"
                         )
                     );
                     NodeShutdownTestUtils.putShutdownMetadata(
@@ -83,17 +76,17 @@ public class HealthNodeTaskAssignmentIT extends ESIntegTestCase {
                     awaitClusterState(state -> {
                         final var healthNode = HealthNode.findHealthNode(state);
                         assertNotNull("health task must never be unassigned", healthNode);
-                        return healthNode.getName().equals(otherNodeName);
+                        return healthNode.getName().equals(otherNode.getName());
                     });
                     mockLog.awaitAllExpectationsMatched();
                 }
 
                 final var newHealthNode = HealthNode.findHealthNode(internalCluster().clusterService().state());
-                assertNotNull("health task must be assigned to [" + otherNodeName + "]", newHealthNode);
-                assertThat(newHealthNode.getName(), equalTo(otherNodeName));
+                assertNotNull("health task must be assigned to [" + otherNode.getName() + "]", newHealthNode);
+                assertThat(newHealthNode.getName(), equalTo(otherNode.getName()));
 
                 NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
-                currentHealthNodeName = otherNodeName;
+                currentHealthNodeName = otherNode.getName();
             }
         } finally {
             NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));

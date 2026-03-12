@@ -133,9 +133,9 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         }
     }
 
-    public void testMasterDoesNothingIfNodeShuttingDownButNotYetReassigned() {
+    public void testDoesNothingIfNodeShuttingDownButNotYetReassigned() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var state = initialState(true);
+        final var state = initialState(randomBoolean());
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, clusterSettings)) {
             final HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,

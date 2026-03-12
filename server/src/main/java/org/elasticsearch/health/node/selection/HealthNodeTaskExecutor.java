@@ -89,7 +89,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, HealthNodeTaskParams params, PersistentTaskState state) {
         DiscoveryNode node = clusterService.localNode();
-        logger.info("Node [{}][{}] is selected as the current health node.", node.getName(), node.getId());
+        logger.info("Node [{}] is selected as the current health node.", node.getShortNodeDescription());
     }
 
     @Override
@@ -117,7 +117,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                 TASK_NAME,
                 TASK_NAME,
                 new HealthNodeTaskParams(),
-                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                     if (e instanceof NodeClosedException) {
                         logger.debug("Failed to create health node task because node is shutting down", e);

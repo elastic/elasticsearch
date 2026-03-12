@@ -445,7 +445,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             endpointId,
             randomFrom(StatusHeuristic.values()),
             randomList(0, 5, () -> randomAlphaOfLength(10)).stream().map(p -> '"' + p + '"').toList(),
-            fingerprint == null ? "" : String.format(",\"fingerprint\": \"%s\"", fingerprint)
+            fingerprint == null ? "" : Strings.format(",\"fingerprint\": \"%s\"", fingerprint)
         );
     }
 }

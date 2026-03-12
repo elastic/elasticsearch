@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -33,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -43,6 +45,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
@@ -870,6 +873,95 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             "PROMQL index=test start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T01:00:00Z\" buckets=10 avg(network.bytes_in)",
             allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
         );
+    }
+
+    /**
+     * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
+     * the query must fail with VerificationException.
+     * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of(
+                "partial_long",
+                new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | KEEP partial_long",
+            allOf(containsString("unmapped_fields=\"load\""), containsString("partial_long"))
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of(
+                "partial_long",
+                new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE),
+                "partial_double",
+                new EsField("partial_double", DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long", "partial_double")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | KEEP partial_long, partial_double",
+            allOf(
+                containsString("unmapped_fields=\"load\""),
+                containsString("partial_long"),
+                containsString("partial_double")
+            )
+        );
+    }
+
+    public void testAllowLoadWithPartiallyMappedKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of(
+                "partial_type_keyword",
+                new EsField("partial_type_keyword", DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_type_keyword")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP partial_type_keyword"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of(
+                "partial_long",
+                new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM partial_idx | KEEP partial_long"));
+        assertThat(plan, not(nullValue()));
     }
 
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {

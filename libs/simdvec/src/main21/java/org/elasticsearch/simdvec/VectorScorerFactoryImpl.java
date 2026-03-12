@@ -172,7 +172,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        checkInvariants(values.size(), values.dimension(), input);
+        checkInvariants(values.size(), values.dimension() / 2, input);
         return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
     }
 

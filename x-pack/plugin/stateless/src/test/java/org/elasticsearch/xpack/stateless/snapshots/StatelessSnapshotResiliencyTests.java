@@ -111,7 +111,6 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
-import org.elasticsearch.xpack.stateless.autoscaling.search.ShardSizeCollector;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -154,6 +153,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotable
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -474,7 +474,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         shardStateAction,
                         actionFilters,
                         indicesService,
-                        mock(ShardSizeCollector.class)
+                        mock(SearchShardSizeCollector.class)
                     ),
                     TransportSendRecoveryCommitRegistrationAction.TYPE,
                     new TransportSendRecoveryCommitRegistrationAction(clusterService(), transportService(), indicesService, actionFilters),

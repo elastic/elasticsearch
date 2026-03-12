@@ -42,9 +42,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.stateless.autoscaling.search.ShardSizeCollector;
 import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +58,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME);
 
     private final IndicesService indicesService;
-    private final ShardSizeCollector shardSizeCollector;
+    private final SearchShardSizeCollector searchShardSizeCollector;
 
     @Inject
     public TransportNewCommitNotificationAction(
@@ -67,7 +67,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        ShardSizeCollector shardSizeCollector
+        SearchShardSizeCollector searchShardSizeCollector
     ) {
         super(
             NAME,
@@ -79,7 +79,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indicesService = indicesService;
-        this.shardSizeCollector = shardSizeCollector;
+        this.searchShardSizeCollector = searchShardSizeCollector;
     }
 
     @Override
@@ -170,7 +170,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             .<NewCommitNotificationResponse>andThen((l, searchEngine) -> {
                 shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                 // Since new data has been written, update the shard size tracking.
-                shardSizeCollector.collectShardSize(shard.shardId());
+                searchShardSizeCollector.collectShardSize(shard.shardId());
                 l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
             })
 

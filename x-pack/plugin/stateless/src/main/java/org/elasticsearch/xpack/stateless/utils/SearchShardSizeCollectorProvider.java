@@ -15,13 +15,17 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless.autoscaling.search.load;
+package org.elasticsearch.xpack.stateless.utils;
 
-public record ExecutorLoadStats(
-    double threadsUsed,
-    double averageTaskExecutionEWMA,
-    int currentQueueSize,
-    int maxThreads,
-    double numProcessors,
-    long queueBacklogDurationNanos
-) {}
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.threadpool.ThreadPool;
+
+/**
+ * SPI for providing a search shard size collector.
+ * If no implementation is provided, a no-op collector is used.
+ */
+public interface SearchShardSizeCollectorProvider {
+
+    SearchShardSizeCollector create(ThreadPool threadPool, Client client, ClusterService clusterService);
+}

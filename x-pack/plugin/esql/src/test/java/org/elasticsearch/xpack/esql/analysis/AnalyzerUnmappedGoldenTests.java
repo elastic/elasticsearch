@@ -204,6 +204,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testStatsMixedAndExpressions() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | STATS s = SUM(does_not_exist1) + does_not_exist2, c = COUNT(*) BY does_not_exist3, emp_no, does_not_exist2
+            """, STAGES);
+    }
+
     public void testInlineStatsMixed() throws Exception {
         runTests("""
             FROM employees
@@ -275,108 +282,95 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // FIXME comment here but keep the test
     public void testLookupJoin() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees
             | EVAL language_code = does_not_exist :: INTEGER
             | LOOKUP JOIN languages_lookup ON language_code
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testLookupJoinWithFilter() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE does_not_exist::LONG > 0
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testSubqueryKeepUnmapped() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees, (FROM languages | KEEP language_code)
             | KEEP emp_no, language_code, does_not_exist
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testSubqueryWithStats() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
             | KEEP emp_no, max_ts, does_not_exist
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testSubqueryKeepMultipleUnmapped() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees,
                 (FROM languages | KEEP language_code, unmapped1, unmapped2)
             | KEEP emp_no, language_code, unmapped1, unmapped2
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testFork() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
-            """);
+            """, STAGES);
     }
 
     public void testForkWithEval() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testForkWithStats() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees
             | FORK (STATS c = COUNT(*) BY does_not_exist)
                    (STATS d = AVG(salary::DOUBLE))
             | SORT does_not_exist
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testFuse() throws Exception {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
             | FUSE
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testFuseWithEval() throws Exception {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees METADATA _score, _index, _id
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
             | FUSE RRF
-            """);
+            """, STAGES);
     }
 
-    // FIXME comment here but keep the test
     public void testFuseLinear() throws Exception {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-        runTests("""
+        runTestsNullifyOnly("""
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
                    (WHERE emp_no > 0 | EVAL y = 2)
             | FUSE LINEAR
-            """);
+            """, STAGES);
     }
 
     public void testCoalesce() throws Exception {

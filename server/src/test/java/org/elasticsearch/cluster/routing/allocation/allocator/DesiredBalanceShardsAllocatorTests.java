@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -1271,7 +1272,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             desiredBalanceShardsAllocator.allocate(
-                new RoutingAllocation(
+                TestRoutingAllocationFactory.mutable(
                     new AllocationDeciders(Collections.emptyList()),
                     clusterService.state(),
                     null,

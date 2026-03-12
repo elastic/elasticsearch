@@ -33,7 +33,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -242,9 +244,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable(projectId)
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
-        RoutingAllocation allocation = new RoutingAllocation(
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(List.of()),
-            initialClusterState.mutableRoutingNodes(),
             initialClusterState,
             null,
             null,
@@ -676,7 +677,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(allocationDeciders, clusterState, null, null, randomLong());
         return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
 
@@ -782,7 +783,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(allocationDeciders, clusterState, null, null, randomLong());
 
         assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));
     }
@@ -799,7 +800,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return ClusterInfo.shardIdentifierFromRouting(s);
     }
 
-    public static ClusterState updateClusterState(ClusterState oldState, RoutingAllocation allocation) {
+    public static ClusterState updateClusterState(ClusterState oldState, MutableRoutingAllocation allocation) {
         assert allocation.metadata() == oldState.metadata();
         if (allocation.routingNodesChanged() == false) {
             return oldState;

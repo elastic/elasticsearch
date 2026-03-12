@@ -922,9 +922,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         Index index = clusterState.getMetadata().getProject(projectId).index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node1", "node2", projectId);
-        RoutingAllocation routingAllocation = new RoutingAllocation(
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(Collections.emptyList()),
-            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
@@ -985,14 +984,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         Index index = clusterState.getMetadata().getProject(projectId).index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node2", "node1", projectId);
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(Collections.emptyList()),
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.mutable(clusterState);
         logger.info("--> executing move allocation command from non-data node");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
         assertEquals(

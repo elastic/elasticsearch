@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -257,7 +258,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
     }
 
     protected static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
-        return new RoutingAllocation(
+        return TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of()),
             ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
             ClusterInfo.EMPTY,
@@ -267,7 +268,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, GlobalRoutingTable routing) {
-        return new RoutingAllocation(
+        return TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of()),
             ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
             ClusterInfo.EMPTY,

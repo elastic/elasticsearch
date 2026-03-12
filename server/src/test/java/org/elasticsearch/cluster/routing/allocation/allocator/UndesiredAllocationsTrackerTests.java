@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -222,7 +223,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
                 return allocation.decision(Decision.YES, "test_yes_decider", "Always says yes");
             }
         };
-        final var allocation = new RoutingAllocation(
+        final var allocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)),
             state,
             ClusterInfo.EMPTY,
@@ -370,12 +371,18 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             clusterStateWithRoutingsAdded.globalRoutingTable(),
             clusterStateWithRoutingsAdded.nodes()
         );
-        final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return allocation.decision(Decision.NO, "test_no_decider", "role: " + shardRouting.role());
-            }
-        })), clusterStateWithRoutingsAdded, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, randomNonNegativeLong());
+        final var allocation = TestRoutingAllocationFactory.immutable(
+            new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return allocation.decision(Decision.NO, "test_no_decider", "role: " + shardRouting.role());
+                }
+            })),
+            clusterStateWithRoutingsAdded,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
 
         final int maxShardsToTrack = randomIntBetween(2, 8);
         final var warningThreshold = TimeValue.timeValueMinutes(randomIntBetween(1, 5));

@@ -30,12 +30,10 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,8 +53,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     private static final Logger logger = LogManager.getLogger(TransportClusterAllocationExplainAction.class);
 
     private final ClusterInfoService clusterInfoService;
-    private final SnapshotsInfoService snapshotsInfoService;
-    private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
     private final ProjectResolver projectResolver;
 
@@ -67,8 +63,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        AllocationDeciders allocationDeciders,
         AllocationService allocationService,
         ProjectResolver projectResolver
     ) {
@@ -84,8 +78,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterInfoService = clusterInfoService;
-        this.snapshotsInfoService = snapshotsInfoService;
-        this.allocationDeciders = allocationDeciders;
         this.allocationService = allocationService;
         this.projectResolver = projectResolver;
     }
@@ -104,13 +96,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ) {
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final Collection<ProjectId> projectIds = projectResolver.getProjectIds(state);
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            state,
-            clusterInfo,
-            snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
-        );
+        final RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(state, System.nanoTime());
 
         ShardRouting shardRouting = findShardToExplain(request, allocation, projectIds);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);

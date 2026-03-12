@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -157,7 +158,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
         }
 
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(List.of()),
             routingNodes,
             clusterState,
@@ -1666,9 +1667,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
-        return new RoutingAllocation(
+        return TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(List.of(deciders)),
-            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

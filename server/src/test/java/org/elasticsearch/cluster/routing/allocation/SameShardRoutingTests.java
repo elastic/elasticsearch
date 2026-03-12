@@ -190,7 +190,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 .findFirst()
                 .orElseThrow(AssertionError::new);
 
-            final RoutingAllocation routingAllocation = new RoutingAllocation(
+            final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(
                 new AllocationDeciders(singletonList(decider)),
                 clusterState,
                 null,
@@ -268,9 +268,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         Index index = clusterState.getMetadata().getProject().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
         RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
-        RoutingAllocation routingAllocation = new RoutingAllocation(
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(Collections.emptyList()),
-            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

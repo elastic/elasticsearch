@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -447,9 +448,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.mutable(
             new AllocationDeciders(List.of()),
-            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
@@ -660,7 +660,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         for (var nodeId : List.of("node-0", "node-1")) {
             final var desiredBalanceInput = DesiredBalanceInput.create(
                 randomInt(),
-                new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
+                TestRoutingAllocationFactory.immutable(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                         // Move command works every decision except NO
@@ -723,7 +723,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final var desiredBalanceInput = DesiredBalanceInput.create(
             randomInt(),
-            new RoutingAllocation(new AllocationDeciders(List.of(new AllocationDecider() {
+            TestRoutingAllocationFactory.immutable(new AllocationDeciders(List.of(new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // Always return NO so that AllocationCommands will silently fail.
@@ -1158,7 +1158,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .build();
 
         var settings = Settings.EMPTY;
-        var allocation = new RoutingAllocation(
+        var allocation = TestRoutingAllocationFactory.immutable(
             randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             clusterState,
             clusterInfoBuilder.build(),
@@ -1285,7 +1285,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .build();
 
         var settings = Settings.EMPTY;
-        var allocation = new RoutingAllocation(
+        var allocation = TestRoutingAllocationFactory.immutable(
             randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             clusterState,
             clusterInfoBuilder.build(),
@@ -1410,7 +1410,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             TEST_ONLY_EXPLAINER
         );
 
-        final var allocation = new RoutingAllocation(
+        final var allocation = TestRoutingAllocationFactory.immutable(
             randomAllocationDeciders(Settings.EMPTY, clusterSettings),
             createInitialClusterState(1, 1, 0),
             ClusterInfo.EMPTY,
@@ -1723,7 +1723,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         // No logging since no unassigned shard
         {
-            final var allocation = new RoutingAllocation(
+            final var allocation = TestRoutingAllocationFactory.immutable(
                 randomAllocationDeciders(Settings.EMPTY, clusterSettings),
                 createInitialClusterState(1, 1, 0),
                 ClusterInfo.EMPTY,
@@ -1764,7 +1764,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     )
                 )
             );
-            final var allocation = new RoutingAllocation(
+            final var allocation = TestRoutingAllocationFactory.immutable(
                 randomAllocationDeciders(Settings.EMPTY, clusterSettings),
                 clusterState,
                 ClusterInfo.EMPTY,
@@ -1808,7 +1808,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         // Logging for unassigned replica shard (since primary is now assigned)
         {
-            final var allocation = new RoutingAllocation(
+            final var allocation = TestRoutingAllocationFactory.immutable(
                 randomAllocationDeciders(Settings.EMPTY, clusterSettings),
                 initialState,
                 ClusterInfo.EMPTY,
@@ -1857,7 +1857,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     )
                 )
             );
-            final var allocation = new RoutingAllocation(
+            final var allocation = TestRoutingAllocationFactory.immutable(
                 randomAllocationDeciders(Settings.EMPTY, clusterSettings),
                 clusterState,
                 ClusterInfo.EMPTY,
@@ -2121,7 +2121,13 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {
-        return new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+        return TestRoutingAllocationFactory.immutable(
+            new AllocationDeciders(List.of()),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L
+        );
     }
 
     private static RoutingAllocation routingAllocationWithDecidersOf(
@@ -2129,7 +2135,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo,
         Settings settings
     ) {
-        return new RoutingAllocation(
+        return TestRoutingAllocationFactory.immutable(
             randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             clusterState,
             clusterInfo,

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -46,7 +47,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     private final String nodeId = randomIdentifier();
 
     public void testYesWhenSimulating() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             ClusterState.EMPTY_STATE,
             ClusterInfo.EMPTY,
@@ -66,7 +67,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNotPrimary() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             ClusterState.EMPTY_STATE,
             ClusterInfo.EMPTY,
@@ -86,7 +87,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNoSnapshots() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             ClusterState.EMPTY_STATE,
             ClusterInfo.EMPTY,
@@ -106,7 +107,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenNoShardSnapshot() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             // snapshot in progress but not targetting this shard
             makeClusterState(new ShardId(randomIdentifier(), randomUUID(), 0), randomFrom(SnapshotsInProgress.ShardState.values())),
@@ -127,7 +128,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenShardSnapshotComplete() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             // snapshot in progress but complete
             makeClusterState(
@@ -153,7 +154,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testYesWhenShardSnapshotOnDifferentNode() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             makeClusterState(shardId, randomFrom(SnapshotsInProgress.ShardState.values())),
             ClusterInfo.EMPTY,
@@ -174,7 +175,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
     }
 
     public void testThrottleWhenSnapshotInProgress() {
-        final var routingAllocation = new RoutingAllocation(
+        final var routingAllocation = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT),
             ClusterInfo.EMPTY,
@@ -270,7 +271,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         // if the node is marked for shutdown then the shard can move
 
-        final var routingAllocationWithShutdownMetadata = new RoutingAllocation(
+        final var routingAllocationWithShutdownMetadata = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             ClusterState.builder(clusterStateWithShutdownMetadata).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
             ClusterInfo.EMPTY,
@@ -290,7 +291,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
         // if the node is not marked for shutdown then the shard is fixed in place
 
-        final var routingAllocationWithoutShutdownMetadata = new RoutingAllocation(
+        final var routingAllocationWithoutShutdownMetadata = TestRoutingAllocationFactory.immutable(
             new AllocationDeciders(List.of(decider)),
             ClusterState.builder(ClusterName.DEFAULT).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
             ClusterInfo.EMPTY,

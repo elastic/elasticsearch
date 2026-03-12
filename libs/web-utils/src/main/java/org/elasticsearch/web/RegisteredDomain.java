@@ -13,7 +13,9 @@ import org.apache.http.conn.util.PublicSuffixMatcher;
 import org.apache.http.conn.util.PublicSuffixMatcherLoader;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.SequencedMap;
 
 /**
  * Utility class for parsing fully qualified domain names (FQDNs) into their constituent parts:
@@ -38,14 +40,15 @@ public class RegisteredDomain {
     public static final String eTLD = "top_level_domain";
     public static final String SUBDOMAIN = "subdomain";
 
-    public static final LinkedHashMap<String, Class<?>> REGISTERED_DOMAIN_INFO_FIELDS;
+    public static final SequencedMap<String, Class<?>> REGISTERED_DOMAIN_INFO_FIELDS;
 
     static {
-        REGISTERED_DOMAIN_INFO_FIELDS = new LinkedHashMap<>();
-        REGISTERED_DOMAIN_INFO_FIELDS.putLast(DOMAIN, String.class);
-        REGISTERED_DOMAIN_INFO_FIELDS.putLast(REGISTERED_DOMAIN, String.class);
-        REGISTERED_DOMAIN_INFO_FIELDS.putLast(eTLD, String.class);
-        REGISTERED_DOMAIN_INFO_FIELDS.putLast(SUBDOMAIN, String.class);
+        LinkedHashMap<String, Class<?>> fields = new LinkedHashMap<>();
+        fields.putLast(DOMAIN, String.class);
+        fields.putLast(REGISTERED_DOMAIN, String.class);
+        fields.putLast(eTLD, String.class);
+        fields.putLast(SUBDOMAIN, String.class);
+        REGISTERED_DOMAIN_INFO_FIELDS = Collections.unmodifiableSequencedMap(fields);
     }
 
     private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
@@ -77,7 +80,7 @@ public class RegisteredDomain {
         return false;
     }
 
-    public static LinkedHashMap<String, Class<?>> getRegisteredDomainInfoFields() {
+    public static SequencedMap<String, Class<?>> getRegisteredDomainInfoFields() {
         return REGISTERED_DOMAIN_INFO_FIELDS;
     }
 

@@ -39,17 +39,12 @@ public final class DerivLongAggregatorFunction implements AggregatorFunction {
 
   private final boolean dateNanos;
 
-  public DerivLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SimpleLinearRegressionWithTimeseries state, boolean dateNanos) {
+  DerivLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      boolean dateNanos) {
+    this.dateNanos = dateNanos;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.dateNanos = dateNanos;
-  }
-
-  public static DerivLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, boolean dateNanos) {
-    return new DerivLongAggregatorFunction(driverContext, channels, DerivLongAggregator.initSingle(driverContext, dateNanos), dateNanos);
+    this.state = DerivLongAggregator.initSingle(driverContext, dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

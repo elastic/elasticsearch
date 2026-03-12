@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -153,6 +151,8 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -1897,7 +1897,7 @@ public class AnalyzerTests extends ESTestCase {
 
         AnalyzerContext context = testAnalyzerContext(
             configuration("from test"),
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
@@ -2053,7 +2053,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         AnalyzerContext context = testAnalyzerContext(
             configuration(query),
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
@@ -2449,7 +2449,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzerMissingLookupIndex = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 analyzerDefaultMapping(),
                 Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution(),
@@ -5197,7 +5197,7 @@ public class AnalyzerTests extends ESTestCase {
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(esIndex),
                 defaultEnrichResolution(),
                 defaultInferenceResolution()
@@ -6589,7 +6589,7 @@ public class AnalyzerTests extends ESTestCase {
 
         var context = new AnalyzerContext(
             EsqlTestUtils.TEST_CFG,
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             null,
             Map.of(),
             Map.of(),
@@ -6601,7 +6601,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
 
-        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
+        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
         var analyzed = testAnalyzer.analyze(plan);
 
         var externalRelations = new ArrayList<ExternalRelation>();
@@ -6644,7 +6644,7 @@ public class AnalyzerTests extends ESTestCase {
 
         var context = new AnalyzerContext(
             EsqlTestUtils.TEST_CFG,
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             null,
             Map.of(),
             Map.of(),
@@ -6656,7 +6656,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
 
-        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
+        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
         var analyzed = testAnalyzer.analyze(plan);
 
         var externalRelations = new ArrayList<ExternalRelation>();

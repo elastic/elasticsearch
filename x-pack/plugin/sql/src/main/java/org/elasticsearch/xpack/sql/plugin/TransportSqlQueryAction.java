@@ -77,6 +77,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
     private final ActivityLogger<SqlLogContext> activityLogger;
 
@@ -91,7 +92,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -102,6 +104,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.transportService = transportService;
+        this.crossProjectModeDecider = crossProjectModeDecider;
 
         asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -137,7 +140,16 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            operation(planExecutor, (SqlQueryTask) task, request, listener, username(securityContext), transportService, clusterService);
+            operation(
+                planExecutor,
+                (SqlQueryTask) task,
+                request,
+                listener,
+                username(securityContext),
+                transportService,
+                clusterService,
+                crossProjectModeDecider
+            );
         }
     }
 
@@ -151,10 +163,15 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         ActionListener<SqlQueryResponse> listener,
         String username,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        boolean allowPartialSearchResults = request.allowPartialSearchResults() != null
+            ? request.allowPartialSearchResults()
+            : crossProjectEnabled;
         SqlConfiguration cfg = new SqlConfiguration(
             request.zoneId(),
             request.catalog(),
@@ -172,8 +189,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
             task,
-            request.allowPartialSearchResults(),
-            new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled(),
+            allowPartialSearchResults,
+            crossProjectEnabled,
             request.projectRouting()
         );
 
@@ -291,7 +308,16 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(planExecutor, task, request, listener, username(securityContext), transportService, clusterService);
+        operation(
+            planExecutor,
+            task,
+            request,
+            listener,
+            username(securityContext),
+            transportService,
+            clusterService,
+            crossProjectModeDecider
+        );
     }
 
     @Override

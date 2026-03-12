@@ -14,6 +14,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
@@ -75,7 +76,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
         var messages = List.of("Hello Gemini!");
 
         var request = createRequest(projectId, location, modelId, messages, null, null, null, googleModelGardenProvider);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var uri = URI.create(

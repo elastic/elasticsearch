@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 
 import java.io.IOException;
@@ -27,7 +28,7 @@ public class AnthropicChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest() throws IOException {
         var request = createRequest("secret", "abc", "model", 2);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -49,7 +50,7 @@ public class AnthropicChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_TestUrl() throws IOException {
         var request = createRequest("fake_url", "secret", "abc", "model", 2);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -75,7 +76,7 @@ public class AnthropicChatCompletionRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(buildAnthropicUri()));
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

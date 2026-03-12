@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiCompletionRequest;
 
@@ -31,7 +32,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
         var apiKey = randomAlphaOfLength(10);
 
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -56,7 +57,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
         var entraId = randomAlphaOfLength(10);
 
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

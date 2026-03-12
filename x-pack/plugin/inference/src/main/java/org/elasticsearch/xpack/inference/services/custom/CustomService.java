@@ -140,9 +140,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-            validateConfiguration(model);
-
-            parsedModelListener.onResponse(model);
+            validateConfigurationAsync(model, parsedModelListener);
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
@@ -151,14 +149,23 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     /**
      * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
      */
-    private static void validateConfiguration(CustomModel model) {
-        try {
-            new CustomRequest(createParameters(model), model).createHttpRequest();
-        } catch (IllegalStateException e) {
+    private static void validateConfigurationAsync(CustomModel model, ActionListener<Model> listener) {
+        var request = new CustomRequest(createParameters(model), model);
+
+        request.createHttpRequestAsync(
+            ActionListener.wrap(httpRequest -> listener.onResponse(model), e -> listener.onFailure(wrapIllegalStateAsValidation(e)))
+        );
+    }
+
+    private static Exception wrapIllegalStateAsValidation(Exception e) {
+        if (e instanceof IllegalStateException illegalStateException) {
             var validationException = new ValidationException();
-            validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
-            throw validationException;
+            validationException.addValidationError(
+                Strings.format("Failed to validate model configuration: %s", illegalStateException.getMessage())
+            );
+            return validationException;
         }
+        return e;
     }
 
     private static RequestParameters createParameters(CustomModel model) {

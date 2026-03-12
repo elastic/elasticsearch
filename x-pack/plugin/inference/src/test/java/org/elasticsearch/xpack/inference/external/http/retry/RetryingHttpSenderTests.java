@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.StreamingHttpResult;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequestTests;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -679,7 +680,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
     private static Request mockRequest(String inferenceEntityId) {
         var request = mock(Request.class);
         when(request.truncate()).thenReturn(request);
-        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock(inferenceEntityId));
+        doAnswer(invocation -> {
+            ActionListener<HttpRequest> listener = invocation.getArgument(0);
+            listener.onResponse(HttpRequestTests.createMock(inferenceEntityId));
+            return Void.TYPE;
+        }).when(request).createHttpRequestAsync(any());
         when(request.getInferenceEntityId()).thenReturn(inferenceEntityId);
 
         return request;

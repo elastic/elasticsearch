@@ -3238,4 +3238,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return previousFailureSkipsRemaining;
     }
 
+    /**
+     * Utility method to restore a system property to a value if the test needs to modify it.
+     *
+     * @param value The pre-existing value of the system property
+     * @param key The key of the system property
+     */
+    @SuppressForbidden(reason = "Uses System.setProperty")
+    protected void restoreSystemProperty(String value, String key) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
+
 }

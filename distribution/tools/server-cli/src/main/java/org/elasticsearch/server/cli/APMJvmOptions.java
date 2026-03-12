@@ -141,20 +141,17 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
-        boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
-        boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
         boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
-        boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
 
         final Path agentJar = findAgentJar();
 
-        if (attachAgent == false || agentJar == null) {
+        if (agentJar == null) {
             return List.of();
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
 
-        if (metricsEnabled == false || agentMetricsEnabled == false) {
+        if (agentMetricsEnabled == false) {
             propertiesMap.put("metrics_interval", "0s");
             propertiesMap.put("disable_metrics", "*");
         }

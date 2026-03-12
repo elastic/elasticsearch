@@ -52,6 +52,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -66,9 +67,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -636,10 +637,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
             final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
             if (remoteClusterIndices.size() > 0) {
-                ActionListener<Collection<Map.Entry<String, Response>>> responsesListener = listener.delegateFailureAndWrap(
-                    (l, responses) -> {
-                        Map<String, Response> linkedProjectsResponses = responses.stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
+                    .delegateFailureAndWrap((l, responses) -> {
+                        Map<String, Response> linkedProjectsResponses = new HashMap<>();
+                        for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responses) {
+                            String projectName = entry.getKey();
+                            SearchPlanningPhaseResolutionResult result = entry.getValue();
+
+                            if (result.response() instanceof ResolveIndexAction.Response response) {
+                                linkedProjectsResponses.put(projectName, response);
+                            }
+                        }
 
                         if (resolveCrossProject) {
                             final Exception ex = CrossProjectIndexResolutionValidator.validate(
@@ -657,10 +665,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
                         mergeResults(linkedProjectsResponses, indices, aliases, dataStreams, request.indexModes);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
-                    }
-                );
+                    });
 
-                ActionListener<Map.Entry<String, Response>> gal = new GroupedActionListener<>(
+                ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> gal = new GroupedActionListener<>(
                     remoteClusterIndices.size(),
                     responsesListener
                 );
@@ -683,8 +690,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     }
 
                     connectionListener.addListener(gal.delegateResponse((l, failure) -> {
-                        logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                        l.onResponse(null);
+                        logger.debug("failed to resolve indices on remote cluster [{}]: {}", clusterAlias, failure);
+                        l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
                     })
                         .delegateFailure(
                             (ignored, connection) -> transportService.sendRequest(
@@ -693,12 +700,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 remoteRequest,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(gal.delegateResponse((l, failure) -> {
-                                    logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
-                                    l.onResponse(null);
-                                }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
-                                    Response::new,
-                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
-                                )
+                                    logger.debug("Error occurred on remote cluster [{}]: {}", clusterAlias, failure);
+                                    l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
+                                })
+                                    .map(
+                                        resolveIndexResponse -> Map.entry(
+                                            clusterAlias,
+                                            new SearchPlanningPhaseResolutionResult(resolveIndexResponse, null)
+                                        )
+                                    ), Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                             )
                         ));
 

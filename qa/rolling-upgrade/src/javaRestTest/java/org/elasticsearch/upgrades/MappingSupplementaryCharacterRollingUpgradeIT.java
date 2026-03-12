@@ -45,11 +45,28 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
             createIndexWithSupplementaryCharField();
             indexDocument("1", "hello");
             assertDocumentExists("1", "hello");
-        } else if (isUpgradedCluster()) {
+        } else if (isMixedCluster()) {
+            ensureGreen(INDEX_NAME);
+            assertMappingContainsField();
+            assertDocumentExists("1", "hello");
+            // Index a document while old and new nodes coexist to exercise cross-version cluster state propagation
+            if (isFirstMixedCluster()) {
+                indexDocument("2", "mixed1");
+                assertDocumentExists("2", "mixed1");
+                // Add a new field to force a mapping update that must be parsed by all nodes
+                addFieldToMapping();
+            } else {
+                indexDocument("3", "mixed2");
+                assertDocumentExists("3", "mixed2");
+            }
+        } else {
+            assert isUpgradedCluster();
             ensureGreen(INDEX_NAME);
             assertDocumentExists("1", "hello");
-            indexDocument("2", "world");
-            assertDocumentExists("2", "world");
+            assertDocumentExists("2", "mixed1");
+            assertDocumentExists("3", "mixed2");
+            indexDocument("4", "upgraded");
+            assertDocumentExists("4", "upgraded");
             assertMappingContainsField();
         }
     }
@@ -83,6 +100,27 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
             .endObject();
         indexRequest.setJsonEntity(Strings.toString(doc));
         assertThat(client().performRequest(indexRequest).getStatusLine().getStatusCode(), equalTo(RestStatus.CREATED.getStatus()));
+    }
+
+    /**
+     * Adds a new field with a supplementary character to the existing mapping, forcing a mapping
+     * update that must be serialized and parsed by every node in the cluster, including old nodes
+     * running a different Jackson version.
+     */
+    private void addFieldToMapping() throws IOException {
+        Request putMapping = new Request("PUT", "/" + INDEX_NAME + "/_mapping");
+        // U+1F60A SMILING FACE WITH SMILING EYES
+        String newField = "smile_\uD83D\uDE0A_field";
+        XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("properties")
+            .startObject(newField)
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        putMapping.setJsonEntity(Strings.toString(body));
+        assertThat(client().performRequest(putMapping).getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @SuppressWarnings("unchecked")

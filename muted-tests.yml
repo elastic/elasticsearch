@@ -354,9 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithInvalidApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143646
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:unmapped-nullify.TsWithAggsByMissing}
-  issue: https://github.com/elastic/elasticsearch/issues/142762
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143750
@@ -411,9 +408,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistryTests
   method: testRegisteredFunctionHaveTests
   issue: https://github.com/elastic/elasticsearch/issues/144076
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testMMRLimitedInput
-  issue: https://github.com/elastic/elasticsearch/issues/144077
 
 # Examples:
 #

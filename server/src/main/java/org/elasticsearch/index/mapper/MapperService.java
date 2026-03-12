@@ -620,13 +620,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @param update the update to check
      */
     public boolean isNoOpUpdate(CompressedXContent update) {
+        DocumentMapper existing = documentMapper();
+        if (existing == null) {
+            return false;
+        }
         MappingBuilder updateBuilder = mappingParser.parseToBuilder(
             SINGLE_MAPPING_NAME,
             MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
             MappingParser.convertToMap(update)
         );
         Mapping mapping = mergeBuilders(updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
-        return mapping.toCompressedXContent().equals(documentMapper().mappingSource());
+        return mapping.toCompressedXContent().equals(existing.mappingSource());
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

@@ -25,7 +25,13 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
         super(in);
     }
 
+    @Override
     public String getWriteableName() {
         return "PotentiallyUnmappedKeywordEsField";
+    }
+
+    @Override
+    public String getNodeStringName() {
+        return getWriteableName();
     }
 }

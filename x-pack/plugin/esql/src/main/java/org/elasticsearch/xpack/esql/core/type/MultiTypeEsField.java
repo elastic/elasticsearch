@@ -62,8 +62,14 @@ public class MultiTypeEsField extends EsField {
         writeTimeSeriesFieldType(out);
     }
 
+    @Override
     public String getWriteableName() {
         return "MultiTypeEsField";
+    }
+
+    @Override
+    public String getNodeStringName() {
+        return getWriteableName();
     }
 
     public Map<String, Expression> getIndexToConversionExpressions() {

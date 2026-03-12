@@ -2262,6 +2262,11 @@ public class EsqlCapabilities {
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
+        /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

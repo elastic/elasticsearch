@@ -141,12 +141,12 @@ public class Mapper {
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), limit.groupings(), null);
         }
 
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
-            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), topN.groupings(), null);
 
             if (mappedChild instanceof ExchangeExec exchangeExec) {
                 // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data

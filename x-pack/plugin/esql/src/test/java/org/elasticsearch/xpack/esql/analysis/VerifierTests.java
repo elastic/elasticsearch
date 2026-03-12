@@ -3866,6 +3866,19 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLimitBy() {
+        assertThat(error("""
+            FROM test
+            | SORT salary DESC
+            | LIMIT 5 BY made_up_attr
+            """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
+
+        assertThat(error("""
+            FROM test
+            | LIMIT 5 BY made_up_attr
+            """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
+    }
+
     public void testMMRLimitedInput() {
         assertThat(error("""
             FROM test

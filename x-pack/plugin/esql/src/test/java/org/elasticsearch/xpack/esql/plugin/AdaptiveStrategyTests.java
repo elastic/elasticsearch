@@ -99,7 +99,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
         PhysicalPlan source = createExternalSourceExec();
         Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         Order order = new Order(Source.EMPTY, limitExpr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        PhysicalPlan planWithTopN = new TopNExec(Source.EMPTY, source, List.of(order), limitExpr, null);
+        PhysicalPlan planWithTopN = new TopNExec(Source.EMPTY, source, List.of(order), limitExpr, List.of(), null);
 
         ExternalDistributionContext context = new ExternalDistributionContext(
             planWithTopN,

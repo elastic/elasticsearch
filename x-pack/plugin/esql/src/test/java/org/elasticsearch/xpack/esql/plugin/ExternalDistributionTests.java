@@ -130,7 +130,7 @@ public class ExternalDistributionTests extends ESTestCase {
         ExternalRelation external = createExternalRelation();
         Attribute nameAttr = external.output().get(0);
         Order order = new Order(SRC, nameAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        TopN topN = new TopN(SRC, external, List.of(order), new Literal(SRC, 10, DataType.INTEGER), false);
+        TopN topN = new TopN(SRC, external, List.of(order), new Literal(SRC, 10, DataType.INTEGER), List.of(), false);
 
         Mapper mapper = new Mapper();
         PhysicalPlan physicalPlan = mapper.map(new Versioned<>(topN, TransportVersion.current()));
@@ -316,7 +316,7 @@ public class ExternalDistributionTests extends ESTestCase {
         ExternalRelation external = createExternalRelation();
         Attribute nameAttr = external.output().get(0);
         Order order = new Order(SRC, nameAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        TopN topN = new TopN(SRC, external, List.of(order), new Literal(SRC, 10, DataType.INTEGER), false);
+        TopN topN = new TopN(SRC, external, List.of(order), new Literal(SRC, 10, DataType.INTEGER), List.of(), false);
         FragmentExec fragment = new FragmentExec(topN);
         ExchangeSinkExec sink = new ExchangeSinkExec(SRC, external.output(), false, fragment);
 
@@ -475,6 +475,7 @@ public class ExternalDistributionTests extends ESTestCase {
             external,
             List.of(new Order(SRC, external.output().get(0), Order.OrderDirection.ASC, Order.NullsPosition.LAST)),
             new Literal(SRC, 10, DataType.INTEGER),
+            List.of(),
             false
         );
         FragmentExec fragment = new FragmentExec(topN);
@@ -484,6 +485,7 @@ public class ExternalDistributionTests extends ESTestCase {
             exchange,
             List.of(new Order(SRC, external.output().get(0), Order.OrderDirection.ASC, Order.NullsPosition.LAST)),
             new Literal(SRC, 10, DataType.INTEGER),
+            List.of(),
             null
         ).withSortedInput();
 

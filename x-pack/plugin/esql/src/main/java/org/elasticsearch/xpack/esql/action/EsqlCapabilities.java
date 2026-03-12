@@ -2197,6 +2197,12 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+
+         * Enables LIMIT N BY in the LIMIT command, both with and without a preceding SORT.
+         */
+        LIMIT_BY,
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/142219
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),

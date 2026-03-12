@@ -15,11 +15,13 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
 
     @Override
-    protected LogicalPlan rule(Limit plan) {
-        LogicalPlan p = plan;
-        if (plan.child() instanceof OrderBy o) {
-            p = new TopN(o.source(), o.child(), o.order(), plan.limit(), false);
+    protected LogicalPlan rule(Limit limit) {
+        LogicalPlan p = limit;
+
+        if (limit.child() instanceof OrderBy o) {
+            p = new TopN(o.source(), o.child(), o.order(), limit.limit(), limit.groupings(), false);
         }
+
         return p;
     }
 }

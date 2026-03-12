@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineLimitTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -1062,6 +1063,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
             new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
+    }
+
+    public void testCombineLimitTopNSameGroupings() {
+        var attr = getFieldAttribute("a");
+        var groupings = List.<Expression>of(attr);
+        var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
+        var topN = new TopN(EMPTY, emptySource(), order, L(5), groupings, false);
+        var limit = new Limit(EMPTY, L(10), topN, groupings);
+        var result = new CombineLimitTopN().rule(limit);
+        var resultTopN = as(result, TopN.class);
+        assertThat(resultTopN.limit(), equalTo(L(5)));
+        assertThat(resultTopN.groupings(), equalTo(groupings));
+    }
+
+    public void testCombineLimitTopNDifferentGroupings() {
+        var attr = getFieldAttribute("a");
+        var groupings = List.<Expression>of(attr);
+        var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
+        var topN = new TopN(EMPTY, emptySource(), order, L(5), groupings, false);
+        var limit = new Limit(EMPTY, L(10), topN);
+        var result = new CombineLimitTopN().rule(limit);
+        var resultLimit = as(result, Limit.class);
+        assertThat(resultLimit.limit(), equalTo(L(10)));
+        var childTopN = as(resultLimit.child(), TopN.class);
+        assertThat(childTopN.groupings(), equalTo(groupings));
+    }
+
+    /**
+     * When Limit and TopN have semantically equal groupings (same logical attribute, different expression instances),
+     * the rule should still combine them. Ensures Expressions.semanticEquals(List, List) is used.
+     */
+    public void testCombineLimitTopNSemanticallyEqualGroupings() {
+        var attr = getFieldAttribute("a");
+        var topNGroupings = List.<Expression>of(attr);
+        var limitGroupings = List.<Expression>of(
+            new ReferenceAttribute(EMPTY, null, attr.name(), attr.dataType(), attr.nullable(), attr.id(), false)
+        );
+        var source = emptySource();
+        var topN = new TopN(EMPTY, source, List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null)), L(5), topNGroupings, false);
+        var limit = new Limit(EMPTY, L(10), topN, limitGroupings);
+        var result = new CombineLimitTopN().rule(limit);
+        var resultTopN = as(result, TopN.class);
+        assertThat(resultTopN.limit(), equalTo(L(5)));
+        assertThat(resultTopN.child(), equalTo(source));
     }
 
     public void testPushdownLimitsPastLeftJoin() {
@@ -9840,6 +9885,342 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * LIMIT BY with a plain attribute should not introduce any synthetic EVAL.
+     * The plan should be the same as the existing testTopNWithGroupingsPlan.
+     */
+    public void testTopNWithGroupingsPlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.synthetic(), equalTo(false));
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * LIMIT BY with an expression should extract the expression into a synthetic EVAL.
+     * {@code FROM employees | SORT salary | LIMIT 2 BY languages * 2}
+     * becomes
+     * {@code Project | TopN[groupings=[$$limit_by_ref]] | Eval[$$limit_by = languages * 2] | EsRelation}
+     */
+    public void testTopNWithGroupingsExpressionPlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // Project hides the synthetic eval attribute
+        var project = as(plan, Project.class);
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        // TopN has the synthetic attribute as grouping
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), ReferenceAttribute.class);
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        // Eval computes the expression
+        var eval = as(groupedTopN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(groupKey.id()));
+        assertThat(alias.child(), instanceOf(Mul.class));
+
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * LIMIT BY with a mix of attributes and expressions should only extract the expression.
+     * {@code FROM employees | SORT salary | LIMIT 2 BY languages, salary * 2}
+     */
+    public void testTopNWithGroupingsMixedPlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages, salary * 2
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        assertThat(groupedTopN.groupings().size(), equalTo(2));
+
+        // First grouping is a plain attribute -- no extraction needed
+        var firstGroupKey = as(groupedTopN.groupings().get(0), FieldAttribute.class);
+        assertThat(firstGroupKey.name(), equalTo("languages"));
+
+        // Second grouping is a synthetic reference attribute
+        var secondGroupKey = as(groupedTopN.groupings().get(1), ReferenceAttribute.class);
+
+        // Eval only computes the expression for the second grouping
+        var eval = as(groupedTopN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(secondGroupKey.id()));
+        assertThat(alias.child(), instanceOf(Mul.class));
+
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * All groupings are foldable -- the LIMIT BY degenerates to a plain LIMIT (TopN with no groupings).
+     */
+    public void testTopNWithGroupingsByConstant() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY 20 * 5, 10
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // No Project wrapper needed -- no synthetic eval was created
+        var topN = as(plan, TopN.class);
+        assertThat(topN.groupings().size(), equalTo(0));
+        var limit = as(topN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Mixed foldable and attribute groupings: the foldable one (42) is pruned, the attribute (languages) remains.
+     */
+    public void testTopNWithGroupingsMixedFoldableAndAttribute() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages, 42
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // No Project wrapper -- the remaining grouping is a plain attribute, no eval needed
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        var groupKey = as(topN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+        var limit = as(topN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Mixed foldable and expression groupings: the foldable (42) is pruned, the expression (languages * 2) is extracted to eval.
+     */
+    public void testTopNWithGroupingsMixedFoldableAndExpression() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2, 42
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // Project hides the synthetic eval attribute
+        var project = as(plan, Project.class);
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        var groupKey = as(topN.groupings().getFirst(), ReferenceAttribute.class);
+
+        // Eval computes the expression
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(groupKey.id()));
+
+        as(eval.child(), EsRelation.class);
+    }
+
+    public void testTopNWithGroupingsAndSeveralSorts() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNWithGroupingsAndNonContiguousSorts() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNWithEvalAndNonEvalGroupings() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages, job
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2, job
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(4));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+        assertThat(projections.get(3).name(), equalTo("job"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings().size(), equalTo(2));
+        var firstGroupKey = as(groupedTopN.groupings().get(0), ReferenceAttribute.class);
+        assertThat(firstGroupKey.synthetic(), equalTo(false));
+        var secondGroupKey = as(groupedTopN.groupings().get(1), FieldAttribute.class);
+        assertThat(secondGroupKey.synthetic(), equalTo(false));
+        assertThat(secondGroupKey.field().getName(), equalTo("job"));
+
+        var eval = as(groupedTopN.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(firstGroupKey.id()));
+        as(alias.child(), Mul.class);
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNWithGroupingsQualifiedNamePlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY [employees].[languages]
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var groupedTopN = as(defaultLimit.child(), TopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        assertThat(groupedTopN.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(groupedTopN.groupings().size(), equalTo(1));
+        var groupKey = as(groupedTopN.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
      * <pre>{@code
      * Limit[1000[INTEGER],false,false]
      * \_LocalRelation[[x{r}#3, y{r}#5, z{r}#7],Page{blocks=[
@@ -10334,6 +10715,311 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("rd.registered_domain"));
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
+    }
+
+    public void testLimitByPruneIdenticalLimits() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2 BY emp_no
+            | LIMIT 1 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+    }
+
+    public void testLimitByKeepDifferentGroupings() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 1 BY first_name
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var limit1 = as(defaultLimit.child(), Limit.class);
+        assertThat(limit1.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit1.groupings()), contains("first_name"));
+        var limit2 = as(limit1.child(), Limit.class);
+        assertThat(limit2.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
+    }
+
+    public void testLimitByKeepNoGroupings() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2
+            | LIMIT 2 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+        var limit2 = as(limit.child(), Limit.class);
+        assertThat(limit2.groupings(), empty());
+        var limit3 = as(limit2.child(), Limit.class);
+        assertThat(Expressions.names(limit3.groupings()), contains("emp_no"));
+    }
+
+    public void testLimitByKeepSimilarTopNDifferentGrouping() {
+        var plan = plan("""
+            FROM test
+            | SORT first_name
+            | LIMIT 2
+            | SORT first_name
+            | LIMIT 2 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(Expressions.names(topN.groupings()), contains("emp_no"));
+        var topN2 = as(topN.child(), TopN.class);
+        assertThat(topN2.groupings(), empty());
+    }
+
+    public void testLimitByLimitNotPropagatedToLimitBy() {
+        var plan = plan("""
+            FROM test
+            | SORT first_name
+            | LIMIT 5 BY emp_no
+            | SORT first_name
+            | LIMIT 10
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.groupings(), empty());
+        assertThat(((Literal) topN.limit()).value(), equalTo(10));
+        var topN2 = as(topN.child(), TopN.class);
+        assertThat(Expressions.names(topN2.groupings()), contains("emp_no"));
+        assertThat(((Literal) topN2.limit()).value(), equalTo(5));
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[x{r}#4200,DESC,FIRST]],1[INTEGER],[g{r}#4202],false]
+     * \_LocalRelation[[x{r}#4200, g{r}#4202],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     *   IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantLimitByWithWhere() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g
+            | WHERE MV_CONTAINS(g, 20)
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * LocalRelation[[x{r}#7750, g{r}#7752],EMPTY]
+     * }</pre>
+     */
+    public void testMvConstantLimitByWithWhereFiltered() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g
+            | WHERE g == 20
+            """);
+
+        var localRelation = as(plan, LocalRelation.class);
+        assertThat(localRelation.hasEmptySupplier(), equalTo(true));
+
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 4:9: evaluation of [g == 20] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 4:9: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+        );
+    }
+
+    /**
+     * <pre>{@code
+     * Eval[[[10, 20, 30][INTEGER] AS h#2321]]
+     * \_TopN[[Order[x{r}#2314,DESC,FIRST]],1[INTEGER],[g{r}#2316],false]
+     *   \_LocalRelation[[x{r}#2314, g{r}#2316],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     *     IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantLimitByGroupByEval() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g
+            | EVAL h = g
+            """);
+
+        var eval = as(plan, Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("h"));
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(10, 20, 30)));
+
+        var defaultLimit = as(eval.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[x{r}#1207,DESC,FIRST]],1[INTEGER],[],false]
+     * \_LocalRelation[[x{r}#1207],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     * }</pre>
+     */
+    public void testSingleValueConstantLimitByGroupIsPruned() {
+        var plan = plan("""
+            ROW x = 1
+            | SORT x DESC
+            | LIMIT 1 BY 42
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.groupings().size(), equalTo(0));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[x{r}#7201,DESC,FIRST]],1[INTEGER],[g{r}#7203],false]
+     * \_LocalRelation[[x{r}#7201, g{r}#7203],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     *   IntArrayBlock[positions=1, mvOrdering=SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * }</pre>
+     */
+    public void testMvConstantLimitByGroupNotPruned() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[x{r}#1703,DESC,FIRST]],1[INTEGER],[g{r}#1705],false]
+     * \_LocalRelation[[x{r}#1703, g{r}#1705],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]], IntArrayBlo
+     *   ck[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * }</pre>
+     */
+    public void testMvAndSingleValueFoldableLimitByGroupings() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g, 42
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(topN.groupings().size(), equalTo(1));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * TopN[[Order[x{r}#5520,DESC,FIRST]],1[INTEGER],[],false]
+     * \_LocalRelation[[x{r}#5520],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     * }</pre>
+     */
+    public void testAllSingleValueFoldableLimitByGroupingsPruned() {
+        var plan = plan("""
+            ROW x = 1
+            | SORT x DESC
+            | LIMIT 1 BY 42, 100
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.groupings().size(), equalTo(0));
+        as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[emp_no{f}#9740]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_Limit[1[INTEGER],[emp_no + 5{r}#9739],false,false]
+     *     \_Eval[[emp_no{f}#9740 + 5[INTEGER] AS emp_no + 5#9739]]
+     *       \_EsRelation[test][_meta_field{f}#9746, emp_no{f}#9740, first_name{f}#..]
+     * }</pre>
+     */
+    public void testLimitByExpressionMovedToEval() {
+        var plan = plan("""
+            FROM test
+            | KEEP emp_no
+            | LIMIT 1 BY emp_no + 5
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no"));
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5"));
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("emp_no + 5"));
+        var add = as(alias.child(), Add.class);
+        var left = as(add.left(), FieldAttribute.class);
+        assertThat(left.name(), equalTo("emp_no"));
+        var right = as(add.right(), Literal.class);
+        assertThat(right.value(), equalTo(5));
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[emp_no{f}#5753]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_TopN[[Order[emp_no{f}#5753,DESC,FIRST]],1[INTEGER],[emp_no + 5{r}#5752],false]
+     *     \_Eval[[emp_no{f}#5753 + 5[INTEGER] AS emp_no + 5#5752]]
+     *       \_EsRelation[test][_meta_field{f}#5759, emp_no{f}#5753, first_name{f}#..]
+     * }</pre>
+     */
+    public void testLimitByExpressionMovedToEvalTopN() {
+        var plan = plan("""
+            FROM test
+            | KEEP emp_no
+            | SORT emp_no DESC
+            | LIMIT 1 BY emp_no + 5
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no"));
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topN = as(defaultLimit.child(), TopN.class);
+        assertThat(Expressions.names(topN.groupings()), contains("emp_no + 5"));
+        var eval = as(topN.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("emp_no + 5"));
+        var add = as(alias.child(), Add.class);
+        var left = as(add.left(), FieldAttribute.class);
+        assertThat(left.name(), equalTo("emp_no"));
+        var right = as(add.right(), Literal.class);
+        assertThat(right.value(), equalTo(5));
+        as(eval.child(), EsRelation.class);
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {

@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -31,7 +34,11 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
 
 public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext>
     implements
@@ -50,7 +57,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        if (limit.child() instanceof Limit childLimit) {
+        if (limit.child() instanceof Limit childLimit && listSemanticEquals(childLimit.groupings(), limit.groupings())) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval
@@ -60,6 +67,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof InferencePlan<?>) {
                 if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
+                    return limit;
+                } else if (groupingsReferenceAttributeDefinedByChild(limit, unary)) {
                     return limit;
                 } else {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
@@ -82,7 +91,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // this applies for cases such as | limit 1 | sort field | limit 10
             else {
                 Limit descendantLimit = descendantLimit(unary);
-                if (descendantLimit != null) {
+                if (descendantLimit != null && descendantLimit.groupings().isEmpty()) {
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());
                     var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {
@@ -163,7 +172,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // If any of them is local, we want the local limit
             return lower.local() ? lower : lower.withLocal(upper.local());
         } else {
-            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local());
+            return new Limit(upper.source(), upper.limit(), lower.child(), upper.groupings(), upper.duplicated(), upper.local());
         }
     }
 
@@ -183,14 +192,35 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     /**
-     * Checks the existence of another 'visible' Limit, that exists behind an operation that doesn't produce output more data than
-     * its input (that is not a relation/source nor aggregation).
+     * Returns {@code true} if any attribute referenced by the limit's groupings is defined by the child node
+     * (i.e. present in the child's output but absent from the grandchild's output). Pushing a grouped limit
+     * past such a child would leave the grouping attribute unresolved.
+     */
+    private static boolean groupingsReferenceAttributeDefinedByChild(Limit limit, UnaryPlan child) {
+        if (limit.groupings().isEmpty()) {
+            return false;
+        }
+        Set<NameId> grandchildIds = new HashSet<>();
+        for (Attribute a : child.child().output()) {
+            grandchildIds.add(a.id());
+        }
+        for (Expression g : limit.groupings()) {
+            if (g instanceof Attribute a && grandchildIds.contains(a.id()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks the existence of another 'visible' non-grouping Limit, that exists behind an operation that doesn't produce more output data
+     * than its input (that is not a relation/source nor aggregation).
      * P.S. Typically an aggregation produces less data than the input.
      */
     private static Limit descendantLimit(UnaryPlan unary) {
         UnaryPlan plan = unary;
         while (plan instanceof Aggregate == false) {
-            if (plan instanceof Limit limit) {
+            if (plan instanceof Limit limit && limit.groupings().isEmpty()) {
                 return limit;
             } else if (plan instanceof MvExpand) {
                 // the limit that applies to mv_expand shouldn't be changed

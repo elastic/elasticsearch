@@ -69,7 +69,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
-            if (p instanceof Limit || p instanceof Sample) {
+            if (p instanceof Limit limit && limit.groupings().isEmpty() || p instanceof Sample) {
                 return p;
             }
 

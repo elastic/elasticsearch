@@ -1,0 +1,5 @@
+FROM employees
+| SORT emp_no DESC
+| KEEP emp_no, salary, languages, gender
+| SORT salary DESC
+| LIMIT 5 BY languages * 2, gender

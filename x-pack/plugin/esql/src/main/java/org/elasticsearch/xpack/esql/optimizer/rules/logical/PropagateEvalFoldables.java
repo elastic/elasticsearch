@@ -39,9 +39,10 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
         AttributeMap.Builder<Expression> builder = AttributeMap.builder();
         builder.putAll(collectRefs);
 
-        // Exclude multi-value (List) literals used as GROUP BY keys from propagation.
+        // Exclude multi-value (List) literals used as grouping keys from propagation.
         //
-        // Rationale: GROUP BY explodes multi-value fields into single values. For example:
+        // Rationale: both GROUP BY and LIMIT BY explode multi-value fields into single values.
+        // For example:
         // ROW a = [1, 2] | STATS x = a + SUM(a) BY a
         // Before aggregation, `a` is multi-valued [1, 2]. After GROUP BY, `a` becomes single-valued
         // (either 1 or 2 per group). If we propagate the original multi-value literal [1, 2] into

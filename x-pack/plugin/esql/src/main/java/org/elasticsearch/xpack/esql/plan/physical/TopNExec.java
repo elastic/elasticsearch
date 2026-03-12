@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.plan.logical.Limit.ESQL_LIMIT_BY;
+
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
     private static final TransportVersion ESQL_TOPN_AVOID_RESORTING = TransportVersion.fromName("esql_topn_avoid_resorting");
 
@@ -64,6 +66,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    private List<Expression> groupings;
+
     private final InputOrdering inputOrdering;
 
     /**
@@ -73,8 +77,15 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     @Nullable
     private final transient SharedMinCompetitive.Supplier minCompetitive;
 
-    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
-        this(source, child, order, limit, estimatedRowSize, Set.of(), InputOrdering.NOT_SORTED, null);
+    public TopNExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limit,
+        List<Expression> groupings,
+        Integer estimatedRowSize
+    ) {
+        this(source, child, order, limit, estimatedRowSize, groupings, Set.of(), InputOrdering.NOT_SORTED, null);
     }
 
     private TopNExec(
@@ -83,9 +94,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         List<Order> order,
         Expression limit,
         Integer estimatedRowSize,
+        List<Expression> groupings,
         InputOrdering inputOrdering
     ) {
-        this(source, child, order, limit, estimatedRowSize, Set.of(), inputOrdering, null);
+        this(source, child, order, limit, estimatedRowSize, groupings, Set.of(), inputOrdering, null);
     }
 
     private TopNExec(
@@ -94,9 +106,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         List<Order> order,
         Expression limit,
         Integer estimatedRowSize,
+        List<Expression> groupings,
         Set<Attribute> docValuesAttributes,
         InputOrdering inputOrdering,
-        SharedMinCompetitive.Supplier minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) {
         super(source, child);
         this.order = order;
@@ -104,6 +117,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
         this.inputOrdering = inputOrdering;
         this.docValuesAttributes = docValuesAttributes;
+        this.groupings = groupings;
         this.minCompetitive = minCompetitive;
     }
 
@@ -114,8 +128,13 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
             in.readNamedWriteable(Expression.class),
             in.readOptionalVInt(),
+            List.of(),
             in.getTransportVersion().supports(ESQL_TOPN_AVOID_RESORTING) ? InputOrdering.valueOf(in.readString()) : InputOrdering.NOT_SORTED
         );
+
+        if (in.getTransportVersion().supports(ESQL_LIMIT_BY)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        }
         // docValueAttributes are only used on the data node and never serialized.
     }
 
@@ -126,9 +145,17 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
         out.writeOptionalVInt(estimatedRowSize());
+
         if (out.getTransportVersion().supports(ESQL_TOPN_AVOID_RESORTING)) {
             out.writeString(inputOrdering.toString());
         }
+
+        if (out.getTransportVersion().supports(ESQL_LIMIT_BY)) {
+            out.writeNamedWriteableCollection(groupings());
+        } else if (groupings.isEmpty() == false) {
+            throw new IllegalArgumentException("LIMIT BY is not supported by all nodes in the cluster");
+        }
+
         // docValueAttributes are only used on the data node and never serialized.
         if (minCompetitive != null) {
             throw new IllegalStateException("min competitive should not be set on the coordinating node because it is not serialized");
@@ -142,20 +169,50 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<TopNExec> info() {
-        return NodeInfo.create(this, TopNExec::new, child(), order, limit, estimatedRowSize);
+        return NodeInfo.create(this, TopNExec::new, child(), order, limit, groupings, estimatedRowSize);
     }
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
+        return new TopNExec(
+            source(),
+            newChild,
+            order,
+            limit,
+            estimatedRowSize,
+            groupings,
+            docValuesAttributes,
+            inputOrdering,
+            minCompetitive
+        );
     }
 
     public TopNExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
+        return new TopNExec(
+            source(),
+            child(),
+            order,
+            limit,
+            estimatedRowSize,
+            groupings,
+            docValuesAttributes,
+            inputOrdering,
+            minCompetitive
+        );
     }
 
     public TopNExec withSortedInput() {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, InputOrdering.SORTED, minCompetitive);
+        return new TopNExec(
+            source(),
+            child(),
+            order,
+            limit,
+            estimatedRowSize,
+            groupings,
+            docValuesAttributes,
+            InputOrdering.SORTED,
+            minCompetitive
+        );
     }
 
     public TopNExec withNonSortedInput() {
@@ -165,6 +222,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             order,
             limit,
             estimatedRowSize,
+            groupings,
             docValuesAttributes,
             InputOrdering.NOT_SORTED,
             minCompetitive
@@ -191,7 +249,17 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public TopNExec withMinCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
+        return new TopNExec(
+            source(),
+            child(),
+            order,
+            limit,
+            estimatedRowSize,
+            groupings,
+            docValuesAttributes,
+            inputOrdering,
+            minCompetitive
+        );
     }
 
     public Expression limit() {
@@ -200,6 +268,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     public List<Order> order() {
         return order;
+    }
+
+    public List<Expression> groupings() {
+        return groupings;
     }
 
     public Set<Attribute> docValuesAttributes() {
@@ -223,12 +295,21 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes, inputOrdering, minCompetitive);
+            : new TopNExec(source(), child(), order, limit, size, groupings, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
+        return Objects.hash(
+            super.hashCode(),
+            order,
+            limit,
+            estimatedRowSize,
+            groupings,
+            docValuesAttributes,
+            inputOrdering,
+            minCompetitive
+        );
     }
 
     @Override
@@ -240,6 +321,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(limit, other.limit)
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
+                && Objects.equals(groupings, other.groupings)
                 && Objects.equals(inputOrdering, other.inputOrdering)
                 /*
                  * NOTE: minCompetitive only has reference equality. We don't serialize

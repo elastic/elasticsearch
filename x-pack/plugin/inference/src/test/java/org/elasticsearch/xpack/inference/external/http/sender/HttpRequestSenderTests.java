@@ -322,7 +322,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
             var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
-            assertThat(authResponse.getAuthorizedEndpoints(), is(elserResponse.responseEntity().getAuthorizedEndpoints()));
+            assertThat(authResponse.authorizedEndpoints(), is(elserResponse.responseEntity().authorizedEndpoints()));
         }
     }
 

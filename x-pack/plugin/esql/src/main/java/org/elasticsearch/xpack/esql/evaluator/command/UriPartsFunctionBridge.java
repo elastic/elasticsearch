@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.elasticsearch.web.UriParts;
 
-import java.util.LinkedHashMap;
 import java.util.SequencedCollection;
+import java.util.SequencedMap;
 import java.util.function.BiConsumer;
 import java.util.function.ObjIntConsumer;
 
@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvalu
  */
 public final class UriPartsFunctionBridge {
 
-    public static LinkedHashMap<String, Class<?>> getAllOutputFields() {
+    public static SequencedMap<String, Class<?>> getAllOutputFields() {
         return UriParts.getUriPartsTypes();
     }
 

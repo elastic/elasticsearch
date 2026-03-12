@@ -47,8 +47,8 @@ import java.util.ArrayList;
  * {@code org.elasticsearch.transport.Lz4TransportDecompressor}.
  * <p>
  * Neither the input nor the output requires a contiguous {@code byte[]} allocation.
- * Output pages are allocated on demand during decompression rather than pre-allocated
- * from the preamble length, so malformed streams only consume pages for bytes actually decoded.
+ * Output pages are pre-allocated from the preamble-declared uncompressed length,
+ * providing an additional bound that decoded output cannot exceed the declared size.
  *
  * @see <a href="https://github.com/google/snappy/blob/main/format_description.txt">Snappy format description</a>
  */
@@ -190,21 +190,23 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
      * read access (needed for Snappy back-reference copies).
      */
     static final class PagedOutput {
-        private final Recycler<BytesRef> recycler;
-        private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
+        private final ArrayList<Recycler.V<BytesRef>> pages;
         private final int pageSize;
         private final int uncompressedLength;
         int written;
 
         PagedOutput(Recycler<BytesRef> recycler, int uncompressedLength) {
-            this.recycler = recycler;
             this.pageSize = recycler.pageSize();
             this.uncompressedLength = uncompressedLength;
-        }
-
-        private void ensurePage() {
-            if (written / pageSize >= pages.size()) {
-                pages.add(recycler.obtain());
+            int numPages = Math.ceilDiv(uncompressedLength, pageSize);
+            this.pages = new ArrayList<>(numPages);
+            try {
+                for (int i = 0; i < numPages; i++) {
+                    pages.add(recycler.obtain());
+                }
+            } catch (Exception e) {
+                Releasables.close(pages);
+                throw e;
             }
         }
 
@@ -216,7 +218,6 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
             validateOutputLength(length);
             int remaining = length;
             while (remaining > 0) {
-                ensurePage();
                 int pageOff = written % pageSize;
                 BytesRef page = pages.get(written / pageSize).v();
                 int spaceInPage = pageSize - pageOff;
@@ -272,7 +273,6 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
             int remaining = length;
             int src = srcPos;
             while (remaining > 0) {
-                ensurePage();
                 int srcPageOff = src % pageSize;
                 int dstPageOff = written % pageSize;
 

@@ -253,7 +253,16 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
+        if (systemIndices.isFeatureAssociatedIndex(request.index())) {
+            return;
+        }
+
+        var totalUserIndices = projectMetadata.stream()
+            .filter(
+                indexMetadata -> indexMetadata.isSystem() == false
+                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
+            )
+            .count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["

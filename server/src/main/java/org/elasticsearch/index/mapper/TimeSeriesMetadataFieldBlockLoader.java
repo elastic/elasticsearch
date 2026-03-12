@@ -15,6 +15,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -88,11 +89,16 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
         }
 
+        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
+
         if (loadMetrics == false) {
             IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
             if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                return new LinkedHashSet<>(dimensionFieldsFromSettings);
+                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
+                result.removeAll(config.withoutFields());
+                return result;
             }
         }
 
@@ -101,7 +107,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension()) {
+                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
                     result.add(fieldType.name());
                 }
                 if (loadMetrics && fieldType.getMetricType() != null) {

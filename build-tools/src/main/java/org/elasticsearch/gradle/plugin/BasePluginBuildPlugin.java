@@ -119,6 +119,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
             task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
+            task.getDeploymentTarget().set(providerFactory.provider(extension::getDeploymentTarget));
 
             var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
             FileCollection moduleInfoFile = mainSourceSet.getOutput()

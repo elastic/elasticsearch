@@ -1327,7 +1327,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
         assertThat(e, is(notNullValue()));
-        assertThat(e.getMessage(), equalTo("no such index [" + originalExpression + "]"));
+        assertThat(e.getMessage(), equalTo("no such index [" + originalExpression.replace("*:", "_origin:") + "]"));
         assertThat(e.getSuppressed(), emptyArray());
     }
 

@@ -2976,11 +2976,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+            equalTo(
+                "1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+            equalTo("1:42: [from] and [to] in [tbucket(3, \"2023-01-01T00:00:00Z\")] must both be provided or both omitted")
         );
         assertThat(
             error(
@@ -3012,8 +3015,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | stats max(event_duration) by tbucket(100)", sampleDataAnalyzer),
             equalTo(
-                "1:42: [tbucket(100)] requires a time range;"
-                    + " provide explicit from/to parameters or add a @timestamp range to the query filter"
+                "1:42: numeric bucket count in [tbucket(100)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
             )
         );
     }

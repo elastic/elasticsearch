@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
@@ -17,8 +15,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -79,7 +75,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable Configuration configuration,
         @Nullable String displayName,
         @Nullable String fingerprint
-    ) implements ToXContentObject {
+    ) {
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -123,59 +119,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(DISPLAY_NAME));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
-
-        @Override
-        public String toString() {
-            return Strings.format(
-                "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, displayName='%s', fingerprint='%s'}",
-                id,
-                modelName,
-                taskType,
-                status,
-                properties,
-                releaseDate,
-                endOfLifeDate,
-                configuration,
-                displayName,
-                fingerprint
-            );
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
-            builder.field(ID, id);
-            builder.field(MODEL_NAME, modelName);
-            builder.field(TASK_TYPE, taskType);
-            builder.field(STATUS, status);
-            if (properties != null) {
-                builder.field(PROPERTIES, properties);
-            }
-            builder.field(RELEASE_DATE, releaseDate);
-            if (endOfLifeDate != null) {
-                builder.field(END_OF_LIFE_DATE, endOfLifeDate);
-            }
-            if (configuration != null) {
-                builder.field(CONFIGURATION, configuration);
-            }
-
-            if (displayName != null) {
-                builder.field(DISPLAY_NAME, displayName);
-            }
-
-            if (fingerprint != null) {
-                builder.field(FINGERPRINT, fingerprint);
-            }
-
-            builder.endObject();
-
-            return builder;
-        }
     }
 
-    public record TaskTypeObject(String eisTaskType, String elasticsearchTaskType) implements ToXContentObject {
+    public record TaskTypeObject(String eisTaskType, String elasticsearchTaskType) {
 
         private static final String EIS_TASK_TYPE_FIELD = "eis";
         private static final String ELASTICSEARCH_TASK_TYPE_FIELD = "elasticsearch";
@@ -190,20 +136,6 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             PARSER.declareString(constructorArg(), new ParseField(EIS_TASK_TYPE_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(ELASTICSEARCH_TASK_TYPE_FIELD));
         }
-
-        @Override
-        public String toString() {
-            return Strings.format("TaskTypeObject{eisTaskType='%s', elasticsearchTaskType='%s'}", eisTaskType, elasticsearchTaskType);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
-            builder.field(ELASTICSEARCH_TASK_TYPE_FIELD, elasticsearchTaskType);
-            builder.endObject();
-            return builder;
-        }
     }
 
     public record Configuration(
@@ -211,7 +143,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable Integer dimensions,
         @Nullable String elementType,
         @Nullable Map<String, Object> chunkingSettings
-    ) implements ToXContentObject {
+    ) {
 
         public static final Configuration EMPTY = new Configuration(null, null, null, null);
 
@@ -232,40 +164,6 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (similarity != null) {
-                builder.field(SIMILARITY, similarity);
-            }
-
-            if (dimensions != null) {
-                builder.field(DIMENSIONS, dimensions);
-            }
-
-            if (elementType != null) {
-                builder.field(ELEMENT_TYPE, elementType);
-            }
-
-            if (chunkingSettings != null) {
-                builder.field(CHUNKING_SETTINGS, chunkingSettings);
-            }
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format(
-                "Configuration{similarity='%s', dimensions=%s, elementType='%s', chunkingSettings=%s}",
-                similarity,
-                dimensions,
-                elementType,
-                chunkingSettings
-            );
         }
     }
 
@@ -288,7 +186,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(INFERENCE_ENDPOINTS, authorizedEndpoints.iterator());
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     @Override

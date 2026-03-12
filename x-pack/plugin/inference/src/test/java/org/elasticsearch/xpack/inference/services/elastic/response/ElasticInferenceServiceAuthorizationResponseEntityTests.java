@@ -13,7 +13,6 @@ import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -39,7 +38,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -815,14 +813,5 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
             );
         }
-    }
-
-    public final void testFromXContent() throws IOException {
-        chunkedXContentTester(
-            this::createParser,
-            t -> createResponse(),
-            ToXContent.EMPTY_PARAMS,
-            p -> ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(p, null)
-        ).numberOfTestRuns(20).supportsUnknownFields(true).test();
     }
 }

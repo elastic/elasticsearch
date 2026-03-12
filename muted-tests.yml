@@ -436,15 +436,6 @@ tests:
   method: testMMRLimitedInput
   issue: https://github.com/elastic/elasticsearch/issues/144077
 - class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/144078
-- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
-  method: testSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/144079
-- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
-  method: testConcurrentSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/144080
-- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
   method: testConcurrentEquals
   issue: https://github.com/elastic/elasticsearch/issues/144081
 

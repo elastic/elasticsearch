@@ -94,7 +94,7 @@ import java.util.stream.Collectors;
  * a given input page. See {@link AbstractLookupService} for how it works
  * where it refers to this process as a {@code LEFT JOIN}. Which is mostly is.
  */
-public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
+public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.LookupRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
     private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
@@ -126,7 +126,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             bigArrays,
             blockFactory,
             false,// merge pages is NOT implemented for Lookup Join
-            TransportRequest::readFrom,
+            LookupRequest::readFrom,
             projectResolver,
             plannerSettings
         );
@@ -155,8 +155,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected TransportRequest transportRequest(LookupFromIndexService.Request request, ShardId shardId) {
-        return new TransportRequest(
+    protected LookupRequest transportRequest(LookupFromIndexService.Request request, ShardId shardId) {
+        return new LookupRequest(
             request.sessionId,
             shardId,
             request.indexPattern,
@@ -176,7 +176,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     @Override
     protected LookupEnrichQueryGenerator queryList(
-        TransportRequest request,
+        LookupRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Warnings warnings
@@ -291,7 +291,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
-    protected static class TransportRequest extends AbstractLookupService.TransportRequest {
+    protected static class LookupRequest extends AbstractLookupService.TransportRequest {
 
         private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
@@ -310,7 +310,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Nullable
         private final Configuration configuration;
 
-        TransportRequest(
+        LookupRequest(
             String sessionId,
             ShardId shardId,
             String indexPattern,
@@ -336,7 +336,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             this.configuration = configuration;
         }
 
-        static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
+        static LookupRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
@@ -394,7 +394,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 serverToClientId = in.readOptionalString();
                 profile = in.readBoolean();
             }
-            TransportRequest result = new TransportRequest(
+            LookupRequest result = new LookupRequest(
                 sessionId,
                 shardId,
                 indexPattern,
@@ -588,7 +588,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
+    protected void doLookup(LookupRequest request, CancellableTask task, ActionListener<AbstractLookupService.LookupResponse> listener) {
         if (request.getClientToServerId() != null) {
             doLookupStreaming(request, task, listener);
         } else {
@@ -597,7 +597,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected void doLookupStreaming(
-        LookupFromIndexService.TransportRequest request,
+        LookupFromIndexService.LookupRequest request,
         CancellableTask task,
         ActionListener<AbstractLookupService.LookupResponse> listener
     ) {
@@ -704,7 +704,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
-    protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
+    protected DiscoveryNode determineClientNode(LookupRequest request, CancellableTask task) {
         // Get the client node from the parent task's node ID
         // The parent task is running on the client node that initiated this lookup request
         if (task == null) {
@@ -763,7 +763,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * inside {@code rightPreJoinPlan} will contain a {@link ParameterizedQuery} and can be used directly.
      * Otherwise (BWC with older data nodes), we build it here on the lookup node.
      */
-    private static LogicalPlan extractOrBuildLogicalPlan(TransportRequest request) {
+    private static LogicalPlan extractOrBuildLogicalPlan(LookupRequest request) {
         if (request.rightPreJoinPlan instanceof FragmentExec fragmentExec) {
             LogicalPlan fragment = fragmentExec.fragment();
             if (fragment.anyMatch(p -> p instanceof ParameterizedQuery)) {
@@ -905,7 +905,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * BWC: builds a flat physical plan directly (no logical planning or optimization).
      * Used when the data node does not send a {@link Configuration}.
      */
-    private static PhysicalPlan createLegacyLookupPhysicalPlan(TransportRequest request) {
+    private static PhysicalPlan createLegacyLookupPhysicalPlan(LookupRequest request) {
         FieldAttribute docAttribute = new FieldAttribute(
             request.source,
             null,
@@ -947,7 +947,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupShardContext shardContext,
         LocalCircuitBreaker localBreaker,
         DriverContext driverContext,
-        List<Operator> operators,
-        List<Page> collectedPages
+        List<Operator> operators
     ) {}
 }

@@ -229,7 +229,7 @@ public class LookupExecutionPlanner {
             releasables.add(op);
         }
 
-        return new LookupFromIndexService.LookupQueryPlan(shardContext, localBreaker, driverContext, intermediateOperators, collectedPages);
+        return new LookupFromIndexService.LookupQueryPlan(shardContext, localBreaker, driverContext, intermediateOperators);
     }
 
     /**

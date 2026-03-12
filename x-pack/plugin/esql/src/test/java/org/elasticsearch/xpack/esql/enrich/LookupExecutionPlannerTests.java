@@ -130,7 +130,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
 
         @Override
         protected LookupEnrichQueryGenerator queryList(
-            TransportRequest request,
+            LookupRequest request,
             SearchExecutionContext context,
             AliasFilter aliasFilter,
             Warnings warnings
@@ -167,7 +167,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         }
 
         @Override
-        protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
+        protected DiscoveryNode determineClientNode(LookupRequest request, CancellableTask task) {
             // Return a mock client node for testing - we don't actually use it since we override startServerWithOperators
             return mock(DiscoveryNode.class);
         }
@@ -404,9 +404,9 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             false,
             null
         );
-        LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
+        LookupFromIndexService.LookupRequest lookupRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 
-        testService.doLookup(transportRequest, null, ActionListener.wrap(pages -> {}, e -> {}));
+        testService.doLookup(lookupRequest, null, ActionListener.wrap(pages -> {}, e -> {}));
 
         return testService.getCapturedPlan();
     }

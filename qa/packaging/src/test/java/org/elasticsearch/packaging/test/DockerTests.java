@@ -633,7 +633,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elastic user's password can be configured via a file with group-readable (440) permissions.
      */
-    public void test080b_ConfigurePasswordThroughEnvironmentVariableFileWith440Permissions() throws Exception {
+    public void test081ConfigurePasswordThroughEnvironmentVariableFileWith440Permissions() throws Exception {
         final String xpackPassword = "hunter2";
         final String passwordFilename = "password.txt";
 

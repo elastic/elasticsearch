@@ -205,11 +205,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
             return instance;
         }
 
-        return new AzureOpenAiEntraIdApiKeySecrets(
-            null,
-            instance.apiKey(),
-            instance.entraId()
-        );
+        return new AzureOpenAiEntraIdApiKeySecrets(null, instance.apiKey(), instance.entraId());
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

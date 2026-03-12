@@ -1475,6 +1475,7 @@ m:double | pod:keyword | bucket:datetime
 
 bareFieldWithBucketAndLimitZero
 required_capability: fix_limit_zero_in_stats_by_all
+required_capability: metrics_group_by_all
 TS k8s | STATS network.cost BY bucket = bucket(@timestamp, 1h) | LIMIT 0;
 
 network.cost:double | _timeseries:keyword | bucket:datetime

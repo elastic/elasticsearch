@@ -2285,6 +2285,12 @@ public class EsqlCapabilities {
          */
         FIX_FORK_UNMAPPED_NULLIFY,
 
+        /**
+         * Fix for the STATS BY ALL with LIMIT 0.
+         * https://github.com/elastic/elasticsearch/issues/144024
+         */
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

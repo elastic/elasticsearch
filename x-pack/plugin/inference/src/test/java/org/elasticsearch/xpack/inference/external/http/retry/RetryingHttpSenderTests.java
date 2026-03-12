@@ -680,7 +680,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
     private static Request mockRequest(String inferenceEntityId) {
         var request = mock(Request.class);
         when(request.truncate()).thenReturn(request);
-//        when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock(inferenceEntityId));
+        // when(request.createHttpRequest()).thenReturn(HttpRequestTests.createMock(inferenceEntityId));
         doAnswer(invocation -> {
             ActionListener<HttpRequest> listener = invocation.getArgument(0);
             listener.onResponse(HttpRequestTests.createMock(inferenceEntityId));

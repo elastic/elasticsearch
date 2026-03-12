@@ -11,6 +11,7 @@
 | date | date_nanos | boolean |
 | date_nanos | date | boolean |
 | date_nanos | date_nanos | boolean |
+| dense_vector | dense_vector | boolean |
 | double | double | boolean |
 | double | integer | boolean |
 | double | long | boolean |

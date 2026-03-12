@@ -19,13 +19,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -491,40 +488,5 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
     private HttpChannel randomHttpChannel() {
         return new FakeRestRequest.FakeHttpChannel(new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535)));
-    }
-
-    private static class FakeTimeThreadPool extends ThreadPool {
-
-        private long currentTimeInMillis;
-        private final long absoluteTimeOffset = randomLong();
-
-        FakeTimeThreadPool() {
-            super(
-                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-                MeterRegistry.NOOP,
-                new DefaultBuiltInExecutorBuilders()
-            );
-            stopCachedTimeThread();
-            setRandomTime();
-        }
-
-        @Override
-        public long relativeTimeInMillis() {
-            return currentTimeInMillis;
-        }
-
-        @Override
-        public long absoluteTimeInMillis() {
-            return currentTimeInMillis + absoluteTimeOffset;
-        }
-
-        void setCurrentTimeInMillis(long currentTimeInMillis) {
-            this.currentTimeInMillis = currentTimeInMillis;
-        }
-
-        void setRandomTime() {
-            // absolute time needs to be nonnegative
-            currentTimeInMillis = randomNonNegativeLong() - absoluteTimeOffset;
-        }
     }
 }

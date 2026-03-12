@@ -347,6 +347,19 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     /**
+     * Intended to be used in {@link #maybeRandomizeQuery(String)} except in test cases that do not support {@code nullify}
+     * (e.g. old test cases in bwc tests)
+     */
+    public String randomlyNullify(String query) {
+        return randomBoolean()
+            && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
+            && query.startsWith("SET") == false // avoid conflicts with provided settings
+                ? "SET unmapped_fields=\"nullify\"; " + query
+                : query;
+    }
+
+    /**
      * Returns true if the cluster under test supports the given ESQL capability.
      * Subclasses may override this to check additional clusters (e.g. remote clusters in CCS).
      */

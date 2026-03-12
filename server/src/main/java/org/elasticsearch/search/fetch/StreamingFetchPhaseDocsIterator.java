@@ -239,7 +239,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                     chunkBuffer = null;
 
                     try {
-                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, chunkStartIndex, isLast);
+                        PendingChunk chunk = new PendingChunk(chunkBytes, hitsInChunk, chunkStartIndex, isLast);
 
                         if (isLast) {
                             lastChunkHolder.set(chunk);
@@ -375,7 +375,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                 shardId,
                 chunk.bytes,
                 chunk.hitCount,
-                chunk.fromIndex,
+                chunk.sequenceStart,
                 totalDocs,
                 chunk.sequenceStart
             );
@@ -455,14 +455,12 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     static class PendingChunk implements AutoCloseable {
         final ReleasableBytesReference bytes;
         final int hitCount;
-        final int fromIndex;
-        final long sequenceStart;
+        final int sequenceStart;
         final boolean isLast;
 
-        PendingChunk(ReleasableBytesReference bytes, int hitCount, int fromIndex, long sequenceStart, boolean isLast) {
+        PendingChunk(ReleasableBytesReference bytes, int hitCount, int sequenceStart, boolean isLast) {
             this.bytes = bytes;
             this.hitCount = hitCount;
-            this.fromIndex = fromIndex;
             this.sequenceStart = sequenceStart;
             this.isLast = isLast;
         }

@@ -639,7 +639,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
     /**
      * Simple record to track sent chunk info
      */
-    private record SentChunkInfo(int hitCount, int from, int expectedDocs) {}
+    private record SentChunkInfo(int hitCount, int from, int expectedTotalDocs) {}
 
     private static class TestChunkWriter implements FetchPhaseResponseChunk.Writer {
 
@@ -661,7 +661,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         @Override
         public void writeResponseChunk(FetchPhaseResponseChunk chunk, ActionListener<Void> listener) {
-            sentChunks.add(new SentChunkInfo(chunk.hitCount(), chunk.from(), chunk.expectedDocs()));
+            sentChunks.add(new SentChunkInfo(chunk.hitCount(), chunk.from(), chunk.expectedTotalDocs()));
             if (delayAcks) {
                 pendingAcks.add(listener);
             } else {

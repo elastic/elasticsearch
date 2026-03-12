@@ -191,15 +191,15 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // Create and register response stream
         assert fetchReq.getShardSearchRequest() != null;
         ShardId shardId = fetchReq.getShardSearchRequest().shardId();
-        int expectedDocs = fetchReq.docIds().length;
+        int expectedTotalDocs = fetchReq.docIds().length;
 
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedDocs, circuitBreaker);
+        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedTotalDocs, circuitBreaker);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks
-        ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
-            try {
+        ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(
+            ActionListener.wrap(dataNodeResult -> {
                 BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
                 int hitCount = dataNodeResult.getLastChunkHitCount();
                 long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
@@ -238,20 +238,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 );
 
                 ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            } finally {
+            }, listener::onFailure),
+            () -> {
                 registration.close();
                 responseStream.decRef();
             }
-        }, e -> {
-            try {
-                listener.onFailure(e);
-            } finally {
-                registration.close();
-                responseStream.decRef();
-            }
-        });
+        );
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {

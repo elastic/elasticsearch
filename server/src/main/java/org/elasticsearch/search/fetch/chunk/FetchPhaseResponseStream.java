@@ -44,7 +44,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
 
     private final int shardIndex;
-    private final int expectedDocs;
+    private final int expectedTotalDocs;
 
     // Accumulate hits with sequence numbers for ordering
     private final Queue<SequencedHit> queue = new ConcurrentLinkedQueue<>();
@@ -58,12 +58,13 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * Creates a new response stream for accumulating hits from a single shard.
      *
      * @param shardIndex the shard ID this stream is collecting hits for
-     * @param expectedDocs the total number of documents expected to be fetched from this shard
+     * @param expectedTotalDocs total number of documents requested for this shard fetch operation
+     *                          across all chunks (target/requested count, not guaranteed delivered count)
      * @param circuitBreaker circuit breaker to check memory usage during accumulation (typically REQUEST breaker)
      */
-    FetchPhaseResponseStream(int shardIndex, int expectedDocs, CircuitBreaker circuitBreaker) {
+    FetchPhaseResponseStream(int shardIndex, int expectedTotalDocs, CircuitBreaker circuitBreaker) {
         this.shardIndex = shardIndex;
-        this.expectedDocs = expectedDocs;
+        this.expectedTotalDocs = expectedTotalDocs;
         this.circuitBreaker = circuitBreaker;
     }
 
@@ -102,7 +103,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
                     chunkHits == null ? 0 : chunkHits.length,
                     shardIndex,
                     queue.size(),
-                    expectedDocs,
+                    expectedTotalDocs,
                     totalBreakerBytes.get(),
                     circuitBreaker.getUsed()
                 );

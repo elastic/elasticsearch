@@ -50,7 +50,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     private final ShardId shardId;
     private final int hitCount;
     private final int from;
-    private final int expectedDocs;
+    private final int expectedTotalDocs;
     private final long sequenceStart;
 
     private BytesReference serializedHits;
@@ -66,7 +66,9 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
      * @param serializedHits   pre-serialized hit bytes
      * @param hitCount         number of hits in the serialized bytes
      * @param from             index of first hit in the overall result set
-     * @param expectedDocs     total documents expected across all chunks
+     * @param expectedTotalDocs total number of documents requested for this shard fetch operation
+     *                          across all chunks (derived from requested doc IDs, not an observed
+     *                          count of docs received so far)
      * @param sequenceStart    sequence number of first hit for ordering
      */
     public FetchPhaseResponseChunk(
@@ -75,7 +77,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         BytesReference serializedHits,
         int hitCount,
         int from,
-        int expectedDocs,
+        int expectedTotalDocs,
         long sequenceStart
     ) {
         if (shardId.getId() < -1) {
@@ -86,7 +88,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         this.serializedHits = serializedHits;
         this.hitCount = hitCount;
         this.from = from;
-        this.expectedDocs = expectedDocs;
+        this.expectedTotalDocs = expectedTotalDocs;
         this.sequenceStart = sequenceStart;
     }
 
@@ -98,7 +100,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         this.shardId = new ShardId(in);
         this.hitCount = in.readVInt();
         this.from = in.readVInt();
-        this.expectedDocs = in.readVInt();
+        this.expectedTotalDocs = in.readVInt();
         this.sequenceStart = in.readVLong();
         this.serializedHits = in.readBytesReference();
         this.namedWriteableRegistry = in.namedWriteableRegistry();
@@ -110,7 +112,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         shardId.writeTo(out);
         out.writeVInt(hitCount);
         out.writeVInt(from);
-        out.writeVInt(expectedDocs);
+        out.writeVInt(expectedTotalDocs);
         out.writeVLong(sequenceStart);
         out.writeBytesReference(serializedHits);
     }
@@ -123,7 +125,7 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             shardId.writeTo(header);
             header.writeVInt(hitCount);
             header.writeVInt(from);
-            header.writeVInt(expectedDocs);
+            header.writeVInt(expectedTotalDocs);
             header.writeVLong(sequenceStart);
             header.writeVInt(serializedHits.length());
 
@@ -174,8 +176,8 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return from;
     }
 
-    public int expectedDocs() {
-        return expectedDocs;
+    public int expectedTotalDocs() {
+        return expectedTotalDocs;
     }
 
     public long sequenceStart() {

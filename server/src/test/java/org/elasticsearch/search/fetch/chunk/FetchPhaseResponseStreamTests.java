@@ -535,7 +535,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
             assertThat(chunk.hitCount(), equalTo(1));
             assertThat(chunk.from(), equalTo(0));
-            assertThat(chunk.expectedDocs(), equalTo(10));
+            assertThat(chunk.expectedTotalDocs(), equalTo(10));
             assertThat(chunk.sequenceStart(), equalTo(0L));
             assertThat(chunk.getBytesLength(), greaterThan(0L));
 

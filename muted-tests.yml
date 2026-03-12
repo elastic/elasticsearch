@@ -366,9 +366,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
-- class: org.elasticsearch.cluster.routing.allocation.allocator.NotPreferredAllocationRebalancingIT
-  method: testAllocatorDoesNotMoveShardsToNotPreferredNode
-  issue: https://github.com/elastic/elasticsearch/issues/143831
 - class: org.elasticsearch.xpack.esql.datasources.spi.StoragePathTests
   method: testFileUriFunctionOnUnix
   issue: https://github.com/elastic/elasticsearch/issues/143979

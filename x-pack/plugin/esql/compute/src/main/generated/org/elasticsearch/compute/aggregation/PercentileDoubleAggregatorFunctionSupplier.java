@@ -34,13 +34,13 @@ public final class PercentileDoubleAggregatorFunctionSupplier implements Aggrega
   @Override
   public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
+    return new PercentileDoubleAggregatorFunction(driverContext, channels, percentile);
   }
 
   @Override
   public PercentileDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileDoubleGroupingAggregatorFunction.create(channels, driverContext, percentile);
+    return new PercentileDoubleGroupingAggregatorFunction(channels, driverContext, percentile);
   }
 
   @Override

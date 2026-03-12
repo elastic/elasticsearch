@@ -176,7 +176,7 @@
  *     <li>When that doesn't work, we use
  *         <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.compiler/javax/annotation/processing/package-summary.html">
  *         Annotation processing</a> and <a href="https://github.com/square/javapoet">JavaPoet</a> to build the Java files.
- *         These files are typically the inner loops for {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         These files are typically the inner loops for {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  *         or {@link org.elasticsearch.compute.aggregation.AggregatorFunction}. The code generation is much more difficult
  *         to write and debug but much, much, much, much more flexible. The degree of control we have during this
  *         code generation is amazing but it is much harder to debug failures. See files in

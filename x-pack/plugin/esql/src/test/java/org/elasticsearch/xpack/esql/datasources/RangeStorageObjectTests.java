@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
@@ -75,6 +76,95 @@ public class RangeStorageObjectTests extends ESTestCase {
             byte[] result = stream.readAllBytes();
             assertArrayEquals(FILE_BYTES, result);
         }
+    }
+
+    public void testReadBytesAddsOffset() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(6);
+        int bytesRead = range.readBytes(0, buf);
+        assertEquals(6, bytesRead);
+        buf.flip();
+        byte[] result = new byte[6];
+        buf.get(result);
+        assertEquals("World!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesWithDirectBuffer() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocateDirect(6);
+        int bytesRead = range.readBytes(0, buf);
+        assertEquals(6, bytesRead);
+        buf.flip();
+        byte[] result = new byte[6];
+        buf.get(result);
+        assertEquals("World!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesPastRangeReturnsMinusOne() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        int bytesRead = range.readBytes(6, buf);
+        assertEquals(-1, bytesRead);
+        assertEquals(0, buf.position());
+    }
+
+    public void testReadBytesNonZeroPosition() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(4);
+        int bytesRead = range.readBytes(2, buf);
+        assertEquals(4, bytesRead);
+        buf.flip();
+        byte[] result = new byte[4];
+        buf.get(result);
+        assertEquals("rld!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesBufferLargerThanRemaining() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(20);
+        int bytesRead = range.readBytes(0, buf);
+        assertTrue("Should read some bytes", bytesRead > 0);
+        buf.flip();
+        byte[] result = new byte[bytesRead];
+        buf.get(result);
+        String read = new String(result, StandardCharsets.UTF_8);
+        assertTrue("Should start with 'World!'", read.startsWith("World!"));
+    }
+
+    public void testReadBytesBufferExactSize() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(3);
+        int bytesRead = range.readBytes(0, buf);
+        assertEquals(3, bytesRead);
+        buf.flip();
+        byte[] result = new byte[3];
+        buf.get(result);
+        assertEquals("Wor", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesPartialReadFromMiddle() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+
+        ByteBuffer buf = ByteBuffer.allocate(2);
+        int bytesRead = range.readBytes(4, buf);
+        assertEquals(2, bytesRead);
+        buf.flip();
+        byte[] result = new byte[2];
+        buf.get(result);
+        assertEquals("d!", new String(result, StandardCharsets.UTF_8));
     }
 
     public void testNegativeOffsetThrows() {

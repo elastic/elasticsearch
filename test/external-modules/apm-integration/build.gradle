@@ -31,4 +31,5 @@ tasks.named('javaRestTest').configure {
 dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')
+  javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
 }

@@ -1,0 +1,5 @@
+pr: 143673
+summary: Add mode and codec fields to Stack Monitoring index template
+area: Monitoring
+type: enhancement
+issues: []

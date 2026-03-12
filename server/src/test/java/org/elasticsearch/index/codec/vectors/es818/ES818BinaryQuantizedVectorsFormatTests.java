@@ -81,6 +81,11 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818BinaryQuantizedRWVectorsFormat());
 
     @Override

@@ -46,7 +46,6 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        float matchCost = matchCost();
         return new ConstantScoreWeight(this, boost) {
 
             @Override

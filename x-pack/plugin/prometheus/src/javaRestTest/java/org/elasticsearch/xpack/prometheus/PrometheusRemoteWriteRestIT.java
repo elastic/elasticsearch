@@ -172,6 +172,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
             .build();
 
         sendAndAssertSuccess(writeRequest);
+        assertTrue("Data stream should exist for valid samples", dataStreamExists(DEFAULT_DATA_STREAM));
 
         List<Map<String, Object>> docs = searchDocs(metricName);
         assertThat("Only finite samples should be indexed", docs, hasSize(1));

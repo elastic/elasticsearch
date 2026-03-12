@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -235,9 +234,8 @@ public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
-    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = TEST_FUNCTION_REGISTRY;
-    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, false);
-    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, true);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
 
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
@@ -665,7 +663,7 @@ public class CsvTests extends ESTestCase {
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                FUNCTION_REGISTRY,
+                TEST_FUNCTION_REGISTRY,
                 null,
                 indexResolution,
                 Map.of(),
@@ -718,7 +716,7 @@ public class CsvTests extends ESTestCase {
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(FUNCTION_REGISTRY),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -855,11 +853,11 @@ public class CsvTests extends ESTestCase {
             null,
             TEST_PARSER,
             new PreAnalyzer(),
-            FUNCTION_REGISTRY,
+            TEST_FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(FUNCTION_REGISTRY),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,

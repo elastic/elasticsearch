@@ -115,9 +115,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         for (int size : new int[] { 1, 15, 16, 60, 61, 255, 256, 4096, 16384 }) {
             byte[] original = randomByteArrayOfLength(size);
             byte[] compressed = snappyEncode(original);
-            try (
-                var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)
-            ) {
+            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
                 assertEquals(size, result.length());
                 assertArrayEquals("failed for size " + size, original, BytesReference.toBytes(result));
             }

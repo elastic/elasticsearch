@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -56,17 +58,21 @@ public class FileSplitProvider implements SplitProvider {
     static final String FIRST_SPLIT_KEY = "_first_split";
     static final String LAST_SPLIT_KEY = "_last_split";
 
+    static final String RANGE_SPLIT_KEY = "_range_split";
+    static final String FILE_LENGTH_KEY = "_file_length";
+
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
     private final StorageProviderRegistry storageRegistry;
+    private final FormatReaderRegistry formatRegistry;
     private final Settings settings;
 
     public FileSplitProvider() {
-        this(DEFAULT_TARGET_SPLIT_SIZE, null, null, Settings.EMPTY);
+        this(DEFAULT_TARGET_SPLIT_SIZE, null, null, null, Settings.EMPTY);
     }
 
     public FileSplitProvider(long targetSplitSizeBytes) {
-        this(targetSplitSizeBytes, null, null, Settings.EMPTY);
+        this(targetSplitSizeBytes, null, null, null, Settings.EMPTY);
     }
 
     public FileSplitProvider(
@@ -75,9 +81,20 @@ public class FileSplitProvider implements SplitProvider {
         StorageProviderRegistry storageRegistry,
         Settings settings
     ) {
+        this(targetSplitSizeBytes, codecRegistry, storageRegistry, null, settings);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        Settings settings
+    ) {
         this.targetSplitSizeBytes = targetSplitSizeBytes;
         this.codecRegistry = codecRegistry;
         this.storageRegistry = storageRegistry;
+        this.formatRegistry = formatRegistry;
         this.settings = settings != null ? settings : Settings.EMPTY;
     }
 
@@ -125,6 +142,10 @@ public class FileSplitProvider implements SplitProvider {
             // This is independent of targetSplitSizeBytes — compressed files with splittable
             // codecs are always split at block boundaries when possible.
             if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, splits)) {
+                continue;
+            }
+
+            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, splits)) {
                 continue;
             }
 
@@ -235,6 +256,65 @@ public class FileSplitProvider implements SplitProvider {
             return true;
         } catch (IOException e) {
             LOGGER.warn("Failed to scan block boundaries for [{}], falling back to single split", filePath, e);
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to create range-aware splits for columnar formats (e.g. Parquet row groups).
+     * The format reader reads file metadata (e.g. Parquet footer) to discover independently
+     * readable byte ranges. Returns true if range-aware splits were created.
+     */
+    private boolean tryRangeAwareSplits(
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        List<ExternalSplit> splits
+    ) {
+        if (formatRegistry == null || storageRegistry == null || format == null) {
+            return false;
+        }
+
+        FormatReader reader;
+        try {
+            reader = formatRegistry.byExtension(filePath.objectName());
+        } catch (Exception e) {
+            return false;
+        }
+
+        if (reader instanceof RangeAwareFormatReader == false) {
+            return false;
+        }
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+
+        try {
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
+            } else {
+                provider = storageRegistry.provider(filePath);
+            }
+            StorageObject object = provider.newObject(filePath, fileLength);
+
+            List<long[]> ranges = rangeReader.discoverSplitRanges(object);
+            if (ranges.isEmpty()) {
+                return false;
+            }
+
+            Map<String, Object> splitConfig = new HashMap<>(config);
+            splitConfig.put(RANGE_SPLIT_KEY, "true");
+            splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
+
+            for (long[] range : ranges) {
+                long offset = range[0];
+                long length = range[1];
+                splits.add(new FileSplit("file", filePath, offset, length, format, splitConfig, partitionValues));
+            }
+            return true;
+        } catch (IOException e) {
+            LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
         }
     }

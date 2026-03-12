@@ -34,9 +34,13 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
      * group(2) = source indices
      * group(3) = destination index
      */
-    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile(
-        "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?) .+\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
-    );
+    private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("(?s)^reindex from " +
+    // group(1): optional remote info
+        "(?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?)(?: .+)?\\])?" +
+        // group(2): source indices
+        "\\[([^\\]]*)].*" +
+        // group(3): destination index
+        "to \\[([^\\]]*)]$");
 
     public GetReindexResponse(final RelocatableReindexResult result) {
         this.result = Objects.requireNonNull(result, "result is required");

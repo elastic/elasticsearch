@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request.embedding
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequest;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -41,6 +44,11 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
+
     public void testCreateRequest_WithApiKeyDefined() throws IOException {
         var input = "input";
         var user = "user";
@@ -48,7 +56,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var listener = new TestPlainActionFuture<HttpRequest>();
+        request.createHttpRequestAsync(listener);
+        var httpRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -77,7 +87,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var listener = new TestPlainActionFuture<HttpRequest>();
+        request.createHttpRequestAsync(listener);
+        var httpRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -103,7 +115,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var listener = new TestPlainActionFuture<HttpRequest>();
+        truncatedRequest.createHttpRequestAsync(listener);
+        var httpRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

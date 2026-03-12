@@ -1532,76 +1532,119 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createAzureOpenAiService()) {
             String content = XContentHelper.stripWhitespace(
                 """
-                    {
-                            "service": "azureopenai",
-                            "name": "Azure OpenAI",
-                            "task_types": ["text_embedding", "completion", "chat_completion"],
-                            "configurations": {
-                                "api_key": {
-                                    "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
-                                    "label": "API Key",
-                                    "required": false,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "dimensions": {
-                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
-                                    "label": "Dimensions",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding"]
-                                },
-                                "entra_id": {
-                                    "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
-                                    "label": "Entra ID",
-                                    "required": false,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "rate_limit.requests_per_minute": {
-                                    "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
-                                    "label": "Rate Limit",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "deployment_id": {
-                                    "description": "The deployment name of your deployed models.",
-                                    "label": "Deployment ID",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "resource_name": {
-                                    "description": "The name of your Azure OpenAI resource.",
-                                    "label": "Resource Name",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "api_version": {
-                                    "description": "The Azure API version ID to use.",
-                                    "label": "API Version",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                }
-                            }
-                        }
+                        {
+                             "service": "azureopenai",
+                             "name": "Azure OpenAI",
+                             "task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ],
+                             "configurations": {
+                                 "api_key": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "API Key",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "entra_id": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "Entra ID",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "rate_limit.requests_per_minute": {
+                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
+                                     "label": "Rate Limit",
+                                     "required": false,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "int",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "deployment_id": {
+                                     "description": "The deployment name of your deployed models.",
+                                     "label": "Deployment ID",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "client_secret": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "OAuth2 Client Secret",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "resource_name": {
+                                     "description": "The name of your Azure OpenAI resource.",
+                                     "label": "Resource Name",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "api_version": {
+                                     "description": "The Azure API version ID to use.",
+                                     "label": "API Version",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "dimensions": {
+                                     "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                     "label": "Dimensions",
+                                     "required": false,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "int",
+                                     "supported_task_types": [
+                                         "text_embedding"
+                                     ]
+                                 }
+                             }
+                         }
                     """
             );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(

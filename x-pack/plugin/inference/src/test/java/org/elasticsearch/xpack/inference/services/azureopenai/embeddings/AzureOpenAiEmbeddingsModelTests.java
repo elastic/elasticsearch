@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
+import org.junit.After;
 import org.junit.Before;
 
 import java.net.URISyntaxException;
@@ -34,6 +35,11 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws Exception {
+        terminate(threadPool);
     }
 
     public void testOverrideWith_OverridesUser() {

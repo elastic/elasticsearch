@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -200,7 +201,15 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     @Override
     protected AzureOpenAiEntraIdApiKeySecrets mutateInstanceForVersion(AzureOpenAiEntraIdApiKeySecrets instance, TransportVersion version) {
-        return instance;
+        if (version.supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
+            return instance;
+        }
+
+        return new AzureOpenAiEntraIdApiKeySecrets(
+            null,
+            instance.apiKey(),
+            instance.entraId()
+        );
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

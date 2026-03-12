@@ -31,13 +31,13 @@ public final class SumFloatAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public SumFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumFloatAggregatorFunction.create(driverContext, channels);
+    return new SumFloatAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SumFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumFloatGroupingAggregatorFunction.create(channels, driverContext);
+    return new SumFloatGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

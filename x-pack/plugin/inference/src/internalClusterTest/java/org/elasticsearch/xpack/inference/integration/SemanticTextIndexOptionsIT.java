@@ -39,6 +39,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.ExtendedDenseVectorIndexOptions;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.junit.After;
@@ -142,7 +143,10 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
             inferenceFieldName,
             inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+            new ExtendedDenseVectorIndexOptions(
+                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
+                DenseVectorFieldMapper.ElementType.BFLOAT16
+            )
         );
 
         // Filter out null/empty values from params we didn't set to make comparison easier
@@ -178,7 +182,8 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         builder.field("inference_id", inferenceId);
         if (indexOptions != null) {
             builder.startObject("index_options");
-            if (indexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions) {
+            if (indexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions
+                || indexOptions instanceof ExtendedDenseVectorIndexOptions) {
                 builder.field("dense_vector");
                 indexOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
             }

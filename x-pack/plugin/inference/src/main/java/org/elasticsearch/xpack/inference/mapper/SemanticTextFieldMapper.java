@@ -337,6 +337,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             : modelRegistry.getMinimalServiceSettings(inferenceId.get());
                         b.field(INDEX_OPTIONS_FIELD, defaultIndexOptions(indexVersionCreated, resolvedModelSettings));
                     } else {
+                        // TODO: Any way to include element type when:
+                        // - include_defaults is set
+                        // - we defaulted to BFLOAT16
                         b.field(INDEX_OPTIONS_FIELD, v);
                     }
                 },

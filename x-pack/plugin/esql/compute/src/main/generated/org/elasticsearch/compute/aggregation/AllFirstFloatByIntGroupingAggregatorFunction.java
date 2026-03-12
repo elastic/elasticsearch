@@ -37,16 +37,11 @@ public final class AllFirstFloatByIntGroupingAggregatorFunction implements Group
 
   private final DriverContext driverContext;
 
-  public AllFirstFloatByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstFloatByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstFloatByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstFloatByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstFloatByIntGroupingAggregatorFunction(channels, AllFirstFloatByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstFloatByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

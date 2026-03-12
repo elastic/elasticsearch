@@ -37,17 +37,12 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final int limit;
 
-  public SampleDoubleGroupingAggregatorFunction(List<Integer> channels,
-      SampleDoubleAggregator.GroupingState state, DriverContext driverContext, int limit) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SampleDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit) {
     this.limit = limit;
-  }
-
-  public static SampleDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleDoubleGroupingAggregatorFunction(channels, SampleDoubleAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+    this.channels = channels;
+    this.state = SampleDoubleAggregator.initGrouping(driverContext.bigArrays(), limit);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -34,18 +34,13 @@ public final class TopBooleanAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopBooleanAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopBooleanAggregatorFunction(driverContext, channels, TopBooleanAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopBooleanAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

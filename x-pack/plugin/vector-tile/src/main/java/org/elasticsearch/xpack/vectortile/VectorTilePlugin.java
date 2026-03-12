@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.vectortile;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -35,7 +34,6 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         RestController restController = restHandlersServices.restController();
-        Settings settings = restHandlersServices.settings();
-        return List.of(new RestVectorTileAction(restController.getSearchUsageHolder(), settings));
+        return List.of(new RestVectorTileAction(restController.getSearchUsageHolder(), restHandlersServices.crossProjectModeDecider()));
     }
 }

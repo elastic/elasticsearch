@@ -3790,8 +3790,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3801,8 +3799,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3816,8 +3812,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
         );
@@ -3833,8 +3827,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLambdaValueIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
         assertThat(
@@ -3875,19 +3867,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         assertThat(error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
-        assertThat(error("""
-            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
-                 (FROM test METADATA _index, _id, _score | LIMIT 10)
-            | MMR ON dense_embedding LIMIT 10
-            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                     (FROM test METADATA _index, _id, _score | LIMIT 10)
+                | MMR ON dense_embedding LIMIT 10
+                """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        }
+    }
+
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
     private void query(String query) {

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143991
+pr: 144029
+summary: Fix nullify where in stats
+type: bug

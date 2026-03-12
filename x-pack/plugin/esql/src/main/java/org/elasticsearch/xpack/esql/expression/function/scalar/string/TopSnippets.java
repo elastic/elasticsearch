@@ -20,8 +20,12 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,15 +49,18 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class TopSnippets extends EsqlScalarFunction implements OptionalArgument {
+public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -162,8 +169,36 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
+        return resolveParams();
+    }
+
+    /**
+     * Resolves the type for the function parameters, as part of the type resolution for the function
+     *
+     */
+    private TypeResolution resolveParams() {
+        return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
             .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
+    }
+
+    /**
+     * Resolves the type for the query parameter, as part of the type resolution for the function
+     *
+     * @return type resolution for the query parameter
+     */
+    private TypeResolution resolveQuery() {
+        return isString(query(), sourceText(), SECOND).and(
+            () -> resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()))
+        );
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (query() != null && query() instanceof Literal == false) {
+            failures.add(
+                fail(query(), "second argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(query()))
+            );
+        }
     }
 
     private static void validateOptions(Map<String, Object> options) {

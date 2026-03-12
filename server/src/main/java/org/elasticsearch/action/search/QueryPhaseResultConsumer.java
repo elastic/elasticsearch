@@ -234,7 +234,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
-        final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs ? new ArrayDeque<>(mergeResult != null ? 1 : 0) : null;
+        final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs
+            ? new ArrayDeque<>(mergeResult != null ? 1 : 0)
+            : null;
         final Deque<DelayableWriteable<InternalAggregations>> remoteAggsList = hasAggs ? new ArrayDeque<>(batchedResults.size()) : null;
 
         SearchPhaseController.ReducedQueryPhase reducePhase;
@@ -269,13 +271,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
                 aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                aggs = aggregate(
-                    buffer.iterator(),
-                    localAggsList.iterator(),
-                    remoteAggsList.iterator(),
-                    resultSize,
-                    aggReduceContext
-                );
+                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), resultSize, aggReduceContext);
             } else {
                 aggs = null;
             }

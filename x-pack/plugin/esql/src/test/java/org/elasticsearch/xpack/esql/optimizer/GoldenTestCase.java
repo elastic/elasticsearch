@@ -467,10 +467,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (System.getProperty("golden.noactual") != null) {
             logger.debug("Skipping actual file creation because golden.noactual property is set");
         } else {
-            List<String> actualLines = testString.lines().map(GoldenTestCase::normalize).toList();
             Path actualPath = actualPath(output);
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
-            Files.write(actualPath, actualLines);
+            Files.writeString(actualPath, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
         }
         return Test.TestResult.FAILURE;
     }

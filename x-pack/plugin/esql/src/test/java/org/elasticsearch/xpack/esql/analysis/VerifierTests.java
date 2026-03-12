@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -48,6 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -108,7 +108,7 @@ public class VerifierTests extends ESTestCase {
         k8s = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, "k8s"), getIndexResult),
                 defaultLookupResolution(),
                 new EnrichResolution(),
@@ -2797,7 +2797,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
-        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
+        fullTextAnalyzer.analyze(TEST_PARSER.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -3790,8 +3790,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3801,8 +3799,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3816,8 +3812,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
         );
@@ -3833,8 +3827,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLambdaValueIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
         assertThat(
@@ -3875,19 +3867,34 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         assertThat(error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                     (FROM test METADATA _index, _id, _score | LIMIT 10)
+                | MMR ON dense_embedding LIMIT 10
+                """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        }
+    }
+
+    public void testLimitByNotEnabled() {
         assertThat(error("""
-            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
-                 (FROM test METADATA _index, _id, _score | LIMIT 10)
-            | MMR ON dense_embedding LIMIT 10
-            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+            FROM test
+            | LIMIT 5 BY languages
+            """, defaultAnalyzer, VerificationException.class), containsString("LIMIT BY is not yet supported"));
+    }
+
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
     private void query(String query) {
@@ -3899,7 +3906,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer, Object... params) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)));
+        analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)));
     }
 
     private static QueryParams toQueryParams(Object... params) {
@@ -3935,7 +3942,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)))
+            () -> analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)))
         );
         assertThat(e, instanceOf(exception));
 

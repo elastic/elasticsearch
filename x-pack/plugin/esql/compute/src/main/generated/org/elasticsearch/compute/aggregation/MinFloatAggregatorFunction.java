@@ -33,16 +33,10 @@ public final class MinFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      FloatState state) {
+  MinFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinFloatAggregatorFunction(driverContext, channels, new FloatState(MinFloatAggregator.init()));
+    this.state = new FloatState(MinFloatAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -36,18 +36,13 @@ public final class TopFloatFloatAggregatorFunction implements AggregatorFunction
 
   private final boolean ascending;
 
-  public TopFloatFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopFloatFloatAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopFloatFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopFloatFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopFloatFloatAggregatorFunction(driverContext, channels, TopFloatFloatAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopFloatFloatAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

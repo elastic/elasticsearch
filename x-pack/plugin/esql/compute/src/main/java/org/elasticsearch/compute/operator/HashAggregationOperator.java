@@ -138,9 +138,9 @@ public class HashAggregationOperator implements Operator {
                             maxPageSize
                         )
                     ),
-                    Integer.MAX_VALUE, // disable the early partial emit for categorize
+                    Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
                     1.0,
-                    maxPageSize,
+                    Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
                     driverContext
                 );
             }

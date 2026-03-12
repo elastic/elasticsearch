@@ -53,7 +53,8 @@ public record SourceOperatorContext(
     FileSet fileSet,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
-    @Nullable ExternalSliceQueue sliceQueue
+    @Nullable ExternalSliceQueue sliceQueue,
+    int parsingParallelism
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -71,6 +72,9 @@ public record SourceOperatorContext(
         }
         if (maxBufferSize <= 0) {
             throw new IllegalArgumentException("maxBufferSize must be positive, got: " + maxBufferSize);
+        }
+        if (parsingParallelism < 1) {
+            throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
         }
     }
 
@@ -103,7 +107,8 @@ public record SourceOperatorContext(
             fileSet,
             split,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -135,7 +140,8 @@ public record SourceOperatorContext(
             fileSet,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -166,7 +172,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -195,7 +202,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            null
+            null,
+            1
         );
     }
 
@@ -219,6 +227,7 @@ public record SourceOperatorContext(
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
+        private int parsingParallelism = 1;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -295,6 +304,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder parsingParallelism(int parsingParallelism) {
+            this.parsingParallelism = parsingParallelism;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -311,7 +325,8 @@ public record SourceOperatorContext(
                 fileSet,
                 split,
                 partitionColumnNames,
-                sliceQueue
+                sliceQueue,
+                parsingParallelism
             );
         }
     }

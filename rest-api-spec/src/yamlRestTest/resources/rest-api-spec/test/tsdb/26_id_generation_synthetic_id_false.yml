@@ -446,6 +446,8 @@ routing_path matches deep object:
                   end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
+                mapping:
+                  synthetic_id: false
             mappings:
               properties:
                 "@timestamp":
@@ -487,6 +489,8 @@ routing_path matches object:
                   end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
+                mapping:
+                  synthetic_id: false
             mappings:
               properties:
                 "@timestamp":

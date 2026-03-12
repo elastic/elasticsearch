@@ -168,6 +168,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withResolvedSchema(List<Attribute> resolvedSchema) {
+        FormatReader configured = inner.withResolvedSchema(resolvedSchema);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
     public void close() throws IOException {
         inner.close();
     }

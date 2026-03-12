@@ -344,7 +344,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                 .errorPolicy(errorPolicy)
                                 .firstSplit(firstSplit)
                                 .lastSplit(lastSplit)
-                                .resolvedAttributes(attributes)
                                 .build();
                             try (CloseableIterator<Page> pages = formatReader.read(obj, ctx)) {
                                 int consumed = drainPagesWithBudget(pages, buffer, injector);

@@ -86,17 +86,6 @@ public interface FormatReader extends Closeable {
      * implementations. New implementations should override this method directly.
      */
     default CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        if (context.resolvedAttributes() != null) {
-            return readSplit(
-                object,
-                context.projectedColumns(),
-                context.batchSize(),
-                context.firstSplit() == false,
-                context.lastSplit(),
-                context.resolvedAttributes(),
-                context.errorPolicy()
-            );
-        }
         if (context.rowLimit() != NO_LIMIT) {
             return read(object, context.projectedColumns(), context.batchSize(), context.rowLimit(), context.errorPolicy());
         }
@@ -155,6 +144,24 @@ public interface FormatReader extends Closeable {
      * @return a new reader with the filter applied, or {@code this} if the filter is not applicable
      */
     default FormatReader withPushedFilter(Object pushedFilter) {
+        return this;
+    }
+
+    /**
+     * Returns a format reader configured with the pre-resolved schema attributes.
+     * <p>
+     * The resolved schema is determined during the planning phase (via {@link #metadata(StorageObject)})
+     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
+     * re-reading/inferring the schema from the file header on every read, which is especially
+     * important for split-based reads where the split may start mid-file (no header available).
+     * <p>
+     * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
+     * the schema from the file metadata.
+     *
+     * @param resolvedSchema the planning-phase schema attributes, or null to clear
+     * @return a new reader with the schema set, or {@code this} if the schema is not needed
+     */
+    default FormatReader withResolvedSchema(List<Attribute> resolvedSchema) {
         return this;
     }
 

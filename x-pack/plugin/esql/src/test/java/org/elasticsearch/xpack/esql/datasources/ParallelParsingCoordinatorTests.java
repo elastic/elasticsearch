@@ -110,7 +110,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec, SCHEMA);
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
 
             List<String> allLines = new ArrayList<>();
             try (iter) {
@@ -142,7 +142,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 1, exec, SCHEMA);
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 1, exec);
 
             List<String> allLines = new ArrayList<>();
             try (iter) {
@@ -173,7 +173,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(2);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec, SCHEMA);
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec);
 
             try (iter) {
                 assertFalse("Empty file should produce no pages", iter.hasNext());
@@ -227,9 +227,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         exec.shutdown();
 
         RuntimeException ex = expectThrows(RuntimeException.class, () -> {
-            try (
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec, SCHEMA)
-            ) {
+            try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec)) {
                 while (iter.hasNext()) {
                     Page page = iter.next();
                     page.releaseBlocks();
@@ -250,7 +248,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec, SCHEMA);
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
 
             RuntimeException ex = expectThrows(RuntimeException.class, () -> {
                 try (iter) {

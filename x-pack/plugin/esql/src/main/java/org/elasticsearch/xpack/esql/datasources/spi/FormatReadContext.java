@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-
 import java.util.List;
 
 /**
@@ -27,8 +25,6 @@ import java.util.List;
  * @param firstSplit       whether this is the first split for the file (consistent with {@code lastSplit};
  *                         format-agnostic replacement for the legacy {@code skipFirstLine} parameter)
  * @param lastSplit        whether this is the last split for the file (affects trailing-record handling)
- * @param resolvedAttributes pre-resolved schema attributes (non-null in split reads where the schema
- *                           was resolved from the first split)
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -36,36 +32,35 @@ public record FormatReadContext(
     int rowLimit,
     ErrorPolicy errorPolicy,
     boolean firstSplit,
-    boolean lastSplit,
-    List<Attribute> resolvedAttributes
+    boolean lastSplit
 ) {
 
     /**
      * Creates a minimal context for the common non-split case.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, false, false, null);
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, ErrorPolicy.STRICT, false, false);
     }
 
     /**
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, resolvedAttributes);
+        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit);
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, resolvedAttributes);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit);
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
-    public FormatReadContext withSplit(boolean first, boolean last, List<Attribute> attrs) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, attrs);
+    public FormatReadContext withSplit(boolean first, boolean last) {
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last);
     }
 
     public static Builder builder() {
@@ -79,7 +74,6 @@ public record FormatReadContext(
         private ErrorPolicy errorPolicy = ErrorPolicy.STRICT;
         private boolean firstSplit;
         private boolean lastSplit;
-        private List<Attribute> resolvedAttributes;
 
         private Builder() {}
 
@@ -113,13 +107,8 @@ public record FormatReadContext(
             return this;
         }
 
-        public Builder resolvedAttributes(List<Attribute> resolvedAttributes) {
-            this.resolvedAttributes = resolvedAttributes;
-            return this;
-        }
-
         public FormatReadContext build() {
-            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit, resolvedAttributes);
+            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit);
         }
     }
 }

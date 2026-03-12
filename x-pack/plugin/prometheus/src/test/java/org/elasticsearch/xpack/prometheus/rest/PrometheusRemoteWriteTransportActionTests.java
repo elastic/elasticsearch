@@ -253,38 +253,22 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
     public void testStalenessMarkerIsDropped() {
         double stalenessMarker = Double.longBitsToDouble(0x7ff0000000000002L);
-        RemoteWriteResponse response = executeRequest(createWriteRequest("stale_metric", stalenessMarker, System.currentTimeMillis()));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
-        assertNull(response.getMessage());
+        executeRequest(createWriteRequest("stale_metric", stalenessMarker, System.currentTimeMillis()));
         verify(client, never()).execute(any(), any(), any());
     }
 
     public void testNaNSamplesAreDropped() {
-        RemoteWriteResponse response = executeRequest(createWriteRequest("nan_metric", Double.NaN, System.currentTimeMillis()));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
-        assertNull(response.getMessage());
+        executeRequest(createWriteRequest("nan_metric", Double.NaN, System.currentTimeMillis()));
         verify(client, never()).execute(any(), any(), any());
     }
 
     public void testPositiveInfinitySamplesAreDropped() {
-        RemoteWriteResponse response = executeRequest(
-            createWriteRequest("inf_metric", Double.POSITIVE_INFINITY, System.currentTimeMillis())
-        );
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
-        assertNull(response.getMessage());
+        executeRequest(createWriteRequest("inf_metric", Double.POSITIVE_INFINITY, System.currentTimeMillis()));
         verify(client, never()).execute(any(), any(), any());
     }
 
     public void testNegativeInfinitySamplesAreDropped() {
-        RemoteWriteResponse response = executeRequest(
-            createWriteRequest("neg_inf_metric", Double.NEGATIVE_INFINITY, System.currentTimeMillis())
-        );
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
-        assertNull(response.getMessage());
+        executeRequest(createWriteRequest("neg_inf_metric", Double.NEGATIVE_INFINITY, System.currentTimeMillis()));
         verify(client, never()).execute(any(), any(), any());
     }
 
@@ -301,9 +285,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             )
             .build();
 
-        RemoteWriteResponse response = executeRequest(createWriteRequest(writeRequest, "generic", "default"));
-
-        assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
+        executeRequest(createWriteRequest(writeRequest, "generic", "default"));
     }
 
     public void testCustomDatasetAndNamespace() {

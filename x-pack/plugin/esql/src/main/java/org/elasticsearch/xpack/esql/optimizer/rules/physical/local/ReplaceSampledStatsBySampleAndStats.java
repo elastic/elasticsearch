@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -105,15 +104,11 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
                         // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
                         Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), attr);
                         intermediateAttributes.add(uncorrectedAlias.toAttribute());
-
                         Expression corrected = new Div(
                             Source.EMPTY,
                             uncorrectedAlias.toAttribute(),
                             originalIntermediateNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
                         );
-                        if (attr.dataType().isWholeNumber()) {
-                            corrected = new ToLong(Source.EMPTY, corrected);
-                        }
                         Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
                         sampleCorrections.add(correctedAlias);
                     } else {

@@ -61,8 +61,7 @@ Approximate stats on large single-valued data
 required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
-FROM many_numbers
-    | STATS count=COUNT(sv), avg=AVG(sv), sum=SUM(sv)
+FROM many_numbers | STATS count=COUNT(sv), avg=AVG(sv), sum=SUM(sv)
 ;
 
 count:long     | avg:double | sum:long           | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long           | CERTIFIED(sum):boolean
@@ -75,6 +74,7 @@ required_capability: approximation_v3
 
 SET approximation=true\;
 FROM many_numbers
+    | MV_EXPAND mv
     | STATS count=COUNT(mv), avg=AVG(mv), sum=SUM(mv)
 ;
 
@@ -116,8 +116,7 @@ Multiple total counts
 required_capability: approximation_v3
 
 SET approximation={"rows":10000}\;
-FROM many_numbers
-    | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(mv)
+FROM many_numbers | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(mv)
 ;
 
 count:long     | count2:long    | countValue:long  | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(count2):long| CERTIFIED(count2):boolean | CONFIDENCE_INTERVAL(countValue):long | CERTIFIED(countValue):boolean
@@ -276,10 +275,7 @@ sv:double
 ;
 
 
-// Sample correction and rounding happens on the data nodes.
-// Therefore the stats in this test suffer from round-off errors.
-// TODO: floating point intermediate states and round on the coordinator
-Approximate stats by with zero variance-Ignore
+Approximate stats by with zero variance
 required_capability: approximation_v3
 
 SET approximation={"rows":100000}\;
@@ -290,12 +286,12 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-avg:double | median:double | one:double | mv:integer | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(median):double | CERTIFIED(median):boolean | CONFIDENCE_INTERVAL(one):double | CERTIFIED(one):boolean
-2000       | 2000          | 1          | 2000       | [2000,2000]                     | {any}                  | [2000,2000]                        | {any}                     | [1,1]                           | {any}
-1999       | 1999          | 1          | 1999       | [1999,1999]                     | {any}                  | [1999,1999]                        | {any}                     | [1,1]                           | {any}
-1998       | 1998          | 1          | 1998       | [1998,1998]                     | {any}                  | [1998,1998]                        | {any}                     | [1,1]                           | {any}
-1997       | 1997          | 1          | 1997       | [1997,1997]                     | {any}                  | [1997,1997]                        | {any}                     | [1,1]                           | {any}
-1996       | 1996          | 1          | 1996       | [1996,1996]                     | {any}                  | [1996,1996]                        | {any}                     | [1,1]                           | {any}
+avg:double               | median:double | one:double | mv:integer | CONFIDENCE_INTERVAL(avg):double                     | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(median):double | CERTIFIED(median):boolean | CONFIDENCE_INTERVAL(one):double | CERTIFIED(one):boolean
+1999.999999..2000.000001 | 2000          | 1          | 2000       | [1999.999999..2000.000001,1999.999999..2000.000001] | {any}                  | [2000,2000]                        | true                      | [1,1]                           | true
+1998.999999..1999.000001 | 1999          | 1          | 1999       | [1998.999999..1999.000001,1998.999999..1999.000001] | {any}                  | [1999,1999]                        | true                      | [1,1]                           | true
+1997.999999..1998.000001 | 1998          | 1          | 1998       | [1997.999999..1998.000001,1997.999999..1998.000001] | {any}                  | [1998,1998]                        | true                      | [1,1]                           | true
+1996.999999..1997.000001 | 1997          | 1          | 1997       | [1996.999999..1997.000001,1996.999999..1997.000001] | {any}                  | [1997,1997]                        | true                      | [1,1]                           | true
+1995.999999..1996.000001 | 1996          | 1          | 1996       | [1995.999999..1996.000001,1995.999999..1996.000001] | {any}                  | [1996,1996]                        | true                      | [1,1]                           | true
 ;
 
 

@@ -1472,3 +1472,48 @@ m:double | pod:keyword | bucket:datetime
 10.875   | THREE       | 2024-05-10T00:20:00.000Z
 10.75    | TWO         | 2024-05-10T00:20:00.000Z
 ;
+
+AggregateMetricDoubleLessThan
+TS k8s-* | WHERE network.eth0.tx < 500.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | three       | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}
+2024-05-09T23:40:00.000Z | prod            | one         | {"min":94.0,"max":94.0,"sum":94.0,"value_count":1}
+2024-05-09T23:40:00.000Z | prod            | three       | {"min":113.0,"max":341.0,"sum":1112.0,"value_count":4}
+2024-05-09T23:40:00.000Z | staging         | three       | {"min":172.0,"max":411.0,"sum":755.0,"value_count":3}
+2024-05-09T23:50:00.000Z | prod            | three       | {"min":162.0,"max":715.0,"sum":1912.0,"value_count":8}
+2024-05-09T23:50:00.000Z | prod            | two         | {"min":377.0,"max":602.0,"sum":2190.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | three       | {"min":243.0,"max":398.0,"sum":2585.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | one         | {"min":157.0,"max":193.0,"sum":1232.0,"value_count":7}
+;
+
+AggregateMetricDoubleGreaterThan
+TS k8s-* | WHERE network.eth0.tx >= 500.0
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}
+2024-05-09T23:30:00.000Z | qa              | two         | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}
+2024-05-09T23:40:00.000Z | prod            | two         | {"min":663.0,"max":1419.0,"sum":11259.0,"value_count":9}
+2024-05-09T23:40:00.000Z | qa              | one         | {"min":176.0,"max":1042.0,"sum":5579.0,"value_count":7}
+2024-05-09T23:40:00.000Z | qa              | three       | {"min":321.0,"max":685.0,"sum":1932.0,"value_count":3}
+2024-05-09T23:40:00.000Z | qa              | two         | {"min":441.0,"max":1248.0,"sum":11960.0,"value_count":10}
+2024-05-09T23:40:00.000Z | staging         | one         | {"min":231.0,"max":795.0,"sum":4096.0,"value_count":8}
+2024-05-09T23:40:00.000Z | staging         | two         | {"min":604.0,"max":664.0,"sum":3100.0,"value_count":5}
+2024-05-09T23:50:00.000Z | prod            | one         | {"min":598.0,"max":1060.0,"sum":6986.0,"value_count":7}
+2024-05-09T23:50:00.000Z | qa              | one         | {"min":468.0,"max":694.0,"sum":3075.0,"value_count":5}
+2024-05-09T23:50:00.000Z | qa              | two         | {"min":75.0,"max":594.0,"sum":5760.0,"value_count":10}
+2024-05-09T23:50:00.000Z | staging         | three       | {"min":690.0,"max":824.0,"sum":2936.0,"value_count":4}
+2024-05-09T23:50:00.000Z | staging         | two         | {"min":315.0,"max":815.0,"sum":4320.0,"value_count":8}
+;

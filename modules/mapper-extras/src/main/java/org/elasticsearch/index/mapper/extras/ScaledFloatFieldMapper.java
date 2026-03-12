@@ -133,7 +133,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Parameter<TimeSeriesParams.MetricType> metric;
 
         private final IndexSettings indexSettings;
-        private final boolean indexDisabledByDefault;
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
@@ -150,7 +149,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 COERCE_SETTING.get(indexSettings.getSettings())
             );
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (indexDisabledByDefault) {
+                if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
 
@@ -173,7 +172,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
             });
             this.indexSettings = indexSettings;
-            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         Builder scalingFactor(double scalingFactor) {
@@ -589,7 +587,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexSettings indexSettings;
-    private final boolean indexDisabledByDefault;
 
     private ScaledFloatFieldMapper(
         String simpleName,

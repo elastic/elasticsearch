@@ -261,7 +261,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             boolean isWithinMultiField
         ) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
@@ -295,23 +294,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;
-        }
-
-        public Builder(String name, boolean indexDisabledByDefault, IndexVersion indexCreatedVersion) {
-            this(
-                name,
-                null,
-                ScriptCompiler.NONE,
-                Integer.MAX_VALUE,
-                indexCreatedVersion,
-                IndexMode.STANDARD,
-                null,
-                false,
-                false,
-                indexDisabledByDefault,
-                SourceKeepMode.NONE,
-                false
-            );
         }
 
         public Builder(String name, IndexSettings indexSettings) {
@@ -1259,7 +1241,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final boolean forceDocValuesSkipper;
-    private final boolean indexDisabledByDefault;
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
@@ -1286,7 +1267,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());

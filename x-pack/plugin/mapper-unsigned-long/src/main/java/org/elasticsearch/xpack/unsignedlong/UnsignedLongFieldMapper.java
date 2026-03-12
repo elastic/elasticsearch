@@ -107,7 +107,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final Parameter<MetricType> metric;
 
         private final IndexSettings indexSettings;
-        private final boolean indexDisabledByDefault;
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
@@ -128,7 +127,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (indexDisabledByDefault) {
+                if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
 
@@ -152,7 +151,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }).precludesParameters(dimension);
 
             this.indexSettings = indexSettings;
-            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         private String parseNullValueAsString(Object o) {

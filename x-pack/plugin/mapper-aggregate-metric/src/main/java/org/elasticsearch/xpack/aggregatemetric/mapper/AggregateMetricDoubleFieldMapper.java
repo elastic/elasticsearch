@@ -177,7 +177,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString).deprecated().acceptsNull();
 
         private final IndexSettings indexSettings;
-        private final boolean indexDisabledByDefault;
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
@@ -190,7 +189,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
             this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE);
             this.indexSettings = indexSettings;
-            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -638,7 +636,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
     private final TimeSeriesParams.MetricType metricType;
 
     private final IndexSettings indexSettings;
-    private final boolean indexDisabledByDefault;
 
     private AggregateMetricDoubleFieldMapper(
         String simpleName,
@@ -654,7 +651,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         this.metricFieldMappers = metricFieldMappers;
         this.metricType = builder.timeSeriesMetric.getValue();
         this.indexSettings = builder.indexSettings;
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override

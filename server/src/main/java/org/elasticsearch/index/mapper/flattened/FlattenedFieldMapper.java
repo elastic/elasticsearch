@@ -200,6 +200,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()),
                 IndexMode.STANDARD,
                 IndexVersion.current(),
+                false,
                 false
             );
         }

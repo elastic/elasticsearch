@@ -144,7 +144,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
-        private final boolean indexDisabledByDefault;
 
         public static Builder docValuesOnly(String name, NumberType type, IndexSettings indexSettings) {
             Builder builder = new Builder(name, type, ScriptCompiler.NONE, indexSettings);
@@ -182,7 +181,7 @@ public class NumberFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (indexDisabledByDefault) {
+                if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
 
@@ -2316,7 +2315,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexSettings indexSettings;
-    private final boolean indexDisabledByDefault;
 
     private NumberFieldMapper(
         String simpleName,
@@ -2343,7 +2341,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     boolean coerce() {

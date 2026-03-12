@@ -97,7 +97,6 @@ public class IpFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
         private final IndexSettings indexSettings;
-        private final boolean indexDisabledByDefault;
 
         public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
             super(name);
@@ -605,7 +604,6 @@ public class IpFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
-    private final boolean indexDisabledByDefault;
 
     private IpFieldMapper(
         String simpleName,

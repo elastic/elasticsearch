@@ -106,11 +106,9 @@ public class BooleanFieldMapper extends FieldMapper {
         private final IndexSettings indexSettings;
 
         private final Parameter<Boolean> dimension;
-        private final boolean indexDisabledByDefault;
 
         public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
             super(name);
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.ignoreMalformed = Parameter.explicitBoolParam(

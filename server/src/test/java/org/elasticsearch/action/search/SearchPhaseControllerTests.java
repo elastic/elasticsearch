@@ -76,6 +76,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -121,7 +122,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         searchPhaseController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction(
-                @org.elasticsearch.core.Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
+                @org.elasticsearch.core.Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
             ) {
                 reductions.add(false);
                 return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
@@ -129,7 +130,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
             @Override
             public AggregationReduceContext forFinalReduction(
-                @org.elasticsearch.core.Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
+                @org.elasticsearch.core.Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
             ) {
                 reductions.add(true);
                 return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);

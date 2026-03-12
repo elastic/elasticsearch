@@ -47,6 +47,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -81,7 +82,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public static AggregationReduceContext.Builder emptyReduceContextBuilder(AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(@Nullable List<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
@@ -93,7 +94,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(@Nullable List<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
@@ -113,7 +114,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public static AggregationReduceContext.Builder mockReduceContext(AggregationBuilder agg) {
         return new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(@Nullable List<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
@@ -125,7 +126,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(@Nullable List<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,

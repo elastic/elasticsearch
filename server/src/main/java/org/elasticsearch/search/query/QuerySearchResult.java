@@ -39,8 +39,8 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -86,7 +86,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Long timeRangeFilterFromMillis;
 
     @Nullable
-    private List<SearchHits> topHitsToRelease;
+    private ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue;
 
     public QuerySearchResult() {
         this(false);
@@ -299,7 +299,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasAggs = aggregations != null;
         // On the shard, register top_hits for release when there was no partial reduce (list empty).
         // When there was a partial reduce, the reduce context already registered merged refs here.
-        if (aggregations != null && (topHitsToRelease == null || topHitsToRelease.isEmpty())) {
+        if (aggregations != null && (topHitsToReleaseQueue == null || topHitsToReleaseQueue.isEmpty())) {
             InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
         }
         releaseAggsContext();
@@ -584,23 +584,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * instead (caller keeps the ref, no extra incRef).
      */
     public void registerTopHitsForRelease(SearchHits searchHits) {
-        if (topHitsToRelease == null) {
-            topHitsToRelease = new ArrayList<>();
+        if (topHitsToReleaseQueue == null) {
+            topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
         }
         searchHits.incRef();
-        topHitsToRelease.add(searchHits);
+        topHitsToReleaseQueue.add(searchHits);
     }
 
     /**
-     * Returns the list used to collect SearchHits that must be released when this result is released.
+     * Returns the collection used to collect SearchHits that must be released when this result is released.
      * Used when building the aggregation reduce context for partial reduction on the shard, so that
      * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
      */
-    public List<SearchHits> topHitsToReleaseCollector() {
-        if (topHitsToRelease == null) {
-            topHitsToRelease = new ArrayList<>();
+    public Collection<SearchHits> topHitsToReleaseCollector() {
+        if (topHitsToReleaseQueue == null) {
+            topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
         }
-        return topHitsToRelease;
+        return topHitsToReleaseQueue;
     }
 
     /**
@@ -609,18 +609,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * top_hits elsewhere so we do not double-release on decRef().
      */
     public void clearTopHitsToRelease() {
-        topHitsToRelease = null;
+        topHitsToReleaseQueue = null;
     }
 
     @Override
     public boolean decRef() {
         if (refCounted != null) {
             if (refCounted.decRef()) {
-                if (topHitsToRelease != null) {
-                    for (SearchHits h : topHitsToRelease) {
+                if (topHitsToReleaseQueue != null) {
+                    for (SearchHits h : topHitsToReleaseQueue) {
                         h.decRef();
                     }
-                    topHitsToRelease = null;
+                    topHitsToReleaseQueue = null;
                 }
                 if (aggsContextReleased != null) {
                     aggsContextReleased.onResponse(null);

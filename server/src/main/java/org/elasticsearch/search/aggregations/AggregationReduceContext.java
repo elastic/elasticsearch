@@ -16,7 +16,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -44,15 +44,15 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         /**
          * Build an {@linkplain AggregationReduceContext} to perform a partial reduction.
-         * @param topHitsToRelease optional list to collect SearchHits from top_hits aggs for release by SearchResponse
+         * @param topHitsToRelease optional collection to collect SearchHits from top_hits aggs for release by SearchResponse
          */
-        AggregationReduceContext forPartialReduction(@Nullable List<SearchHits> topHitsToRelease);
+        AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease);
 
         /**
          * Build an {@linkplain AggregationReduceContext} to perform the final reduction.
-         * @param topHitsToRelease optional list to collect SearchHits from top_hits aggs for release by SearchResponse
+         * @param topHitsToRelease optional collection to collect SearchHits from top_hits aggs for release by SearchResponse
          */
-        AggregationReduceContext forFinalReduction(@Nullable List<SearchHits> topHitsToRelease);
+        AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease);
     }
 
     private final BigArrays bigArrays;
@@ -66,7 +66,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     private final AggregationBuilder builder;
     private final AggregatorFactories.Builder subBuilders;
     @Nullable
-    protected final List<SearchHits> topHitsToRelease;
+    protected final Collection<SearchHits> topHitsToRelease;
     private boolean hasBatchedResult;
 
     private AggregationReduceContext(
@@ -74,7 +74,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         ScriptService scriptService,
         Supplier<Boolean> isCanceled,
         AggregatorFactories.Builder subBuilders,
-        @Nullable List<SearchHits> topHitsToRelease
+        @Nullable Collection<SearchHits> topHitsToRelease
     ) {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
@@ -89,7 +89,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         ScriptService scriptService,
         Supplier<Boolean> isCanceled,
         AggregationBuilder builder,
-        @Nullable List<SearchHits> topHitsToRelease
+        @Nullable Collection<SearchHits> topHitsToRelease
     ) {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
@@ -210,7 +210,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             Supplier<Boolean> isCanceled,
             AggregatorFactories.Builder builders,
             IntConsumer multiBucketConsumer,
-            @Nullable List<SearchHits> topHitsToRelease
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
             super(bigArrays, scriptService, isCanceled, builders, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
@@ -222,7 +222,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             Supplier<Boolean> isCanceled,
             AggregationBuilder builder,
             IntConsumer multiBucketConsumer,
-            @Nullable List<SearchHits> topHitsToRelease
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
             super(bigArrays, scriptService, isCanceled, builder, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
@@ -262,7 +262,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             Supplier<Boolean> isCanceled,
             AggregatorFactories.Builder builders,
             IntConsumer multiBucketConsumer,
-            @Nullable List<SearchHits> topHitsToRelease
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
             super(bigArrays, scriptService, isCanceled, builders, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
@@ -276,7 +276,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             AggregationBuilder builder,
             IntConsumer multiBucketConsumer,
             PipelineTree pipelineTreeRoot,
-            @Nullable List<SearchHits> topHitsToRelease
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
             super(bigArrays, scriptService, isCanceled, builder, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;

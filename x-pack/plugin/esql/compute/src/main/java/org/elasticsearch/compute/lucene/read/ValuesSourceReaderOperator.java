@@ -319,6 +319,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     }
 
     /**
+     * Updates the source loading reservation if the source bytes from the current document
+     * exceed what we've seen before, then releases the parsed source to free memory.
+     */
+    void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
+        long sourceBytes = storedFields.lastSourceBytesSize();
+        if (sourceBytes > lastKnownSourceSize) {
+            lastKnownSourceSize = sourceBytes;
+            acquireSourceLoadingReservation();
+        }
+        storedFields.releaseParsedSource();
+    }
+
+    /**
      * Acquires or increases the persistent column-at-a-time batch reservation on the circuit
      * breaker. Called at the start of each page. If the breaker trips, the exception propagates
      * and prevents further loading.
@@ -344,19 +357,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             lastKnownColumnBatchBytes = batchBytes;
             acquireColumnBatchReservation();
         }
-    }
-
-    /**
-     * Updates the source loading reservation if the source bytes from the current document
-     * exceed what we've seen before, then releases the parsed source to free memory.
-     */
-    void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
-        long sourceBytes = storedFields.lastSourceBytesSize();
-        if (sourceBytes > lastKnownSourceSize) {
-            lastKnownSourceSize = sourceBytes;
-            acquireSourceLoadingReservation();
-        }
-        storedFields.releaseParsedSource();
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {

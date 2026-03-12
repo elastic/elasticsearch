@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -345,6 +346,13 @@ public abstract class SearchContext implements Releasable {
     public abstract void addDfsResult();
 
     public abstract QuerySearchResult queryResult();
+
+    /**
+     * Register SearchHits from a top_hits aggregation so that the shard result can release them when it is released.
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        queryResult().registerTopHitsForRelease(searchHits);
+    }
 
     /**
      * Indicates that the caller will be using, and thus owning, a {@link QuerySearchResult} object.  It is the caller's responsibility

@@ -76,6 +76,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -120,15 +121,20 @@ public class SearchPhaseControllerTests extends ESTestCase {
         reductions = new CopyOnWriteArrayList<>();
         searchPhaseController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction() {
+            public AggregationReduceContext forPartialReduction(
+                @org.elasticsearch.core.Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
                 reductions.add(false);
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
             }
 
-            public AggregationReduceContext forFinalReduction() {
+            @Override
+            public AggregationReduceContext forFinalReduction(
+                @org.elasticsearch.core.Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
                 reductions.add(true);
-                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
-            };
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         fixedExecutor = EsExecutors.newFixed(
@@ -278,6 +284,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
+                    null,
                     null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
@@ -392,7 +399,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             topDocStats.fetchHits = topResults.length;
                             return topResults;
                         }
-                    }
+                    },
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()

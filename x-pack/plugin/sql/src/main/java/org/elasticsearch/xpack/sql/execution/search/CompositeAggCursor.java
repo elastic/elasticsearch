@@ -39,6 +39,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTimeWithLastPage;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
@@ -196,7 +197,7 @@ public class CompositeAggCursor implements Cursor {
         }
 
         if (rowSet.remainingData() == 0) {
-            closePointInTime(client, response.pointInTimeId(), listener.map(r -> Page.last(rowSet)));
+            closePointInTimeWithLastPage(client, response, Page.last(rowSet), listener);
         } else {
             // Refresh the PIT ID with the new value returned in the response
             refreshPointInTime(response, source);

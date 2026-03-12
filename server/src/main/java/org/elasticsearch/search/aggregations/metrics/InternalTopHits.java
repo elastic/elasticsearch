@@ -59,7 +59,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
-        this.searchHits = searchHits.asUnpooled();
+        this.searchHits = searchHits;
     }
 
     /**
@@ -70,7 +70,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        searchHits = SearchHits.readFrom(in, false);
+        searchHits = SearchHits.readFrom(in, true);
     }
 
     @Override
@@ -154,12 +154,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 }
                 assert reducedTopDocs.totalHits.relation() == Relation.EQUAL_TO;
 
+                SearchHits mergedHits = extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore);
+                reduceContext.transferTopHitsForRelease(mergedHits);
                 return new InternalTopHits(
                     getName(),
                     getFrom(),
                     getSize(),
                     new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-                    extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
+                    mergedHits,
                     getMetadata()
                 );
             }
@@ -199,10 +201,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                     hit.sortValues(fieldDoc.fields, formats);
                 }
             }
+            hit.incRef();
             hits[i] = hit;
-            assert hits[i].isPooled() == false;
         }
-        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
     }
 
     /**

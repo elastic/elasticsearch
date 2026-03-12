@@ -127,6 +127,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -202,6 +203,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
     private final List<Releasable> releasables = new ArrayList<>();
+    private final List<SearchHits> topHitsToRelease = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
 
@@ -735,7 +737,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         getMockScriptService(),
                         () -> false,
                         builder,
-                        b -> {}
+                        b -> {},
+                        topHitsToRelease
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -759,7 +762,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 getMockScriptService(),
                 () -> false,
                 builder,
-                b -> {}
+                b -> {},
+                topHitsToRelease
             );
             internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
             internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
@@ -811,7 +815,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getMockScriptService(),
             () -> cancelled,
             builder,
-            reduceBucketConsumer
+            reduceBucketConsumer,
+            topHitsToRelease
         );
 
         @SuppressWarnings("unchecked")
@@ -989,7 +994,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     getMockScriptService(),
                     () -> false,
                     builder,
-                    new MultiBucketConsumer(context.maxBuckets(), context.breaker())
+                    new MultiBucketConsumer(context.maxBuckets(), context.breaker()),
+                    topHitsToRelease
                 )
             );
             @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
@@ -1436,6 +1442,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+        for (SearchHits h : topHitsToRelease) {
+            h.decRef();
+        }
+        topHitsToRelease.clear();
         threadPoolExecutor.shutdown();
         terminate(threadPool);
     }

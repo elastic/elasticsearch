@@ -29,7 +29,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -568,7 +570,22 @@ public final class MlIndexAndAlias {
             return false;
         }
         String baseName = baseIndexName(concreteIndex);
-        return clusterState.getMetadata().getProject().hasIndex(baseName) == false;
+        ProjectMetadata project = clusterState.getMetadata().getProject();
+        if (project.hasIndex(baseName)) {
+            return false;
+        }
+        // A per-job read alias can collide with the base name when the job ID equals
+        // the index name part (e.g. job "shared" → read alias ".ml-anomalies-shared").
+        // Creating an unfiltered base-name alias would overwrite the filtered read alias
+        // and broaden query scope.
+        IndexMetadata indexMetadata = project.index(concreteIndex);
+        if (indexMetadata != null) {
+            AliasMetadata existing = indexMetadata.getAliases().get(baseName);
+            if (existing != null && existing.filteringRequired()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -590,8 +607,20 @@ public final class MlIndexAndAlias {
             return;
         }
         String baseName = baseIndexName(indices.get(0));
-        if (clusterState.getMetadata().getProject().hasIndex(baseName)) {
+        ProjectMetadata project = clusterState.getMetadata().getProject();
+        if (project.hasIndex(baseName)) {
             return;
+        }
+        // Skip if any index already has a filtered alias with the base name (i.e. a per-job
+        // read alias whose job ID matches the index name part, e.g. job "shared").
+        for (String index : indices) {
+            IndexMetadata indexMetadata = project.index(index);
+            if (indexMetadata != null) {
+                AliasMetadata existing = indexMetadata.getAliases().get(baseName);
+                if (existing != null && existing.filteringRequired()) {
+                    return;
+                }
+            }
         }
         aliasRequestBuilder.addAliasAction(
             IndicesAliasesRequest.AliasActions.add().indices(indices.toArray(new String[0])).alias(baseName).isHidden(true)
@@ -835,16 +864,18 @@ public final class MlIndexAndAlias {
         allJobResultsIndices.add(newIndex);
         MlIndexAndAlias.sortIndices(allJobResultsIndices);
 
-        // The base-name alias (e.g. .ml-anomalies-shared) looks like a read alias to isAnomaliesReadAlias()
-        // because it starts with .ml-anomalies- and the remainder is a valid ID. Exclude it so the
-        // rollover processing only handles actual job aliases.
+        // The unfiltered base-name alias (e.g. .ml-anomalies-shared) looks like a read alias to
+        // isAnomaliesReadAlias() because it starts with .ml-anomalies- and the remainder is a valid ID.
+        // Exclude it so rollover processing only handles actual job aliases. However, if a per-job
+        // read alias has the same name (job ID == index name part, e.g. job "shared"), it will have
+        // a filter and must still be processed.
         String baseName = baseIndexName(currentJobResultsIndices.get(0));
 
         // Group all unique aliases by their job ID. This ensures each job is processed only once.
         aliasesMap.values()
             .stream()
             .flatMap(List::stream)
-            .filter(alias -> alias.alias().equals(baseName) == false)
+            .filter(alias -> (alias.alias().equals(baseName) && alias.filteringRequired() == false) == false)
             .filter(alias -> isAnomaliesReadAlias(alias.alias()) || isAnomaliesWriteAlias(alias.alias()))
             .flatMap(alias -> AnomalyDetectorsIndex.jobIdFromAlias(alias.alias()).stream().map(jobId -> new Tuple<>(jobId, alias)))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())))

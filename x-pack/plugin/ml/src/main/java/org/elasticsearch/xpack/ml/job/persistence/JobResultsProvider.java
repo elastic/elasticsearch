@@ -352,7 +352,9 @@ public class JobResultsProvider {
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true));
             if (MlIndexAndAlias.canCreateBaseNameAlias(indexName, state)) {
                 String baseName = MlIndexAndAlias.baseIndexName(indexName);
-                aliasesBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(baseName).isHidden(true));
+                if (baseName.equals(readAliasName) == false) {
+                    aliasesBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(baseName).isHidden(true));
+                }
             }
             final IndicesAliasesRequest request = aliasesBuilder.request();
             executeAsyncWithOrigin(

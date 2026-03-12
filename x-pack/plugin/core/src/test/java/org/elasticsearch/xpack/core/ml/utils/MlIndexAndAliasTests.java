@@ -668,6 +668,77 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(actions.stream().filter(a -> a.aliases()[0].equals(".ml-anomalies-shared")).count(), equalTo(0L));
     }
 
+    public void testBuildIndexAliasesRequest_withJobIdMatchingBaseName() {
+        var oldIndex = ".ml-anomalies-shared-000001";
+        var newIndex = ".ml-anomalies-shared-000002";
+
+        // Job "shared" creates a filtered read alias ".ml-anomalies-shared" — the same name as
+        // the base-name alias. The rollover must still process the job's filtered alias normally
+        // and must NOT create an unfiltered base-name alias that would clobber it.
+        IndexMetadata.Builder oldIndexMetadata = createEmptySharedResultsIndex(oldIndex, IndexVersion.current());
+        oldIndexMetadata.putAlias(
+            AliasMetadata.builder(AnomalyDetectorsIndex.jobResultsAliasedName("shared"))
+                .isHidden(true)
+                .filter(Map.of("term", Map.of("job_id", "shared")))
+                .build()
+        );
+        oldIndexMetadata.putAlias(
+            AliasMetadata.builder(AnomalyDetectorsIndex.resultsWriteAlias("shared")).writeIndex(true).isHidden(true).build()
+        );
+        IndexMetadata.Builder newIndexMetadata = createEmptySharedResultsIndex(newIndex, IndexVersion.current());
+
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(oldIndexMetadata);
+        metadata.put(newIndexMetadata);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+
+        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
+            mock(ElasticsearchClient.class),
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
+
+        String[] currentIndices = { oldIndex };
+        var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            csBuilder.build(),
+            Arrays.asList(currentIndices)
+        );
+        var actions = request.request().getAliasActions();
+        // 3 actions: 1 write ADD + 1 write REMOVE + 1 read ADD. No base-name alias because
+        // job "shared" has a filtered read alias with the same name.
+        assertThat(actions, hasSize(3));
+
+        var writeAdd = new AliasActionMatcher(
+            AnomalyDetectorsIndex.resultsWriteAlias("shared"),
+            newIndex,
+            IndicesAliasesRequest.AliasActions.Type.ADD
+        );
+        assertThat(actions.stream().filter(writeAdd::matches).count(), equalTo(1L));
+
+        var writeRemove = new AliasActionMatcher(
+            AnomalyDetectorsIndex.resultsWriteAlias("shared"),
+            oldIndex,
+            IndicesAliasesRequest.AliasActions.Type.REMOVE
+        );
+        assertThat(actions.stream().filter(writeRemove::matches).count(), equalTo(1L));
+
+        var readAdd = new AliasActionMultiIndicesMatcher(
+            AnomalyDetectorsIndex.jobResultsAliasedName("shared"),
+            new String[] { oldIndex, newIndex },
+            IndicesAliasesRequest.AliasActions.Type.ADD
+        );
+        assertThat(actions.stream().filter(readAdd::matches).count(), equalTo(1L));
+
+        // Verify NO unfiltered base-name alias action was added
+        long unfilteredBaseNameActions = actions.stream()
+            .filter(a -> a.aliases()[0].equals(".ml-anomalies-shared") && a.filter() == null)
+            .count();
+        assertThat(unfilteredBaseNameActions, equalTo(0L));
+    }
+
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {
         boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
             return aliasAction.actionType() == actionType
@@ -802,6 +873,16 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertTrue(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-custom-foo-000001", clusterState));
     }
 
+    public void testCanCreateBaseNameAlias_withFilteredAliasCollision() {
+        // Job "shared" creates filtered read alias ".ml-anomalies-shared" which collides with the base name
+        IndexMetadata indexMetadata = IndexMetadata.builder(".ml-anomalies-shared-000001")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putAlias(AliasMetadata.builder(".ml-anomalies-shared").filter(Map.of("term", Map.of("job_id", "shared"))).build())
+            .build();
+        ClusterState clusterState = createClusterState(Map.of(".ml-anomalies-shared-000001", indexMetadata));
+        assertFalse(MlIndexAndAlias.canCreateBaseNameAlias(".ml-anomalies-shared-000001", clusterState));
+    }
+
     public void testAddBaseNameAliasActions_addsAlias() {
         ClusterState clusterState = createClusterState(
             Map.of(
@@ -833,6 +914,17 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 createIndexMetadata(".ml-anomalies-shared-000001")
             )
         );
+        IndicesAliasesRequestBuilder builder = mockIndicesAliasesRequestBuilder();
+        MlIndexAndAlias.addBaseNameAliasActions(builder, List.of(".ml-anomalies-shared-000001"), clusterState);
+        verify(builder, never()).addAliasAction(any());
+    }
+
+    public void testAddBaseNameAliasActions_skipsWhenFilteredAliasExists() {
+        IndexMetadata indexMetadata = IndexMetadata.builder(".ml-anomalies-shared-000001")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putAlias(AliasMetadata.builder(".ml-anomalies-shared").filter(Map.of("term", Map.of("job_id", "shared"))).build())
+            .build();
+        ClusterState clusterState = createClusterState(Map.of(".ml-anomalies-shared-000001", indexMetadata));
         IndicesAliasesRequestBuilder builder = mockIndicesAliasesRequestBuilder();
         MlIndexAndAlias.addBaseNameAliasActions(builder, List.of(".ml-anomalies-shared-000001"), clusterState);
         verify(builder, never()).addAliasAction(any());

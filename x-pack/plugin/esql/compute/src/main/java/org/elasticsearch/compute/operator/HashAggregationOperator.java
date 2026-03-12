@@ -323,7 +323,7 @@ public class HashAggregationOperator implements Operator {
                     prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
                 }
 
-                blockHash.add(wrapPage(page), add);
+                blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }
             rowsAddedInCurrentBatch += page.getPositionCount();
@@ -447,10 +447,6 @@ public class HashAggregationOperator implements Operator {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
-    }
-
-    protected Page wrapPage(Page page) {
-        return page;
     }
 
     @Override

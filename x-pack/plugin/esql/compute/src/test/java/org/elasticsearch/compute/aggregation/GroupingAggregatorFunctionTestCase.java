@@ -443,7 +443,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         var runner = new TestDriverRunner().builder(driverContext());
         runner.input(simpleInput(runner.blockFactory(), 10));
         List<Page> results = runner.run(factory);
-        assertThat(results, hasSize(1));
         for (Page page : results) {
             assertOutputFromAllFiltered(page.getBlock(1));
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -123,21 +124,11 @@ public class SearchLogContext extends ActivityLoggerContext {
     }
 
     public Optional<ShardInfo> shardInfo() {
-        if (response == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
+        return Optional.ofNullable(response)
+            .map(response -> new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
     }
 
     // CCS stuff
-
-    /**
-     * Does this search refer to other clusters?
-     */
-    public boolean isCrossClusterSearch() {
-        // TODO: this does not account for CCS failures.
-        return response != null && response.getClusters().hasRemoteClusters();
-    }
 
     /**
      * Non-null alias means the request is from a remote cluster.
@@ -146,13 +137,14 @@ public class SearchLogContext extends ActivityLoggerContext {
         return request.getLocalClusterAlias() != null;
     }
 
-    public long remoteClusterCount() {
-        return response != null
-            ? response.getClusters()
-                .getClusterAliases()
-                .stream()
-                .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
-                .count()
-            : 0;
+    public Collection<String> getRemoteClusterAliases() {
+        if (response == null) {
+            return Collections.emptyList();
+        }
+        return response.getClusters()
+            .getClusterAliases()
+            .stream()
+            .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
+            .toList();
     }
 }

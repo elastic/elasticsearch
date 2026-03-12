@@ -76,9 +76,11 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
                 msg.field(QUERY_FIELD_SEARCH_HITS_GTE, true);
             }
         }
-        if (context.isCrossClusterSearch()) {
-            msg.field(QueryLogging.QUERY_FIELD_IS_CCS, true);
-            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, context.remoteClusterCount());
+
+        var remotes = context.getRemoteClusterAliases();
+        if (remotes.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());
         }
         if (context.isFromRemote()) {
             msg.field(QueryLogging.QUERY_FIELD_IS_REMOTE, true);

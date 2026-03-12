@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -68,27 +70,6 @@ public class EsqlLogContext extends ActivityLoggerContext {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 
-    // CCS stuff
-
-    /**
-     * Does this search refer to other clusters?
-     */
-    public boolean isCrossClusterSearch() {
-        // TODO: this does not account for CCS failures.
-        return response != null && response.getExecutionInfo().isCrossClusterSearch();
-    }
-
-    public long remoteClusterCount() {
-        return response != null
-            ? response.getExecutionInfo()
-                .getClusters()
-                .entrySet()
-                .stream()
-                .filter(alias -> alias.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
-                .count()
-            : 0;
-    }
-
     public String[] getIndices() {
         if (response == null) {
             return null;
@@ -103,4 +84,19 @@ public class EsqlLogContext extends ActivityLoggerContext {
             )
             .toArray(String[]::new);
     }
+
+    // CCS stuff
+
+    public Collection<String> remoteClusterAliases() {
+        if (response == null) {
+            return Collections.emptyList();
+        }
+        return response.getExecutionInfo()
+            .getClusters()
+            .keySet()
+            .stream()
+            .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
+            .toList();
+    }
+
 }

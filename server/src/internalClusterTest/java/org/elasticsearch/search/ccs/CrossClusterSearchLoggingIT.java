@@ -31,7 +31,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_CCS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_REMOTE;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTE_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -100,7 +99,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
     }
 
     /**
-     * CCS over both local and remote indices: activity log must contain is_ccs=true and remote_count=1.
+     * CCS over both local and remote indices: activity log must contain remote_count=1.
      */
     public void testCCSLoggingWithRemote() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
@@ -120,7 +119,6 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
-            assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(localIndex + "," + REMOTE_CLUSTER + ":" + remoteIndex));
             assertNull(message.get(QUERY_FIELD_IS_REMOTE));
@@ -138,7 +136,6 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
-            assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertNull(message.get(QUERY_FIELD_IS_REMOTE));
         }
@@ -155,7 +152,6 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
-            assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("*:" + remoteIndex));
             assertNull(message.get(QUERY_FIELD_IS_REMOTE));
@@ -163,7 +159,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
     }
 
     /**
-     * Local-only search must not include is_ccs or remote_count in the activity log.
+     * Local-only search must not include remote_count in the activity log.
      */
     public void testLocalOnlySearchDoesNotLogCcsFields() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
@@ -179,7 +175,6 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
-        assertNull(message.get(QUERY_FIELD_IS_CCS));
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
     }
 
@@ -210,13 +205,11 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
                 assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
                 if (message.get(ActivityLogProducer.PARENT_TASK_ID_FIELD) == null) {
                     // Local side
-                    assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
                     assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
                     assertThat(message.get(QUERY_FIELD_INDICES), equalTo(localIndex + "," + REMOTE_CLUSTER + ":" + remoteIndex));
                     assertNull(message.get(QUERY_FIELD_IS_REMOTE));
                 } else {
                     // Remote side
-                    assertNull(message.get(QUERY_FIELD_IS_CCS));
                     assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
                     assertThat(message.get(QUERY_FIELD_IS_REMOTE), equalTo("true"));
                     assertThat(message.get(QUERY_FIELD_INDICES), equalTo(remoteIndex));

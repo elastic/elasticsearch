@@ -22,10 +22,10 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
-        long remoteClusterCount = context.remoteClusterCount();
-        if (remoteClusterCount > 0) {
-            msg.field(QueryLogging.QUERY_FIELD_IS_CCS, true);
-            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remoteClusterCount);
+        var remotes = context.remoteClusterAliases();
+        if (remotes.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());
+            msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);
         }
         return Optional.of(msg);
     }

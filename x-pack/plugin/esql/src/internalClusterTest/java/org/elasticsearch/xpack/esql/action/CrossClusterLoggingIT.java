@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_IS_CCS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_REMOTE_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -94,7 +93,6 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
-        assertNull(message.get(QUERY_FIELD_IS_CCS));
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("logs-*"));
     }
@@ -109,7 +107,6 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, EsqlLogContext.TYPE, "from logs-*");
-        assertThat(message.get(QUERY_FIELD_IS_CCS), equalTo("true"));
         assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("2"));
         assertThat(
             message.get(QUERY_FIELD_INDICES).split(","),

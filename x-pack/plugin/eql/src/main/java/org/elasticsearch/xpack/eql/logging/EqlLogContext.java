@@ -16,8 +16,11 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class EqlLogContext extends ActivityLoggerContext {
     public static final String TYPE = "eql";
@@ -67,21 +70,11 @@ public class EqlLogContext extends ActivityLoggerContext {
     }
 
     // CCS stuff
-    public long remoteClusterCount() {
+    public Collection<String> remoteClusterAliases() {
         ResolvedIndexExpressions resolved = request.getResolvedIndexExpressions();
-        if (resolved != null) {
-            return resolved.getRemoteIndicesList()
-                .stream()
-                .filter(RemoteClusterAware::isRemoteIndexName)
-                .map(i -> RemoteClusterAware.splitIndexName(i)[0])
-                .distinct()
-                .count();
-        } else {
-            String[] indices = request.indices();
-            if (indices != null) {
-                return Arrays.stream(indices).filter(RemoteClusterAware::isRemoteIndexName).count();
-            }
-        }
-        return 0;
+        Stream<String> indices = resolved != null ? resolved.getRemoteIndicesList().stream() : Arrays.stream(request.indices());
+        return indices.filter(RemoteClusterAware::isRemoteIndexName)
+            .map(i -> RemoteClusterAware.splitIndexName(i)[0])
+            .collect(Collectors.toSet());
     }
 }

@@ -38,16 +38,11 @@ public final class AllFirstBytesRefByIntGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public AllFirstBytesRefByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstBytesRefByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstBytesRefByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstBytesRefByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstBytesRefByIntGroupingAggregatorFunction(channels, AllFirstBytesRefByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstBytesRefByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -33,6 +33,10 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        if (context.isCrossClusterSearch()) {
+            msg.field(QueryLogging.QUERY_FIELD_IS_CCS, true);
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, context.remoteClusterCount());
+        }
         return Optional.of(msg);
     }
 }

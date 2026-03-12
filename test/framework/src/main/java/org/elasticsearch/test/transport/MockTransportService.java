@@ -45,6 +45,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -279,6 +280,7 @@ public class MockTransportService extends TransportService {
                     return meterRegistry;
                 }
             },
+            new CrossProjectModeDecider(settings),
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -293,6 +295,7 @@ public class MockTransportService extends TransportService {
         TaskManager taskManager,
         LinkedProjectConfigService linkedProjectConfigService,
         TelemetryProvider telemetryProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         super(
@@ -306,6 +309,7 @@ public class MockTransportService extends TransportService {
             taskManager,
             linkedProjectConfigService,
             telemetryProvider,
+            crossProjectModeDecider,
             projectResolver
         );
         this.original = transport.getDelegate();

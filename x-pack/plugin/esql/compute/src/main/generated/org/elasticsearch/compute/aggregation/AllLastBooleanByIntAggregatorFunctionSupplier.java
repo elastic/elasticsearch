@@ -31,13 +31,13 @@ public final class AllLastBooleanByIntAggregatorFunctionSupplier implements Aggr
   @Override
   public AllLastBooleanByIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllLastBooleanByIntAggregatorFunction.create(driverContext, channels);
+    return new AllLastBooleanByIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllLastBooleanByIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllLastBooleanByIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllLastBooleanByIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -259,14 +259,6 @@ public class IndexAbstractionResolver {
                 selectorString = IndexComponentSelector.DATA.getKey();
             }
 
-            // For the ::failures selector, only include the expression if the data stream actually has failure
-            // backing indices. A data stream can have failure store enabled in metadata (partially initialized)
-            // without any backing indices yet.
-            if (IndexComponentSelector.FAILURES.getKey().equals(selectorString)
-                && abstraction.getFailureIndices(projectMetadata).isEmpty()) {
-                return;
-            }
-
             // A selector is always passed along as-is, it's validity for this kind of abstraction is tested later
             collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
         } else {
@@ -323,6 +315,7 @@ public class IndexAbstractionResolver {
             || isHidden == false
             || indicesOptions.expandWildcardsHidden()
             || isVisibleDueToImplicitHidden(expression, index);
+        boolean isFailureStoreSelectorPresent = IndexComponentSelector.FAILURES.getKey().equals(selectorString);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // it's complicated to support those options with aliases pointing to multiple indices...
@@ -357,12 +350,9 @@ public class IndexAbstractionResolver {
                 }
             }
 
-            if (isVisible && selectorString != null) {
-                // Check if a selector was present, and if it is, check if this alias is applicable to it
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
-                if (IndexComponentSelector.FAILURES.equals(selector)) {
-                    isVisible = indexAbstraction.isDataStreamRelated();
-                }
+            // Check if a selector was present, and if it is, check if this alias is applicable to it
+            if (isVisible && isFailureStoreSelectorPresent) {
+                isVisible = indexAbstraction.isDataStreamRelated();
             }
             return isVisible;
         }
@@ -372,9 +362,13 @@ public class IndexAbstractionResolver {
             }
             if (indexAbstraction.isSystem()) {
                 return isSystemIndexVisible(resolver, indexAbstraction);
-            } else {
-                return isVisible;
             }
+            // A data stream with the ::failures selector is not visible if it has no failure backing indices.
+            // A failure store can be enabled in metadata without any indices yet.
+            if (isFailureStoreSelectorPresent && indexAbstraction.getFailureIndices(projectMetadata).isEmpty()) {
+                return false;
+            }
+            return isVisible;
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         if (isVisible == false) {
@@ -397,8 +391,7 @@ public class IndexAbstractionResolver {
         }
         if (selectorString != null && Regex.isMatchAllPattern(selectorString) == false) {
             // Check if a selector was present, and if it is, check if this index is applicable to it
-            IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
-            if (IndexComponentSelector.FAILURES.equals(selector)) {
+            if (isFailureStoreSelectorPresent) {
                 return false;
             }
         }

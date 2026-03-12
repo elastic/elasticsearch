@@ -36,16 +36,10 @@ public final class AllLastIntByIntGroupingAggregatorFunction implements Grouping
 
   private final DriverContext driverContext;
 
-  public AllLastIntByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastIntByIntAggregator.GroupingState state, DriverContext driverContext) {
+  AllLastIntByIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllLastIntByIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllLastIntByIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllLastIntByIntGroupingAggregatorFunction(channels, AllLastIntByIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

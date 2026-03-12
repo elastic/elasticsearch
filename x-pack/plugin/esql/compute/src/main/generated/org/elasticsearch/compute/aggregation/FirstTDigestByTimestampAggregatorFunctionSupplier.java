@@ -31,13 +31,13 @@ public final class FirstTDigestByTimestampAggregatorFunctionSupplier implements 
   @Override
   public FirstTDigestByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstTDigestByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstTDigestByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstTDigestByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstTDigestByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstTDigestByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

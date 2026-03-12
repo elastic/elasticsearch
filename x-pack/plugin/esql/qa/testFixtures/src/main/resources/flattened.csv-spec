@@ -1,6 +1,5 @@
 flattened root fields
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -17,7 +16,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened KEEP subfield
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -42,7 +40,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened DROP subfield
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -66,9 +63,66 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
+flattened DROP subfield after KEEP
+required_capability: load_flattened_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes.host.name, resource.attributes.agent.type
+| DROP resource.attributes.agent.type
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
+
+// ----------------------------------------------------
 flattened subfield with WHERE
 required_capability: load_flattened_field
-required_capability: unmapped_fields
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+;
+
+// ----------------------------------------------------
+flattened subfield with WHERE and KEEP *
+required_capability: load_flattened_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM flattened_otel_logs
+| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| KEEP *
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+;
+
+// ----------------------------------------------------
+flattened subfield with WHERE and KEEP specific subfields
+required_capability: load_flattened_field
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -86,7 +140,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with EVAL TO_UPPER
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -112,7 +165,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with EVAL LENGTH
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -138,7 +190,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 SORT on flattened subfield
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -163,7 +214,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 RENAME flattened subfield
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -189,7 +239,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with STATS count
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -204,7 +253,6 @@ count(*):long | resource.attributes.agent.type:keyword
 // ----------------------------------------------------
 flattened subfield with STATS count_distinct
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -219,7 +267,6 @@ count_distinct(resource.attributes.host.name):long
 // ----------------------------------------------------
 flattened subfield with INLINE STATS
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
@@ -241,7 +288,6 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with MV_EXPAND
 required_capability: load_flattened_field
-required_capability: unmapped_fields
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;

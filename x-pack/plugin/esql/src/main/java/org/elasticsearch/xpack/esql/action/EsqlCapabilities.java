@@ -357,7 +357,8 @@ public class EsqlCapabilities {
         ENRICH_LOAD,
 
         /**
-         * Support for loading a value from a flattened field.
+         * Test-only capability since loading a value from a flattened field is possible using the unmapped field infrastructure, but
+         * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
 

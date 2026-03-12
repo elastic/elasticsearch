@@ -372,13 +372,14 @@ public class Reindexer {
                 );
                 return;
             }
-            final ResumeInfo currentResumeInfo = response.getTaskResumeInfo().get();
-            final ResumeInfo.RelocationOrigin origin = request.getResumeInfo()
+            // create ResumeInfo with task status and relocation origin (take from request if it was already relocated, otherwise create)
+            final ResumeInfo responseResumeInfo = response.getTaskResumeInfo().get();
+            final ResumeInfo.RelocationOrigin requestOrigin = request.getResumeInfo()
                 .map(r -> Objects.requireNonNull(r.relocationOrigin(), "relocation origin should be set if resume info is present"))
                 .orElseGet(
                     () -> new ResumeInfo.RelocationOrigin(new TaskId(clusterService.localNode().getId(), task.getId()), task.getStartTime())
                 );
-            request.setResumeInfo(new ResumeInfo(origin, currentResumeInfo.worker(), currentResumeInfo.slices()));
+            request.setResumeInfo(new ResumeInfo(requestOrigin, responseResumeInfo.worker(), responseResumeInfo.slices()));
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
                 final var relocatedException = new TaskRelocatedException();

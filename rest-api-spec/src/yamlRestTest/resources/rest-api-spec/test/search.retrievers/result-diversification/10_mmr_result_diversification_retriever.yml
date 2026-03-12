@@ -502,7 +502,7 @@ teardown:
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "seventh text" }
   - match: { hits.hits.8._source.textbody: "eighth text" }
-  - match: { hits.hits.9._source.textbody: "fourth text" }
+  - match: { hits.hits.9._source.textbody: "fifth text" }
 
 ---
 "Test MMR result diversification rank_window_size restricts top docs":

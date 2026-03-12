@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
@@ -25,10 +27,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.InferenceIndex;
-import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -90,10 +88,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void createComponents() {
+    public void createComponents() throws Exception {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
-        ensureGreen(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
+
+        // Wait for inference indices to be created
+        assertBusy(() -> getEisEndpoints());
     }
 
     @After
@@ -376,19 +376,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         resetWebServerQueues();
         String endpointId = randomAlphaOfLength(10);
-        AuthorizedEndpoint originalAuthEndpoint = createAuthorizedEndpoint(
-            endpointId,
-            randomFrom(
-                TaskType.CHAT_COMPLETION,
-                TaskType.COMPLETION,
-                TaskType.EMBEDDING,
-                TaskType.RERANK,
-                TaskType.TEXT_EMBEDDING,
-                TaskType.SPARSE_EMBEDDING
-            ),
-            () -> originalFingerprint
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200).setBody(createJsonResponseForSemiRandomEndpoint(endpointId, originalFingerprint))
         );
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(originalAuthEndpoint)));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
@@ -397,17 +387,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));
         var endpoint = eisEndpoints.get(0);
-        assertThat(endpoint.inferenceEntityId(), is(originalAuthEndpoint.id()));
+        assertThat(endpoint.inferenceEntityId(), is(endpointId));
         assertThat(endpoint.endpointMetadata().internal().fingerprint(), is(originalFingerprint));
 
         resetWebServerQueues();
         // Simulate the fingerprint has now been set
-        AuthorizedEndpoint updatedAuthEndpoint = createAuthorizedEndpoint(
-            originalAuthEndpoint.id(),
-            endpoint.taskType(),
-            () -> updatedFingerprint
+        AuthorizedEndpoint updatedAuthEndpoint = createAuthorizedEndpoint(endpointId, endpoint.taskType(), () -> updatedFingerprint);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200).setBody(createJsonResponseForSemiRandomEndpoint(endpointId, updatedFingerprint))
         );
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(updatedAuthEndpoint)));
 
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
@@ -433,16 +421,31 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertWebServerReceivedRequest();
     }
 
-    private static String toJsonWrappedInInferenceEndpointsList(AuthorizedEndpoint... endpoints) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            builder.startArray("inference_endpoints");
-            for (AuthorizedEndpoint endpoint : endpoints) {
-                builder.value(endpoint);
+    private static String createJsonResponseForSemiRandomEndpoint(String endpointId, @Nullable String fingerprint) {
+        String jsonTemplate = """
+            {
+              "inference_endpoints": [
+                {
+                  "id": "%s",
+                  "model_name": "my random model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "%s",
+                  "properties": %s,
+                  "release_date": "2024-05-01"
+                  %s
+                }
+              ]
             }
-            builder.endArray();
-            builder.endObject();
-            return Strings.toString(builder);
-        }
+            """;
+        return Strings.format(
+            jsonTemplate,
+            endpointId,
+            randomFrom(StatusHeuristic.values()),
+            randomList(0, 5, () -> randomAlphaOfLength(10)).stream().map(p -> '"' + p + '"').toList(),
+            fingerprint == null ? "" : Strings.format(",\"fingerprint\": \"%s\"", fingerprint)
+        );
     }
 }

@@ -36,16 +36,11 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public HistogramMergeTDigestGroupingAggregatorFunction(List<Integer> channels,
-      TDigestStates.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static HistogramMergeTDigestGroupingAggregatorFunction create(List<Integer> channels,
+  HistogramMergeTDigestGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new HistogramMergeTDigestGroupingAggregatorFunction(channels, HistogramMergeTDigestAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
+    this.channels = channels;
+    this.state = HistogramMergeTDigestAggregator.initGrouping(driverContext.bigArrays(), driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

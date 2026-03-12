@@ -46,7 +46,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -82,8 +81,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -130,7 +127,6 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  */
 public class MetadataCreateIndexService {
     public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
-    public static final String USER_INDEX_TOTAL_METRIC_NAME = "es.cluster.user.index.total.current";
 
     // Deliberately not registered so it can only be set in tests/plugins.
     public static final Setting<Priority> CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(
@@ -210,8 +206,7 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
         final boolean forbidPrivateIndexSettings,
-        final IndexSettingProviders indexSettingProviders,
-        final MeterRegistry meterRegistry
+        final IndexSettingProviders indexSettingProviders
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -247,54 +242,6 @@ public class MetadataCreateIndexService {
         } else {
             maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
         }
-
-        setUpMetrics(meterRegistry);
-    }
-
-    /**
-     * This constructor is for test-only. Do not use in Production.
-     */
-    public MetadataCreateIndexService(
-        final Settings settings,
-        final ClusterService clusterService,
-        final IndicesService indicesService,
-        final AllocationService allocationService,
-        final ShardLimitValidator shardLimitValidator,
-        final Environment env,
-        final IndexScopedSettings indexScopedSettings,
-        final ThreadPool threadPool,
-        final NamedXContentRegistry xContentRegistry,
-        final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings,
-        final IndexSettingProviders indexSettingProviders
-    ) {
-        this(
-            settings,
-            clusterService,
-            indicesService,
-            allocationService,
-            shardLimitValidator,
-            env,
-            indexScopedSettings,
-            threadPool,
-            xContentRegistry,
-            systemIndices,
-            forbidPrivateIndexSettings,
-            indexSettingProviders,
-            MeterRegistry.NOOP
-        );
-    }
-
-    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
-    private void setUpMetrics(MeterRegistry meterRegistry) {
-        meterRegistry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
-            if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
-                return new LongWithAttributes(0);
-            }
-            return new LongWithAttributes(
-                getTotalUserIndices(systemIndices, clusterService.state().getMetadata().projects().values().iterator().next())
-            );
-        });
     }
 
     public static long getTotalUserIndices(SystemIndices systemIndices, ProjectMetadata projectMetadata) {

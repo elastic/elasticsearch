@@ -710,8 +710,11 @@ public class MetadataCreateIndexService {
                 allocationService.getShardRoutingRoleStrategy()
             );
             assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()));
+
             if (rerouteBehavior == RerouteBehavior.SKIP_REROUTE) {
-                rerouteListener.onResponse(null);
+                if (rerouteListener != null) {
+                    rerouteListener.onResponse(null);
+                }
             } else {
                 updated = allocationService.reroute(
                     updated,

@@ -578,14 +578,7 @@ public record IndicesOptions(
         .build();
     public static final IndicesOptions CPS_LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-        .wildcardOptions(
-            WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
-        )
+        .wildcardOptions(WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true))
         .gatekeeperOptions(
             GatekeeperOptions.builder()
                 .allowAliasToMultipleIndices(true)

@@ -1367,4 +1367,103 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertThat(re.getMessage(), containsString(error));
         }
     }
+
+    public void testExplain() throws IOException {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+
+        String indexName = "test-explain-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        // Create an index with some data
+        createIndex(indexName);
+        Request doc = new Request("PUT", "/" + indexName + "/_doc/1");
+        doc.addParameter("refresh", "true");
+        doc.setJsonEntity("{\"value\": 42}");
+        client().performRequest(doc);
+
+        try {
+            // Run EXPLAIN query
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity(
+                "{\"query\": \"EXPLAIN (FROM " + indexName + " | WHERE value > 10 | STATS count = COUNT(*) | LIMIT 10)\"}"
+            );
+            Response response = client().performRequest(request);
+            Map<String, Object> result = entityAsMap(response);
+
+            // Verify columns
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) result.get("columns");
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            // Verify we have plan rows
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            boolean hasError = false;
+            String errorMessage = null;
+
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        either(containsString("EsQueryExec")).or(containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+                if ("data".equals(role) && "error".equals(type)) {
+                    hasError = true;
+                    errorMessage = plan;
+                }
+            }
+
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should not have error: " + errorMessage, hasError, is(false));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        } finally {
+            // Clean up
+            deleteIndex(indexName);
+        }
+    }
 }

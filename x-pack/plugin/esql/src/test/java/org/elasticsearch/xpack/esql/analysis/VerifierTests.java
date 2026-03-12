@@ -2955,11 +2955,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
         );
         assertThat(
-            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: argument of [tbucket(\"@tbucket\", 1 hour)] must be [integer, date_period or time_duration],"
+                    + " found value [\"@tbucket\"] type [keyword]"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
@@ -2967,7 +2970,27 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
-            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+            equalTo(
+                "1:42: argument of [tbucket(\"1\")] must be [integer, date_period or time_duration], found value [\"1\"] type [keyword]"
+            )
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error(
+                "from test | stats max(event_duration) by tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")",
+                sampleDataAnalyzer
+            ),
+            equalTo(
+                "1:42: [from] and [to] in [tbucket(1 hour, \"2023-01-01T00:00:00Z\", \"2023-12-31T00:00:00Z\")]"
+                    + " cannot be used with a duration or period bucket size"
+            )
         );
 
         /*
@@ -3767,8 +3790,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3778,8 +3799,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
@@ -3793,8 +3812,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
         );
@@ -3810,8 +3827,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLambdaValueIsValid() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
 
         assertThat(
@@ -3852,19 +3867,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         assertThat(error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
-        assertThat(error("""
-            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
-                 (FROM test METADATA _index, _id, _score | LIMIT 10)
-            | MMR ON dense_embedding LIMIT 10
-            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                     (FROM test METADATA _index, _id, _score | LIMIT 10)
+                | MMR ON dense_embedding LIMIT 10
+                """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+        }
+    }
+
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
     private void query(String query) {

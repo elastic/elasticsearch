@@ -3890,6 +3890,14 @@ public class VerifierTests extends ESTestCase {
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

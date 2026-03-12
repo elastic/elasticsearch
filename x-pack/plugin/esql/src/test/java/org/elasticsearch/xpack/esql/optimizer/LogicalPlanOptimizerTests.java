@@ -10336,4 +10336,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
     }
+
+    public void testTopSnippetsQueryMustBeFoldable() {
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            FROM test
+            | EVAL x = TOP_SNIPPETS(first_name, last_name)
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertThat(
+            e.getMessage(),
+            containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
+        );
+    }
 }

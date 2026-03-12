@@ -259,6 +259,14 @@ public class IndexAbstractionResolver {
                 selectorString = IndexComponentSelector.DATA.getKey();
             }
 
+            // For the ::failures selector, only include the expression if the data stream actually has failure
+            // backing indices. A data stream can have failure store enabled in metadata (partially initialized)
+            // without any backing indices yet.
+            if (IndexComponentSelector.FAILURES.getKey().equals(selectorString)
+                && abstraction.getFailureIndices(projectMetadata).isEmpty()) {
+                return;
+            }
+
             // A selector is always passed along as-is, it's validity for this kind of abstraction is tested later
             collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
         } else {

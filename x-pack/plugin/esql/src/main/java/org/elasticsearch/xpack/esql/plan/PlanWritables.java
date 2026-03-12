@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -99,6 +100,7 @@ public class PlanWritables {
             Join.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
+            LimitBy.ENTRY,
             Lookup.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,

@@ -178,7 +178,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean needsTimestampBounds() {
-        return buckets.resolved() && buckets.dataType().isWholeNumber() && (from == null || to == null);
+        return buckets.resolved() && buckets.dataType().isWholeNumber() && from == null && to == null;
     }
 
     @Override

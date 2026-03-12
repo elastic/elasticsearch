@@ -84,19 +84,15 @@ public class GroupedTopNBenchmark {
                 for (String topCount : GroupedTopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
                     for (String groupCount : GroupedTopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0]
                         .value()) {
-                        for (String gkType : GroupedTopNBenchmark.class.getField("groupKeyType").getAnnotationsByType(Param.class)[0]
+                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0]
                             .value()) {
-                            for (String gkCount : GroupedTopNBenchmark.class.getField("groupKeyCount").getAnnotationsByType(Param.class)[0]
-                                .value()) {
-                                run(
-                                    data,
-                                    Integer.parseInt(topCount),
-                                    Integer.parseInt(groupCount),
-                                    gkType,
-                                    Integer.parseInt(gkCount),
-                                    SELF_TEST_PAGES
-                                );
-                            }
+                            run(
+                                data,
+                                Integer.parseInt(topCount),
+                                Integer.parseInt(groupCount),
+                                gk,
+                                SELF_TEST_PAGES
+                            );
                         }
                     }
                 }
@@ -115,23 +111,20 @@ public class GroupedTopNBenchmark {
     @Param({ "10", "100", "1000" })
     public int groupCount;
 
-    @Param({ LONGS, BYTES_REFS })
-    public String groupKeyType;
+    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    public String groupKeys;
 
-    @Param({ "1", "2" })
-    public int groupKeyCount;
-
-    private static Operator operator(String data, int topCount, String groupKeyType, int groupKeyCount) {
-        String[] dataSpec = data.split("_and_");
+    private static Operator operator(String data, int topCount, String groupKeys) {
+        String[] dataSpec = data.split(AND);
         List<ElementType> elementTypes = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::elementType).toList());
         List<TopNEncoder> encoders = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::encoder).toList());
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
 
-        int[] groupKeys = new int[groupKeyCount];
-        ElementType gkElementType = groupKeyElementType(groupKeyType);
-        for (int i = 0; i < groupKeyCount; i++) {
-            groupKeys[i] = elementTypes.size();
-            elementTypes.add(gkElementType);
+        String[] groupKeySpec = groupKeys.split(AND);
+        int[] groupKeyChannels = new int[groupKeySpec.length];
+        for (int i = 0; i < groupKeySpec.length; i++) {
+            groupKeyChannels[i] = elementTypes.size();
+            elementTypes.add(elementType(groupKeySpec[i]));
             encoders.add(TopNEncoder.DEFAULT_UNSORTABLE);
         }
 
@@ -142,7 +135,7 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            new GroupKeyEncoder(groupKeys, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
+            new GroupKeyEncoder(groupKeyChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
             8 * 1024,
             Long.MAX_VALUE
         );
@@ -164,14 +157,6 @@ public class GroupedTopNBenchmark {
             case LONGS, INTS, DOUBLES, BOOLEANS -> TopNEncoder.DEFAULT_SORTABLE;
             case BYTES_REFS -> TopNEncoder.UTF8;
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
-        };
-    }
-
-    private static ElementType groupKeyElementType(String groupKeyType) {
-        return switch (groupKeyType) {
-            case LONGS -> ElementType.LONG;
-            case BYTES_REFS -> ElementType.BYTES_REF;
-            default -> throw new IllegalArgumentException("unsupported group key type [" + groupKeyType + "]");
         };
     }
 
@@ -203,17 +188,18 @@ public class GroupedTopNBenchmark {
         }
     }
 
-    private static Page page(String data, int groupCount, String groupKeyType, int groupKeyCount) {
-        String[] dataSpec = data.split("_and_");
+    private static Page page(String data, int groupCount, String groupKeys) {
+        String[] dataSpec = data.split(AND);
+        String[] groupKeySpec = groupKeys.split(AND);
         int effectiveGroupCount = Math.min(groupCount, BLOCK_LENGTH);
         int divisor = (int) Math.ceil(Math.sqrt(effectiveGroupCount));
 
-        Block[] blocks = new Block[dataSpec.length + groupKeyCount];
+        Block[] blocks = new Block[dataSpec.length + groupKeySpec.length];
         for (int i = 0; i < dataSpec.length; i++) {
             blocks[i] = block(dataSpec[i]);
         }
-        for (int k = 0; k < groupKeyCount; k++) {
-            blocks[dataSpec.length + k] = groupKeyBlock(groupKeyType, effectiveGroupCount, divisor, k, groupKeyCount);
+        for (int k = 0; k < groupKeySpec.length; k++) {
+            blocks[dataSpec.length + k] = groupKeyBlock(groupKeySpec[k], effectiveGroupCount, divisor, k, groupKeySpec.length);
         }
         return new Page(blocks);
     }
@@ -277,12 +263,12 @@ public class GroupedTopNBenchmark {
     @Benchmark
     @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount, groupCount, groupKeyType, groupKeyCount, NUM_PAGES);
+        run(data, topCount, groupCount, groupKeys, NUM_PAGES);
     }
 
-    private static void run(String data, int topCount, int groupCount, String groupKeyType, int groupKeyCount, int numPages) {
-        try (Operator operator = operator(data, topCount, groupKeyType, groupKeyCount)) {
-            Page page = page(data, groupCount, groupKeyType, groupKeyCount);
+    private static void run(String data, int topCount, int groupCount, String groupKeys, int numPages) {
+        try (Operator operator = operator(data, topCount, groupKeys)) {
+            Page page = page(data, groupCount, groupKeys);
             for (int i = 0; i < numPages; i++) {
                 operator.addInput(page.shallowCopy());
             }

@@ -125,7 +125,7 @@ public class TopNBenchmark {
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
-        String[] dataSpec = data.split("_and_");
+        String[] dataSpec = data.split(AND);
         List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
         List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
@@ -202,7 +202,7 @@ public class TopNBenchmark {
     }
 
     private static Page page(boolean sortedInput, String data) {
-        String[] dataSpec = data.split("_and_");
+        String[] dataSpec = data.split(AND);
         return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
     }
 

@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,21 +249,19 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
     }
 
     private long[] sortedLongPoints() {
-        long[] result = new long[points.size()];
-        int count = 0;
+        List<Object> values = new ArrayList<>(points.size());
         for (Expression p : points) {
             if (p instanceof Literal lit) {
-                Object value = lit.value();
-                if (value == null) {
-                    continue;
-                }
-                result[count++] = DataTypeConverter.safeToLong((Number) value);
+                values.add(lit.value());
             } else {
                 return null;
             }
         }
-        long[] trimmed = count == result.length ? result : Arrays.copyOf(result, count);
-        Arrays.sort(trimmed);
-        return trimmed;
+        List<Number> sorted = sortedRoundingPoints(values, dataType());
+        long[] result = new long[sorted.size()];
+        for (int i = 0; i < sorted.size(); i++) {
+            result[i] = sorted.get(i).longValue();
+        }
+        return result;
     }
 }

@@ -77,8 +77,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date          |emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|foo:null
-268728049              |1953-09-02T00:00:00.000Z |10001         |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null
+avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | foo:null
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null
 ;
 
 
@@ -109,8 +109,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date          |emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-268728049              |1953-09-02T00:00:00.000Z |10001         |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
+avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | does_not_exist_field:null | foo:integer
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null                      | null
 ;
 
 keepFieldStarEval
@@ -124,8 +124,8 @@ FROM employees
 | LIMIT 1
 ;
 
-emp_no:integer|avg_worked_seconds:long|birth_date:date          |first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date           |is_rehired:boolean|job_positions:keyword                 |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-10001         |268728049              |1953-09-02T00:00:00.000Z |Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z |[false, true]     |[Accountant, Senior Python Developer] |2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
+emp_no:integer | avg_worked_seconds:long | birth_date:date          | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | does_not_exist_field:null | foo:integer
+10001          | 268728049               | 1953-09-02T00:00:00.000Z | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null                      | null
 ;
 
 dropPatternSimpleKeep
@@ -173,8 +173,8 @@ FROM employees
 ;
 
 // tag::unmapped-nullify-simple-keep-result[]
-emp_no:integer|foo:null
-10001         |null
+emp_no:integer | foo:null
+10001          | null
 // end::unmapped-nullify-simple-keep-result[]
 ;
 
@@ -187,8 +187,8 @@ ROW x = 1
 | KEEP *, does_not_exist_field2
 ;
 
-x:integer      |does_not_exist_field1:null|y:integer      |does_not_exist_field2:null
-1              |null                      |null           |null
+x:integer      | does_not_exist_field1:null | y:integer      | does_not_exist_field2:null
+1              | null                       | null           | null
 ;
 
 rowDrop
@@ -445,12 +445,12 @@ FROM employees
 | SORT _fork, emp_no
 ;
 
-emp_no:integer |x:long         |y:long         |xyz:keyword    |_fork:keyword
-10001          |null           |null           |null           |fork1
-10002          |null           |null           |null           |fork1
-10003          |null           |null           |null           |fork1
-10001          |null           |null           |def            |fork2
-null           |1985           |null           |abc            |fork3
+emp_no:integer | x:long         | y:long         | xyz:keyword    | _fork:keyword
+10001          | null           | null           | null           | fork1
+10002          | null           | null           | null           | fork1
+10003          | null           | null           | null           | fork1
+10001          | null           | null           | def            | fork2
+null           | 1985           | null           | abc            | fork3
 ;
 
 inlinestatsCount
@@ -461,8 +461,8 @@ ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-x:integer      |does_not_exist:null|c:long         |s:double       |d:null
-1              |null               |1              |null           |null
+x:integer      | does_not_exist:null | c:long         | s:double       | d:null
+1              | null                | 1              | null           | null
 ;
 
 lookupJoin
@@ -474,8 +474,8 @@ ROW x = 1
 | LOOKUP JOIN languages_lookup ON language_code
 ;
 
-x:integer      |does_not_exist:null |language_code:integer |language_name:keyword
-1              |null                |null                  |null
+x:integer      | does_not_exist:null | language_code:integer | language_name:keyword
+1              | null                | null                  | null
 ;
 
 enrich
@@ -487,8 +487,8 @@ ROW x = 1
 | ENRICH languages_policy ON y
 ;
 
-x:integer      |does_not_exist:null |y:keyword | language_name:keyword
-1              |null                |null      | null
+x:integer      | does_not_exist:null | y:keyword | language_name:keyword
+1              | null                | null      | null
 ;
 
 partiallyUnmappedKeywordMultiIndex
@@ -587,7 +587,7 @@ FROM sample_data,partial_mapping_no_source_sample_data METADATA _index
 | SORT _index, @timestamp
 ;
 
-_index:keyword                        | @timestamp:date          | message:keyword
+_index:keyword                        | @timestamp:datetime      | message:keyword
 partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
@@ -595,13 +595,13 @@ partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
-partial_mapping_sample_data           | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
-partial_mapping_sample_data           | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
-partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42
-partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?
-partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?
-partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?
-partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+sample_data                           | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                           | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                           | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                           | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                           | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                           | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceExcludedMultiIndex
@@ -709,3 +709,4 @@ null        | 2024-05-10T00:03:00.000Z | k8s_unmapped
 us          | 2024-05-10T00:04:00.000Z | k8s
 null        | 2024-05-10T00:04:00.000Z | k8s_unmapped
 ;
+

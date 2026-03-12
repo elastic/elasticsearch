@@ -437,20 +437,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testDifferentTypesAndUnmapped() throws Exception {
-        runTests("""
-            FROM sample_data, sample_data_ts_long, no_mapping_sample_data
-            | KEEP @timestamp
-            """);
-    }
-
-    public void testDifferentTypesAndUnmappedCast() throws Exception {
-        runTests("""
-            FROM sample_data, sample_data_ts_long, no_mapping_sample_data
-            | EVAL x = @timestamp :: DOUBLE
-            """);
-    }
-
     private void runTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
     }

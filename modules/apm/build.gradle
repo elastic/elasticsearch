@@ -14,17 +14,57 @@ esplugin {
 }
 
 def otelVersion = '1.57.0'
-def otelSemconvVersion = '1.21.0-alpha'
+def otelInstrumentationVersion = '2.23.0-alpha'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
-  implementation "io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}"
-  runtimeOnly    "io.opentelemetry:opentelemetry-common:${otelVersion}"
-  runtimeOnly    "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
+  implementation "io.opentelemetry:opentelemetry-sdk:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-sdk-metrics:${otelVersion}"
+  implementation("io.opentelemetry:opentelemetry-exporter-otlp:${otelVersion}") {
+    exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
+  }
+  implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry-java17:${otelInstrumentationVersion}"
+
+  implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
+  runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
+
+  testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${otelVersion}"
 
   javaRestTestImplementation project(':modules:apm')
   javaRestTestImplementation project(':test:framework')
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder',
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder$UnsafeHolder'
+  )
+  ignoreMissingClasses(
+    'com.fasterxml.jackson.core.JsonFactory',
+    'com.fasterxml.jackson.core.JsonGenerator',
+    'com.google.common.io.ByteStreams',
+    'com.google.common.util.concurrent.ListenableFuture',
+    'io.grpc.CallOptions',
+    'io.grpc.Channel',
+    'io.grpc.Drainable',
+    'io.grpc.KnownLength',
+    'io.grpc.ManagedChannel',
+    'io.grpc.MethodDescriptor',
+    'io.grpc.MethodDescriptor$Builder',
+    'io.grpc.MethodDescriptor$Marshaller',
+    'io.grpc.MethodDescriptor$MethodType',
+    'io.grpc.stub.AbstractFutureStub',
+    'io.grpc.stub.AbstractStub',
+    'io.grpc.stub.ClientCalls'
+  )
 }
 
 tasks.named("dependencyLicenses").configure {

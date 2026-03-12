@@ -16,6 +16,9 @@ import java.io.IOException;
 
 /**
  * Serializes values to bytes as the terminal stage of the encode pipeline.
+ *
+ * <p>Unlike {@link NumericEncoder}, payload stages write directly to a
+ * {@link org.apache.lucene.store.DataOutput} rather than modifying values in-place.
  */
 public interface PayloadEncoder {
 

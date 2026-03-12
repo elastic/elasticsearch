@@ -41,12 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
     /**
-     * Minimum circuit breaker limit that allows allocating the initial async response buffer.
-     * The buffer is a ByteArrayWrapper over byte[PAGE_SIZE_IN_BYTES]; the breaker is charged
-     * ByteArrayWrapper shallow size (object header + fields) + RamUsageEstimator.sizeOf(array), which exceeds PAGE_SIZE_IN_BYTES.
+     * Minimum circuit breaker limit that allows allocating the initial async response buffer and overhead for the ByteArrayWrapper object.
+     * The 40 bytes is the overhead derived from RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class)
      */
     private static final int MIN_CIRCUIT_BREAKER_LIMIT_FOR_INITIAL_BUFFER = Math.toIntExact(
-        RamUsageEstimator.sizeOf(new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES]) + 64L
+        RamUsageEstimator.sizeOf(new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES]) + 40L
     );
 
     private AsyncTaskIndexService<TestAsyncResponse> indexService;

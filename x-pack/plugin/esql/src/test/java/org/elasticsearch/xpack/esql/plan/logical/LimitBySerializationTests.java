@@ -22,7 +22,7 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
         Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomGroupings();
-        return new LimitBy(source, limit, child, groupings, randomBoolean(), randomBoolean());
+        return new LimitBy(source, limit, child, groupings, randomBoolean());
     }
 
     @Override
@@ -31,16 +31,14 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
         LogicalPlan child = instance.child();
         List<Expression> groupings = instance.groupings();
         boolean duplicated = instance.duplicated();
-        boolean local = instance.local();
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 3)) {
             case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 2 -> groupings = randomValueOtherThan(groupings, LimitBySerializationTests::randomGroupings);
             case 3 -> duplicated = duplicated == false;
-            case 4 -> local = local == false;
             default -> throw new IllegalStateException("Should never reach here");
         }
-        return new LimitBy(instance.source(), limit, child, groupings, duplicated, local);
+        return new LimitBy(instance.source(), limit, child, groupings, duplicated);
     }
 
     @Override
@@ -51,7 +49,7 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
     @Override
     protected LimitBy copyInstance(LimitBy instance, TransportVersion version) throws IOException {
         LimitBy deserializedCopy = super.copyInstance(instance, version);
-        return deserializedCopy.withDuplicated(instance.duplicated()).withLocal(instance.local());
+        return deserializedCopy.withDuplicated(instance.duplicated());
     }
 
     private static List<Expression> randomGroupings() {

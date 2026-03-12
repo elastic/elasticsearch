@@ -9336,9 +9336,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Verify that a basic LIMIT BY creates a LimitByExec on the coordinator and includes both a local Limit
-     * and the LimitBy inside the fragment (via ExchangeExec), so data nodes execute both operators.
+     * Verify that a basic LIMIT BY creates a LimitByExec and the LimitBy inside the fragment (via ExchangeExec), so data nodes execute both operators.
      * <pre>{@code
+     * LimitExec[1000]
+     * \_LimitByExec[5,[emp_no]]         (coordinator)
+     *   \_ExchangeExec
+     *     \_FragmentExec
+     *         \_LimitBy[5,[emp_no]]     (data node)
+     *           \_EsRelation[test]
+     * }</pre>
+     *
+     * TODO LIMIT BY We should change this to have a normal limit inside the fragment
+     *
      * LimitExec[1000]
      * \_LimitByExec[5,[emp_no]]         (coordinator)
      *   \_ExchangeExec
@@ -9346,7 +9355,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *       \_Limit[1000,local]         (data node)
      *         \_LimitBy[5,[emp_no]]     (data node)
      *           \_EsRelation[test]
-     * }</pre>
+     *
      */
     public void testLimitByPhysicalPlan() {
         var plan = physicalPlanNoSerializationCheck("""
@@ -9361,12 +9370,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = as(limitByExec.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-
-        var localLimit = as(fragment.fragment(), Limit.class);
-        assertThat(((Literal) localLimit.limit()).value(), equalTo(1000));
-        assertTrue(localLimit.local());
-        var limitBy = as(localLimit.child(), LimitBy.class);
+        var limitBy = as(fragment.fragment(), LimitBy.class);
         assertThat(((Literal) limitBy.limit()).value(), equalTo(5));
+        as(limitBy.child(), EsRelation.class);
     }
 
     /**
@@ -9385,7 +9391,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Verify that the coordinator plan after splitting contains the LimitByExec above the ExchangeSource,
-     * while the data node plan contains both a local Limit and LimitBy inside the fragment.
+     * while the data node plan contains both a local LimitBy inside the fragment.
      */
     public void testLimitByCoordinatorAndDataNodeSplit() {
         var plan = physicalPlanNoSerializationCheck("""
@@ -9403,11 +9409,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fragments = dataNodePlan.collectFirstChildren(p -> p instanceof FragmentExec);
         assertFalse("Expected a FragmentExec in the data node plan", fragments.isEmpty());
         var fragment = as(fragments.getFirst(), FragmentExec.class);
-        var localLimit = as(fragment.fragment(), Limit.class);
-        assertThat(((Literal) localLimit.limit()).value(), equalTo(1000));
-        assertTrue(localLimit.local());
-        var limitBy = as(localLimit.child(), LimitBy.class);
+        var limitBy = as(fragment.fragment(), LimitBy.class);
         assertThat(((Literal) limitBy.limit()).value(), equalTo(5));
+        as(limitBy.child(), EsRelation.class);
     }
 
     public void testEqualsPushdownToDelegate() {

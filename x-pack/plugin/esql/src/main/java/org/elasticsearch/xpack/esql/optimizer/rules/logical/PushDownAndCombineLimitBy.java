@@ -58,13 +58,13 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                     return unary.replaceChild(limitBy.replaceChild(unary.child()));
                 }
             } else if (unary instanceof MvExpand) {
-                return duplicateLimitByAsFirstGrandchild(limitBy, false);
+                return duplicateLimitByAsFirstGrandchild(limitBy);
             } else if (unary instanceof Enrich enrich) {
                 if (groupingsReferenceAttributeDefinedByChild(limitBy, enrich)) {
                     return limitBy;
                 }
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
-                    return duplicateLimitByAsFirstGrandchild(limitBy, true);
+                    return duplicateLimitByAsFirstGrandchild(limitBy);
                 } else {
                     return enrich.replaceChild(limitBy.replaceChild(enrich.child()));
                 }
@@ -73,7 +73,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
             if (groupingsReferenceAttributeNotInOutput(limitBy, join.left())) {
                 return limitBy;
             }
-            return duplicateLimitByAsFirstGrandchild(limitBy, false);
+            return duplicateLimitByAsFirstGrandchild(limitBy);
         }
         return limitBy;
     }
@@ -81,12 +81,10 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
     private static LimitBy combineLimitBys(LimitBy upper, LimitBy lower, FoldContext ctx) {
         var upperLimitValue = (int) upper.limit().fold(ctx);
         var lowerLimitValue = (int) lower.limit().fold(ctx);
-        if (lowerLimitValue < upperLimitValue) {
+        if (lowerLimitValue <= upperLimitValue) {
             return lower;
-        } else if (lowerLimitValue == upperLimitValue) {
-            return lower.local() ? lower : lower.withLocal(upper.local());
         } else {
-            return new LimitBy(upper.source(), upper.limit(), lower.child(), upper.groupings(), upper.duplicated(), upper.local());
+            return new LimitBy(upper.source(), upper.limit(), lower.child(), upper.groupings(), upper.duplicated());
         }
     }
 
@@ -117,17 +115,16 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
     }
 
     /**
-     * Duplicate the LimitBy past its child if it wasn't duplicated yet. The duplicate is placed on top of its leftmost grandchild.
-     * Idempotent. (Sets {@link LimitBy#duplicated()} to {@code true} on the LimitBy that remains at the top.)
+     * Duplicate the LimitBy past its child if it wasn't duplicated yet.
      */
-    private static LimitBy duplicateLimitByAsFirstGrandchild(LimitBy limitBy, boolean withLocal) {
+    private static LimitBy duplicateLimitByAsFirstGrandchild(LimitBy limitBy) {
         if (limitBy.duplicated()) {
             return limitBy;
         }
 
         List<LogicalPlan> grandChildren = limitBy.child().children();
         LogicalPlan firstGrandChild = grandChildren.getFirst();
-        LogicalPlan newFirstGrandChild = (withLocal ? limitBy.withLocal(true) : limitBy).replaceChild(firstGrandChild);
+        LogicalPlan newFirstGrandChild = limitBy.replaceChild(firstGrandChild);
 
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);

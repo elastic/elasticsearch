@@ -37,26 +37,16 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
     private final transient boolean duplicated;
-    /**
-     * Local LimitBy is not a pipeline breaker, and is applied only to the local node's data.
-     * It should always end up inside a fragment.
-     */
-    private final transient boolean local;
 
     public LimitBy(Source source, Expression limit, LogicalPlan child, List<Expression> groupings) {
-        this(source, limit, child, groupings, false, false);
+        this(source, limit, child, groupings, false);
     }
 
     public LimitBy(Source source, Expression limit, LogicalPlan child, List<Expression> groupings, boolean duplicated) {
-        this(source, limit, child, groupings, duplicated, false);
-    }
-
-    public LimitBy(Source source, Expression limit, LogicalPlan child, List<Expression> groupings, boolean duplicated, boolean local) {
         super(source, child);
         this.limit = limit;
         this.groupings = groupings;
         this.duplicated = duplicated;
-        this.local = local;
     }
 
     private LimitBy(StreamInput in) throws IOException {
@@ -65,7 +55,6 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
-            false,
             false
         );
     }
@@ -85,12 +74,12 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
 
     @Override
     protected NodeInfo<LimitBy> info() {
-        return NodeInfo.create(this, LimitBy::new, limit, child(), groupings, duplicated, local);
+        return NodeInfo.create(this, LimitBy::new, limit, child(), groupings, duplicated);
     }
 
     @Override
     public LimitBy replaceChild(LogicalPlan newChild) {
-        return new LimitBy(source(), limit, newChild, groupings, duplicated, local);
+        return new LimitBy(source(), limit, newChild, groupings, duplicated);
     }
 
     public Expression limit() {
@@ -106,15 +95,7 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
     }
 
     public LimitBy withDuplicated(boolean duplicated) {
-        return new LimitBy(source(), limit, child(), groupings, duplicated, local);
-    }
-
-    public boolean local() {
-        return local;
-    }
-
-    public LimitBy withLocal(boolean local) {
-        return new LimitBy(source(), limit, child(), groupings, duplicated, local);
+        return new LimitBy(source(), limit, child(), groupings, duplicated);
     }
 
     @Override
@@ -124,7 +105,7 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated, local, groupings);
+        return Objects.hash(limit, child(), duplicated, groupings);
     }
 
     @Override
@@ -141,12 +122,11 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
         return Objects.equals(limit, other.limit)
             && Objects.equals(child(), other.child())
             && (duplicated == other.duplicated)
-            && (local == other.local)
             && Objects.equals(groupings, other.groupings);
     }
 
     @Override
     public ExecuteLocation executesOn() {
-        return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
+        return ExecuteLocation.COORDINATOR;
     }
 }

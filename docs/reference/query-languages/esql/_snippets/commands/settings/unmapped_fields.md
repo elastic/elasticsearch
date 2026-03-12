@@ -9,7 +9,7 @@ Defines how unmapped fields are treated. Possible values are: "FAIL" (default) -
 
 **Type**: `keyword`
 
-**Example**
+## Example
 
 Make the field null if it is unmapped.
 

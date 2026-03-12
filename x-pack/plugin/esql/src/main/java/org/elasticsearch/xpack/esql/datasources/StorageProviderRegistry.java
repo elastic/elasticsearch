@@ -31,6 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
+ * <p>All providers are automatically wrapped with retry logic for transient
+ * storage failures (503, 429, connection resets, timeouts) unless the scheme
+ * is "file" (local filesystem).
+ *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
  *
@@ -41,6 +45,8 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
+    private static final RetryPolicy RETRY_POLICY = RetryPolicy.DEFAULT;
+
     private final Settings settings;
 
     public StorageProviderRegistry(Settings settings) {
@@ -95,7 +101,7 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return factory.create(settings, config);
+        return wrapWithRetry(factory.create(settings, config), normalizedScheme);
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {
@@ -108,10 +114,17 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = factory.create(settings);
+        provider = wrapWithRetry(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
+    }
+
+    private StorageProvider wrapWithRetry(StorageProvider provider, String scheme) {
+        if ("file".equals(scheme)) {
+            return provider;
+        }
+        return new RetryableStorageProvider(provider, RETRY_POLICY);
     }
 
     @Override

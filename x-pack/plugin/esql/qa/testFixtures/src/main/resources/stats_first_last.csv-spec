@@ -259,3 +259,19 @@ f_date:datetime                                                                |
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z | [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 2025-12-25T00:00:20.000Z
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing the same field in both parameters
+
+required_capability: first_last_agg_with_dates
+required_capability: fix_aggregation_framework_channels
+
+FROM voyager
+| STATS 
+    x = FIRST(@timestamp, @timestamp),
+    y = LAST(distance_to_earth, distance_to_earth)
+;
+
+x:datetime                                                                     | y:long
+[2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 21190910706
+;

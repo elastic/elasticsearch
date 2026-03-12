@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -157,6 +158,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             // should have run two client requests: nodes stats request and indices stats request
             assertThat(client.requestCount, equalTo(initialRequestCount + 2));
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
+            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
@@ -205,6 +207,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
+            verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
@@ -226,6 +229,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
             listener.onResponse(Map.of());
         }
     }

@@ -191,7 +191,8 @@ public class OperatorTests extends MapperServiceTestCase {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();
@@ -368,9 +369,9 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     public void testPushRoundToCountToQuery() throws IOException {
-        int firstGroupDocs = randomIntBetween(0, 10_000);
-        int secondGroupDocs = randomIntBetween(0, 10_000);
-        int thirdGroupDocs = randomIntBetween(0, 10_000);
+        int firstGroupDocs = randomIntBetween(1, 10_000);
+        int secondGroupDocs = randomIntBetween(1, 10_000);
+        int thirdGroupDocs = randomIntBetween(1, 10_000);
 
         CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
             Query firstGroupQuery = LongPoint.newRangeQuery("g", Long.MIN_VALUE, 99);
@@ -479,7 +480,7 @@ public class OperatorTests extends MapperServiceTestCase {
      */
     protected final DriverContext driverContext() {
         var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
+        return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {
@@ -511,6 +512,7 @@ public class OperatorTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT

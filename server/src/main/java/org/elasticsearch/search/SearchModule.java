@@ -260,6 +260,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -1039,6 +1040,16 @@ public class SearchModule {
     }
 
     private void registerQueryVectorBuilders(List<SearchPlugin> plugins) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(QueryVectorBuilder.class, LookupQueryVectorBuilder.NAME, LookupQueryVectorBuilder::fromXContent)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                QueryVectorBuilder.class,
+                LookupQueryVectorBuilder.NAME.getPreferredName(),
+                LookupQueryVectorBuilder::new
+            )
+        );
         registerFromPlugin(plugins, SearchPlugin::getQueryVectorBuilders, this::registerQueryVectorBuilder);
     }
 

@@ -46,6 +46,8 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
 // The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included
@@ -65,6 +67,7 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
   
   // Increase timeouts for S3/Parquet operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

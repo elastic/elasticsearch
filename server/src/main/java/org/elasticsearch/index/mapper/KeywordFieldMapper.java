@@ -452,6 +452,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
@@ -868,7 +873,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (usesBinaryDocValues) {
                         return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                     } else {
-                        return new BytesRefsFromOrdsBlockLoader(name());
+                        return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     }
                 }
                 return switch (cfg.function()) {
@@ -876,11 +881,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                         ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
                         name()
                     );
-                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
-                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name());
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
+                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
+                        name(),
+                        blContext.ordinalsByteSize()
+                    );
+                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
                         ? new MvMinBytesRefsFromBinaryBlockLoader(name())
-                        : new MvMinBytesRefsFromOrdsBlockLoader(name());
+                        : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }

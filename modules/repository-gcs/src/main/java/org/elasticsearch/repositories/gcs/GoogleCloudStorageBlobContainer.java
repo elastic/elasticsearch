@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -22,10 +23,12 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -130,7 +133,14 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         var source = (GoogleCloudStorageBlobContainer) sourceBlobContainer;
         BlobId sourceBlobId = BlobId.of(source.blobStore.bucketName, source.buildKey(sourceBlobName));
         BlobId blobId = BlobId.of(blobStore.bucketName, buildKey(blobName));
-        blobStore.client().copy(purpose, sourceBlobId, blobId, blobStore.getMegabytesCopiedPerChunk());
+        try {
+            blobStore.client().copy(purpose, sourceBlobId, blobId, blobStore.getMegabytesCopiedPerChunk());
+        } catch (StorageException e) {
+            if (e.getCode() == RestStatus.NOT_FOUND.getStatus()) {
+                throw new NoSuchFileException("Copy source [" + sourceBlobName + "] not found: " + e.getMessage());
+            }
+            throw new IOException("Unable to copy object [" + blobName + "] from [" + sourceBlobContainer + "][" + sourceBlobName + "]", e);
+        }
     }
 
     @Override

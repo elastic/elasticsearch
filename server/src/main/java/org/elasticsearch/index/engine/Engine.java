@@ -1547,8 +1547,9 @@ public abstract class Engine implements Closeable {
 
     /**
      * Flushes the state of the engine, same as {@link #flush(boolean, boolean, ActionListener)}, but accepts a
-     * {@link FlushResultListener} whose {@link FlushResultListener#afterFlushWithLock(long)} method is called after the commit
-     * succeeds and before the flush lock is released.
+     * {@link FlushResultListener} whose {@link FlushResultListener#afterFlushWithLock(long)} method is called after the flush
+     * request is processed and before the flush lock is released. This callback is only invoked when the flush lock
+     * was actually acquired; it is not called when the request is skipped or when the engine does not use a flush lock.
      */
     public final void flush(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         try (var ignored = acquireEnsureOpenRef()) {
@@ -2646,7 +2647,7 @@ public abstract class Engine implements Closeable {
          * <b>NOT</b> called when the flush lock was never acquired, e.g. the request was skipped due to not waiting
          * for the lock (i.e. {@code waitIfOngoing==false}) or if the engine does not use a flush lock at all.
          *
-         * @param generation the segment generation of the commit that was just flushed
+         * @param generation the segment generation of the latest committed segment infos
          */
         default void afterFlushWithLock(long generation) {}
 

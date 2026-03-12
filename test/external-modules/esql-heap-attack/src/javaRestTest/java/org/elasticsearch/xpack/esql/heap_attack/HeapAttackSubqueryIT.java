@@ -206,9 +206,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "bigtext"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/141034")
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
-        // TODO OOM, after pages are added to TopN, the page is released, so the overestimation on big blocks are gone
         int docs = 50;
         heapAttackIT.initGiantTextField(docs, false, 5);
         assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "bigtext", " f "));

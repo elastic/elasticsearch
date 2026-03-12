@@ -2263,6 +2263,11 @@ public class EsqlCapabilities {
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
          * Support window durations that are larger than but not exact multiples of the time bucket
          * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
          */

@@ -219,9 +219,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
-  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/137911
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
@@ -378,12 +375,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.cluster.routing.allocation.allocator.NotPreferredAllocationRebalancingIT
   method: testAllocatorDoesNotMoveShardsToNotPreferredNode
   issue: https://github.com/elastic/elasticsearch/issues/143831
@@ -417,6 +408,36 @@ tests:
 - class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
   method: testDeletesAreBatched
   issue: https://github.com/elastic/elasticsearch/issues/144034
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats with sample}
+  issue: https://github.com/elastic/elasticsearch/issues/144022
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with stats where}
+  issue: https://github.com/elastic/elasticsearch/issues/144051
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/144066
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration {withOTel=true}
+  issue: https://github.com/elastic/elasticsearch/issues/144072
+- class: org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistryTests
+  method: testRegisteredFunctionHaveTests
+  issue: https://github.com/elastic/elasticsearch/issues/144076
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMMRLimitedInput
+  issue: https://github.com/elastic/elasticsearch/issues/144077
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/144078
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/144079
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/144080
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/144081
 
 # Examples:
 #

@@ -33,16 +33,10 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final DriverContext driverContext;
 
-  public ValuesDoubleGroupingAggregatorFunction(List<Integer> channels,
-      ValuesDoubleAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesDoubleAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesDoubleGroupingAggregatorFunction(channels, ValuesDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

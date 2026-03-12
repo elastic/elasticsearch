@@ -37,16 +37,10 @@ public final class AllLastFloatByIntGroupingAggregatorFunction implements Groupi
 
   private final DriverContext driverContext;
 
-  public AllLastFloatByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastFloatByIntAggregator.GroupingState state, DriverContext driverContext) {
+  AllLastFloatByIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllLastFloatByIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllLastFloatByIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllLastFloatByIntGroupingAggregatorFunction(channels, AllLastFloatByIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

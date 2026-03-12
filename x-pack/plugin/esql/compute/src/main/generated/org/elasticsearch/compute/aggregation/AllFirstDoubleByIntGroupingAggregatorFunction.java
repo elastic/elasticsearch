@@ -37,16 +37,11 @@ public final class AllFirstDoubleByIntGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public AllFirstDoubleByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstDoubleByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstDoubleByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstDoubleByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstDoubleByIntGroupingAggregatorFunction(channels, AllFirstDoubleByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstDoubleByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

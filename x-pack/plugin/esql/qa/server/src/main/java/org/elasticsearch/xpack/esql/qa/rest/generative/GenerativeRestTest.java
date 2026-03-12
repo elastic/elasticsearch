@@ -97,9 +97,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
         "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
-        // https://github.com/elastic/elasticsearch/issues/142543
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
@@ -312,7 +309,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     },
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
-        ctx -> isForkOptimizationBugWithUnmappedFields(ctx.errorMessage, ctx.query),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
@@ -445,20 +441,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isScalarTypeMismatchError(String errorMessage) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
-    }
-
-    private static final Pattern FORK_OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
-        ".*Plan \\[.*\\] optimized incorrectly due to missing references \\[_fork.*",
-        Pattern.DOTALL
-    );
-
-    /**
-     * When {@code SET unmapped_fields="nullify"} is used, the _fork reference can go missing during plan optimization.
-     * https://github.com/elastic/elasticsearch/issues/142762
-     */
-    static boolean isForkOptimizationBugWithUnmappedFields(String errorMessage, String query) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
     private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(

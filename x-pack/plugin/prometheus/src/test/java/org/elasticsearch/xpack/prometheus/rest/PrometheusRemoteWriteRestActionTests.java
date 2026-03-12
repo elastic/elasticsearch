@@ -116,11 +116,11 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
                 var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
                 assertThat(remoteWriteRequest.remoteWriteRequest.length(), equalTo(64));
                 remoteWriteRequest.close();
-                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse(RestStatus.OK));
+                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
             }
         };
         try (var response = executeRemoteWrite(1024, 64, false)) {
-            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
         }
     }
 

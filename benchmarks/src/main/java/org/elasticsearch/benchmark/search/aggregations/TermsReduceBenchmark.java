@@ -50,6 +50,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -73,12 +74,12 @@ public class TermsReduceBenchmark {
 
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
-        public AggregationReduceContext forPartialReduction(@Nullable List<SearchHits> topHitsToRelease) {
+        public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
             return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {}, topHitsToRelease);
         }
 
         @Override
-        public AggregationReduceContext forFinalReduction(@Nullable List<SearchHits> topHitsToRelease) {
+        public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
             final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                 Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)

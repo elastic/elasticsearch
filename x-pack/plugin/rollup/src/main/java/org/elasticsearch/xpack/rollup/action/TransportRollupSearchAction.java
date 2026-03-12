@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -137,7 +138,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
             AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
                 @Override
-                public AggregationReduceContext forPartialReduction(@Nullable List<SearchHits> topHitsToRelease) {
+                public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                     return new AggregationReduceContext.ForPartial(
                         bigArrays,
                         scriptService,
@@ -149,7 +150,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                 }
 
                 @Override
-                public AggregationReduceContext forFinalReduction(@Nullable List<SearchHits> topHitsToRelease) {
+                public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                     return new AggregationReduceContext.ForFinal(
                         bigArrays,
                         scriptService,

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -148,7 +149,15 @@ public class PlannerUtils {
 
         // Though FORK is technically a pipeline breaker, it should never show up here.
         // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
-        final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
+        // Skip local pipeline breakers (executesOn == ANY) — they are optimization hints that should not
+        // define the reduction boundary. If no non-local breaker exists, fall back to any pipeline breaker.
+        var pipelineBreakers = fragment.fragment()
+            .collectFirstChildren(
+                p -> p instanceof PipelineBreaker && !(p instanceof ExecutesOn eo && eo.executesOn() == ExecutesOn.ExecuteLocation.ANY)
+            );
+        if (pipelineBreakers.isEmpty()) {
+            pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
+        }
         if (pipelineBreakers.isEmpty()) {
             return SimplePlanReduction.NO_REDUCTION;
         }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -106,6 +108,7 @@ public class Mapper {
             // in case of a fragment, push to it any current streaming operator
             if (unary instanceof PipelineBreaker == false
                 || (unary instanceof Limit limit && limit.local())
+                || (unary instanceof LimitBy limitBy && limitBy.local())
                 || (unary instanceof TopN topN && topN.local())) {
                 return new FragmentExec(unary);
             }
@@ -141,7 +144,13 @@ public class Mapper {
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
+            mappedChild = injectLocalLimitIntoLimitByFragment(limit, mappedChild);
             return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
+        }
+
+        if (unary instanceof LimitBy limitBy) {
+            mappedChild = addExchangeForFragment(limitBy, mappedChild);
+            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limit(), limitBy.groupings(), null);
         }
 
         if (unary instanceof TopN topN) {
@@ -272,5 +281,21 @@ public class Mapper {
             child = new ExchangeExec(child.source(), child);
         }
         return child;
+    }
+
+    /**
+     * When a global Limit sits above a LimitBy in the logical plan, LimitBy creates the exchange boundary
+     * before Limit is processed, so the Limit ends up only on the coordinator. This method injects a local
+     * copy of the Limit into any data node fragment whose top-level node is a LimitBy, so data nodes also
+     * apply the global cap before sending rows over the exchange.
+     */
+    private static PhysicalPlan injectLocalLimitIntoLimitByFragment(Limit limit, PhysicalPlan plan) {
+        return plan.transformUp(FragmentExec.class, fragment -> {
+            if (fragment.fragment() instanceof LimitBy limitBy) {
+                Limit localLimit = new Limit(limit.source(), limit.limit(), limitBy, false, true);
+                return new FragmentExec(fragment.source(), localLimit, fragment.esFilter(), fragment.estimatedRowSize());
+            }
+            return fragment;
+        });
     }
 }

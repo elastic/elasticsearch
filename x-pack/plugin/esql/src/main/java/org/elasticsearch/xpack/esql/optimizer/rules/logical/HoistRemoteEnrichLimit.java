@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
@@ -40,10 +41,17 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             // Since limits are combinable, we will just assemble the set of candidates and create one combined lowest limit above the
             // Enrich.
             Set<Limit> seenLimits = Collections.newSetFromMap(new IdentityHashMap<>());
+            Set<LimitBy> seenLimitBys = Collections.newSetFromMap(new IdentityHashMap<>());
             en.child().forEachDownMayReturnEarly((p, stop) -> {
                 if (p instanceof Limit l && l.local() == false) {
                     // Local limits can be ignored here as they are always duplicates that have another limit upstairs
                     seenLimits.add(l);
+                    return;
+                }
+                if (p instanceof LimitBy lb && lb.local() == false) {
+                    seenLimitBys.add(lb);
+                    // LimitBy is a pipeline breaker; don't look past it
+                    stop.set(true);
                     return;
                 }
                 if ((p instanceof Streaming) == false // can change the number of rows, so we can't just pull a limit from
@@ -59,15 +67,28 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
                 }
             });
 
-            if (seenLimits.isEmpty()) {
+            if (seenLimits.isEmpty() && seenLimitBys.isEmpty()) {
                 return en;
             }
+
+            LogicalPlan result = en;
             // Mark original limits as local
-            LogicalPlan transformLimits = en.transformDown(Limit.class, l -> seenLimits.contains(l) ? l.withLocal(true) : l);
-            // Shouldn't actually throw because we checked seenLimits is not empty
-            Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
-            // Insert new lowest limit on top of the Enrich, and mark it as duplicated since we don't want it to be pushed down
-            return new Limit(lowestLimit.source(), lowestLimit.limit(), transformLimits, true, false);
+            if (seenLimits.isEmpty() == false) {
+                result = result.transformDown(Limit.class, l -> seenLimits.contains(l) ? l.withLocal(true) : l);
+            }
+            if (seenLimitBys.isEmpty() == false) {
+                result = result.transformDown(LimitBy.class, lb -> seenLimitBys.contains(lb) ? lb.withLocal(true) : lb);
+            }
+
+            // Insert hoisted copies above the Enrich, marked as duplicated so they won't be pushed back down
+            for (LimitBy lb : seenLimitBys) {
+                result = new LimitBy(lb.source(), lb.limit(), result, lb.groupings(), true, false);
+            }
+            if (seenLimits.isEmpty() == false) {
+                Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
+                result = new Limit(lowestLimit.source(), lowestLimit.limit(), result, true, false);
+            }
+            return result;
         }
         return en;
     }

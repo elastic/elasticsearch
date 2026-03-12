@@ -188,6 +188,21 @@ public final class Expressions {
         return true;
     }
 
+    public static boolean listSemanticEquals(List<Expression> leftList, List<Expression> rightList) {
+        if (leftList.size() != rightList.size()) {
+            return false;
+        }
+        for (int i = 0; i < leftList.size(); i++) {
+            Expression left = leftList.get(i);
+            Expression right = rightList.get(i);
+            assert left != null && right != null;
+            if (left.semanticEquals(right) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {
         // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
         List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();

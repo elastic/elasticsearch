@@ -1,3 +1,0 @@
-user_agent_parsers:
-  - regex: '.*'
-    family_replacement: 'Test'

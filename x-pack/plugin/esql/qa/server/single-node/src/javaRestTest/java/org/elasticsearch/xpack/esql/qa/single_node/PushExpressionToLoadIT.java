@@ -511,12 +511,11 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             | LOOKUP JOIN lookup ON matching == main_matching
             | EVAL test = LENGTH(test)
             """, matchesList().item(1), matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), sig -> {
-            String lookupOperator = Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
             assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item(lookupOperator)
+                    .item(lookupOperatorName())
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -540,12 +539,11 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             | LOOKUP JOIN lookup ON matching == main_matching
             | EVAL test = LENGTH(test)
             """, matchesList().item(1), matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), sig -> {
-            String lookupOperator = Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
             assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item(lookupOperator)
+                    .item(lookupOperatorName())
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -932,6 +930,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             """);
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+    }
+
+    private static String lookupOperatorName() {
+        return Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {

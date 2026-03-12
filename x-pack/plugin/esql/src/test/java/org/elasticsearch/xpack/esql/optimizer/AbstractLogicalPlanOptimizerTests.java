@@ -20,10 +20,8 @@ import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -38,6 +36,8 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -54,7 +54,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
-    protected static EsqlParser parser = EsqlParser.INSTANCE;
     protected static LogicalOptimizerContext logicalOptimizerCtx;
     protected static LogicalPlanOptimizer logicalOptimizer;
 
@@ -129,7 +128,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test, employees),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -144,7 +143,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         analyzerAirports = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(airports),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -159,7 +158,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         analyzerTypes = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(types),
                 enrichResolution,
                 defaultInferenceResolution()
@@ -173,7 +172,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         analyzerExtra = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(extra),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -195,7 +194,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         metricsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(metricIndices.toArray(EsIndex[]::new)),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -219,7 +218,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         multiIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(multiIndex),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -260,7 +259,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         unionIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(unionIndex),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -281,7 +280,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         sampleDataIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(sampleDataIndex),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -292,7 +291,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         subqueryAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 mergeIndexResolutions(indexResolutions(test), defaultSubqueryResolution()),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -314,7 +313,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         baseConversionAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(baseConversion),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -330,7 +329,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         analyzerWithoutForkImplicitLimit = new Analyzer(
             testAnalyzerContext(
                 config,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test, employees),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -360,47 +359,47 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         var optimized = optimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.parseQuery(query));
+        var analyzed = analyzerAirports.analyze(TEST_PARSER.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.parseQuery(query));
+        var analyzed = analyzerExtra.analyze(TEST_PARSER.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.parseQuery(query)));
+        return logicalOptimizer.optimize(analyzerTypes.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.parseQuery(query)));
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     protected LogicalPlan planUnionIndex(String query) {
-        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {
-        var analyzed = sampleDataIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzed = sampleDataIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
     protected LogicalPlan planSubquery(String query) {
-        var analyzed = subqueryAnalyzer.analyze(parser.parseQuery(query));
+        var analyzed = subqueryAnalyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
     protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        var analyzed = analyzerWithoutForkImplicitLimit.analyze(parser.parseQuery(query));
+        var analyzed = analyzerWithoutForkImplicitLimit.analyze(TEST_PARSER.parseQuery(query));
         return optimizerWithoutForkImplicitLimit.optimize(analyzed);
     }
 

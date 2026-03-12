@@ -42,7 +42,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -59,7 +58,6 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -157,8 +155,8 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
+    private final Executor executor;
 
-    private final Executor privilegeCheckExecutor;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
@@ -184,8 +182,7 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver,
-        Executor privilegeCheckExecutor
+        ProjectRoutingResolver projectRoutingResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -199,11 +196,11 @@ public class AuthorizationService {
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
+        this.executor = threadPool.generic();
         this.securityContext = new SecurityContext(settings, this.threadContext);
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.privilegeCheckExecutor = privilegeCheckExecutor;
         this.rbacEngine = new RBACEngine(
             settings,
             rolesStore,
@@ -228,21 +225,18 @@ public class AuthorizationService {
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        authorizationEngine.resolveAuthorizationInfo(
-            subject,
-            wrapPreservingContext(listener.delegateFailure((delegateListener, authorizationInfo) -> {
-                final Executor executor = Transports.isTransportThread(Thread.currentThread())
-                    ? privilegeCheckExecutor
-                    : EsExecutors.DIRECT_EXECUTOR_SERVICE;
-                authorizationEngine.checkPrivileges(
-                    authorizationInfo,
-                    privilegesToCheck,
-                    applicationPrivilegeDescriptors,
+        SubscribableListener.<AuthorizationInfo>newForked(l -> authorizationEngine.resolveAuthorizationInfo(subject, l)).<
+            AuthorizationEngine
+                .PrivilegesCheckResult>andThen(
                     executor,
-                    wrapPreservingContext(delegateListener, threadContext)
-                );
-            }), threadContext)
-        );
+                    threadContext,
+                    (l, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                        authorizationInfo,
+                        privilegesToCheck,
+                        applicationPrivilegeDescriptors,
+                        l
+                    )
+                ).addListener(listener);
     }
 
     public void retrieveUserPrivileges(

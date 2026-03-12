@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -98,12 +99,6 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
-    /**
-     * See {@link #shouldForkRoleBuilding(Set)}
-     */
-    private static final int ROLE_DESCRIPTOR_FORK_THRESHOLD = 100;
-    private static final int INDEX_PRIVILEGE_FORK_THRESHOLD = 1000;
-
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
     private final ProjectResolver projectResolver;
@@ -297,27 +292,12 @@ public class CompositeRolesStore {
                     roleActionListener.onFailure(e);
                 }
             };
-            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
-                    roleActionListener.onResponse(Role.EMPTY);
-                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
-                    roleActionListener.onResponse(superuserRole);
-                } else {
-                    final ActionListener<Role> wrapped = ActionListener.wrap(roleActionListener::onResponse, failureHandler);
-                    if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
-                        roleBuildingExecutor.execute(
-                            ActionRunnable.wrap(
-                                wrapped,
-                                l -> buildThenMaybeCacheRole(
-                                    cacheKey,
-                                    rolesRetrievalResult.getRoleDescriptors(),
-                                    rolesRetrievalResult.getMissingRoles(),
-                                    rolesRetrievalResult.isSuccess(),
-                                    invalidationCounter,
-                                    l
-                                )
-                            )
-                        );
+            SubscribableListener.<RolesRetrievalResult>newForked(l -> roleReference.resolve(roleReferenceResolver, l))
+                .<Role>andThen(roleBuildingExecutor, threadContext, (l, rolesRetrievalResult) -> {
+                    if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
+                        l.onResponse(Role.EMPTY);
+                    } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
+                        l.onResponse(superuserRole);
                     } else {
                         buildThenMaybeCacheRole(
                             cacheKey,
@@ -325,46 +305,14 @@ public class CompositeRolesStore {
                             rolesRetrievalResult.getMissingRoles(),
                             rolesRetrievalResult.isSuccess(),
                             invalidationCounter,
-                            wrapped
+                            l
                         );
                     }
-                }
-            }, failureHandler));
+                })
+                .addListener(ActionListener.wrap(roleActionListener::onResponse, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
-    }
-
-    /**
-     * Uses heuristics such as presence of application privileges to determine if role building will be expensive
-     * and therefore warrants forking.
-     * Package-private for testing.
-     */
-    boolean shouldForkRoleBuilding(Set<RoleDescriptor> roleDescriptors) {
-        // A role with many role descriptors is likely expensive to build
-        if (roleDescriptors.size() > ROLE_DESCRIPTOR_FORK_THRESHOLD) {
-            return true;
-        }
-        int totalIndexPrivileges = 0;
-        int totalRemoteIndexPrivileges = 0;
-        for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            // Application privileges can also result in big automata; it's difficult to determine how big application privileges
-            // are so err on the side of caution
-            if (roleDescriptor.hasApplicationPrivileges()) {
-                return true;
-            }
-            // Index privilege names or remote index privilege names can result in big and complex automata
-            totalIndexPrivileges += roleDescriptor.getIndicesPrivileges().length;
-            totalRemoteIndexPrivileges += roleDescriptor.getRemoteIndicesPrivileges().length;
-            if (totalIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD || totalRemoteIndexPrivileges > INDEX_PRIVILEGE_FORK_THRESHOLD) {
-                return true;
-            }
-            // Likewise for FLS/DLS
-            if (roleDescriptor.isUsingDocumentOrFieldLevelSecurity()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean includesSuperuserRole(RoleReference roleReference) {
@@ -401,6 +349,8 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             privilegeStore,
             restrictedIndices,
+            roleBuildingExecutor,
+            threadContext,
             listener.delegateFailureAndWrap((delegate, role) -> {
                 if (role != null && tryCache) {
                     try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
@@ -483,6 +433,8 @@ public class CompositeRolesStore {
         FieldPermissionsCache fieldPermissionsCache,
         NativePrivilegeStore privilegeStore,
         RestrictedIndices restrictedIndices,
+        Executor executor,
+        @Nullable ThreadContext threadContext,
         ActionListener<Role> listener
     ) {
         if (roleDescriptors.isEmpty()) {
@@ -608,18 +560,15 @@ public class CompositeRolesStore {
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-            privilegeStore.getPrivileges(
-                applicationNames,
-                applicationPrivilegeNames,
-                false, // TODO revisit if we should also wait for an available security index here
-                listener.delegateFailureAndWrap((delegate, appPrivileges) -> {
-                    applicationPrivilegesMap.forEach(
-                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
-                    );
-                    delegate.onResponse(builder.build());
-                })
-            );
+            SubscribableListener.<Collection<ApplicationPrivilegeDescriptor>>newForked(
+                l -> privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, false, l)
+            ).<Role>andThen(executor, threadContext, (l, appPrivileges) -> {
+                applicationPrivilegesMap.forEach(
+                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                );
+                l.onResponse(builder.build());
+            }).addListener(listener);
         }
     }
 

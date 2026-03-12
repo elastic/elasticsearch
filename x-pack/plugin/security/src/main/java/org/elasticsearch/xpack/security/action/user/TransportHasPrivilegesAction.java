@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -30,6 +32,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
@@ -43,6 +46,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final SecurityContext securityContext;
+    private final Executor executor;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportHasPrivilegesAction(
@@ -50,12 +55,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         ActionFilters actionFilters,
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
-        SecurityContext context
+        SecurityContext context,
+        ThreadPool threadPool
     ) {
-        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new, threadPool.generic());
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.securityContext = context;
+        this.executor = threadPool.generic();
+        this.threadContext = threadPool.getThreadContext();
     }
 
     @Override
@@ -68,28 +76,28 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             return;
         }
 
-        resolveApplicationPrivileges(
-            request,
-            ActionListener.wrap(
-                applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
-                    authentication.getEffectiveSubject(),
-                    request.getPrivilegesToCheck(),
-                    applicationPrivilegeDescriptors,
-                    listener.map(privilegesCheckResult -> {
-                        AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
-                        assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
-                        return new HasPrivilegesResponse(
-                            request.username(),
-                            privilegesCheckResult.allChecksSuccess(),
-                            checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
-                            checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
-                            checkResultDetails != null ? checkResultDetails.application() : Map.of()
-                        );
-                    })
-                ),
-                listener::onFailure
-            )
-        );
+        SubscribableListener.<Collection<ApplicationPrivilegeDescriptor>>newForked(l -> resolveApplicationPrivileges(request, l)).<
+            AuthorizationEngine
+                .PrivilegesCheckResult>andThen(
+                    executor,
+                    threadContext,
+                    (l, applicationPrivilegeDescriptors) -> authorizationService.checkPrivileges(
+                        authentication.getEffectiveSubject(),
+                        request.getPrivilegesToCheck(),
+                        applicationPrivilegeDescriptors,
+                        l
+                    )
+                ).addListener(listener.map(privilegesCheckResult -> {
+                    AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
+                    assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
+                    return new HasPrivilegesResponse(
+                        request.username(),
+                        privilegesCheckResult.allChecksSuccess(),
+                        checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
+                        checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
+                        checkResultDetails != null ? checkResultDetails.application() : Map.of()
+                    );
+                }));
     }
 
     private void resolveApplicationPrivileges(

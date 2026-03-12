@@ -43,7 +43,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -156,7 +155,6 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     public void checkPrivileges(AuthorizationInfo authorizationInfo,
                                 PrivilegesToCheck privilegesToCheck,
                                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                                Executor privilegeCheckExecutor,
                                 ActionListener<PrivilegesCheckResult> listener) {
         if (isSuperuser(authorizationInfo)) {
             listener.onResponse(getPrivilegesCheckResult(privilegesToCheck, true));

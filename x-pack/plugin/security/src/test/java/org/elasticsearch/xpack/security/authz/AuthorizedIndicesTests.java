@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -107,6 +108,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -284,6 +287,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -370,6 +375,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -457,6 +464,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -541,6 +550,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -623,6 +634,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();
@@ -702,6 +715,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            null,
             future
         );
         Role roles = future.actionGet();

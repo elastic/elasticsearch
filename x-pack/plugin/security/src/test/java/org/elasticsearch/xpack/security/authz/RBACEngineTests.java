@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -128,9 +127,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1201,7 +1197,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future1 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future1);
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future1);
         final PrivilegesCheckResult privilegesCheckResult1 = future1.actionGet();
 
         // Result should be cached
@@ -1213,7 +1209,7 @@ public class RBACEngineTests extends ESTestCase {
         Mockito.clearInvocations(role);
 
         final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future2);
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future2);
         final PrivilegesCheckResult privilegesCheckResult2 = future2.actionGet();
 
         assertThat(privilegesCheckResult2, is(privilegesCheckResult1));
@@ -1232,38 +1228,11 @@ public class RBACEngineTests extends ESTestCase {
                     .build() },
             randomBoolean()
         );
-        final PlainActionFuture<PrivilegesCheckResult> future3 = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, EsExecutors.DIRECT_EXECUTOR_SERVICE, future3);
-        final RuntimeException e1 = expectThrows(RuntimeException.class, future3::actionGet);
-        assertThat(e1, is(stallCheckException));
-    }
-
-    public void testCheckPrivilegesDispatchesToProvidedExecutor() {
-        final AtomicInteger executorInvocations = new AtomicInteger();
-        final AtomicReference<Runnable> capturedRunnable = new AtomicReference<>();
-        final Executor capturingExecutor = runnable -> {
-            assertThat("expected only one executor invocation", capturedRunnable.compareAndSet(null, runnable), is(true));
-            executorInvocations.incrementAndGet();
-        };
-
-        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").cluster(Set.of("monitor"), Set.of()).build();
-        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { "monitor" },
-            new IndicesPrivileges[0],
-            new ApplicationResourcePrivileges[0],
-            true
+        final RuntimeException e1 = expectThrows(
+            RuntimeException.class,
+            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
         );
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-
-        engine.checkPrivileges(authzInfo, privilegesToCheck, List.of(), capturingExecutor, future);
-
-        assertThat(executorInvocations.get(), is(1));
-        assertThat(capturedRunnable.get(), notNullValue());
-        assertThat("task should not complete before executor runs it", future.isDone(), is(false));
-
-        capturedRunnable.get().run();
-        assertThat(future.actionGet().allChecksSuccess(), is(true));
+        assertThat(e1, is(stallCheckException));
     }
 
     public void testIsCompleteMatch() throws Exception {
@@ -2254,13 +2223,7 @@ public class RBACEngineTests extends ESTestCase {
             appPrivileges,
             randomBoolean()
         );
-        engine.checkPrivileges(
-            authorizationInfo,
-            privilegesToCheck,
-            applicationPrivilegeDescriptors,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            future
-        );
+        engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
         // flip the "runDetailedCheck" flag
         engine.checkPrivileges(
             authorizationInfo,
@@ -2271,7 +2234,6 @@ public class RBACEngineTests extends ESTestCase {
                 false == privilegesToCheck.runDetailedCheck()
             ),
             applicationPrivilegeDescriptors,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             future2
         );
 
@@ -2322,5 +2284,4 @@ public class RBACEngineTests extends ESTestCase {
         });
         return roleBuilder.build();
     }
-
 }

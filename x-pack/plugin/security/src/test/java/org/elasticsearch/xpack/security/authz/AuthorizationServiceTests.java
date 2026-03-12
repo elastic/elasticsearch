@@ -219,7 +219,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -374,8 +373,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
     }
 
@@ -413,6 +411,8 @@ public class AuthorizationServiceTests extends ESTestCase {
                 fieldPermissionsCache,
                 privilegesStore,
                 RESTRICTED_INDICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                null,
                 ActionListener.wrap(r -> {
                     roleCache.put(names, r);
                     listener.onResponse(r);
@@ -1357,8 +1357,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1422,8 +1421,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1970,8 +1968,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2025,8 +2022,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3568,8 +3564,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3594,14 +3589,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
-            assertThat(i.getArguments().length, equalTo(5));
+            assertThat(i.getArguments().length, equalTo(4));
             final Object arg1 = i.getArguments()[0];
             assertThat(arg1, instanceOf(AuthorizationInfo.class));
             AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
-            final Object arg5 = i.getArguments()[4];
-            assertThat(arg5, instanceOf(ActionListener.class));
+            final Object arg4 = i.getArguments()[3];
+            assertThat(arg4, instanceOf(ActionListener.class));
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) arg5;
+                AuthorizationEngine.PrivilegesCheckResult>) arg4;
             if (authorizationInfoArg.equals(authorizationInfo)) {
                 listener.onResponse(privilegesCheckResult);
             } else {
@@ -3613,7 +3608,6 @@ public class AuthorizationServiceTests extends ESTestCase {
                 any(AuthorizationInfo.class),
                 any(AuthorizationEngine.PrivilegesToCheck.class),
                 anyCollection(),
-                any(Executor.class),
                 anyActionListener()
             );
 
@@ -3697,7 +3691,6 @@ public class AuthorizationServiceTests extends ESTestCase {
                 AuthorizationInfo authorizationInfo,
                 PrivilegesToCheck privilegesToCheck,
                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                Executor privilegeCheckExecutor,
                 ActionListener<PrivilegesCheckResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
@@ -3735,8 +3728,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

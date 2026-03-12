@@ -195,7 +195,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final int docChannel;
 
     /**
-     * Multiplier applied to {@link #lastKnownSourceSize} to pre-reserve memory on the circuit
+     * Multiplier applied to {@link #maxSourceSize} to pre-reserve memory on the circuit
      * breaker before loading {@code _source}. A factor of 3.0 covers the large untracked
      * allocations from source parsing such as the scratch buffer, SourceFilter.filterBytes() and
      * JSON parsing overhead. This is a heuristic and can be adjusted based on observed
@@ -215,7 +215,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * document in a page. On a 512MB JVM, jumboBytes is ~512KB, so each 5MB text field
      * creates a 1-doc page. Without persisting this, every page starts with 0 reservation.
      */
-    long lastKnownSourceSize;
+    long maxSourceSize;
 
     /**
      * Persistent reservation on the circuit breaker for the expected overhead of _source
@@ -231,7 +231,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * across all pages so far. This persists across pages so the pre-reservation can protect
      * against concurrent large column-at-a-time loads on other drivers.
      */
-    long lastKnownColumnBatchBytes;
+    long maxColumnBatchBytes;
 
     /**
      * Persistent reservation on the circuit breaker for the expected peak memory of
@@ -303,11 +303,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /**
      * Acquires or increases the persistent source loading reservation on the circuit breaker.
      * Called at the start of each page and after each row load that updates
-     * {@link #lastKnownSourceSize}. If the breaker trips, the exception propagates and
+     * {@link #maxSourceSize}. If the breaker trips, the exception propagates and
      * prevents further loading, limiting concurrent large _source operations.
      */
     void acquireSourceLoadingReservation() {
-        long needed = (long) (lastKnownSourceSize * sourceReservationFactor);
+        long needed = (long) (maxSourceSize * sourceReservationFactor);
         long additional = needed - sourceLoadingReservation;
         if (additional > 0) {
             driverContext.blockFactory().adjustBreaker(additional);
@@ -324,8 +324,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
         long sourceBytes = storedFields.lastSourceBytesSize();
-        if (sourceBytes > lastKnownSourceSize) {
-            lastKnownSourceSize = sourceBytes;
+        if (sourceBytes > maxSourceSize) {
+            maxSourceSize = sourceBytes;
             acquireSourceLoadingReservation();
         }
         storedFields.releaseParsedSource();
@@ -337,7 +337,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * and prevents further loading.
      */
     void acquireColumnBatchReservation() {
-        long needed = lastKnownColumnBatchBytes;
+        long needed = maxColumnBatchBytes;
         long additional = needed - columnBatchReservation;
         if (additional > 0) {
             driverContext.blockFactory().adjustBreaker(additional);
@@ -349,12 +349,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     }
 
     /**
-     * Updates {@link #lastKnownColumnBatchBytes} if the given batch size exceeds the previous
+     * Updates {@link #maxColumnBatchBytes} if the given batch size exceeds the previous
      * maximum, then acquires an increased reservation if needed.
      */
     void trackColumnBatchBytes(long batchBytes) {
-        if (batchBytes > lastKnownColumnBatchBytes) {
-            lastKnownColumnBatchBytes = batchBytes;
+        if (batchBytes > maxColumnBatchBytes) {
+            maxColumnBatchBytes = batchBytes;
             acquireColumnBatchReservation();
         }
     }

@@ -164,12 +164,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Assert mappings have the by field
         assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
 
-        // Check aliases have been created
+        // Check aliases have been created (includes base-name alias for the suffixed index)
+        String baseName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         assertThat(
             getAliases(sharedResultsIndex),
             containsInAnyOrder(
                 AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
-                AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())
+                AnomalyDetectorsIndex.resultsWriteAlias(job1.getId()),
+                baseName
             )
         );
 
@@ -196,7 +198,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
                 AnomalyDetectorsIndex.resultsWriteAlias(job1.getId()),
                 AnomalyDetectorsIndex.jobResultsAliasedName(job2.getId()),
-                AnomalyDetectorsIndex.resultsWriteAlias(job2.getId())
+                AnomalyDetectorsIndex.resultsWriteAlias(job2.getId()),
+                baseName
             )
         );
     }
@@ -217,12 +220,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Assert mappings have the by field
         assertThat(mappingProperties.keySet(), hasItem("by_field"));
 
-        // Check aliases have been created
+        // Check aliases have been created (includes base-name alias for the suffixed index)
+        String baseName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
         assertThat(
             getAliases(customIndex),
             containsInAnyOrder(
                 AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
-                AnomalyDetectorsIndex.resultsWriteAlias(job.getId())
+                AnomalyDetectorsIndex.resultsWriteAlias(job.getId()),
+                baseName
             )
         );
     }

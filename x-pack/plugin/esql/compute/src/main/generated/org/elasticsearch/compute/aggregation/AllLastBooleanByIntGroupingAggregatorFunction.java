@@ -36,16 +36,11 @@ public final class AllLastBooleanByIntGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public AllLastBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastBooleanByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastBooleanByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastBooleanByIntGroupingAggregatorFunction(channels, AllLastBooleanByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastBooleanByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

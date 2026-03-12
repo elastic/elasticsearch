@@ -225,18 +225,21 @@ public class AuthorizationService {
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        SubscribableListener.<AuthorizationInfo>newForked(l -> authorizationEngine.resolveAuthorizationInfo(subject, l)).<
-            AuthorizationEngine
-                .PrivilegesCheckResult>andThen(
-                    executor,
-                    threadContext,
-                    (l, authorizationInfo) -> authorizationEngine.checkPrivileges(
-                        authorizationInfo,
-                        privilegesToCheck,
-                        applicationPrivilegeDescriptors,
-                        l
-                    )
-                ).addListener(listener);
+        SubscribableListener
+
+            .<AuthorizationInfo>newForked(l -> authorizationEngine.resolveAuthorizationInfo(subject, l))
+
+            .<AuthorizationEngine.PrivilegesCheckResult>andThen(
+                executor,
+                threadContext,
+                (l, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                    authorizationInfo,
+                    privilegesToCheck,
+                    applicationPrivilegeDescriptors,
+                    l
+                )
+            )
+            .addListener(listener);
     }
 
     public void retrieveUserPrivileges(

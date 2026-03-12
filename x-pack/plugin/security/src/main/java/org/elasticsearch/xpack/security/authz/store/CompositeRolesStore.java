@@ -292,7 +292,9 @@ public class CompositeRolesStore {
                     roleActionListener.onFailure(e);
                 }
             };
-            SubscribableListener.<RolesRetrievalResult>newForked(l -> roleReference.resolve(roleReferenceResolver, l))
+            SubscribableListener
+
+                .<RolesRetrievalResult>newForked(l -> roleReference.resolve(roleReferenceResolver, l))
                 .<Role>andThen(roleBuildingExecutor, threadContext, (l, rolesRetrievalResult) -> {
                     if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
                         l.onResponse(Role.EMPTY);
@@ -560,15 +562,19 @@ public class CompositeRolesStore {
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-            SubscribableListener.<Collection<ApplicationPrivilegeDescriptor>>newForked(
-                l -> privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, false, l)
-            ).<Role>andThen(executor, threadContext, (l, appPrivileges) -> {
-                applicationPrivilegesMap.forEach(
-                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
-                );
-                l.onResponse(builder.build());
-            }).addListener(listener);
+            SubscribableListener
+
+                .<Collection<ApplicationPrivilegeDescriptor>>newForked(
+                    l -> privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, false, l)
+                )
+                .<Role>andThen(executor, threadContext, (l, appPrivileges) -> {
+                    applicationPrivilegesMap.forEach(
+                        (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                            .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                    );
+                    l.onResponse(builder.build());
+                })
+                .addListener(listener);
         }
     }
 

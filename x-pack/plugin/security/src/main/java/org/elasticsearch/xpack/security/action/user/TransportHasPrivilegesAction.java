@@ -76,28 +76,32 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             return;
         }
 
-        SubscribableListener.<Collection<ApplicationPrivilegeDescriptor>>newForked(l -> resolveApplicationPrivileges(request, l)).<
-            AuthorizationEngine
-                .PrivilegesCheckResult>andThen(
-                    executor,
-                    threadContext,
-                    (l, applicationPrivilegeDescriptors) -> authorizationService.checkPrivileges(
-                        authentication.getEffectiveSubject(),
-                        request.getPrivilegesToCheck(),
-                        applicationPrivilegeDescriptors,
-                        l
-                    )
-                ).addListener(listener.map(privilegesCheckResult -> {
-                    AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
-                    assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
-                    return new HasPrivilegesResponse(
-                        request.username(),
-                        privilegesCheckResult.allChecksSuccess(),
-                        checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
-                        checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
-                        checkResultDetails != null ? checkResultDetails.application() : Map.of()
-                    );
-                }));
+        SubscribableListener
+
+            .<Collection<ApplicationPrivilegeDescriptor>>newForked(l -> resolveApplicationPrivileges(request, l))
+
+            .<AuthorizationEngine.PrivilegesCheckResult>andThen(
+                executor,
+                threadContext,
+                (l, applicationPrivilegeDescriptors) -> authorizationService.checkPrivileges(
+                    authentication.getEffectiveSubject(),
+                    request.getPrivilegesToCheck(),
+                    applicationPrivilegeDescriptors,
+                    l
+                )
+            )
+
+            .addListener(listener.map(privilegesCheckResult -> {
+                AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
+                assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
+                return new HasPrivilegesResponse(
+                    request.username(),
+                    privilegesCheckResult.allChecksSuccess(),
+                    checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
+                    checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
+                    checkResultDetails != null ? checkResultDetails.application() : Map.of()
+                );
+            }));
     }
 
     private void resolveApplicationPrivileges(

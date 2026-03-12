@@ -120,142 +120,6 @@ class ValuesLongAggregator {
     }
 
     /**
-     * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
-     * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
-     * to an array, allowing us to build the output in O(N) instead.
-     */
-    private static class NextValues implements Releasable {
-        private final BlockFactory blockFactory;
-        private final LongLongHash hashes;
-
-        private int[] selectedCounts = null;
-        private int[] ids = null;
-        private long extraMemoryUsed = 0;
-
-        private NextValues(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-            this.hashes = new LongLongHash(1, blockFactory.bigArrays());
-        }
-
-        void addValue(int groupId, long v) {
-            hashes.add(groupId, v);
-        }
-
-        long getValue(PreparedForEmitting prepared, int index) {
-            return hashes.getKey2(prepared.ids[index]);
-        }
-
-        private PreparedForEmitting prepareForEmitting(IntVector selected) {
-            PreparedForEmitting result = new PreparedForEmitting(blockFactory);
-            if (hashes.size() == 0) {
-                return result;
-            }
-            try {
-                /*
-                 * Get a count of all groups less than the maximum selected group. Count
-                 * *downwards* so that we can flip the sign on all of the actually selected
-                 * groups. Negative values in this array are always unselected groups.
-                 */
-                int selectedCountsLen = selected.max() + 1;
-                result.reserveBytesForIntArray(selectedCountsLen);
-                result.selectedCounts = new int[selectedCountsLen];
-                for (int id = 0; id < hashes.size(); id++) {
-                    int group = (int) hashes.getKey1(id);
-                    if (group < result.selectedCounts.length) {
-                        result.selectedCounts[group]--;
-                    }
-                }
-
-                /*
-                 * Total the selected groups and turn the counts into the start index into a sort-of
-                 * off-by-one running count. It's really the number of values that have been inserted
-                 * into the results before starting on this group. Unselected groups will still
-                 * have negative counts.
-                 *
-                 * For example, if
-                 * | Group | Value Count | Selected |
-                 * |-------|-------------|----------|
-                 * |     0 | 3           | <-       |
-                 * |     1 | 1           | <-       |
-                 * |     2 | 2           |          |
-                 * |     3 | 1           | <-       |
-                 * |     4 | 4           | <-       |
-                 *
-                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
-                 */
-                int total = 0;
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int group = selected.getInt(s);
-                    int count = -result.selectedCounts[group];
-                    result.selectedCounts[group] = total;
-                    total += count;
-                }
-
-                /*
-                 * Build a list of ids to insert in order *and* convert the running
-                 * count in selectedCounts[group] into the end index (exclusive) in
-                 * ids for each group.
-                 * Here we use the negative counts to signal that a group hasn't been
-                 * selected and the id containing values for that group is ignored.
-                 *
-                 * For example, if
-                 * | Group | Value Count | Selected |
-                 * |-------|-------------|----------|
-                 * |     0 | 3           | <-       |
-                 * |     1 | 1           | <-       |
-                 * |     2 | 2           |          |
-                 * |     3 | 1           | <-       |
-                 * |     4 | 4           | <-       |
-                 *
-                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
-                 * The counts will end with 3, 4, -2, 5, 9.
-                 */
-                result.reserveBytesForIntArray(total);
-                result.ids = new int[total];
-                for (int id = 0; id < hashes.size(); id++) {
-                    int group = (int) hashes.getKey1(id);
-                    if (group < result.selectedCounts.length && result.selectedCounts[group] >= 0) {
-                        result.ids[result.selectedCounts[group]++] = id;
-                    }
-                }
-                PreparedForEmitting done = result;
-                result = null;
-                return done;
-            } finally {
-                Releasables.close(result);
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(hashes);
-        }
-    }
-
-    private static class PreparedForEmitting implements Releasable {
-        private final BlockFactory blockFactory;
-        private int[] selectedCounts;
-        private int[] ids;
-        private long ramBytesUsed = 0;
-
-        PreparedForEmitting(BlockFactory blockFactory) {
-            this.blockFactory = blockFactory;
-        }
-
-        private void reserveBytesForIntArray(long numElements) {
-            long adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + numElements * Integer.BYTES);
-            blockFactory.adjustBreaker(adjust);
-            ramBytesUsed += adjust;
-        }
-
-        @Override
-        public void close() {
-            blockFactory.adjustBreaker(-ramBytesUsed);
-        }
-    }
-
-    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over result rendering performance.
      * The first value in each group is collected in the {@code firstValues}
@@ -266,14 +130,14 @@ class ValuesLongAggregator {
         LongArray firstValues;
         private BitArray seen;
         private int maxGroupId = -1;
-        private final NextValues nextValues;
+        private final ValuesNextLongLong nextValues;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
             boolean success = false;
             try {
                 this.firstValues = driverContext.bigArrays().newLongArray(1, false);
-                this.nextValues = new NextValues(driverContext.blockFactory());
+                this.nextValues = new ValuesNextLongLong(driverContext.blockFactory());
                 success = true;
             } finally {
                 if (success == false) {
@@ -304,7 +168,7 @@ class ValuesLongAggregator {
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
             } else if (firstValues.get(groupId) != v) {
-                nextValues.addValue(groupId, v);
+                nextValues.add(groupId, v);
             }
         }
 
@@ -332,12 +196,12 @@ class ValuesLongAggregator {
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (PreparedForEmitting prepared = nextValues.prepareForEmitting(selected)) {
+            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
                 return buildOutputBlock(blockFactory, selected, prepared);
             }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, PreparedForEmitting prepared) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting prepared) {
             /*
              * Insert the ids in order.
              */
@@ -350,7 +214,7 @@ class ValuesLongAggregator {
                         continue;
                     }
                     long firstValue = firstValues.get(group);
-                    final int nextValuesEnd = prepared.selectedCounts != null ? prepared.selectedCounts[group] : nextValuesStart;
+                    final int nextValuesEnd = prepared.nextValuesEnd(group, nextValuesStart);
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendLong(firstValue);
                     } else {
@@ -358,8 +222,7 @@ class ValuesLongAggregator {
                         builder.appendLong(firstValue);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getValue(prepared, i);
-                            builder.appendLong(nextValue);
+                            builder.appendLong(nextValues.getLong(prepared, i));
                         }
                         builder.endPositionEntry();
                         nextValuesStart = nextValuesEnd;

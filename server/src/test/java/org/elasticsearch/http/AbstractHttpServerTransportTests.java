@@ -1153,8 +1153,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             TestEnvironment.newEnvironment(settings.getSettings()),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            null,
-            settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
             threadPool,

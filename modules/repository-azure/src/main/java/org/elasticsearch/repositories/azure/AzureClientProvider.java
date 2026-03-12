@@ -279,7 +279,28 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             logger.warn("Interrupted waiting for Azure Netty event loop shutdown", e);
         } finally {
             // Now everything is shut down, reset the factory to clear any cached schedulers
-            Schedulers.resetFactory();
+            Schedulers.setFactory(new Schedulers.Factory() {
+
+                @Override
+                public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
+                    throw new IllegalStateException("Should not be called");
+                }
+
+                @Override
+                public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
+                    throw new IllegalStateException("Should not be called");
+                }
+
+                @Override
+                public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
+                    throw new IllegalStateException("Should not be called");
+                }
+
+                @Override
+                public Scheduler newSingle(ThreadFactory threadFactory) {
+                    throw new IllegalStateException("Should not be called");
+                }
+            });
         }
     }
 

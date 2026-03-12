@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.test.ESTestCase;
@@ -240,6 +241,10 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testRegisteredFunctionHaveTests() {
+        assumeTrue("""
+            Some functions are missing when outside of snapshot and we really
+            only care about the superset of all functions. Just skip this test
+            on release builds.""", Build.current().isSnapshot());
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {

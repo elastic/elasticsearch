@@ -213,21 +213,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140615
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
-  method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/137911
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140621
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/140802
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -363,9 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithInvalidApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143646
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:unmapped-nullify.TsWithAggsByMissing}
-  issue: https://github.com/elastic/elasticsearch/issues/142762
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143750
@@ -378,21 +366,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.cluster.routing.allocation.allocator.NotPreferredAllocationRebalancingIT
-  method: testAllocatorDoesNotMoveShardsToNotPreferredNode
-  issue: https://github.com/elastic/elasticsearch/issues/143831
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
-  issue: https://github.com/elastic/elasticsearch/issues/143845
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/140849
 - class: org.elasticsearch.xpack.esql.datasources.spi.StoragePathTests
   method: testFileUriFunctionOnUnix
   issue: https://github.com/elastic/elasticsearch/issues/143979
@@ -408,9 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:approximation.Approximate stats with sample}
   issue: https://github.com/elastic/elasticsearch/issues/144022
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
-  issue: https://github.com/elastic/elasticsearch/issues/142964
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
@@ -426,6 +396,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/144066
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration {withOTel=true}
+  issue: https://github.com/elastic/elasticsearch/issues/144072
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
+  issue: https://github.com/elastic/elasticsearch/issues/138012
 
 # Examples:
 #

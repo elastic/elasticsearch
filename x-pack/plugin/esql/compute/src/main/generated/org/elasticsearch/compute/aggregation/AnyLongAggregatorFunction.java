@@ -32,16 +32,10 @@ public final class AnyLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public AnyLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AnyLongAggregator.SingleState state) {
+  AnyLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AnyLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AnyLongAggregatorFunction(driverContext, channels, AnyLongAggregator.initSingle(driverContext));
+    this.state = AnyLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

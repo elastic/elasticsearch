@@ -57,7 +57,6 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        preview = true,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             This function calculates the latest occurrence of the search field
@@ -78,7 +77,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             number of unique values, and even more so if the search field
             has multi-values of high cardinality.
             ::::""",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_first_last", tag = "last")
     )
     public Last(

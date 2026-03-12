@@ -92,7 +92,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return plan;
         }
 
-        var unresolvedByName = collectUnresolved(plan);
+        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan);
         if (unresolvedByName.isEmpty()) {
             return plan;
         }
@@ -101,8 +101,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         LinkedHashSet<UnresolvedAttribute> unresolved = new LinkedHashSet<>(unresolvedByName.size());
         // All UAs (multiple per name) for refreshPlan (which needs to refresh every occurrence in the plan).
         AttributeSet.Builder allUnresolved = AttributeSet.builder(unresolvedByName.size());
-        for (var entry : unresolvedByName.entrySet()) {
-            List<UnresolvedAttribute> uas = entry.getValue();
+        for (List<UnresolvedAttribute> uas : unresolvedByName.values()) {
             unresolved.add(uas.getFirst());
             allUnresolved.addAll(uas);
         }
@@ -249,28 +248,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return ua;
         });
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
-    }
-
-    /**
-     * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
-     */
-    private static LogicalPlan evalUnresolvedBelowNary(LogicalPlan nAry, LinkedHashSet<UnresolvedAttribute> unresolved) {
-        List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
-        boolean changed = false;
-        for (var child : nAry.children()) {
-            if (child instanceof LeafPlan source
-                // skip right-sides of the Joins
-                && (nAry instanceof Join == false || child == ((Join) nAry).left())) {
-                assertSourceType(source);
-                var nullAliases = removeShadowing(nullAliases(unresolved), source.output());
-                if (nullAliases.isEmpty() == false) {
-                    child = new Eval(source.source(), source, nullAliases);
-                    changed = true;
-                }
-            }
-            newChildren.add(child);
-        }
-        return changed ? nAry.replaceChildren(newChildren) : nAry;
     }
 
     /**

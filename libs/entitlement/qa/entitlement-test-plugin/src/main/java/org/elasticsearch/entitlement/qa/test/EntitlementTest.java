@@ -60,9 +60,10 @@ public @interface EntitlementTest {
     boolean isExpectedDefaultNull() default false;
 
     /**
-     * When a denied entitlement strategy silently returns early (no-op) for a void method
-     * instead of throwing, set this to {@code true}. The test infrastructure will accept
-     * a successful response as valid denial behavior.
+     * When a denied entitlement strategy silently returns early (no-op) instead of throwing,
+     * set this to {@code true}. The test method must return {@code boolean} indicating whether
+     * the call actually changed state ({@code true}) or was effectively a no-op ({@code false}).
+     * The test infrastructure asserts the state changed when allowed and did not change when denied.
      * Mutually exclusive with {@link #expectedDefaultIfDenied()} and {@link #isExpectedDefaultNull()}.
      */
     boolean isExpectedNoOp() default false;

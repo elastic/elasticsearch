@@ -42,6 +42,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
+import static org.elasticsearch.test.knn.DatasetConfig.PartitionGenerated;
+
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
@@ -74,10 +76,7 @@ record TestConfiguration(
     int flatVectorThreshold,
     int secondaryClusterSize,
     String directoryType,
-    boolean useDataGenerator,
-    int numTenants,
-    String tenantDistribution,
-    long generatorSeed
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -119,10 +118,6 @@ record TestConfiguration(
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
-    static final ParseField USE_DATA_GENERATOR_FIELD = new ParseField("use_data_generator");
-    static final ParseField NUM_TENANTS_FIELD = new ParseField("num_tenants");
-    static final ParseField TENANT_DISTRIBUTION_FIELD = new ParseField("tenant_distribution");
-    static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -139,7 +134,7 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -188,10 +183,6 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
-        PARSER.declareBoolean(Builder::setUseDataGenerator, USE_DATA_GENERATOR_FIELD);
-        PARSER.declareInt(Builder::setNumTenants, NUM_TENANTS_FIELD);
-        PARSER.declareString(Builder::setTenantDistribution, TENANT_DISTRIBUTION_FIELD);
-        PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -210,7 +201,12 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
-            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
+            new ParameterHelp(
+                "dataset",
+                "string|object",
+                "Optional. GCP dataset name (string), or {\"type\":\"partition_generated\", \"num_partitions\":N, "
+                    + "\"partition_distribution\":\"uniform|zipf\", \"generator_seed\":L} (object)."
+            ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -254,19 +250,7 @@ record TestConfiguration(
                 "directory_type",
                 "string",
                 "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
-            ),
-            new ParameterHelp(
-                "use_data_generator",
-                "boolean",
-                "Use synthetic data generator instead of vector files. Requires dimensions to be set."
-            ),
-            new ParameterHelp("num_tenants", "int", "Number of tenants for multi-tenant data generation. Default 100."),
-            new ParameterHelp(
-                "tenant_distribution",
-                "string",
-                "Distribution of documents across tenants: uniform or zipf. Default uniform."
-            ),
-            new ParameterHelp("generator_seed", "long", "Random seed for data generator. Default 42.")
+            )
         );
 
         int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
@@ -372,7 +356,7 @@ record TestConfiguration(
     }
 
     static class Builder implements ToXContentObject {
-        private String dataset;
+        private DatasetConfig datasetConfig;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
@@ -411,10 +395,6 @@ record TestConfiguration(
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
-        private boolean useDataGenerator = false;
-        private int numTenants = 100;
-        private String tenantDistribution = "uniform";
-        private long generatorSeed = 42L;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -422,8 +402,8 @@ record TestConfiguration(
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
-        public Builder setDataset(String dataset) {
-            this.dataset = dataset;
+        public Builder setDatasetConfig(DatasetConfig datasetConfig) {
+            this.datasetConfig = datasetConfig;
             return this;
         }
 
@@ -626,26 +606,6 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setUseDataGenerator(boolean useDataGenerator) {
-            this.useDataGenerator = useDataGenerator;
-            return this;
-        }
-
-        public Builder setNumTenants(int numTenants) {
-            this.numTenants = numTenants;
-            return this;
-        }
-
-        public Builder setTenantDistribution(String tenantDistribution) {
-            this.tenantDistribution = tenantDistribution.toLowerCase(Locale.ROOT);
-            return this;
-        }
-
-        public Builder setGeneratorSeed(long generatorSeed) {
-            this.generatorSeed = generatorSeed;
-            return this;
-        }
-
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -661,7 +621,7 @@ record TestConfiguration(
              "num_query_vectors": 5000
            }
          */
-        private void resolveDataset() throws Exception {
+        private void resolveDataset(String dataset) throws Exception {
             final String cloudProjectId = "benchmarking";
             final String datasetBucket = "knnindextester";
 
@@ -796,9 +756,8 @@ record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (dataset != null) {
-                // this fills in various options from the dataset
-                resolveDataset();
+            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
+                resolveDataset(gcpDataset.name());
             }
             // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
@@ -811,12 +770,12 @@ record TestConfiguration(
                 numQueries = 100;
             }
 
-            if (useDataGenerator) {
+            if (datasetConfig instanceof PartitionGenerated pg) {
                 if (dimensions <= 0) {
                     throw new IllegalArgumentException("dimensions must be specified when using data generator");
                 }
                 if (docVectors == null) {
-                    docVectors = List.of(PathUtils.get("generated-" + numTenants + "-tenants"));
+                    docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
                 }
             } else if (docVectors == null) {
                 throw new IllegalArgumentException("Dataset or document vectors path must be provided");
@@ -891,18 +850,22 @@ record TestConfiguration(
                 flatVectorThreshold,
                 secondaryClusterSize,
                 directoryType,
-                useDataGenerator,
-                numTenants,
-                tenantDistribution,
-                generatorSeed
+                datasetConfig
             );
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (dataset != null) {
-                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
+                builder.field(DATASET_FIELD.getPreferredName(), gcpDataset.name());
+            } else if (datasetConfig instanceof PartitionGenerated pg) {
+                builder.startObject(DATASET_FIELD.getPreferredName());
+                builder.field("type", "partition_generated");
+                builder.field("num_partitions", pg.numPartitions());
+                builder.field("partition_distribution", pg.partitionDistribution());
+                builder.field("generator_seed", pg.generatorSeed());
+                builder.endObject();
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);
@@ -953,10 +916,6 @@ record TestConfiguration(
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
-            builder.field(USE_DATA_GENERATOR_FIELD.getPreferredName(), useDataGenerator);
-            builder.field(NUM_TENANTS_FIELD.getPreferredName(), numTenants);
-            builder.field(TENANT_DISTRIBUTION_FIELD.getPreferredName(), tenantDistribution);
-            builder.field(GENERATOR_SEED_FIELD.getPreferredName(), generatorSeed);
             return builder.endObject();
         }
 

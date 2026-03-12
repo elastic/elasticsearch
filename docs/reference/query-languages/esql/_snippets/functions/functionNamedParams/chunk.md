@@ -2,10 +2,13 @@
 
 ### Supported function named parameters
 
-`separator_group`
-:   (keyword) Sets a predefined lists of separators based on the selected text type. Values may be `markdown` or `plaintext`.
-Only applicable to the `recursive` chunking strategy. When using the `recursive` chunking strategy one of
-`separators` or `separator_group` must be specified.
+`strategy`
+:   (keyword) The chunking strategy to use. Default value is `sentence`.
+
+`max_chunk_size`
+:   (integer) The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
+or `10` (for `word` or `recursive` strategies). This model should not exceed the window size for any
+associated models using the output of this function.
 
 
 `overlap`
@@ -18,13 +21,10 @@ This value cannot be higher than half the `max_chunk_size` value.
 It can be either `1` or `0`.
 
 
-`strategy`
-:   (keyword) The chunking strategy to use. Default value is `sentence`.
-
-`max_chunk_size`
-:   (integer) The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
-or `10` (for `word` or `recursive` strategies). This model should not exceed the window size for any
-associated models using the output of this function.
+`separator_group`
+:   (keyword) Sets a predefined lists of separators based on the selected text type. Values may be `markdown` or `plaintext`.
+Only applicable to the `recursive` chunking strategy. When using the `recursive` chunking strategy one of
+`separators` or `separator_group` must be specified.
 
 
 `separators`

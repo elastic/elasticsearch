@@ -643,6 +643,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             } catch (Exception e) {
                 logger.error("Error finishing client", e);
             }
+            client.finishCollectingResponseHeaders();
             try {
                 client.close();
             } catch (Exception e) {

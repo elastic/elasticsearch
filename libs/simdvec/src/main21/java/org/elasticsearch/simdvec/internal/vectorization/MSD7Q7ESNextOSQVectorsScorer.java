@@ -20,9 +20,9 @@ final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsSc
 
     private final MemorySegmentES92Int7VectorsScorer int7Scorer;
 
-    MSD7Q7ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, dataLength, bulkSize, memorySegment);
-        this.int7Scorer = new MemorySegmentES92Int7VectorsScorer(in, dimensions, bulkSize, memorySegment);
+    MSD7Q7ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+        super(in, dimensions, dataLength, bulkSize);
+        this.int7Scorer = new MemorySegmentES92Int7VectorsScorer(in, dimensions, bulkSize);
     }
 
     @Override

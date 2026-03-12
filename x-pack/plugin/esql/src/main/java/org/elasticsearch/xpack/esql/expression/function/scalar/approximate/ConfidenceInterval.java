@@ -19,7 +19,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -149,7 +149,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new ConfidenceIntervalEvaluator.Factory(
             source(),
             toEvaluator.apply(bestEstimate),
@@ -269,9 +269,24 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
         // Collect estimates into an array.
         double[] estimates = new double[estimatesCount];
+        boolean allNaNs = true;
         int offset = estimatesBlock.getFirstValueIndex(position);
         for (int i = 0; i < estimatesCount; i++) {
             estimates[i] = estimatesBlock.getDouble(offset + i);
+            if (Double.isNaN(estimates[i]) == false) {
+                allNaNs = false;
+            }
+        }
+
+        // Every single bucket being NaN indicates that the bestEstimate is exact,
+        // hence the confidence intervals should be zero width.
+        if (allNaNs) {
+            resultBuilder.beginPositionEntry();
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(bestEstimate);
+            resultBuilder.appendDouble(1.0);
+            resultBuilder.endPositionEntry();
+            return;
         }
 
         // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to

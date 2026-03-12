@@ -39,9 +39,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -76,10 +76,9 @@ public class AggregatorBenchmark {
     private static final int GROUPS = 5;
     private static final int TOP_N_LIMIT = 3;
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -665,7 +664,7 @@ public class AggregatorBenchmark {
             return agg;
         }
         BooleanBlock mask = mask(filter).asBlock();
-        return new FilteredAggregatorFunctionSupplier(agg, context -> new EvalOperator.ExpressionEvaluator() {
+        return new FilteredAggregatorFunctionSupplier(agg, context -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 mask.incRef();

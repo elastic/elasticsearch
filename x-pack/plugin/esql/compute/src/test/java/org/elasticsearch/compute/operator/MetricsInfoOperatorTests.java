@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MetricsInfoOperatorTests extends OperatorTestCase {
 
@@ -475,33 +476,20 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testInvalidJsonSkipped() {
+    public void testInvalidJsonThrows() {
         BlockFactory blockFactory = driverContext().blockFactory();
         try (Operator op = createInitialOperator()) {
             try (
-                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
-                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(1);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(1)
             ) {
-                // Row 1: invalid JSON
                 metadataBuilder.appendBytesRef(new BytesRef("not-valid-json"));
                 indexBuilder.appendBytesRef(new BytesRef("my-index"));
 
-                // Row 2: valid JSON with a metric
-                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5}"));
-                indexBuilder.appendBytesRef(new BytesRef("my-index"));
-
                 Page input = new Page(metadataBuilder.build(), indexBuilder.build());
-                op.addInput(input);
+                var e = expectThrows(IllegalStateException.class, () -> op.addInput(input));
+                assertThat(e.getMessage(), equalTo("failed to parse _timeseries_metadata at position [0]"));
             }
-            op.finish();
-
-            Page output = op.getOutput();
-            assertNotNull(output);
-            // Only the valid row contributes
-            assertThat(output.getPositionCount(), equalTo(1));
-            assertColumnValue(output, 0, 0, "cpu_usage");
-
-            output.releaseBlocks();
         }
     }
 
@@ -576,6 +564,11 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         assertThat(MetricsInfoOperator.resolveDataStreamName("index-a"), equalTo("index-a"));
         // Malformed → returned as-is
         assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-incomplete"), equalTo(".ds-incomplete"));
+        // Cluster-prefixed backing index → prefix preserved
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.ds-k8s-2024.01.15-000001"), equalTo("remote:k8s"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.fs-my-stream-2024.01.15-000001"), equalTo("remote:my-stream"));
+        // Cluster-prefixed non-backing index → returned as-is
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:my-index"), equalTo("remote:my-index"));
     }
 
     /**
@@ -1339,19 +1332,19 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Second distinct metric adds another entry
             Page input2 = buildPage(blockFactory, "{\"disk_io\": 1024, \"host\": \"h1\"}", "index-a");
             op.addInput(input2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric again from a different index but same data stream name → no new entry
+            // Same metric again from a different index but same data stream name → no new entry or set values
             Page input3 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"h2\"}", "index-a");
             op.addInput(input3);
             long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
 
             op.finish();
             Page output = op.getOutput();
@@ -1376,7 +1369,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Different metric name → new entry
             Page page2 = buildFinalPage(
@@ -1390,10 +1383,24 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric/data-stream again → no new entry
+            // Same metric/data-stream again with same set values → no new memory
             Page page3 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            op.addInput(page3);
+            long usedAfterDuplicate = blockFactory.breaker().getUsed();
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
+
+            // Adding a new dimension field to an existing entry does track the new string
+            Page page4 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
                 Set.of("ds-a"),
@@ -1402,13 +1409,84 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
                 Set.of("double"),
                 Set.of("host", "region")
             );
-            op.addInput(page3);
-            long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            op.addInput(page4);
+            long usedAfterNewSetValue = blockFactory.breaker().getUsed();
+            assertThat(usedAfterNewSetValue, greaterThan(usedAfterDuplicate));
 
             op.finish();
             Page output = op.getOutput();
             assertNotNull(output);
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * In cross-cluster search, the _index block contains a cluster-alias prefix
+     * (e.g. "remote_cluster:my-index"). The operator preserves the prefix in the
+     * data_stream column so users can distinguish remote data streams.
+     */
+    public void testRemoteClusterPrefixPreservedInDataStream() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "remote_cluster:my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "remote_cluster:my-index");
+            assertColumnValue(output, 5, 0, "host");
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * When the _index block contains a cluster-prefixed backing index name
+     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
+     * strips the backing-index suffix but preserves the cluster prefix, producing
+     * "remote_cluster:k8s".
+     */
+    public void testRemoteClusterPrefixPreservedForBackingIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "remote_cluster:.ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", "remote_cluster:.ds-k8s-2024.01.15-000002");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("remote_cluster:k8s")));
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Local index names (no cluster prefix) pass through unchanged.
+     */
+    public void testLocalIndexNameUnchanged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-plain-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "my-plain-index");
+
             output.releaseBlocks();
         }
     }
@@ -1423,7 +1501,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         );
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
-        assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+        assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
 
         op.finish();
         Page output = op.getOutput();

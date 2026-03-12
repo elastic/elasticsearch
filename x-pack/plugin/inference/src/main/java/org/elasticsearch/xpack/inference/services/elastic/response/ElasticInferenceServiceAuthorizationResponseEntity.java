@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
@@ -18,13 +15,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
@@ -34,22 +30,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Handles parsing the v2 authorization response from the Elastic Inference Service.
- *
+ * <p>
  * Note: This class does not really need to be {@link InferenceServiceResults}. We do this so that we can leverage the existing
- * {@link org.elasticsearch.xpack.inference.external.http.sender.Sender} framework.
- *
+ * {@link Sender} framework.
+ * <p>
  * Because of this, we don't need to register this class as a named writeable in the NamedWriteableRegistry. It will never be
  * sent over the wire between nodes.
  */
-public class ElasticInferenceServiceAuthorizationResponseEntity implements InferenceServiceResults {
-
-    public static final String NAME = "elastic_inference_service_auth_results_v2";
+public record ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints)
+    implements
+        InferenceServiceResults {
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
 
@@ -80,7 +75,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Nullable Configuration configuration,
         @Nullable String displayName,
         @Nullable String fingerprint
-    ) implements Writeable, ToXContentObject {
+    ) {
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -124,91 +119,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(DISPLAY_NAME));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
-
-        public AuthorizedEndpoint(StreamInput in) throws IOException {
-            this(
-                in.readString(),
-                in.readString(),
-                new TaskTypeObject(in),
-                in.readString(),
-                in.readOptionalCollectionAsList(StreamInput::readString),
-                in.readString(),
-                in.readOptionalString(),
-                in.readOptionalWriteable(Configuration::new),
-                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null,
-                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null
-            );
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-            out.writeString(modelName);
-            taskType.writeTo(out);
-            out.writeString(status);
-            out.writeOptionalCollection(properties, StreamOutput::writeString);
-            out.writeString(releaseDate);
-            out.writeOptionalString(endOfLifeDate);
-            out.writeOptionalWriteable(configuration);
-
-            if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-                out.writeOptionalString(displayName);
-                out.writeOptionalString(fingerprint);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format(
-                "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, displayName='%s', fingerprint='%s'}",
-                id,
-                modelName,
-                taskType,
-                status,
-                properties,
-                releaseDate,
-                endOfLifeDate,
-                configuration,
-                displayName,
-                fingerprint
-            );
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
-            builder.field(ID, id);
-            builder.field(MODEL_NAME, modelName);
-            builder.field(TASK_TYPE, taskType);
-            builder.field(STATUS, status);
-            if (properties != null) {
-                builder.field(PROPERTIES, properties);
-            }
-            builder.field(RELEASE_DATE, releaseDate);
-            if (endOfLifeDate != null) {
-                builder.field(END_OF_LIFE_DATE, endOfLifeDate);
-            }
-            if (configuration != null) {
-                builder.field(CONFIGURATION, configuration);
-            }
-
-            if (displayName != null) {
-                builder.field(DISPLAY_NAME, displayName);
-            }
-
-            if (fingerprint != null) {
-                builder.field(FINGERPRINT, fingerprint);
-            }
-
-            builder.endObject();
-
-            return builder;
-        }
     }
 
-    public record TaskTypeObject(String eisTaskType, String elasticsearchTaskType) implements Writeable, ToXContentObject {
+    public record TaskTypeObject(String eisTaskType, String elasticsearchTaskType) {
 
         private static final String EIS_TASK_TYPE_FIELD = "eis";
         private static final String ELASTICSEARCH_TASK_TYPE_FIELD = "elasticsearch";
@@ -223,30 +136,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             PARSER.declareString(constructorArg(), new ParseField(EIS_TASK_TYPE_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(ELASTICSEARCH_TASK_TYPE_FIELD));
         }
-
-        public TaskTypeObject(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format("TaskTypeObject{eisTaskType='%s', elasticsearchTaskType='%s'}", eisTaskType, elasticsearchTaskType);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(eisTaskType);
-            out.writeString(elasticsearchTaskType);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
-            builder.field(ELASTICSEARCH_TASK_TYPE_FIELD, elasticsearchTaskType);
-            builder.endObject();
-            return builder;
-        }
     }
 
     public record Configuration(
@@ -254,7 +143,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Nullable Integer dimensions,
         @Nullable String elementType,
         @Nullable Map<String, Object> chunkingSettings
-    ) implements Writeable, ToXContentObject {
+    ) {
 
         public static final Configuration EMPTY = new Configuration(null, null, null, null);
 
@@ -276,62 +165,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
         }
-
-        public Configuration(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalVInt(), in.readOptionalString(), in.readGenericMap());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(similarity);
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalString(elementType);
-            out.writeGenericMap(chunkingSettings);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (similarity != null) {
-                builder.field(SIMILARITY, similarity);
-            }
-
-            if (dimensions != null) {
-                builder.field(DIMENSIONS, dimensions);
-            }
-
-            if (elementType != null) {
-                builder.field(ELEMENT_TYPE, elementType);
-            }
-
-            if (chunkingSettings != null) {
-                builder.field(CHUNKING_SETTINGS, chunkingSettings);
-            }
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format(
-                "Configuration{similarity='%s', dimensions=%s, elementType='%s', chunkingSettings=%s}",
-                similarity,
-                dimensions,
-                elementType,
-                chunkingSettings
-            );
-        }
     }
-
-    private final List<AuthorizedEndpoint> authorizedEndpoints;
 
     public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedEndpoints);
-    }
-
-    public ElasticInferenceServiceAuthorizationResponseEntity(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(AuthorizedEndpoint::new));
     }
 
     public static ElasticInferenceServiceAuthorizationResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
@@ -340,10 +177,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             return PARSER.apply(jsonParser, null);
         }
-    }
-
-    public List<AuthorizedEndpoint> getAuthorizedEndpoints() {
-        return authorizedEndpoints;
     }
 
     @Override
@@ -358,12 +191,12 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(authorizedEndpoints);
+        throw new UnsupportedOperationException("EIS authorization entity does not support serialization");
     }
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        throw new UnsupportedOperationException("EIS authorization entity does not support serialization");
     }
 
     @Override
@@ -374,18 +207,5 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
     @Override
     public Map<String, Object> asMap() {
         throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ElasticInferenceServiceAuthorizationResponseEntity that = (ElasticInferenceServiceAuthorizationResponseEntity) o;
-        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(authorizedEndpoints);
     }
 }

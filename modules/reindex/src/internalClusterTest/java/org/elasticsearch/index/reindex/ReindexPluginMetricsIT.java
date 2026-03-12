@@ -19,6 +19,7 @@ import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.reindex.DeleteByQueryMetrics.DELETE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
@@ -115,6 +117,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertThat(completions.size(), equalTo(1));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE), equalTo(expectedException.status().name()));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
         });
 
         // now create the source index
@@ -131,6 +134,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertThat(completions.size(), equalTo(2));
             assertNull(completions.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
             assertThat(completions.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
+            assertThat(completions.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
         });
 
     }
@@ -189,6 +193,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).forEach(m -> {
                 assertNull(m.attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
                 assertThat(m.attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+                assertThat(m.attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
             });
         });
     }
@@ -211,13 +216,116 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
             assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(1));
+            Measurement completion = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).getFirst();
             assertThat(
-                testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER)
-                    .getFirst()
-                    .attributes()
-                    .get(ATTRIBUTE_NAME_ERROR_TYPE),
+                completion.attributes().get(ATTRIBUTE_NAME_ERROR_TYPE),
                 equalTo("org.elasticsearch.index.mapper.DocumentParsingException")
             );
+            assertThat(completion.attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
+        });
+    }
+
+    public void testReindexMetricsWithFixedSlices() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c"),
+            prepareIndex("source").setId("4").setSource("foo", "d")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 4);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        reindex().source("source").destination("dest_fixed").setSlices(2).get();
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> histograms = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+            assertThat(histograms.size(), equalTo(1));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("fixed"));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
+            assertThat(completions.size(), equalTo(1));
+            assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("fixed"));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+        });
+    }
+
+    public void testReindexMetricsWithManualSlices() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c"),
+            prepareIndex("source").setId("4").setSource("foo", "d")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 4);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        ReindexRequestBuilder request = reindex().source("source").destination("dest_manual");
+        request.source().slice(new SliceBuilder(0, 2));
+        request.get();
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> histograms = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+            assertThat(histograms.size(), equalTo(1));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("manual"));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
+            assertThat(completions.size(), equalTo(1));
+            assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("manual"));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+        });
+    }
+
+    public void testReindexMetricsWithAutoSlices() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c"),
+            prepareIndex("source").setId("4").setSource("foo", "d")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 4);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByScrollRequest.AUTO_SLICES).get();
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> histograms = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+            assertThat(histograms.size(), equalTo(1));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("auto"));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
+            assertThat(completions.size(), equalTo(1));
+            assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("auto"));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
         });
     }
 

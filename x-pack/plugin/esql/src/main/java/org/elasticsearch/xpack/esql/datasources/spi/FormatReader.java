@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
 /**
@@ -30,6 +32,8 @@ import java.util.concurrent.Executor;
  * which returns a unified {@link SourceMetadata} containing schema and source information.
  */
 public interface FormatReader extends Closeable {
+
+    int NO_LIMIT = -1;
 
     /**
      * Strategy for resolving schemas across multiple files in a glob/multi-file query.
@@ -47,6 +51,15 @@ public interface FormatReader extends Closeable {
         return SchemaResolution.FIRST_FILE_WINS;
     }
 
+    /**
+     * Returns the default error policy for this format.
+     * Override to change the default behavior for a specific format (e.g. NDJSON
+     * defaults to lenient because skipping malformed lines is its natural behavior).
+     */
+    default ErrorPolicy defaultErrorPolicy() {
+        return ErrorPolicy.STRICT;
+    }
+
     // === SYNC API (required - implement this for simple formats) ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
@@ -57,9 +70,79 @@ public interface FormatReader extends Closeable {
 
     CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
 
+    /**
+     * Read with an explicit error policy. Implementations that support error tolerance
+     * should override this to honor the policy. The default delegates to
+     * {@link #read(StorageObject, List, int)} which uses the format's default error policy.
+     */
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
+        throws IOException {
+        return read(object, projectedColumns, batchSize);
+    }
+
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
+        throws IOException {
+        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
+        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
+    }
+
+    default CloseableIterator<Page> read(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize, errorPolicy);
+        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
+    }
+
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return read(object, projectedColumns, batchSize);
+    }
+
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
+    }
+
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes,
+        ErrorPolicy errorPolicy
+    ) throws IOException {
+        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes);
+    }
+
     String formatName();
 
     List<String> fileExtensions();
+
+    /**
+     * Returns a format reader configured with the given config map.
+     * Implementations should parse format-specific options from the config
+     * and return a new reader instance if any options are present.
+     * The default returns {@code this} (no configuration).
+     */
+    default FormatReader withConfig(Map<String, Object> config) {
+        return this;
+    }
 
     // === ASYNC API (optional - default wraps sync in executor) ===
 
@@ -70,9 +153,33 @@ public interface FormatReader extends Closeable {
         Executor executor,
         ActionListener<CloseableIterator<Page>> listener
     ) {
+        readAsync(object, projectedColumns, batchSize, NO_LIMIT, executor, listener);
+    }
+
+    default void readAsync(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
+        readAsync(object, projectedColumns, batchSize, rowLimit, null, executor, listener);
+    }
+
+    default void readAsync(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        int rowLimit,
+        ErrorPolicy errorPolicy,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, projectedColumns, batchSize));
+                ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
+                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit, effective));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -81,5 +188,67 @@ public interface FormatReader extends Closeable {
 
     default boolean supportsNativeAsync() {
         return false;
+    }
+
+    /**
+     * Iterator wrapper that stops yielding pages once a cumulative row budget is exhausted.
+     * Closes the delegate iterator when the budget is met or when explicitly closed.
+     * When the last page would overshoot the budget, it is trimmed to the exact remaining count.
+     */
+    class LimitingIterator implements CloseableIterator<Page> {
+        private final CloseableIterator<Page> delegate;
+        private int remaining;
+
+        LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
+            if (rowLimit <= 0) {
+                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
+            }
+            this.delegate = delegate;
+            this.remaining = rowLimit;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (remaining <= 0) {
+                return false;
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            Page page = delegate.next();
+            int rows = page.getPositionCount();
+            if (rows > remaining) {
+                page = truncate(page, remaining);
+                remaining = 0;
+            } else {
+                remaining -= rows;
+            }
+            if (remaining <= 0) {
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return page;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        private static Page truncate(Page page, int upTo) {
+            int[] positions = new int[upTo];
+            for (int i = 0; i < upTo; i++) {
+                positions[i] = i;
+            }
+            return page.filter(false, positions);
+        }
     }
 }

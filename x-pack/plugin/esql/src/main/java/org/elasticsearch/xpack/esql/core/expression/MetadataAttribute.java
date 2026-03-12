@@ -191,8 +191,12 @@ public class MetadataAttribute extends TypedAttribute {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
+    public static boolean isTimeSeriesAttributeName(String name) {
+        return TIMESERIES.equals(name);
+    }
+
     public static boolean isTimeSeriesAttribute(Expression a) {
-        return a instanceof Attribute ma && ma.name().equals(TIMESERIES);
+        return a instanceof TimeSeriesMetadataAttribute || a instanceof NamedExpression named && isTimeSeriesAttributeName(named.name());
     }
 
     @Override

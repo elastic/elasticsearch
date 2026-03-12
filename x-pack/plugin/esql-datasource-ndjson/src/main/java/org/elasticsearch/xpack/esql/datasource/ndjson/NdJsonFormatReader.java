@@ -11,18 +11,20 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 /**
  * FormatReader implementation for NDJSON files.
+ * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
-public class NdJsonFormatReader implements FormatReader {
+public class NdJsonFormatReader implements SegmentableFormatReader {
 
     private final BlockFactory blockFactory;
 
@@ -41,7 +43,69 @@ public class NdJsonFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory);
+        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, false);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        boolean trimLastPartialLine = lastSplit == false;
+        return new NdJsonPageIterator(
+            object,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            skipFirstLine,
+            trimLastPartialLine,
+            resolvedAttributes
+        );
+    }
+
+    @Override
+    public long findNextRecordBoundary(InputStream stream) throws IOException {
+        long consumed = 0;
+        byte[] buf = new byte[8192];
+        int bytesRead;
+        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+            for (int i = 0; i < bytesRead; i++) {
+                consumed++;
+                if (buf[i] == '\n') {
+                    return consumed;
+                }
+                if (buf[i] == '\r') {
+                    if (i + 1 < bytesRead) {
+                        if (buf[i + 1] == '\n') {
+                            i++;
+                            consumed++;
+                        }
+                    } else {
+                        int next = stream.read();
+                        if (next == '\n') {
+                            consumed++;
+                        }
+                    }
+                    return consumed;
+                }
+            }
+        }
+        return -1;
     }
 
     @Override
@@ -51,7 +115,7 @@ public class NdJsonFormatReader implements FormatReader {
 
     @Override
     public List<String> fileExtensions() {
-        return List.of(".ndjson", ".jsonl");
+        return List.of(".ndjson", ".jsonl", ".json");
     }
 
     @Override

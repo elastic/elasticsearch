@@ -23,7 +23,9 @@ public class Clusters {
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
+            .setting("xpack.license.self_generated.type", "trial")
+            // Remove after https://github.com/elastic/elasticsearch/issues/143884 (only the current version will log the stack trace)
+            .setting("logger.org.elasticsearch.index.mapper.FieldMapper", "DEBUG");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

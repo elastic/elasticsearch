@@ -409,7 +409,7 @@ public class HistogramUnionState implements Releasable, Accountable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o instanceof HistogramUnionState == false) return false;
 
         HistogramUnionState that = (HistogramUnionState) o;
 

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
             splits
@@ -100,6 +102,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
             splits

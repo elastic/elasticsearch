@@ -97,6 +97,34 @@ setup:
   - length:   { hits.hits: 1  }
 
 ---
+"Test wildcard contains query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*ey*" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test wildcard contains query matches single doc":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*ey1*" } } } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test wildcard contains query no match":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*xyz*" } } } }
+  - length:   { hits.hits: 0  }
+
+---
 "Test case insensitive wildcard query on keyword field where only binary doc values are enabled":
 
   - do:
@@ -104,6 +132,15 @@ setup:
         index: test
         body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
   - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard contains query":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*EY*", case_insensitive: true } } } }
+  - length:   { hits.hits: 2  }
 
 ---
 "Test regexp query on keyword field where only binary doc values are enabled":

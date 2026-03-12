@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -40,7 +41,7 @@ public class UriPartsGenerator implements CommandGenerator {
      */
     private static final LinkedHashMap<String, String> URI_PARTS_OUTPUT_FIELDS;
     static {
-        LinkedHashMap<String, Class<?>> outputFields = UriPartsFunctionBridge.getAllOutputFields();
+        SequencedMap<String, Class<?>> outputFields = UriPartsFunctionBridge.getAllOutputFields();
         URI_PARTS_OUTPUT_FIELDS = new LinkedHashMap<>(outputFields.size());
         for (Map.Entry<String, Class<?>> e : outputFields.entrySet()) {
             URI_PARTS_OUTPUT_FIELDS.putLast(e.getKey(), Objects.requireNonNull(DataType.fromJavaType(e.getValue())).typeName());

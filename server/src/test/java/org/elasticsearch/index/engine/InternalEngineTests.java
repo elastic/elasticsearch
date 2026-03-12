@@ -7767,6 +7767,40 @@ public class InternalEngineTests extends EngineTestCase {
         );
     }
 
+    public void testGetWithSequenceNumbersDisabled() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        assertTrue(indexSettings.sequenceNumbersDisabled());
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+        ) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+
+            MapperService mapperService = createMapperService();
+            try (
+                Engine.GetResult get = engine.get(
+                    new Engine.Get(true, false, doc.id()),
+                    mapperService.mappingLookup(),
+                    mapperService.documentParser(),
+                    randomSearcherWrapper()
+                )
+            ) {
+                assertTrue(get.exists());
+                assertThat(get.docIdAndVersion().seqNo, equalTo(UNASSIGNED_SEQ_NO));
+                assertThat(get.docIdAndVersion().primaryTerm, equalTo(UNASSIGNED_PRIMARY_TERM));
+            }
+        }
+    }
+
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
         assertThat(releasable, isPresent());

@@ -42,6 +42,11 @@ public class ES93ScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
     }
 
     @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
+    @Override
     protected Codec getCodec() {
         return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT));
     }

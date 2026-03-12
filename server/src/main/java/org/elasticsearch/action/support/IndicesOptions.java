@@ -48,12 +48,15 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  *                        does not support certain options.
  * @param crossProjectModeOptions, applies to all the indices and adds logic specific for cross-project search. These options are
  *                                 internal-only and can change over the lifetime of a single request.
+ * @param indexAbstractionOptions, controls which types of index abstractions (aliases, views, etc.) participate in index
+ *                                resolution. These options apply to both concrete and wildcard resolution paths.
  */
 public record IndicesOptions(
     ConcreteTargetOptions concreteTargetOptions,
     WildcardOptions wildcardOptions,
     GatekeeperOptions gatekeeperOptions,
-    CrossProjectModeOptions crossProjectModeOptions
+    CrossProjectModeOptions crossProjectModeOptions,
+    IndexAbstractionOptions indexAbstractionOptions
 ) implements ToXContentFragment {
 
     public static IndicesOptions.Builder builder() {
@@ -97,21 +100,19 @@ public record IndicesOptions(
      * @param resolveAliases, aliases will be included in the result, if false we treat them like they do not exist
      * @param allowEmptyExpressions, when an expression does not result in any indices, if false it throws an error if true it treats it as
      *                               an empty result
-     * @param resolveViews, views will be included in the result, if false we treat them like they do not exist
      */
     public record WildcardOptions(
         boolean matchOpen,
         boolean matchClosed,
         boolean includeHidden,
         boolean resolveAliases,
-        boolean allowEmptyExpressions,
-        boolean resolveViews
+        boolean allowEmptyExpressions
     ) implements ToXContentFragment {
 
         public static final String EXPAND_WILDCARDS = "expand_wildcards";
         public static final String ALLOW_NO_INDICES = "allow_no_indices";
 
-        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true, false);
+        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true);
 
         public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
             if (expandWildcards == null && allowNoIndices == null) {
@@ -180,7 +181,6 @@ public record IndicesOptions(
             private boolean includeHidden;
             private boolean resolveAliases;
             private boolean allowEmptyExpressions;
-            private boolean resolveViews;
 
             Builder() {
                 this(DEFAULT);
@@ -192,7 +192,6 @@ public record IndicesOptions(
                 includeHidden = options.includeHidden;
                 resolveAliases = options.resolveAliases;
                 allowEmptyExpressions = options.allowEmptyExpressions;
-                resolveViews = options.resolveViews;
             }
 
             /**
@@ -249,14 +248,6 @@ public record IndicesOptions(
             }
 
             /**
-             * Resolve views. Defaults to false
-             */
-            public Builder resolveViews(boolean resolveViews) {
-                this.resolveViews = resolveViews;
-                return this;
-            }
-
-            /**
              * Maximises the resolution of indices, we will match open, closed and hidden targets.
              */
             public Builder all() {
@@ -293,7 +284,7 @@ public record IndicesOptions(
             }
 
             public WildcardOptions build() {
-                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions, resolveViews);
+                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions);
             }
         }
 
@@ -461,6 +452,48 @@ public record IndicesOptions(
     }
 
     /**
+     * Controls which types of index abstractions participate in index resolution. These options apply uniformly
+     * to both concrete target and wildcard resolution paths.
+     * @param resolveViews, views will be included in the result, if false we treat them like they do not exist. Defaults to false.
+     */
+    public record IndexAbstractionOptions(boolean resolveViews) {
+
+        public static final IndexAbstractionOptions DEFAULT = new IndexAbstractionOptions(false);
+
+        public static class Builder {
+            private boolean resolveViews;
+
+            Builder() {
+                this(DEFAULT);
+            }
+
+            Builder(IndexAbstractionOptions options) {
+                resolveViews = options.resolveViews;
+            }
+
+            /**
+             * Views will be included in the result. Defaults to false.
+             */
+            public Builder resolveViews(boolean resolveViews) {
+                this.resolveViews = resolveViews;
+                return this;
+            }
+
+            public IndexAbstractionOptions build() {
+                return new IndexAbstractionOptions(resolveViews);
+            }
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static Builder builder(IndexAbstractionOptions indexAbstractionOptions) {
+            return new Builder(indexAbstractionOptions);
+        }
+    }
+
+    /**
      * This class is maintained for backwards compatibility and performance purposes. We use it for serialisation along with {@link Option}.
      */
     private enum WildcardStates {
@@ -511,7 +544,8 @@ public record IndicesOptions(
         ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT,
         GatekeeperOptions.DEFAULT,
-        CrossProjectModeOptions.DEFAULT
+        CrossProjectModeOptions.DEFAULT,
+        IndexAbstractionOptions.DEFAULT
     );
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
@@ -568,6 +602,25 @@ public record IndicesOptions(
                 .allowSelectors(true)
                 .ignoreThrottled(false)
         )
+        .build();
+    public static final IndicesOptions CPS_LENIENT_EXPAND_OPEN = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -997,7 +1050,8 @@ public record IndicesOptions(
                 : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcardOptions,
             gatekeeperOptions,
-            CrossProjectModeOptions.readFrom(in)
+            CrossProjectModeOptions.readFrom(in),
+            IndexAbstractionOptions.DEFAULT
         );
     }
 
@@ -1006,6 +1060,7 @@ public record IndicesOptions(
         private WildcardOptions wildcardOptions;
         private GatekeeperOptions gatekeeperOptions;
         private CrossProjectModeOptions crossProjectModeOptions;
+        private IndexAbstractionOptions indexAbstractionOptions;
 
         Builder() {
             this(DEFAULT);
@@ -1016,6 +1071,7 @@ public record IndicesOptions(
             wildcardOptions = indicesOptions.wildcardOptions;
             gatekeeperOptions = indicesOptions.gatekeeperOptions;
             crossProjectModeOptions = indicesOptions.crossProjectModeOptions;
+            indexAbstractionOptions = indicesOptions.indexAbstractionOptions;
         }
 
         public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
@@ -1048,8 +1104,24 @@ public record IndicesOptions(
             return this;
         }
 
+        public Builder indexAbstractionOptions(IndexAbstractionOptions indexAbstractionOptions) {
+            this.indexAbstractionOptions = indexAbstractionOptions;
+            return this;
+        }
+
+        public Builder indexAbstractionOptions(IndexAbstractionOptions.Builder indexAbstractionOptions) {
+            this.indexAbstractionOptions = indexAbstractionOptions.build();
+            return this;
+        }
+
         public IndicesOptions build() {
-            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, crossProjectModeOptions);
+            return new IndicesOptions(
+                concreteTargetOptions,
+                wildcardOptions,
+                gatekeeperOptions,
+                crossProjectModeOptions,
+                indexAbstractionOptions
+            );
         }
     }
 
@@ -1152,7 +1224,8 @@ public record IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcards,
             gatekeeperOptions,
-            CrossProjectModeOptions.DEFAULT
+            CrossProjectModeOptions.DEFAULT,
+            IndexAbstractionOptions.DEFAULT
         );
     }
 
@@ -1235,6 +1308,7 @@ public record IndicesOptions(
             .wildcardOptions(wildcards)
             .gatekeeperOptions(gatekeeperOptions)
             .crossProjectModeOptions(crossProjectModeOptions)
+            .indexAbstractionOptions(defaultSettings.indexAbstractionOptions)
             .build();
     }
 
@@ -1510,6 +1584,8 @@ public record IndicesOptions(
             + allowSelectors()
             + ", include_failure_indices="
             + includeFailureIndices()
+            + ", resolve_views="
+            + indexAbstractionOptions.resolveViews()
             + ", resolve_cross_project_index_expression="
             + resolveCrossProjectIndexExpression()
             + ']';

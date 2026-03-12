@@ -731,19 +731,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             );
         }
 
-        // Shortcut for tests that don't need index mode filtering
-        static void resolveIndices(
-            String[] names,
-            IndicesOptions indicesOptions,
-            ProjectState projectState,
-            IndexNameExpressionResolver resolver,
-            List<ResolvedIndex> indices,
-            List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
-        ) {
-            resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Collections.emptySet());
-        }
-
         /**
          * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
          *
@@ -779,6 +766,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
+            assert indicesOptions.indexAbstractionOptions().resolveViews() == false : "Views are not supported in ResolveIndexAction";
             Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
                 projectState.metadata(),
                 indicesOptions,

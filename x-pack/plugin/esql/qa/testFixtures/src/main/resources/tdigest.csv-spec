@@ -15,6 +15,7 @@ FROM tdigest_standard_index
 
 allAggsUngrouped
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -23,12 +24,11 @@ FROM tdigest_standard_index
          p90 = PERCENTILE(responseTime,90),
          sum = SUM(responseTime),
          avg = AVG(responseTime) 
- | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP min, max, p90, sum, avg
 ;
 
-min:double | max:double | p90:double | sum:double  | avg:double
-2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
+min:double | max:double | p90:double | sum:double        | avg:double
+2.17E-4    | 6.786232   | 0.32..0.49 | 1536.495..1536.802 | 0.0993145..0.0993344
 ;
 
 // -------------------------------------------------------------------------------
@@ -58,7 +58,7 @@ FROM tdigest_standard_index
 ;
 ignoreOrder:true
 
-instance:keyword |cnt:long 
+instance:keyword | cnt:long
 instance-0       | 8841
 instance-1       | 3250
 instance-2       | 3380
@@ -93,7 +93,7 @@ TS tdigest_timeseries_index
 ;
 ignoreOrder:true
 
-instance:keyword |cnt:long 
+instance:keyword | cnt:long
 instance-0       | 8841
 instance-1       | 3250
 instance-2       | 3380
@@ -103,6 +103,7 @@ instance-2       | 3380
 
 allAggsGrouped
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -112,15 +113,14 @@ FROM tdigest_standard_index
          sum = SUM(responseTime),
          avg = AVG(responseTime) 
          BY instance
- | EVAL p95 = ROUND(p95 + 0.025, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, min, max, p95, sum, avg
  | SORT instance
 ;
 
-instance:keyword | min:double | max:double | p95:double | sum:double  | avg:double
-instance-0       | 2.4E-4     | 6.786232   | 0.7        | 1472.744209 | 0.1665812
-instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
-instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
+instance:keyword | min:double | max:double | p95:double    | sum:double       | avg:double
+instance-0       | 2.4E-4     | 6.786232   | 0.56..0.85    | 1472.597..1472.891 | 0.1665645..0.1665978
+instance-1       | 2.17E-4    | 3.190723   | 0.045..0.07   | 36.1949..36.2022   | 0.0111368..0.0111392
+instance-2       | 2.2E-4     | 2.744054   | 0.033..0.052  | 27.7032..27.7088   | 0.0081962..0.0081979
 ;
 
 // -------------------------------------------------------------------------------
@@ -158,35 +158,50 @@ cnt:long
 
 ungroupedPercentiles
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p95 = PERCENTILE(responseTime, 95),  p100 = PERCENTILE(responseTime,100)
- | EVAL p50 = ROUND(p50, 1), p95 = ROUND(p95, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
  | KEEP p0, p50, p95, p100
 ;
 
-p0:double | p50:double | p95:double | p100:double
-2.17E-4   | 0.0        | 0.6        | 6.786232
+p0:double | p50:double      | p95:double   | p100:double
+2.17E-4   | 0.0017..0.0026  | 0.46..0.71   | 6.786232
+;
+
+// -------------------------------------------------------------------------------
+
+bwcUngroupedPercentile
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS p90 = PERCENTILE(responseTime,90)
+ | KEEP p90
+;
+
+p90:double
+0.08..0.74
 ;
 
 
 
 groupedPercentiles
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p95 = PERCENTILE(responseTime, 95),  p100 = PERCENTILE(responseTime,100) BY instance
- | EVAL p50 = ROUND(p50, 1), p95 = ROUND(p95 + 0.025, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
  | KEEP instance, p0, p50, p95, p100
  | SORT instance
 ;
 
-instance:keyword | p0:double | p50:double | p95:double | p100:double
-instance-0       | 2.4E-4    | 0.0        | 0.7       | 6.786232
-instance-1       | 2.17E-4   | 0.0        | 0.1       | 3.190723
-instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
+instance:keyword | p0:double | p50:double      | p95:double   | p100:double
+instance-0       | 2.4E-4    | 0.019..0.03     | 0.56..0.85   | 6.786232
+instance-1       | 2.17E-4   | 5.2E-4..7.9E-4  | 0.045..0.07  | 3.190723
+instance-2       | 2.2E-4    | 5E-4..7.8E-4    | 0.033..0.052 | 2.744054
 ;
 
 
@@ -209,6 +224,7 @@ NULL
 medianOnEmptyTDigest
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -225,6 +241,7 @@ NULL
 ungroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -233,7 +250,7 @@ FROM tdigest_standard_index
 ;
 
 median:double
-0.001..0.003
+0.0017..0.0026
 ;
 
 
@@ -241,6 +258,7 @@ median:double
 groupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -250,9 +268,9 @@ FROM tdigest_standard_index
 ;
 
 instance:keyword | median:double
-instance-0       | 0.02..0.03
-instance-1       | 5E-4..8E-4
-instance-2       | 5E-4..8E-4
+instance-0       | 0.019..0.03
+instance-1       | 5.2E-4..7.9E-4
+instance-2       | 5E-4..7.8E-4
 ;
 
 
@@ -261,6 +279,7 @@ timeseriesUngroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -269,7 +288,7 @@ TS tdigest_timeseries_index
 ;
 
 median:double
-0.001..0.003
+0.0017..0.0026
 ;
 
 
@@ -278,6 +297,7 @@ timeseriesGroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -287,15 +307,16 @@ TS tdigest_timeseries_index
 ;
 
 instance:keyword | median:double
-instance-0       | 0.02..0.03
-instance-1       | 5E-4..8E-4
-instance-2       | 5E-4..8E-4
+instance-0       | 0.019..0.03
+instance-1       | 5.2E-4..7.9E-4
+instance-2       | 5E-4..7.8E-4
 ;
 
 
 
 allAggsFiltered
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "instance-0",
@@ -303,18 +324,18 @@ FROM tdigest_standard_index
          p95 = PERCENTILE(responseTime,95) WHERE instance == "instance-0",
          sum = SUM(responseTime) WHERE instance == "instance-1",
          avg = AVG(responseTime) WHERE instance == "instance-2"
- | EVAL p95 = ROUND(p95, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP min, max, p95, sum, avg
 ;
 
-min:double | max:double | p95:double | sum:double | avg:double
-2.4E-4     | 3.190723   | 0.7       | 36.198484  | 0.008197
+min:double | max:double | p95:double   | sum:double    | avg:double
+2.4E-4     | 3.190723   | 0.56..0.85   | 36.1949..36.2022 | 0.0081962..0.0081979
 ;
 
 
 
 allAggsGroupedFiltered
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -324,15 +345,14 @@ FROM tdigest_standard_index
          sum = SUM(responseTime) WHERE instance == "instance-1",
          avg = AVG(responseTime) WHERE instance == "instance-2"
          BY instance
- | EVAL p95 = ROUND(p95, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, min, max, p95, sum, avg
  | SORT instance
 ;
 
-instance:keyword | min:double | max:double | p95:double | sum:double | avg:double
-instance-0       | 2.4E-4     | null       | 0.7        | null       | null
-instance-1       | null       | 3.190723   | null       | 36.198484  | null
-instance-2       | null       | null       | null       | null       | 0.008197
+instance:keyword | min:double | max:double | p95:double   | sum:double    | avg:double
+instance-0       | 2.4E-4     | null       | 0.56..0.85   | null          | null
+instance-1       | null       | 3.190723   | null         | 36.1949..36.2022 | null
+instance-2       | null       | null       | null         | null          | 0.0081962..0.0081979
 ;
 
 
@@ -394,16 +414,16 @@ NULL       | NULL       | NULL       | NULL       | NULL
 timeseriesAllAggsUngrouped
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
  | STATS min = MIN(responseTime), max = MAX(responseTime), p90 = PERCENTILE(responseTime,90), sum = SUM(responseTime), avg = AVG(responseTime)
- | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP min, max, p90, sum, avg
 ;
 
-min:double | max:double | p90:double | sum:double  | avg:double
-2.17E-4    | 6.786232   | 0.4        | 1536.648714 | 0.0993245
+min:double | max:double | p90:double | sum:double        | avg:double
+2.17E-4    | 6.786232   | 0.32..0.49 | 1536.495..1536.802 | 0.0993145..0.0993344
 ;
 
 // -------------------------------------------------------------------------------
@@ -412,6 +432,7 @@ All aggs grouped by TBucket and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -423,24 +444,23 @@ TS tdigest_timeseries_index
          avg = AVG(responseTime),
          count = COUNT(responseTime)
          BY instance, time=TBUCKET(10m)
- | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, time, min, max, p90, sum, avg, count
  | SORT instance, time
 ;
 
-instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double | avg:double | count:long
-instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.5        | 128.220162 | 0.1582965  | 810
-instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.5        | 139.229386 | 0.1567898  | 888
-instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.5        | 146.914416 | 0.1680943  | 874
-instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.5        | 15.216617  | 0.1729161  | 88
-instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0        | 1.323601   | 0.0046119  | 287
-instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.0        | 1.422738   | 0.0049746  | 286
-instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0        | 0.737455   | 0.0025695  | 287
-instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.0        | 0.399745   | 0.0133248  | 30
-instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0        | 1.710478   | 0.0057982  | 295
-instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0        | 1.278917   | 0.0041255  | 310
-instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0        | 0.946027   | 0.0032622  | 290
-instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0        | 0.033433   | 0.0011529  | 29
+instance:keyword | time:datetime            | min:double | max:double | p90:double      | sum:double         | avg:double         | count:long
+instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.43..0.65      | 128.2073..128.233  | 0.1582806..0.1583124 | 810
+instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.43..0.66      | 139.2154..139.2434 | 0.1567741..0.1568056 | 888
+instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.43..0.65      | 146.8997..146.9292 | 0.1680774..0.1681112 | 874
+instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.51..0.78      | 15.2150..15.2182   | 0.1728988..0.1729334 | 88
+instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0034..0.0052  | 1.3234..1.3238     | 0.0046113..0.0046124 | 287
+instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.004..0.0062   | 1.4225..1.4229     | 0.0049741..0.0049752 | 286
+instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0023..0.0035  | 0.7373..0.7376     | 0.0025692..0.0025698 | 287
+instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.032..0.049    | 0.3997..0.3998     | 0.0133234..0.0133262 | 30
+instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0051..0.0077  | 1.7103..1.7107     | 0.0057976..0.0057988 | 295
+instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0038..0.0057  | 1.2787..1.2791     | 0.0041250..0.0041260 | 310
+instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0028..0.0043  | 0.9459..0.9462     | 0.0032618..0.0032626 | 290
+instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..0.0034  | 0.033429..0.033437 | 0.0011527..0.0011531 | 29
 ;
 
 // -------------------------------------------------------------------------------
@@ -449,6 +469,7 @@ All aggs grouped by Date Trunc and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -460,24 +481,23 @@ TS tdigest_timeseries_index
          avg = AVG(responseTime),
          count = COUNT(responseTime)
          BY instance, time=date_trunc(10m, @timestamp)
- | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, time, min, max, p90, sum, avg, count
  | SORT instance, time
 ;
 
-instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double | avg:double | count:long
-instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.5        | 128.220162 | 0.1582965  | 810
-instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.5        | 139.229386 | 0.1567898  | 888
-instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.5        | 146.914416 | 0.1680943  | 874
-instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.5        | 15.216617  | 0.1729161  | 88
-instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0        | 1.323601   | 0.0046119  | 287
-instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.0        | 1.422738   | 0.0049746  | 286
-instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0        | 0.737455   | 0.0025695  | 287
-instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.0        | 0.399745   | 0.0133248  | 30
-instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0        | 1.710478   | 0.0057982  | 295
-instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0        | 1.278917   | 0.0041255  | 310
-instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0        | 0.946027   | 0.0032622  | 290
-instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0        | 0.033433   | 0.0011529  | 29
+instance:keyword | time:datetime            | min:double | max:double | p90:double      | sum:double         | avg:double         | count:long
+instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.43..0.65      | 128.2073..128.233  | 0.1582806..0.1583124 | 810
+instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.43..0.66      | 139.2154..139.2434 | 0.1567741..0.1568056 | 888
+instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.43..0.65      | 146.8997..146.9292 | 0.1680774..0.1681112 | 874
+instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.51..0.78      | 15.2150..15.2182   | 0.1728988..0.1729334 | 88
+instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0034..0.0052  | 1.3234..1.3238     | 0.0046113..0.0046124 | 287
+instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.004..0.0062   | 1.4225..1.4229     | 0.0049741..0.0049752 | 286
+instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0023..0.0035  | 0.7373..0.7376     | 0.0025692..0.0025698 | 287
+instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.032..0.049    | 0.3997..0.3998     | 0.0133234..0.0133262 | 30
+instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0051..0.0077  | 1.7103..1.7107     | 0.0057976..0.0057988 | 295
+instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0038..0.0057  | 1.2787..1.2791     | 0.0041250..0.0041260 | 310
+instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0028..0.0043  | 0.9459..0.9462     | 0.0032618..0.0032626 | 290
+instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..0.0034  | 0.033429..0.033437 | 0.0011527..0.0011531 | 29
 ;
 
 
@@ -487,6 +507,7 @@ All aggs grouped by Bucket and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -498,30 +519,30 @@ TS tdigest_timeseries_index
          avg = AVG(responseTime),
          count = COUNT(responseTime)
          BY instance, time=Bucket(@timestamp, 10m)
- | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, time, min, max, p90, sum, avg, count
  | SORT instance, time
 ;
 
-instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double | avg:double | count:long
-instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.5        | 128.220162 | 0.1582965  | 810
-instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.5        | 139.229386 | 0.1567898  | 888
-instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.5        | 146.914416 | 0.1680943  | 874
-instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.5        | 15.216617  | 0.1729161  | 88
-instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0        | 1.323601   | 0.0046119  | 287
-instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.0        | 1.422738   | 0.0049746  | 286
-instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0        | 0.737455   | 0.0025695  | 287
-instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.0        | 0.399745   | 0.0133248  | 30
-instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0        | 1.710478   | 0.0057982  | 295
-instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0        | 1.278917   | 0.0041255  | 310
-instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0        | 0.946027   | 0.0032622  | 290
-instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0        | 0.033433   | 0.0011529  | 29
+instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double         | avg:double         | count:long
+instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.43..0.65      | 128.2073..128.233  | 0.1582806..0.1583124 | 810
+instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.43..0.66      | 139.2154..139.2434 | 0.1567741..0.1568056 | 888
+instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.43..0.65      | 146.8997..146.9292 | 0.1680774..0.1681112 | 874
+instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.51..0.78      | 15.2150..15.2182   | 0.1728988..0.1729334 | 88
+instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0034..0.0052  | 1.3234..1.3238     | 0.0046113..0.0046124 | 287
+instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.004..0.0062   | 1.4225..1.4229     | 0.0049741..0.0049752 | 286
+instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0023..0.0035  | 0.7373..0.7376     | 0.0025692..0.0025698 | 287
+instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.032..0.049    | 0.3997..0.3998     | 0.0133234..0.0133262 | 30
+instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0051..0.0077  | 1.7103..1.7107     | 0.0057976..0.0057988 | 295
+instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0038..0.0057  | 1.2787..1.2791     | 0.0041250..0.0041260 | 310
+instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0028..0.0043  | 0.9459..0.9462     | 0.0032618..0.0032626 | 290
+instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..0.0034  | 0.033429..0.033437 | 0.0011527..0.0011531 | 29
 ;
 // -------------------------------------------------------------------------------
 
 Group Aggs By Date_Trunc and Instance (standard mode)
 required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -533,7 +554,6 @@ FROM tdigest_standard_index
          avg = AVG(responseTime),
          count = COUNT(responseTime)
          BY instance, time=date_trunc(10m, @timestamp)
- | EVAL p90 = ROUND(p90, 2), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, time, min, max, p90, sum, avg, count
  | SORT instance, time
 ;
@@ -542,19 +562,19 @@ FROM tdigest_standard_index
 // Note: we have seen several test failures on serverless around the p90 results here. As the accuracy of the 
 // t-digest alogirthm is tested elsewhere, we are not concerned about validating the results here, and have 
 // expanded the acceptance criteria to keep the test from flapping
-instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double | avg:double | count:long
-instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.3..0.7   | 128.220162 | 0.1582965  | 810
-instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.3..0.7   | 139.229386 | 0.1567898  | 888
-instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.3..0.7   | 146.914416 | 0.1680943  | 874
-instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.3..0.7   | 15.216617  | 0.1729161  | 88
-instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0..0.1   | 1.323601   | 0.0046119  | 287
-instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.0..0.1   | 1.422738   | 0.0049746  | 286
-instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0..0.1   | 0.737455   | 0.0025695  | 287
-instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.0..0.1   | 0.399745   | 0.0133248  | 30
-instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0..0.1   | 1.710478   | 0.0057982  | 295
-instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0..0.1   | 1.278917   | 0.0041255  | 310
-instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0..0.1   | 0.946027   | 0.0032622  | 290
-instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0..0.1   | 0.033433   | 0.0011529  | 29
+instance:keyword | time:datetime            | min:double | max:double | p90:double      | sum:double         | avg:double         | count:long
+instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.43..0.65      | 128.2073..128.233  | 0.1582806..0.1583124 | 810
+instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.43..0.66      | 139.2154..139.2434 | 0.1567741..0.1568056 | 888
+instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.43..0.65      | 146.8997..146.9292 | 0.1680774..0.1681112 | 874
+instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.51..0.78      | 15.2150..15.2182   | 0.1728988..0.1729334 | 88
+instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0034..0.0052  | 1.3234..1.3238     | 0.0046113..0.0046124 | 287
+instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.004..0.0062   | 1.4225..1.4229     | 0.0049741..0.0049752 | 286
+instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0023..0.0035  | 0.7373..0.7376     | 0.0025692..0.0025698 | 287
+instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.032..0.049    | 0.3997..0.3998     | 0.0133234..0.0133262 | 30
+instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0051..0.0077  | 1.7103..1.7107     | 0.0057976..0.0057988 | 295
+instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0038..0.0057  | 1.2787..1.2791     | 0.0041250..0.0041260 | 310
+instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0028..0.0043  | 0.9459..0.9462     | 0.0032618..0.0032626 | 290
+instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..0.0034  | 0.033429..0.033437 | 0.0011527..0.0011531 | 29
 ;
 
 // -------------------------------------------------------------------------------
@@ -562,6 +582,7 @@ instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0..0.1
 Group Aggs By Bucket and Instance (standard mode)
 required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -573,7 +594,6 @@ FROM tdigest_standard_index
          avg = AVG(responseTime),
          count = COUNT(responseTime)
          BY instance, time=bucket(@timestamp, 10m)
- | EVAL p90 = ROUND(p90, 2), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP instance, time, min, max, p90, sum, avg, count
  | SORT instance, time
 ;
@@ -581,19 +601,19 @@ FROM tdigest_standard_index
 // Note: we have seen several test failures on serverless around the p90 results here. As the accuracy of the 
 // t-digest alogirthm is tested elsewhere, we are not concerned about validating the results here, and have 
 // expanded the acceptance criteria to keep the test from flapping
-instance:keyword | time:datetime            | min:double | max:double | p90:double | sum:double | avg:double | count:long
-instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.3..0.7   | 128.220162 | 0.1582965  | 810
-instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.3..0.7   | 139.229386 | 0.1567898  | 888
-instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.3..0.7   | 146.914416 | 0.1680943  | 874
-instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.3..0.7   | 15.216617  | 0.1729161  | 88
-instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0..0.1   | 1.323601   | 0.0046119  | 287
-instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.0..0.1   | 1.422738   | 0.0049746  | 286
-instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0..0.1   | 0.737455   | 0.0025695  | 287
-instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.0..0.1   | 0.399745   | 0.0133248  | 30
-instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0..0.1   | 1.710478   | 0.0057982  | 295
-instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0..0.1   | 1.278917   | 0.0041255  | 310
-instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0..0.1   | 0.946027   | 0.0032622  | 290
-instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0..0.1   | 0.033433   | 0.0011529  | 29
+instance:keyword | time:datetime            | min:double | max:double | p90:double      | sum:double         | avg:double         | count:long
+instance-0       | 2025-09-25T00:30:00.000Z | 2.5E-4     | 1.291403   | 0.43..0.65      | 128.2073..128.233  | 0.1582806..0.1583124 | 810
+instance-0       | 2025-09-25T00:40:00.000Z | 2.93E-4    | 1.381711   | 0.43..0.66      | 139.2154..139.2434 | 0.1567741..0.1568056 | 888
+instance-0       | 2025-09-25T00:50:00.000Z | 2.57E-4    | 1.337726   | 0.43..0.65      | 146.8997..146.9292 | 0.1680774..0.1681112 | 874
+instance-0       | 2025-09-25T01:00:00.000Z | 3.58E-4    | 1.384036   | 0.51..0.78      | 15.2150..15.2182   | 0.1728988..0.1729334 | 88
+instance-1       | 2025-09-25T00:30:00.000Z | 2.37E-4    | 0.144625   | 0.0034..0.0052  | 1.3234..1.3238     | 0.0046113..0.0046124 | 287
+instance-1       | 2025-09-25T00:40:00.000Z | 2.33E-4    | 0.189058   | 0.004..0.0062   | 1.4225..1.4229     | 0.0049741..0.0049752 | 286
+instance-1       | 2025-09-25T00:50:00.000Z | 2.29E-4    | 0.06199    | 0.0023..0.0035  | 0.7373..0.7376     | 0.0025692..0.0025698 | 287
+instance-1       | 2025-09-25T01:00:00.000Z | 3.31E-4    | 0.252402   | 0.032..0.049    | 0.3997..0.3998     | 0.0133234..0.0133262 | 30
+instance-2       | 2025-09-25T00:30:00.000Z | 2.21E-4    | 0.136683   | 0.0051..0.0077  | 1.7103..1.7107     | 0.0057976..0.0057988 | 295
+instance-2       | 2025-09-25T00:40:00.000Z | 2.25E-4    | 0.098632   | 0.0038..0.0057  | 1.2787..1.2791     | 0.0041250..0.0041260 | 310
+instance-2       | 2025-09-25T00:50:00.000Z | 2.2E-4     | 0.092109   | 0.0028..0.0043  | 0.9459..0.9462     | 0.0032618..0.0032626 | 290
+instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..0.0034  | 0.033429..0.033437 | 0.0011527..0.0011531 | 29
 ;
 
 // -------------------------------------------------------------------------------
@@ -639,4 +659,23 @@ time:datetime            | count:long
 2025-09-25T00:40:00.000Z | 1484
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
+;
+
+// -------------------------------------------------------------------------------
+
+timeseriesLastAndFirstOverTimeDirectTDigest
+required_capability: ts_command_v0
+required_capability: tdigest_first_last_over_time
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS first_count = COUNT(first_over_time(responseTime)),
+         last_count = COUNT(last_over_time(responseTime))
+         BY time = TBUCKET(1d)
+ | KEEP time, first_count, last_count
+ | SORT time
+;
+
+time:datetime            | first_count:long | last_count:long
+2025-09-25T00:00:00.000Z | 135              | 142
 ;

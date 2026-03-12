@@ -12,6 +12,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
+import org.elasticsearch.action.support.IndicesOptions.IndexAbstractionOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -59,6 +60,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowSelectors(randomBoolean())
                 )
                 .crossProjectModeOptions(new CrossProjectModeOptions(randomBoolean()))
+                .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveViews(randomBoolean()))
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -67,7 +69,10 @@ public class IndicesOptionsTests extends ESTestCase {
             StreamInput streamInput = output.bytes().streamInput();
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
-            assertThat(indicesOptions2, equalTo(indicesOptions));
+            IndicesOptions expected = IndicesOptions.builder(indicesOptions)
+                .indexAbstractionOptions(IndexAbstractionOptions.builder(indicesOptions.indexAbstractionOptions()).resolveViews(false))
+                .build();
+            assertThat(indicesOptions2, equalTo(expected));
         }
     }
 
@@ -345,7 +350,6 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean(),
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
@@ -356,12 +360,14 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         CrossProjectModeOptions crossProjectModeOptions = new CrossProjectModeOptions(randomBoolean());
+        IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(randomBoolean());
 
         IndicesOptions indicesOptions = new IndicesOptions(
             concreteTargetOptions,
             wildcardOptions,
             gatekeeperOptions,
-            crossProjectModeOptions
+            crossProjectModeOptions,
+            indexAbstractionOptions
         );
 
         XContentType type = randomFrom(XContentType.values());
@@ -381,7 +387,6 @@ public class IndicesOptionsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         WildcardOptions wildcardOptions = new WildcardOptions(
-            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),

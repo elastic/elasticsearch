@@ -34,7 +34,7 @@ public class WriteLoadConstraintSettings {
         DISABLED,
         /**
          * Only the low write low threshold, to try to avoid allocating to a node exceeding
-         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
+         * {@link #WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
          */
         LOW_THRESHOLD_ONLY,
         /**
@@ -90,10 +90,11 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * The threshold over which we consider write thread pool utilization "high"
+     * The threshold over which we consider write thread pool utilization hot-spotting in a balancing movement,
+     * when a node is being considered as a destination for a shard
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
-        SETTING_PREFIX + "high_utilization_threshold",
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "allocation_utilization_threshold",
         "90%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
@@ -101,23 +102,25 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * The duration for which we need to see "high" utilization before we consider the low threshold exceeded
+     * When the decider is {@link WriteLoadDeciderStatus#ENABLED}, the write-load monitor will call
+     * {@link RerouteService#reroute(String, Priority, ActionListener)} when we see tasks being delayed by this amount of time
+     * and the utilization is above a certain threshold (but no more often than {@link #WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING})
      */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "high_utilization_duration",
-        TimeValue.timeValueMinutes(10),
+    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
+        SETTING_PREFIX + "queue_latency_threshold",
+        TimeValue.timeValueSeconds(10),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
-     * When the decider is {@link WriteLoadDeciderStatus#ENABLED}, the write-load monitor will call
-     * {@link RerouteService#reroute(String, Priority, ActionListener)} when we see tasks being delayed by this amount of time
-     * (but no more often than {@link #WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING})
+     * The threshold over which we consider write thread pool utilization hotspotting in a canRemain check, when a shard
+     * is being considered for moving off of a node
      */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "queue_latency_threshold",
-        TimeValue.timeValueSeconds(10),
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "hotspot_utilization_threshold",
+        "0%",
+        RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -144,8 +147,10 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    private volatile double highUtilizationThreshold;
+    private volatile double allocationUtilizationThreshold;
     private volatile TimeValue queueLatencyThreshold;
+    private volatile double hotspotUtilizationThreshold;
+    private volatile String hotspotUtilizationThresholdString;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -154,10 +159,15 @@ public class WriteLoadConstraintSettings {
             timeValue -> this.minimumRerouteInterval = timeValue
         );
         clusterSettings.initializeAndWatch(
-            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-            value -> highUtilizationThreshold = value.getAsRatio()
+            WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
+            value -> allocationUtilizationThreshold = value.getAsRatio()
         );
+
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING, value -> {
+            hotspotUtilizationThreshold = value.getAsRatio();
+            hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
+        });
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
@@ -168,14 +178,31 @@ public class WriteLoadConstraintSettings {
         return this.minimumRerouteInterval;
     }
 
+    /**
+     * @return The queue latency threshold as a time duration for use in checking whether a node is hotspotting
+     * and a shard should be moved off of it
+     */
     public TimeValue getQueueLatencyThreshold() {
         return this.queueLatencyThreshold;
     }
 
     /**
-     * @return The threshold as a ratio - i.e. in [0, 1]
+     * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node is hotspotting
+     * and a shard should be moved off of it
      */
-    public double getHighUtilizationThreshold() {
-        return this.highUtilizationThreshold;
+    public double getHotspotUtilizationThreshold() {
+        return this.hotspotUtilizationThreshold;
+    }
+
+    public String getHotspotUtilizationThresholdString() {
+        return this.hotspotUtilizationThresholdString;
+    }
+
+    /**
+     * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node can accept
+     * a shard in a canAllocation call during allocation balancing
+     */
+    public double getAllocationUtilizationThreshold() {
+        return this.allocationUtilizationThreshold;
     }
 }

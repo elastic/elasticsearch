@@ -338,16 +338,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 ActionListener<UnparsedModel> modelLoadingListener = ActionListener.wrap(unparsedModel -> {
                     var service = inferenceServiceRegistry.getService(unparsedModel.service());
                     if (service.isEmpty() == false) {
-                        var provider = new InferenceProvider(
-                            service.get(),
-                            service.get()
-                                .parsePersistedConfigWithSecrets(
-                                    inferenceId,
-                                    unparsedModel.taskType(),
-                                    unparsedModel.settings(),
-                                    unparsedModel.secrets()
-                                )
-                        );
+                        var provider = new InferenceProvider(service.get(), service.get().parsePersistedConfig(unparsedModel));
                         executeChunkedInferenceAsync(inferenceId, provider, requests, onFinish);
                     } else {
                         try (onFinish) {

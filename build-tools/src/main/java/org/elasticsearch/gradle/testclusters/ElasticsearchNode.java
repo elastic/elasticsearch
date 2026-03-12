@@ -112,7 +112,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "discovery.seed_providers",
         "cluster.deprecation_indexing.enabled",
         "cluster.initial_master_nodes",
-        "xpack.security.enabled"
+        "xpack.security.enabled",
+        "node.processors"
 
     );
 

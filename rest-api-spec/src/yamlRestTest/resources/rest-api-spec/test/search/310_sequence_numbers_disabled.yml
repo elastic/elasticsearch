@@ -1,0 +1,97 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ disable_sequence_numbers ]
+      reason: "requires support for disabling sequence numbers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.disable_sequence_numbers: true
+            index.seq_no.index_options: doc_values_only
+            index.number_of_shards: 1
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"term query on _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            term:
+              _seq_no: 0
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
+
+---
+"range query on _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            range:
+              _seq_no:
+                gte: 0
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
+
+---
+"sort by _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [{ _seq_no: asc }]
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
+
+---
+"bulk response returns unassigned _seq_no and _primary_term":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: "2"
+          - foo: baz
+          - index:
+              _index: test
+              _id: "3"
+          - foo: qux
+  - match: { errors: false }
+  - match: { items.0.index._seq_no: -2 }
+  - match: { items.0.index._primary_term: 0 }
+  - match: { items.1.index._seq_no: -2 }
+  - match: { items.1.index._primary_term: 0 }
+
+---
+"requesting seq_no_primary_term is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          seq_no_primary_term: true
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot request seq_no_primary_term on index [test] because [index.disable_sequence_numbers] is [true]" }
+

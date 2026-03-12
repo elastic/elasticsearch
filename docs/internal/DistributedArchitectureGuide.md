@@ -1638,18 +1638,80 @@ That is because after a refresh, any documents in the old map are now searchable
 
 ### Index Version
 
+[IndexVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersion.java
+
+[IndexVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java
+
+The [IndexVersion] tracks the on-disk format of an index. It is conceptually similar to [TransportVersion]
+(which controls wire-protocol compatibility between nodes) but instead targets how index data and metadata are
+serialized to Lucene files. Every time the serialization format of mappings, postings, doc values, or any other
+persisted index structure changes, a new `IndexVersion` constant must be added.
+
+The `IndexVersion` class contains two fields: an integer `id` and the
+Lucene [Version](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/Version.html)
+that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
+such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
+
+The `IndexVersion` class
+was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, the node release `Version` was used for both purposes. Prior to 8.9.0
+the `id` field was the same as the release version, for backwards compatibility. In 8.9.0 it changed to an
+incrementing number, and disconnected from the release version.
+
+All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
+`SEMANTIC_TEXT_FIELD_TYPE`, or `GENERIC_DENSE_VECTOR_FORMAT`).
+The [list](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L62)
+serves as the source of truth for version-to-Lucene mappings and a merge-conflict check.
+
+The `IndexVersion`
+is [stamped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1231)
+on every index at creation time via
+the [IndexMetadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java)
+`index.version.created` setting. This version is immutable for the lifetime of the index and determines which code
+paths are used when reading its data
+([PostRecoveryMerger optimization example](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/PostRecoveryMerger.java#L100)).
+
+A separate `index.version.compatibility`
+[setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L394)
+(defaulting to `index.version.created`)
+can [be set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1874)
+to a newer version to opt in to newer behavior while retaining backward-compatible defaults. For example, when
+restoring a snapshot of an index with an `index.version.created` older than `MINIMUM_READONLY_COMPATIBLE`,
+[RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+sets `index.version.compatibility` to the minimum index version supported by the cluster's nodes and adds
+a write block, so that the index can be opened as a read-only archive. The subsequent paragraphs contain more details
+about index version compatibility.
+
+Elasticsearch supports a two-major-version compatibility window for index data. Indices created in the current
+major version (N) or the previous major version (N-1) are fully supported for reading and writing. The minimum
+index version for this full support is defined by
+[IndexVersions.MINIMUM_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L268).
+
+Indices created in the penultimate major version (N-2), i.e. older than `MINIMUM_COMPATIBLE` but at or above
+[IndexVersions.MINIMUM_READONLY_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L269),
+can only be opened in read-only mode. They must have been marked as read-only (with a write block) on the previous
+major version before upgrading. Their mappings and field types are still fully understood by the current node. Only
+writes are blocked.
+
+Indices older than `MINIMUM_READONLY_COMPATIBLE` are classified as legacy. Their on-disk format
+is too old for the current node to fully understand their mappings or field types, so they are automatically converted
+to degraded read-only archives via [RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+when restored from a snapshot.
+Both `MINIMUM_COMPATIBLE` and `MINIMUM_READONLY_COMPATIBLE` are bumped with each new major release to maintain this
+window.
+
+For more details on how index format compatibility interacts with upgrades,
+see the [Index Format Backwards Compatibility](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md#index-format-backwards-compatibility)
+section in the General Architecture Guide.
+
 ### Lucene
 
-(copy a sketch of the files Lucene can have here and explain)
+#### Lucene File Layout
 
-(Explain about SearchIndexInput -- IndexWriter, IndexReader -- and the shared blob cache)
-
-(Lucene uses Directory, ES extends/overrides the Directory class to implement different forms of file storage.
-Lucene contains a map of where all the data is located in files and offsites, and fetches it from various files.
-ES doesn't just treat Lucene as a storage engine at the bottom (the end) of the stack. Rather ES has other information that
-works in parallel with the storage engine.)
+#### Codecs
 
 #### Segment Merges
+
+(Merges + add a quick description about soft deletes)
 
 # Recovery
 

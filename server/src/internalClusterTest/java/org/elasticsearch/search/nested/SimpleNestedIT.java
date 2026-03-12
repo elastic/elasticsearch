@@ -21,6 +21,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,8 +56,20 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SimpleNestedIT extends ESIntegTestCase {
 
+    private static Settings.Builder maybeDisableSequenceNumbers() {
+        return maybeDisableSequenceNumbers(Settings.builder());
+    }
+
+    private static Settings.Builder maybeDisableSequenceNumbers(Settings.Builder builder) {
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+            builder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
+        }
+        return builder;
+    }
+
     public void testSimpleNested() throws Exception {
-        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
+        assertAcked(prepareCreate("test").setSettings(maybeDisableSequenceNumbers()).setMapping("nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -181,22 +195,23 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testMultiNested() throws Exception {
         assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("nested1")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("nested2")
-                    .field("type", "nested")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            prepareCreate("test").setSettings(maybeDisableSequenceNumbers())
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("nested2")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
         );
 
         ensureGreen();
@@ -328,7 +343,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
+            prepareCreate("test").setSettings(
+                maybeDisableSequenceNumbers(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+            )
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -394,17 +411,18 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testExplain() throws Exception {
         assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("nested1")
-                    .field("type", "nested")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            prepareCreate("test").setSettings(maybeDisableSequenceNumbers())
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
         );
 
         ensureGreen();
@@ -441,7 +459,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSimpleNestedSorting() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+            prepareCreate("test").setSettings(
+                maybeDisableSequenceNumbers(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+            )
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -539,7 +559,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSimpleNestedSortingWithNestedFilterMissing() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+            prepareCreate("test").setSettings(
+                maybeDisableSequenceNumbers(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+            )
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -663,7 +685,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     }
 
     public void testNestedSortWithMultiLevelFiltering() throws Exception {
-        assertAcked(prepareCreate("test").setMapping("""
+        assertAcked(prepareCreate("test").setSettings(maybeDisableSequenceNumbers()).setMapping("""
             {
                 "properties": {
                   "acl": {
@@ -892,31 +914,33 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/31554
     public void testLeakingSortValues() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).setMapping("""
-            {
-              "_doc": {
-                "dynamic": "strict",
-                "properties": {
-                  "nested1": {
-                    "type": "nested",
+        assertAcked(
+            prepareCreate("test").setSettings(maybeDisableSequenceNumbers(Settings.builder().put("number_of_shards", 1))).setMapping("""
+                {
+                  "_doc": {
+                    "dynamic": "strict",
                     "properties": {
-                      "nested2": {
+                      "nested1": {
                         "type": "nested",
                         "properties": {
-                          "nested2_keyword": {
-                            "type": "keyword"
-                          },
-                          "sortVal": {
-                            "type": "integer"
+                          "nested2": {
+                            "type": "nested",
+                            "properties": {
+                              "nested2_keyword": {
+                                "type": "keyword"
+                              },
+                              "sortVal": {
+                                "type": "integer"
+                              }
+                            }
                           }
                         }
                       }
                     }
                   }
                 }
-              }
-            }
-            """));
+                """)
+        );
         ensureGreen();
 
         prepareIndex("test").setId("1").setSource("""
@@ -972,34 +996,35 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testSortNestedWithNestedFilter() throws Exception {
         assertAcked(
-            prepareCreate("test").setMapping(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("grand_parent_values")
-                    .field("type", "long")
-                    .endObject()
-                    .startObject("parent")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("parent_values")
-                    .field("type", "long")
-                    .endObject()
-                    .startObject("child")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("child_values")
-                    .field("type", "long")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            prepareCreate("test").setSettings(maybeDisableSequenceNumbers())
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("grand_parent_values")
+                        .field("type", "long")
+                        .endObject()
+                        .startObject("parent")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("parent_values")
+                        .field("type", "long")
+                        .endObject()
+                        .startObject("child")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("child_values")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
         );
         ensureGreen();
 
@@ -1316,37 +1341,38 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // Issue #9305
     public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
         assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("properties")
-                    .startObject("officelocation")
-                    .field("type", "text")
-                    .endObject()
-                    .startObject("users")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("first")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("last")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("workstations")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("stationid")
-                    .field("type", "text")
-                    .endObject()
-                    .startObject("phoneid")
-                    .field("type", "text")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            prepareCreate("test").setSettings(maybeDisableSequenceNumbers())
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("officelocation")
+                        .field("type", "text")
+                        .endObject()
+                        .startObject("users")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("first")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("last")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("workstations")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("stationid")
+                        .field("type", "text")
+                        .endObject()
+                        .startObject("phoneid")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
         );
 
         DocWriteResponse indexResponse1 = prepareIndex("test").setId("1")
@@ -1484,7 +1510,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
     public void testCheckFixedBitSetCache() throws Exception {
         boolean loadFixedBitSeLazily = randomBoolean();
-        Settings.Builder settingsBuilder = Settings.builder().put(indexSettings()).put("index.refresh_interval", -1);
+        Settings.Builder settingsBuilder = maybeDisableSequenceNumbers(
+            Settings.builder().put(indexSettings()).put("index.refresh_interval", -1)
+        );
         if (loadFixedBitSeLazily) {
             settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
         }
@@ -1537,7 +1565,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
     }
 
     public void testSkipNestedInnerHits() throws Exception {
-        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
+        assertAcked(prepareCreate("test").setSettings(maybeDisableSequenceNumbers()).setMapping("nested1", "type=nested"));
         ensureGreen();
 
         prepareIndex("test").setId("1")

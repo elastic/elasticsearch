@@ -10,7 +10,9 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -25,10 +27,13 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestReindexRethrottleAction extends BaseRestHandler {
-    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestReindexRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
+    private final Supplier<DiscoveryNodes> nodesInCluster;
+    private final boolean isStateless;
+
+    public RestReindexRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster, Settings settings) {
         this.nodesInCluster = nodesInCluster;
+        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -50,7 +55,10 @@ public class RestReindexRethrottleAction extends BaseRestHandler {
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
-        final String groupBy = request.param("group_by", "nodes");
+        // This ListTasksResponse will only ever contain a single task, so grouping them is not very useful.
+        // In stateful, we allow the group_by parameter and default to "nodes", for historical reasons.
+        // In stateless, we don't allow group_by, we never group, so that we don't include the unwanted layers and node info.
+        final String groupBy = isStateless ? "none" : request.param("group_by", "nodes");
         return channel -> client.execute(
             ReindexPlugin.RETHROTTLE_ACTION,
             internalRequest,

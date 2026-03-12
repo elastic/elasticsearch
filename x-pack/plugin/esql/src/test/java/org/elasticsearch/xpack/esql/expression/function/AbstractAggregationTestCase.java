@@ -20,7 +20,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -302,7 +304,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             )
         ) {
             List<Object> results = new ArrayList<>();
-            try (EvalOperator.ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+            try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
                 // TODO: This should look at the layout to place the correct blocks in the correct places
                 for (Page inputPage : rows(testCase.getMultiRowFields())) {
                     try (Block block = evaluator.eval(inputPage)) {
@@ -521,6 +523,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         logger.info("Test Values: " + valuesString);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         expression = resolveSurrogates(expression);
+        assertThat("expression required surrogates", expression, not(instanceOf(OnlySurrogateExpression.class)));
 
         // Fold nulls
         expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
@@ -727,6 +730,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
             case TDIGEST -> "TDigest";
+            case DENSE_VECTOR -> "DenseVector";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

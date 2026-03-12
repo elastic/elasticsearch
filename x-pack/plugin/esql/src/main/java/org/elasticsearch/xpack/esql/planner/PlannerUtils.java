@@ -202,6 +202,61 @@ public class PlannerUtils {
         }));
     }
 
+    /**
+     * Result of local plan optimization containing both physical and logical plans.
+     */
+    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString) {}
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        List<SearchExecutionContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlanWithLogical(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            SearchContextStats.from(searchContexts),
+            planTimeProfile
+        );
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        PlanTimeProfile planTimeProfile
+    ) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+        );
+
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile
+    ) {
+        var logicalPlanString = new Holder<String>(null);
+        PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
+            logicalPlanString.set(optimizedFragment.toString());
+        });
+        return new LocalPlanResult(resultPlan, logicalPlanString.get());
+    }
+
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
@@ -267,6 +322,16 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -286,6 +351,9 @@ public class PlannerUtils {
             boolean profilingEnabled = planTimeProfile != null;
             long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            if (onLogicalPlanOptimized != null) {
+                onLogicalPlanOptimized.accept(optimizedFragment);
+            }
             PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
             if (profilingEnabled) {
                 planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
@@ -431,10 +499,9 @@ public class PlannerUtils {
      * TODO: Remove this
      */
     @Deprecated(forRemoval = true)
-    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
@@ -465,4 +532,5 @@ public class PlannerUtils {
             }
         }
     }
+
 }

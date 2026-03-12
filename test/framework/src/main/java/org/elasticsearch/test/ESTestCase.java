@@ -508,10 +508,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
 
-    protected ThreadContext getThreadContext() {
-        return threadContext;
-    }
-
     /**
      * Marks a test suite or a test method that should run without checking for entitlements.
      */

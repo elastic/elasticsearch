@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -568,9 +569,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
+            case "enrich" -> {
+                // Enrich fields can shadow existing index columns, so we use the policy's declared enrich_fields
+                // from the context to ensure they are marked as non-index-mapped even when names collide.
+                Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
+                if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
+                    enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
             default -> {
                 // For commands that don't create named columns (KEEP, DROP, SORT, LIMIT, WHERE, etc.),
-                // any column not in previous is from the command (e.g. ENRICH, LOOKUP_JOIN, CHANGE_POINT)
+                // any column not in previous is from the command (e.g. LOOKUP_JOIN, CHANGE_POINT)
             }
         }
 

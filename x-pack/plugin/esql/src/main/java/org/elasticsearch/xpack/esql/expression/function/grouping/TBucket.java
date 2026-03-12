@@ -140,13 +140,15 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             name = "from",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter {applies_to}`stack: ga 9.4`."
+            description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
+                + "query filter {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression from,
         @Param(
             name = "to",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter {applies_to}`stack: ga 9.4`."
+            description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
+                + "query filter {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression to,
         Expression timestamp,
         Configuration configuration

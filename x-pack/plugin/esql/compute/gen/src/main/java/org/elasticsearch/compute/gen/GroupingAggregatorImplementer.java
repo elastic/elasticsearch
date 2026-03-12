@@ -184,7 +184,7 @@ public class GroupingAggregatorImplementer {
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION);
         builder.addField(
             FieldSpec.builder(LIST_AGG_FUNC_DESC, "INTERMEDIATE_STATE_DESC", Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer(initInterState())
+                .initializer(initIntermediateStateDescription())
                 .build()
         );
         builder.addField(aggState.type(), "state", Modifier.PRIVATE, Modifier.FINAL);
@@ -198,7 +198,6 @@ public class GroupingAggregatorImplementer {
             builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
         }
 
-        builder.addMethod(create());
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
@@ -219,37 +218,42 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec create() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
-        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
+    private CodeBlock initIntermediateStateDescription() {
+        CodeBlock.Builder builder = CodeBlock.builder();
+        builder.add("List.of(");
+        boolean addComma = false;
+        for (var interState : intermediateState) {
+            if (addComma) builder.add(",");
+            builder.add("$Wnew $T($S, $T." + interState.elementType() + ")", INTERMEDIATE_STATE_DESC, interState.name(), ELEMENT_TYPE);
+            addComma = true;
+        }
+        builder.add("$W$W)");
+        return builder.build();
+    }
+
+    private MethodSpec ctor() {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder();
         if (warnExceptions.isEmpty() == false) {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
+            builder.addStatement("this.$N = $N", p.name(), p.name());
         }
-        if (createParameters.isEmpty()) {
-            builder.addStatement(
-                "return new $T($Lchannels, $L, driverContext)",
-                implementation,
-                warnExceptions.isEmpty() ? "" : "warnings, ",
-                callInit()
-            );
-        } else {
-            builder.addStatement(
-                "return new $T($Lchannels, $L, driverContext, $L)",
-                implementation,
-                warnExceptions.isEmpty() ? "" : "warnings, ",
-                callInit(),
-                createParameters.stream().map(p -> p.name()).collect(joining(", "))
-            );
+
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.warnings = warnings");
         }
+        builder.addStatement("this.channels = channels");
+        builder.addStatement("this.state = $L", initState());
+        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 
-    private CodeBlock callInit() {
+    private CodeBlock initState() {
         String initParametersCall = init.getParameters()
             .stream()
             .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
@@ -265,41 +269,6 @@ public class GroupingAggregatorImplementer {
             );
         } else {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
-        }
-        return builder.build();
-    }
-
-    private CodeBlock initInterState() {
-        CodeBlock.Builder builder = CodeBlock.builder();
-        builder.add("List.of(");
-        boolean addComma = false;
-        for (var interState : intermediateState) {
-            if (addComma) builder.add(",");
-            builder.add("$Wnew $T($S, $T." + interState.elementType() + ")", INTERMEDIATE_STATE_DESC, interState.name(), ELEMENT_TYPE);
-            addComma = true;
-        }
-        builder.add("$W$W)");
-        return builder.build();
-    }
-
-    private MethodSpec ctor() {
-        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(WARNINGS, "warnings");
-        }
-        builder.addParameter(LIST_INTEGER, "channels");
-        builder.addParameter(aggState.type(), "state");
-        builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        if (warnExceptions.isEmpty() == false) {
-            builder.addStatement("this.warnings = warnings");
-        }
-        builder.addStatement("this.channels = channels");
-        builder.addStatement("this.state = state");
-        builder.addStatement("this.driverContext = driverContext");
-
-        for (Parameter p : createParameters) {
-            builder.addParameter(p.type(), p.name());
-            builder.addStatement("this.$N = $N", p.name(), p.name());
         }
         return builder.build();
     }

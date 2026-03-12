@@ -35,16 +35,11 @@ public final class FirstIntByTimestampGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public FirstIntByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      FirstIntByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstIntByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstIntByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstIntByTimestampGroupingAggregatorFunction(channels, FirstIntByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstIntByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

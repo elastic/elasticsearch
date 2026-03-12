@@ -37,16 +37,10 @@ public final class FirstBytesRefByTimestampAggregatorFunction implements Aggrega
 
   private final List<Integer> channels;
 
-  public FirstBytesRefByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongBytesRefState state) {
+  FirstBytesRefByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstBytesRefByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstBytesRefByTimestampAggregatorFunction(driverContext, channels, FirstBytesRefByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstBytesRefByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

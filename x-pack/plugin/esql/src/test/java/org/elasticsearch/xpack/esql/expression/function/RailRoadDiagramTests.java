@@ -21,13 +21,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RailRoadDiagramTests extends ESTestCase {
-    private static final EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
-
     /**
      * Test a very simple single argument function
      */
     public void testToString() {
-        var definition = registry.resolveFunction("to_string");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("to_string");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var expected = List.of("(? TO_STRING ?)", "'('", "'field'", "')'");
@@ -42,7 +40,7 @@ public class RailRoadDiagramTests extends ESTestCase {
      * Test a simple two argument function
      */
     public void testStIntersects() {
-        var definition = registry.resolveFunction("st_intersects");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("st_intersects");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var expected = List.of("(? ST_INTERSECTS ?)", "'('", "'geomA'", "','", "'geomB'", "')'");
@@ -57,7 +55,7 @@ public class RailRoadDiagramTests extends ESTestCase {
      * Test a three argument function with the last argument optional
      */
     public void testMvSlice() {
-        var definition = registry.resolveFunction("mv_slice");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("mv_slice");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var expected = List.of("(? MV_SLICE ?)", "'('", "'field'", "','", "'start'", "[ ',' 'end' ]", "')'");
@@ -83,7 +81,7 @@ public class RailRoadDiagramTests extends ESTestCase {
      * Test a four argument function with the last two arguments optional
      */
     public void testBucket() {
-        var definition = registry.resolveFunction("bucket");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("bucket");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var expected = List.of("(? BUCKET ?)", "'('", "'field'", "','", "'buckets'", "[ ',' 'from' ',' 'to' ]", "')'");
@@ -111,7 +109,7 @@ public class RailRoadDiagramTests extends ESTestCase {
      * Test a two argument function with the first argument optional
      */
     public void testDateFormat() {
-        var definition = registry.resolveFunction("date_format");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("date_format");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var expected = List.of("(? DATE_FORMAT ?)", "'('", "[ 'dateFormat' ',' ]", "'date'", "')'");
@@ -136,7 +134,7 @@ public class RailRoadDiagramTests extends ESTestCase {
     }
 
     public void testCoalesce() {
-        var definition = registry.resolveFunction("coalesce");
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("coalesce");
         var rails = RailRoadDiagram.svgSequence(definition);
         var expressions = rails.getExpressions();
         var strings = Arrays.stream(expressions).map(Object::toString).toList();

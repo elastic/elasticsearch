@@ -99,9 +99,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt" }) // For renderDocs
 public abstract class AbstractFunctionTestCase extends ESTestCase {
-
-    private static EsqlFunctionRegistry functionRegistry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
-
     protected TestCaseSupplier.TestCase testCase;
 
     /**
@@ -920,12 +917,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     static boolean functionRegistered(String name) {
-        return functionRegistry.functionExists(name);
+        return TEST_FUNCTION_REGISTRY.snapshotRegistry().functionExists(name);
     }
 
     static FunctionDefinition definition(String name) {
-        if (functionRegistry.functionExists(name)) {
-            return functionRegistry.resolveFunction(name);
+        if (functionRegistered(name)) {
+            return TEST_FUNCTION_REGISTRY.snapshotRegistry().resolveFunction(name);
         }
         return null;
     }

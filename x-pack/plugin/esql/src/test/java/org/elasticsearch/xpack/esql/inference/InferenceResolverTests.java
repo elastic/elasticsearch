@@ -23,7 +23,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +42,6 @@ import static org.mockito.Mockito.when;
 
 public class InferenceResolverTests extends ESTestCase {
     private TestThreadPool threadPool;
-    private EsqlFunctionRegistry functionRegistry;
 
     @Before
     public void setThreadPool() {
@@ -58,11 +56,6 @@ public class InferenceResolverTests extends ESTestCase {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-    }
-
-    @Before
-    public void setUpFunctionRegistry() {
-        functionRegistry = TEST_FUNCTION_REGISTRY;
     }
 
     @After
@@ -226,7 +219,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private InferenceResolver inferenceResolver() {
-        return new InferenceResolver(mockClient(), functionRegistry, threadPool);
+        return new InferenceResolver(mockClient(), TEST_FUNCTION_REGISTRY, threadPool);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

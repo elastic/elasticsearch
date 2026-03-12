@@ -117,10 +117,17 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
     public ReleasableBytesReference toReleasableBytesReference(long coordinatingTaskId) throws IOException {
         final ReleasableBytesReference result;
-        try (BytesStreamOutput header = new BytesStreamOutput(16)) {
+        try (BytesStreamOutput header = new BytesStreamOutput(INITIAL_CHUNK_SERIALIZATION_CAPACITY)) {
             header.writeVLong(coordinatingTaskId);
+            header.writeVLong(timestampMillis);
+            shardId.writeTo(header);
+            header.writeVInt(hitCount);
+            header.writeVInt(from);
+            header.writeVInt(expectedDocs);
+            header.writeVLong(sequenceStart);
+            header.writeVInt(serializedHits.length());
 
-            BytesReference composite = CompositeBytesReference.of(header.copyBytes(), toBytesReference());
+            BytesReference composite = CompositeBytesReference.of(header.copyBytes(), serializedHits);
             if (serializedHits instanceof ReleasableBytesReference releasableHits) {
                 result = new ReleasableBytesReference(composite, releasableHits::decRef);
             } else {
@@ -129,13 +136,6 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
             this.serializedHits = null;
         }
         return result;
-    }
-
-    private BytesReference toBytesReference() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput(INITIAL_CHUNK_SERIALIZATION_CAPACITY)) {
-            writeTo(out);
-            return out.copyBytes();
-        }
     }
 
     public long getBytesLength() {

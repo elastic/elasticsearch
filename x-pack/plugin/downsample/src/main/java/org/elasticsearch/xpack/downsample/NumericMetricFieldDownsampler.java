@@ -50,17 +50,21 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         String fieldName,
         MappedFieldType fieldType,
         IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         assert supportsFieldType(fieldType)
             : "only gauges and counters accepted, other metrics should have been handled by dedicated downsamplers";
         TimeSeriesParams.MetricType metricType = fieldType.getMetricType();
         if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+            fieldCounts.increaseNumericFields();
             return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
         }
         if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+            fieldCounts.increaseNumericFields();
             return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
         }
+        fieldCounts.increaseAggregateCounterFields();
         return new NumericMetricFieldDownsampler.AggregateCounter(fieldName, fieldData);
     }
 

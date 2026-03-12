@@ -220,8 +220,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
-         * capability until we enable the LOAD option mentioned above.
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -230,6 +230,17 @@ public class EsqlCapabilities {
          * match fields already present in the children's output.
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
+
+        /**
+         * Nullify unmapped fields in agg filters like {@code STATS agg_fun(field) WHERE field...}, even when
+         * {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs} marks the field as unresolvable with a custom error message.
+         */
+        OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
@@ -1411,6 +1422,10 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
+         */
+        EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
@@ -1924,6 +1939,12 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
+         * grouping function that excludes specific dimensions from time-series grouping.
+         */
+        TIME_SERIES_WITHOUT_GROUPING,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -2063,11 +2084,6 @@ public class EsqlCapabilities {
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
 
         /**
-         * MMR result diversification command
-         */
-        MMR(Build.current().isSnapshot()),
-
-        /**
          * Allow wildcards in FROM METADATA, eg FROM idx METADATA _ind*
          */
         METADATA_WILDCARDS,
@@ -2109,6 +2125,11 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
+         */
+        TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
          */
         TDIGEST_MEDIAN,
@@ -2140,12 +2161,9 @@ public class EsqlCapabilities {
         INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
 
         /**
-         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
-         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
-         * however, without the MMRExec to operator code in place, will fail on the snapshot
-         * TODO - remove this once the MMR operator is merged
+         * Support for the MMR result diversification command
          */
-        MMR_V2(Build.current().isSnapshot()),
+        MMR_V2,
 
         /**
          * Supports the {@code URI_PARTS}) command.
@@ -2156,6 +2174,11 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Support for TBUCKET with numeric bucket count and optional from/to parameters.
+         */
+        TBUCKET_FROM_TO,
 
         /**
          * Supports the REGISTERED_DOMAIN command.
@@ -2223,6 +2246,11 @@ public class EsqlCapabilities {
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
 
         /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
+        /**
          * Fix for not including metadata _doc_count in the _timeseries column
          * https://github.com/elastic/elasticsearch/issues/143464
          */
@@ -2239,6 +2267,20 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/143859
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
+
+        /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
+         * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
+         * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
+         * sub-plans are updated. Only genuinely new attributes get fresh NameIds.
+         * Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+         * https://github.com/elastic/elasticsearch/issues/142762
+         */
+        FIX_FORK_UNMAPPED_NULLIFY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

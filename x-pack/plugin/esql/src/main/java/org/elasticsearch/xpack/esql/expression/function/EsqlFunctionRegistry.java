@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -517,6 +518,7 @@ public class EsqlFunctionRegistry {
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
                 def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
                 def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
+                def(ToExponentialHistogram.class, ToExponentialHistogram::new, "to_exponential_histogram"),
                 def(ToGeohash.class, ToGeohash::new, "to_geohash"),
                 def(ToGeotile.class, ToGeotile::new, "to_geotile"),
                 def(ToGeohex.class, ToGeohex::new, "to_geohex"),
@@ -1471,6 +1473,26 @@ public class EsqlFunctionRegistry {
                 children.get(0),
                 children.size() == 2 ? children.get(1) : null,
                 UnresolvedTimestamp.withSource(source)
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalTriFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() > 2 ? children.get(2) : null,
+                UnresolvedTimestamp.withSource(source),
+                cfg
             );
         };
         return def(function, builder, names);

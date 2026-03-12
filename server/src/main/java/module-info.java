@@ -29,6 +29,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.useragent.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
@@ -472,6 +473,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat,
+            org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
@@ -513,6 +515,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.inference.telemetry;
     exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
+    exports org.elasticsearch.index.codec.vectors.diskbbq.es94 to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es94 to org.elasticsearch.test.knn;

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 
 /**
@@ -82,7 +83,7 @@ class ScalarOperations {
 
     private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
-    private static float int4ReconstructDotProduct(
+    private static float applyInt4CommonCorrections(
         int rawDot,
         int dims,
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
@@ -104,7 +105,7 @@ class ScalarOperations {
         OptimizedScalarQuantizer.QuantizationResult queryCorrections,
         float centroidDP
     ) {
-        float score = int4ReconstructDotProduct(rawDot, dims, nodeCorrections, queryCorrections);
+        float score = applyInt4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
         return (1f + Math.clamp(score, -1, 1)) / 2f;
     }
@@ -115,8 +116,8 @@ class ScalarOperations {
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
         OptimizedScalarQuantizer.QuantizationResult queryCorrections
     ) {
-        float score = int4ReconstructDotProduct(rawDot, dims, nodeCorrections, queryCorrections);
+        float score = applyInt4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
-        return 1 / (1f + Math.max(score, 0f));
+        return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
     }
 }

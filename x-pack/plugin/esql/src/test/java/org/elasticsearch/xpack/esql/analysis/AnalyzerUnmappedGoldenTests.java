@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
@@ -67,10 +69,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testDrop() throws Exception {
-        runTests("""
-            FROM employees
-            | DROP does_not_exist_field, emp_no
-            """);
+        for (Tuple<String, String> drop : List.of(
+            Tuple.tuple("empty", ""),
+            Tuple.tuple("exists", ", emp_no"),
+            Tuple.tuple("same_field", ", does_not_exist_field"),
+            Tuple.tuple("another_field", ", does_not_exist_field2")
+        )) {
+            runTests("FROM employees | DROP does_not_exist_field" + drop.v2(), drop.v1());
+        }
     }
 
     public void testDropAndMatchingStar() throws Exception {
@@ -439,5 +445,9 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     private void runTests(String query) {
         runTestsNullifyAndLoad(query, STAGES);
+    }
+
+    private void runTests(String query, String... nestedPaths) {
+        runTestsNullifyAndLoad(query, STAGES, nestedPaths);
     }
 }

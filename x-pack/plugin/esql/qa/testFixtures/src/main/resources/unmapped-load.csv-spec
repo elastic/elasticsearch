@@ -935,3 +935,37 @@ FROM partial_mapping_sample_data
 @timestamp:date          | message:keyword   | unmapped_event_duration:keyword
 2024-10-23T13:51:54.732Z | Connection error? | 725449
 ;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedField
+required_capability: optional_fields_v2
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:keyword | entity.id:keyword
+null                   | foo
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedFieldLoadsFromSource
+required_capability: optional_fields_v2
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+// Intentionally use a name that is close to `unmapped_message`, so that ResolveRefs marks the missing
+// `unmapped_message` with a custom message due to suggesting similar field names, which surfaced a bug before.
+| EVAL unmapped_messag = "foo"
+| STATS unmapped_message = VALUES(unmapped_message) WHERE unmapped_message IS NOT NULL BY unmapped_messag
+| EVAL msg_count = MV_COUNT(unmapped_message)
+| KEEP msg_count, unmapped_messag
+;
+
+msg_count:integer | unmapped_messag:keyword
+5                 | foo
+;

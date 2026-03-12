@@ -168,6 +168,10 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     ) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        boolean allowPartialSearchResults = request.allowPartialSearchResults() != null
+            ? request.allowPartialSearchResults()
+            : crossProjectEnabled;
         SqlConfiguration cfg = new SqlConfiguration(
             request.zoneId(),
             request.catalog(),
@@ -185,8 +189,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
             task,
-            request.allowPartialSearchResults(),
-            crossProjectModeDecider.crossProjectEnabled(),
+            allowPartialSearchResults,
+            crossProjectEnabled,
             request.projectRouting()
         );
 

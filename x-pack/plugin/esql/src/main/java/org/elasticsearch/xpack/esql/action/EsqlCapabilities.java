@@ -2263,6 +2263,11 @@ public class EsqlCapabilities {
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
          * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
          * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
          * sub-plans are updated. Only genuinely new attributes get fresh NameIds.

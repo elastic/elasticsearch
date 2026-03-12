@@ -568,6 +568,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.SEARCH_WORKER_THREADS_ENABLED,
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
+        SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,

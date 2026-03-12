@@ -15,6 +15,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -23,6 +25,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -238,7 +240,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     // ==================== Circuit Breaker Tests ====================
 
     public void testCircuitBreakerBytesTracked() throws IOException {
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", Long.MAX_VALUE);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         try {
@@ -264,7 +266,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testCircuitBreakerBytesReleasedOnClose() throws IOException {
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", Long.MAX_VALUE);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         FetchPhaseResponseChunk chunk1 = createChunkWithSourceSize(0, 5, 0, 1024);
@@ -288,7 +290,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         long chunkSize = testChunk.getBytesLength();
 
         // Set limit smaller than chunk size
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", chunkSize - 1);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(chunkSize - 1));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         try {
@@ -307,7 +309,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
         // Set limit to allow first chunk but not second
         long limit = chunk1Size + (chunk2Size / 2);
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", limit);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         try {
@@ -321,7 +323,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     }
 
     public void testCircuitBreakerReleasedOnCloseWithoutBuildingResult() throws IOException {
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", Long.MAX_VALUE);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
 
         // Write chunks but don't call buildFinalResult
@@ -506,7 +508,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         long chunkSize = testChunk.getBytesLength();
 
         // Set limit smaller than chunk size to guarantee trip
-        TestCircuitBreaker breaker = new TestCircuitBreaker("test", chunkSize / 2);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(chunkSize / 2));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
         try {
@@ -560,13 +562,8 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
      * Extracts the "id" field from a hit's source JSON.
      */
     private int getIdFromSource(SearchHit hit) {
-        String source = hit.getSourceAsString();
-        int start = source.indexOf("\"id\":") + 5;
-        int end = source.indexOf(",", start);
-        if (end == -1) {
-            end = source.indexOf("}", start);
-        }
-        return Integer.parseInt(source.substring(start, end));
+        Number id = (Number) XContentHelper.convertToMap(hit.getSourceRef(), false, XContentType.JSON).v2().get("id");
+        return id.intValue();
     }
 
     private FetchPhaseResponseChunk createChunk(int startId, int hitCount, long sequenceStart) throws IOException {
@@ -697,76 +694,4 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         stream.writeChunk(chunk, () -> {});
     }
 
-    private static class TestCircuitBreaker implements CircuitBreaker {
-        private final String name;
-        private final long limit;
-        private final AtomicLong used = new AtomicLong(0);
-        private final AtomicLong tripped = new AtomicLong(0);
-
-        TestCircuitBreaker(String name, long limit) {
-            this.name = name;
-            this.limit = limit;
-        }
-
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {
-            tripped.incrementAndGet();
-            throw new CircuitBreakingException(
-                "Data too large, data for [" + fieldName + "] would be [" + bytesNeeded + "] which exceeds limit of [" + limit + "]",
-                bytesNeeded,
-                limit,
-                Durability.TRANSIENT
-            );
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long newUsed = used.addAndGet(bytes);
-            if (newUsed > limit) {
-                used.addAndGet(-bytes);
-                circuitBreak(label, newUsed);
-            }
-            // return newUsed;
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used.get();
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        @Override
-        public double getOverhead() {
-            return 1.0;
-        }
-
-        @Override
-        public long getTrippedCount() {
-            return tripped.get();
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public Durability getDurability() {
-            return Durability.TRANSIENT;
-        }
-
-        @Override
-        public void setLimitAndOverhead(long limit, double overhead) {
-            // Not implemented for test
-        }
-    }
 }

@@ -187,18 +187,11 @@ FROM cooking_blog METADATA _source
 | LIMIT 1000
 ```
 
-You should consider using `_source` when:
-- You need several fields from a document, and most of them are text fields.
-- You have long text fields in your documents.
-- You want the original document instead of the indexed values for your fields.
-- You have nested objects or arrays that you want to preserve in their original structure.
+Using _source is useful when you want to retrieve most or all fields from a document.
+The original document is stored together in _source, so fetching it can be more efficient than retrieving many individual fields separately.
+It also returns the document exactly as indexed, preserving nested objects and arrays.
 
-You probably want to avoid using `_source` when:
-- Your fields are stored as doc values (numeric, keyword, date, boolean). doc values access is faster than _source.
-- Your index uses synthetic source. Accessing _source in synthetic source mode has a performance penalty.
-- The text fields you need are stored fields.
-
-Using `_source` or selecting fields are both valid options, but can have performance and data format implications that you should consider based on your use case.
+Selecting individual fields may be more efficient when you only need a small number of fields from each document.
 
 ### Understand relevance scoring
 

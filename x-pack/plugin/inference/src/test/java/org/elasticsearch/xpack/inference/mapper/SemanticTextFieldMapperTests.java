@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
@@ -103,6 +104,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -1277,6 +1280,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         ChunkingSettings expectedChunkingSettings,
         SemanticTextIndexOptions expectedIndexOptions
     ) {
+        IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
         SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
 
         var fieldType = mapperService.fieldType(fieldName);
@@ -1333,10 +1337,26 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 case TEXT_EMBEDDING -> {
                     assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
                     DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsMapper;
+
+                    MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
+                    DenseVectorFieldMapper.ElementType expectedElementType = getExpectedDefaultElementType(indexVersion, modelSettings);
                     if (expectedIndexOptions != null) {
-                        assertEquals(expectedIndexOptions.indexOptions(), denseVectorFieldMapper.fieldType().getIndexOptions());
+                        IndexOptions expectedEmbeddingFieldIndexOptions = expectedIndexOptions.indexOptions();
+                        if (expectedEmbeddingFieldIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                            assertEquals(edvio.getBaseIndexOptions(), denseVectorFieldMapper.fieldType().getIndexOptions());
+                            expectedElementType = edvio.getElementType();
+                        } else {
+                            assertEquals(expectedEmbeddingFieldIndexOptions, denseVectorFieldMapper.fieldType().getIndexOptions());
+                        }
                     } else {
                         assertNull(denseVectorFieldMapper.fieldType().getIndexOptions());
+                    }
+
+                    assertEquals(expectedElementType, denseVectorFieldMapper.fieldType().getElementType());
+                    assertEquals(modelSettings.dimensions().intValue(), denseVectorFieldMapper.fieldType().getVectorDimensions());
+                    if (modelSettings.similarity() != null && indexVersion.onOrAfter(NEW_SPARSE_VECTOR)) {
+                        // We don't set similarity on pre 8.11 indices
+                        assertEquals(modelSettings.similarity().vectorSimilarity(), denseVectorFieldMapper.fieldType().getSimilarity());
                     }
                 }
                 default -> throw new AssertionError("Invalid task type");
@@ -1357,6 +1377,19 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));
         return (SemanticTextFieldMapper) mapper;
+    }
+
+    private static DenseVectorFieldMapper.ElementType getExpectedDefaultElementType(
+        IndexVersion indexVersion,
+        MinimalServiceSettings modelSettings
+    ) {
+        DenseVectorFieldMapper.ElementType expected = modelSettings.elementType();
+        if (indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+            && modelSettings.elementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+            expected = DenseVectorFieldMapper.ElementType.BFLOAT16;
+        }
+
+        return expected;
     }
 
     private static void assertInferenceEndpoints(

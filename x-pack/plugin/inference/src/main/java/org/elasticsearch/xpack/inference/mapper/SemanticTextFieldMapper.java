@@ -1447,14 +1447,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
             SimilarityMeasure similarity = modelSettings.similarity();
             if (similarity != null) {
-                switch (similarity) {
-                    case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                    case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                    case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                    default -> throw new IllegalArgumentException(
-                        "Unknown similarity measure in model_settings [" + similarity.name() + "]"
-                    );
-                }
+                denseVectorMapperBuilder.similarity(similarity.vectorSimilarity());
             }
         }
 
@@ -1548,6 +1541,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 indexVersionCreated,
                 modelSettings
             );
+
+            // TODO: Serialize when we switch to bfloat16 by default
             return denseVectorIndexOptions == null
                 ? null
                 : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);

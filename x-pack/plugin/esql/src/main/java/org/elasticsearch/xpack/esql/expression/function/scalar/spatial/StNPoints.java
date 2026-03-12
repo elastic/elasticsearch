@@ -15,7 +15,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -80,7 +80,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         } else {

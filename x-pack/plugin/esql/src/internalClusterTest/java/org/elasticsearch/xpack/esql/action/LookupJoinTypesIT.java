@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -114,7 +113,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            EsqlPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,

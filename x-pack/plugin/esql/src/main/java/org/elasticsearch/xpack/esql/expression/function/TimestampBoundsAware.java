@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -17,11 +18,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  * Marker interface for nodes (expressions or plans) that require {@code @timestamp} bounds derived from the query DSL filter.
  * <p>
  * Implementations are resolved during analysis by the {@code ResolveTimestampBoundsAware} analyzer rule,
- * following the same pattern as {@link org.elasticsearch.xpack.esql.capabilities.ConfigurationAware}.
+ * following the same pattern as {@link ConfigurationAware}.
  * </p>
  * <p>
- * Implementations are responsible for their own validation via
- * {@link PostAnalysisVerificationAware#postAnalysisVerification}.
+ * Implementations are responsible for their own validation via {@link PostAnalysisVerificationAware#postAnalysisVerification}.
  * </p>
  * <p>
  * Use the sub-interfaces {@link OfExpression} and {@link OfLogicalPlan}

@@ -80,6 +80,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
@@ -94,6 +95,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -156,6 +158,7 @@ import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
 
@@ -558,9 +561,9 @@ public class SnapshotResiliencyTestHelper {
                     }
 
                     @Override
-                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
                         // skip leak checks in these tests since they do indeed leak
-                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE, circuitBreaker);
                         // TODO fix these leaks and implement leak checking
                     }
                 };
@@ -831,6 +834,7 @@ public class SnapshotResiliencyTestHelper {
                             Collections.emptyList(),
                             client,
                             null,
+                            UserAgentParserRegistry.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {

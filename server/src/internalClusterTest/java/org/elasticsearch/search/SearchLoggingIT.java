@@ -27,10 +27,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
@@ -51,6 +54,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -70,6 +74,7 @@ import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FI
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -92,6 +97,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
@@ -152,6 +158,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, SearchLogContext.TYPE, "fox");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(""));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
+            assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
 
@@ -163,6 +172,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
+            assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
         // Total hits
@@ -180,6 +192,39 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
+    }
+
+    /**
+     * Verifies that when the request succeeds with partial results (some shards fail), the activity log
+     * records shards.successful and shards.failed correctly from SearchLogContext.shardInfo().
+     * Uses more shards than data nodes so that stopping one node guarantees unassigned shards.
+     */
+    public void testSearchLogShardInfoPartialFailure() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        int numberOfShards = cluster().numDataNodes() + 2;
+        setupIndex(numberOfShards);
+        internalCluster().stopRandomDataNode();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertFalse(
+                "expected some unassigned shards",
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+            );
+        });
+
+        assertResponse(prepareSearch(INDEX_NAME).setSize(0).setAllowPartialSearchResults(true), response -> {
+            assertThat(response.getFailedShards(), greaterThan(0));
+            assertThat(response.getSuccessfulShards(), greaterThan(0));
+        });
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        Map<String, String> message = getMessageData(event);
+        assertMessageSuccess(message, SearchLogContext.TYPE, "size");
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
+        assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThan(0));
     }
 
     public void testIndicesFieldIsArray() {
@@ -412,13 +457,26 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     }
 
     private void setupIndex() {
-        createIndex(INDEX_NAME);
+        setupIndex(1);
+    }
+
+    /**
+     * Creates the test index with the same mapping and documents as setupIndex(),
+     * with the given number of shards (and 0 replicas when > 1 for deterministic allocation).
+     */
+    private void setupIndex(int numberOfShards) {
+        if (numberOfShards > 1) {
+            createIndex(INDEX_NAME, numberOfShards, 0);
+        } else {
+            createIndex(INDEX_NAME);
+        }
         indexRandom(
             true,
             prepareIndex(INDEX_NAME).setId("1").setSource("field1", "the quick brown fox jumps"),
             prepareIndex(INDEX_NAME).setId("2").setSource("field1", "quick brown"),
             prepareIndex(INDEX_NAME).setId("3").setSource("field1", "quick")
         );
+        ensureGreen(INDEX_NAME);
     }
 
     /*

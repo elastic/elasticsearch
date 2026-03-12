@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -66,7 +65,6 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -143,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -169,7 +168,6 @@ import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -233,6 +231,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveConfigurationAware(),
+            new ResolveTimestampBoundsAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -662,6 +661,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -681,7 +681,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
-
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -716,17 +715,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
 
             ArrayList<Attribute> resolvedGroupings = new ArrayList<>(newGroupings.size());
+            Set<String> unresolvedGroupingNames = new HashSet<>(newGroupings.size());
             for (Expression e : newGroupings) {
                 Attribute attr = Expressions.attribute(e);
-                if (attr != null && attr.resolved()) {
-                    resolvedGroupings.add(attr);
+                if (attr != null) {
+                    if (attr.resolved()) {
+                        resolvedGroupings.add(attr);
+                    } else {
+                        unresolvedGroupingNames.add(attr.name());
+                    }
                 }
             }
 
             boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
+                var inputAttributes = new ArrayList<>(childrenOutput);
+                // Remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups.
+                // E.g. for
+                // SET unmapped_fields="nullify"; ROW x = 1, language_code = 2
+                // | STATS c = max(language_code) BY language_code = does_not_exist
+                // max(language_code) should not be resolved to the input attribute language_code.
+                inputAttributes.removeIf(a -> unresolvedGroupingNames.contains(a.name()));
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, inputAttributes);
 
                 List<NamedExpression> newAggregates = new ArrayList<>(aggregates.size());
                 // If no groupings are resolved, skip the resolution of the references to groupings in the aggregates, resolve the
@@ -1402,10 +1413,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            var resolved = resolveFields(eval.fields(), childOutput);
+            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones using attribute references.
+         * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
+         */
+        private LogicalPlan resolveRow(Row row) {
+            var resolved = resolveFields(row.fields(), List.of());
+            return resolved != null ? new Row(row.source(), resolved) : row;
+        }
+
+        private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
+            for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
@@ -1423,7 +1448,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            return changed ? newFields : null;
         }
 
         /**
@@ -1835,39 +1860,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
             if (plan instanceof TimestampBoundsAware.OfLogicalPlan tba && tba.needsTimestampBounds()) {
-                plan = tba.withTimestampBounds(timestampBoundLiteral(plan, bounds.start()), timestampBoundLiteral(plan, bounds.end()));
+                plan = tba.withTimestampBounds(
+                    Literal.dateTime(plan.source(), bounds.start()),
+                    Literal.dateTime(plan.source(), bounds.end())
+                );
             }
             return plan.transformExpressionsUp(Expression.class, expression -> {
                 if (expression instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
                     return tba.withTimestampBounds(
-                        timestampBoundLiteral(expression, bounds.start()),
-                        timestampBoundLiteral(expression, bounds.end())
+                        Literal.dateTime(expression.source(), bounds.start()),
+                        Literal.dateTime(expression.source(), bounds.end())
                     );
                 }
                 return expression;
             });
-        }
-
-        private static Literal timestampBoundLiteral(Expression expression, Instant instant) {
-            return timestampBoundLiteral(expression.source(), timestampDataType(expression), instant);
-        }
-
-        private static Literal timestampBoundLiteral(LogicalPlan plan, Instant instant) {
-            return timestampBoundLiteral(plan.source(), timestampDataType(plan), instant);
-        }
-
-        private static Literal timestampBoundLiteral(Source source, DataType dataType, Instant instant) {
-            if (dataType == DATE_NANOS) {
-                return new Literal(source, DateUtils.toLong(instant), DATE_NANOS);
-            }
-            return Literal.dateTime(source, instant);
-        }
-
-        private static DataType timestampDataType(Object node) {
-            if (node instanceof TimestampAware ta && ta.timestamp().resolved()) {
-                return ta.timestamp().dataType();
-            }
-            return DATETIME;
         }
     }
 

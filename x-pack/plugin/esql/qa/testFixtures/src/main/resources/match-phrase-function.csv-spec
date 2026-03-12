@@ -502,3 +502,120 @@ year:integer | author:text            | host:keyword
 2005         | Gabriel Garcia Marquez | null
 2014         | Gabriel Garcia Marquez | null
 ;
+
+matchPhraseAfterSimpleRename
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where match_phrase(writer, "William Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseAfterChainedRename
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where match_phrase(writer, "William Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseAfterRenameWithKeep
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| keep book_no, writer
+| where match_phrase(writer, "William Faulkner")
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseAfterEvalAndRename
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where match_phrase(writer, "William Faulkner")
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseAfterRenameWithEvalAndSort
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where match_phrase(writer, "William Faulkner")
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+;
+
+matchPhraseAfterRenameShadowing
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename title as author
+| where match_phrase(author, "Lord of the Rings") and book_no == "2714"
+| keep book_no, author
+;
+
+book_no:keyword | author:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+;

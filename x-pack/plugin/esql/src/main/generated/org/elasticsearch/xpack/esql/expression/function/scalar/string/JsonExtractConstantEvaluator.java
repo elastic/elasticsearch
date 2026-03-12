@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link JsonExtract}.
+ * {@link ExpressionEvaluator} implementation for {@link JsonExtract}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class JsonExtractConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(JsonExtractConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
   private final JsonPath path;
 
@@ -36,8 +36,8 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
   private Warnings warnings;
 
-  public JsonExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      JsonPath path, DriverContext driverContext) {
+  public JsonExtractConstantEvaluator(Source source, ExpressionEvaluator str, JsonPath path,
+      DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.path = path;
@@ -122,14 +122,14 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
     private final JsonPath path;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, JsonPath path) {
+    public Factory(Source source, ExpressionEvaluator.Factory str, JsonPath path) {
       this.source = source;
       this.str = str;
       this.path = path;

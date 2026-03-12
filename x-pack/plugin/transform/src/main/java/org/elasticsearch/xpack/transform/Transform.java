@@ -222,9 +222,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        var settings = restHandlersServices.settings();
         var transformParsingContext = new TransformParsingContext(
-            new CrossProjectModeDecider(settings).crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
         );
         return Arrays.asList(
             new RestPutTransformAction(transformParsingContext),

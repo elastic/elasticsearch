@@ -101,7 +101,7 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
                 : Map.of()
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .apply(clusterBuilder -> configureTrustStore(clusterBuilder))
+        .apply(RepositoryAzureClientYamlTestSuiteIT::configureTrustStore)
         .build();
 
     private static void configureTrustStore(LocalClusterSpecBuilder<?> builder) {

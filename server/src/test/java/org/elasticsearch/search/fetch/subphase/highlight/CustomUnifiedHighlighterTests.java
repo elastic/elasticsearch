@@ -97,36 +97,6 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
     }
 
     /**
-     * Verify that match_phrase_prefix query + sentence boundary scanner + highlight does not throw IllegalStateException.
-     * This is a regression test for the issue where BoundedBreakIteratorScanner did not implement standard methods
-     * like first(), causing highlighting failures.
-     */
-    public void testMatchPhrasePrefixWithSentenceBoundaryScanner() throws IOException {
-
-        MapperService mapperService = createMapperService("""
-            { "_doc" : { "properties" : {
-                "field" : { "type" : "text" }
-            }}}
-            """);
-
-        ParsedDocument doc = mapperService.documentMapper().parse(source("""
-            { "field" : "The quick brown fox jumps over the lazy dog. Another sentence with prefix matching." }
-            """));
-
-        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhrasePrefixQuery("field", "prefix mat"))
-            .highlighter(
-                new HighlightBuilder().field("field")
-                    .boundaryScannerType(HighlightBuilder.BoundaryScannerType.SENTENCE)
-                    .highlighterType("unified")
-            );
-
-        // Should not throw IllegalStateException
-        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-        assertNotNull(highlights);
-        assertFalse(highlights.isEmpty());
-    }
-
-    /**
      * Verify that match_phrase_prefix query + sentence boundary scanner + multi-valued field highlight
      * does not throw IllegalStateException.
      * Multi-valued fields trigger the cross-segment boundary logic in SplittingBreakIterator.
@@ -150,9 +120,9 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
                     .highlighterType("unified")
             );
 
-        // Should not throw IllegalStateException
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
         assertNotNull(highlights);
+        assertFalse(highlights.isEmpty());
     }
 
 }

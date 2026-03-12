@@ -32,16 +32,10 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
 
   private final List<Integer> channels;
 
-  public ValuesBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesBytesRefAggregator.SingleState state) {
+  ValuesBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesBytesRefAggregatorFunction(driverContext, channels, ValuesBytesRefAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesBytesRefAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

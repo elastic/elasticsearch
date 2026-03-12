@@ -618,9 +618,7 @@ book_no:keyword | title:text                            | author:text           
 
 testQstrWithScoreBoost
 required_capability: qstr_function
-required_capability: query_string_function_options
-required_capability: metadata_score
-required_capability: routing_function_update
+required_capability: qstr_function_boost_fix
 
 from books metadata _score
 | where qstr("title:rings", {"boost": 5})

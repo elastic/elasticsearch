@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 144068
+summary: Add base-name alias for anomaly results indices
+type: bug

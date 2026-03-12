@@ -184,6 +184,7 @@ public class GcsRepositoryStatsCollector {
             runnable.run();
         } finally {
             stats.totalDuration += timer.absoluteTimeInMillis() - t;
+            collect(stats);
             clearThreadLocal();
         }
     }
@@ -195,7 +196,6 @@ public class GcsRepositoryStatsCollector {
             runnable.run();
         } finally {
             stats.totalDuration += timer.absoluteTimeInMillis() - t;
-            collect(stats);
             clearThreadLocal();
         }
     }

@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
@@ -228,6 +229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveConfigurationAware(),
+            new ResolveTimestampBoundsAware(),
             new ResolveTable(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -1746,6 +1748,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return ca.withConfiguration(configuration);
             }
             return expression;
+        }
+    }
+
+    private static class ResolveTimestampBoundsAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            var bounds = context.timestampBounds();
+            if (bounds == null) {
+                return plan;
+            }
+            if (plan instanceof TimestampBoundsAware.OfLogicalPlan tba && tba.needsTimestampBounds()) {
+                plan = tba.withTimestampBounds(
+                    Literal.dateTime(plan.source(), bounds.start()),
+                    Literal.dateTime(plan.source(), bounds.end())
+                );
+            }
+            return plan.transformExpressionsUp(Expression.class, expression -> {
+                if (expression instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
+                    return tba.withTimestampBounds(
+                        Literal.dateTime(expression.source(), bounds.start()),
+                        Literal.dateTime(expression.source(), bounds.end())
+                    );
+                }
+                return expression;
+            });
         }
     }
 

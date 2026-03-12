@@ -1113,11 +1113,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
 
         MapperService mapperService = mock(MapperService.class);
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
-        // returning the current document mapper as the merge result to simulate a noop mapping update
-        when(mapperService.documentMapper()).thenReturn(documentMapper);
-        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(mapperService.isNoOpUpdate(any())).thenReturn(true);
 
         IndexShard shard = mockShard(null, mapperService);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
@@ -1166,11 +1162,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult successfulResult = new FakeIndexResult(1, 1, 10, true, resultLocation, "id");
 
         MapperService mapperService = mock(MapperService.class);
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
-        when(mapperService.documentMapper()).thenReturn(documentMapper);
-        // returning the current document mapper as the merge result to simulate a noop mapping update
-        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(mapperService.isNoOpUpdate(any())).thenReturn(true);
         // on the second invocation, the mapping version is incremented
         // so that the second mapping update attempt doesn't trigger the infinite loop prevention
         when(mapperService.mappingVersion()).thenReturn(0L, 0L, 1L);
@@ -1217,7 +1209,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         latch.await();
-        verify(mapperService, times(2)).merge(any(), any(CompressedXContent.class), any());
+        verify(mapperService, times(2)).isNoOpUpdate(any());
     }
 
     private IndexShard mockShard(IndexSettings indexSettings, MapperService mapperService) {

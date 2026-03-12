@@ -36,17 +36,12 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private final int precision;
 
-  public CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-    this.precision = precision;
-  }
-
-  public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
+  CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(driverContext, precision), driverContext, precision);
+    this.precision = precision;
+    this.channels = channels;
+    this.state = CountDistinctBytesRefAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

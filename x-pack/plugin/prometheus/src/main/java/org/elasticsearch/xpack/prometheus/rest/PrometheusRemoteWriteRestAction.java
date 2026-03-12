@@ -22,9 +22,9 @@ import org.elasticsearch.rest.IndexingPressureAwareContentAggregator;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
@@ -98,20 +98,29 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                     client.execute(
                         PrometheusRemoteWriteTransportAction.TYPE,
                         transportRequest,
-                        ActionListener.releaseBefore(transportRequest, new RestResponseListener<>(channel) {
-                            @Override
-                            public RestResponse buildResponse(PrometheusRemoteWriteTransportAction.RemoteWriteResponse r) {
-                                if (r.getMessage() != null) {
-                                    logger.debug(
-                                        "Remote write request failed with status [{}] and message [{}]",
-                                        r.getStatus(),
-                                        r.getMessage()
-                                    );
-                                    return new RestResponse(r.getStatus(), r.getMessage());
+                        ActionListener.releaseBefore(
+                            transportRequest,
+                            ActionListener.wrap(
+                                r -> channel.sendResponse(
+                                    new RestResponse(RestStatus.NO_CONTENT, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+                                ),
+                                e -> {
+                                    logger.debug("Remote write transport action failed", e);
+                                    try {
+                                        channel.sendResponse(
+                                            new RestResponse(
+                                                ExceptionsHelper.status(e),
+                                                RestResponse.TEXT_CONTENT_TYPE,
+                                                new BytesArray(e.getMessage())
+                                            )
+                                        );
+                                    } catch (Exception sendException) {
+                                        sendException.addSuppressed(e);
+                                        logger.warn("failed to send failure response", sendException);
+                                    }
                                 }
-                                return new RestResponse(r.getStatus(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                            }
-                        })
+                            )
+                        )
                     );
                 }
 

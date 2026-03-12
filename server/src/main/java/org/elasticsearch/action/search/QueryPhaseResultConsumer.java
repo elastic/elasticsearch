@@ -234,7 +234,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
-        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
+        final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs ? new ArrayDeque<>(mergeResult != null ? 1 : 0) : null;
+        final Deque<DelayableWriteable<InternalAggregations>> remoteAggsList = hasAggs ? new ArrayDeque<>(batchedResults.size()) : null;
 
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = circuitBreakerBytes;
@@ -243,13 +244,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
             // execution for shards on the coordinating node itself
             if (mergeResult != null) {
-                consumePartialMergeResult(mergeResult, topDocsList, aggsList);
+                consumePartialMergeResult(mergeResult, topDocsList, localAggsList);
                 breakerSize = addEstimateAndMaybeBreak(mergeResult.estimatedSize);
             }
             Tuple<TopDocsStats, MergeResult> batchedResult;
             while ((batchedResult = batchedResults.poll()) != null) {
                 topDocsStats.add(batchedResult.v1());
-                consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
+                consumePartialMergeResult(batchedResult.v2(), topDocsList, remoteAggsList);
                 // Add the estimate of the agg size
                 breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
             }
@@ -261,24 +262,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     topDocsList.add(topDocs.topDocs);
                 }
             }
-            if (aggsList != null) {
+            if (hasAggs) {
                 // Add an estimate of the final reduce size
                 breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(circuitBreakerBytes));
                 AggregationReduceContext aggReduceContext = performFinalReduce
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
                 aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                aggs = aggregate(buffer.iterator(), new Iterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return aggsList.isEmpty() == false;
-                    }
-
-                    @Override
-                    public DelayableWriteable<InternalAggregations> next() {
-                        return aggsList.pollFirst();
-                    }
-                }, resultSize, aggReduceContext, mergeResult != null);
+                aggs = aggregate(
+                    buffer.iterator(),
+                    localAggsList.iterator(),
+                    remoteAggsList.iterator(),
+                    resultSize,
+                    aggReduceContext
+                );
             } else {
                 aggs = null;
             }
@@ -298,8 +295,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Buffer is non-null on exception
             if (buffer != null) {
                 releaseAggs(buffer);
-                if (aggsList != null) {
-                    Releasables.close(aggsList);
+                if (localAggsList != null) {
+                    Releasables.close(localAggsList);
+                }
+                if (remoteAggsList != null) {
+                    Releasables.close(remoteAggsList);
                 }
             }
         }
@@ -392,13 +392,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
+            Iterator<DelayableWriteable<InternalAggregations>> localPartials = (lastMerge != null && lastMerge.reducedAggs != null)
+                ? Iterators.single(lastMerge.reducedAggs)
+                : Collections.emptyIterator();
             newAggs = hasAggs
                 ? aggregate(
                     toConsume.iterator(),
-                    lastMerge == null ? Collections.emptyIterator() : Iterators.single(lastMerge.reducedAggs),
+                    localPartials,
+                    Collections.emptyIterator(),
                     resultSetSize,
-                    aggReduceContextBuilder.forPartialReduction(topHitsToRelease),
-                    lastMerge != null
+                    aggReduceContextBuilder.forPartialReduction(topHitsToRelease)
                 )
                 : null;
             for (QuerySearchResult querySearchResult : toConsume) {
@@ -425,23 +428,28 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * Reduces shard and partial aggregation results. When {@code skipAddFromTreeForFirstPartial} is true,
-     * the first element in {@code partialResults} is the local merge (in-memory); we do not add its
-     * top_hits to the release list here because those refs are already registered during this same
-     * reduce via {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} and
-     * {@link AggregationReduceContext#transferTopHitsForRelease}. Adding them again would double-release
-     * and corrupt ref counts. All other partials are from the wire; their top_hits are added so the
-     * coordinator takes ownership for release.
+     * Reduces shard and partial aggregation results.
+     * <p>
+     * <strong>Local partial results</strong> are in-memory merges; we do not add their top_hits to the release list
+     * because those refs are already registered during this same reduce via
+     * {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} and
+     * {@link AggregationReduceContext#transferTopHitsForRelease}. Adding them again would double-release and
+     * corrupt ref counts.
+     * </p>
+     * <p>
+     * <strong>Remote partial results</strong> are from the wire; their top_hits are added via
+     * {@link AggregationReduceContext#addTopHitsFromAggregationTree} so the coordinator takes ownership for release.
+     * </p>
      */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
-        Iterator<DelayableWriteable<InternalAggregations>> partialResults,
+        Iterator<DelayableWriteable<InternalAggregations>> localPartialResults,
+        Iterator<DelayableWriteable<InternalAggregations>> remotePartialResults,
         int resultSetSize,
-        AggregationReduceContext reduceContext,
-        boolean skipAddFromTreeForFirstPartial
+        AggregationReduceContext reduceContext
     ) {
         try {
-            Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
+            Iterator<InternalAggregations> toConsumeMapped = Iterators.map(toConsume, r -> {
                 try (var res = r.consumeAggs()) {
                     var serialized = res.isSerialized();
                     InternalAggregations aggs = res.expand();
@@ -452,21 +460,24 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     return aggs;
                 }
             });
-            boolean[] isFirstPartial = { true };
-            return InternalAggregations.topLevelReduce(partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
-                boolean first = isFirstPartial[0];
-                isFirstPartial[0] = false;
+            Iterator<InternalAggregations> localMapped = Iterators.map(localPartialResults, r -> {
+                try (r) {
+                    return r.expand();
+                }
+            });
+            Iterator<InternalAggregations> remoteMapped = Iterators.map(remotePartialResults, r -> {
                 try (r) {
                     InternalAggregations aggs = r.expand();
-                    if ((skipAddFromTreeForFirstPartial && first) == false) {
-                        reduceContext.addTopHitsFromAggregationTree(aggs, false);
-                    }
+                    reduceContext.addTopHitsFromAggregationTree(aggs, false);
                     return aggs;
                 }
-            }), aggsIter) : aggsIter, resultSetSize, reduceContext);
+            });
+            Iterator<InternalAggregations> combined = Iterators.concat(localMapped, remoteMapped, toConsumeMapped);
+            return InternalAggregations.topLevelReduce(combined, resultSetSize, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
-            partialResults.forEachRemaining(Releasable::close);
+            localPartialResults.forEachRemaining(Releasable::close);
+            remotePartialResults.forEachRemaining(Releasable::close);
         }
     }
 

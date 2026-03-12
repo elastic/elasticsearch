@@ -203,7 +203,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     }
 
-    public static class DeprecatedParameterMapper extends FieldMapper {
+    static class DeprecatedParameterMapper extends FieldMapper {
 
         static final String CONTENT_TYPE = "deprecated-param-mapper";
 
@@ -233,15 +233,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 null
             ).acceptsNull().deprecated();
 
-            private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
             TypeBuilder(String name) {
                 super(name);
             }
 
             @Override
             protected Parameter<?>[] getParameters() {
-                return new Parameter<?>[] { deprecatedParam, meta };
+                return new Parameter<?>[] { deprecatedParam };
             }
 
             @Override
@@ -253,7 +251,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             public FieldMapper build(MapperBuilderContext context) {
                 return new DeprecatedParameterMapper(
                     leafName(),
-                    new DeprecatedParameterFieldType(context.buildFullName(leafName()), deprecatedParam.getValue(), meta.getValue()),
+                    new DeprecatedParameterFieldType(context.buildFullName(leafName()), deprecatedParam.getValue()),
                     builderParams(this, context)
                 );
             }
@@ -263,8 +261,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
             private final String deprecatedField;
 
-            DeprecatedParameterFieldType(String name, String deprecatedField, Map<String, String> meta) {
-                super(name, IndexType.NONE, false, meta);
+            DeprecatedParameterFieldType(String name, String deprecatedField) {
+                super(name, IndexType.NONE, false, Map.of());
                 this.deprecatedField = deprecatedField;
             }
 

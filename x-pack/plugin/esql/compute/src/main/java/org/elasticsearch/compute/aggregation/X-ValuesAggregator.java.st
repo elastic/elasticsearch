@@ -311,7 +311,10 @@ $endif$
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
 $if(BytesRef)$
-                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
+                // Emit an ordinals when we're close to emitting a single page and the result *looks* dense.
+                // We'll make this comparison nicer soon, but it'll do for now.
+                boolean selectedIsMostValues = selected.getPositionCount() > firstValues.size() * .9;
+                if (selectedIsMostValues && OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, prepared);
                 } else {
                     return buildOutputBlock(blockFactory, selected, prepared);

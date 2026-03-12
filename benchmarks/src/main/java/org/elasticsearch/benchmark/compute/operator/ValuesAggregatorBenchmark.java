@@ -174,8 +174,7 @@ public class ValuesAggregatorBenchmark {
                 // Check them
                 BytesRefBlock values = page.getBlock(1);
                 if (values.asOrdinals() == null) {
-                    // TODO restore ordinals results
-                    // throw new AssertionError(" expected ordinals; but got " + values);
+                    throw new AssertionError(" expected ordinals; but got " + values);
                 }
                 for (int p = 0; p < groups; p++) {
                     checkExpectedBytesRef(prefix, values, p, expected.get(p));

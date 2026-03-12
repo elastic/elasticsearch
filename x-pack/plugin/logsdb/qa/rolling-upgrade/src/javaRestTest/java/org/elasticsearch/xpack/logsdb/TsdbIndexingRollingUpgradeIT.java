@@ -44,13 +44,11 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
             """;
 
     public void testIndexing() throws Exception {
-        // If cluster has support for synthetic id, randomly set index.mapping.synthetic_id to true/false
-        // If cluster doesn't have support, don't set index.mapping.synthetic_id at all (null),
-        // indicated by oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)==false
         Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
+        Boolean disableSeqNo = oldClusterHasFeature(IndexFeatures.TIME_SERIES_NO_SEQNO) ? randomBoolean() : null;
 
         String dataStreamName = "k9s";
-        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), getTemplate(useSyntheticId));
+        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), getTemplate(useSyntheticId, disableSeqNo));
 
         Instant startTime = Instant.now().minusSeconds(60 * 60);
         bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
@@ -64,6 +62,12 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         );
         if (useSyntheticId != null) {
             assertThat(((Map<?, ?>) settings.get("settings")).get(IndexSettings.SYNTHETIC_ID.getKey()), equalTo(useSyntheticId.toString()));
+        }
+        if (disableSeqNo != null) {
+            assertThat(
+                ((Map<?, ?>) settings.get("settings")).get(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()),
+                equalTo(disableSeqNo.toString())
+            );
         }
 
         var mapping = getIndexMappingAsMap(firstBackingIndex);

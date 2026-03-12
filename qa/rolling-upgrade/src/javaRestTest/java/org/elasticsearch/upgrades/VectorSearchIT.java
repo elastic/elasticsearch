@@ -51,6 +51,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
     private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
     private static final String BIT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.15.0";
+    private static final String DFS_KNN_RESCORE_TEST_FEATURE = "gte_v9.4.0";
 
     public void testBitVectors() throws Exception {
         assumeTrue("Bit vector search is not supported on this version", oldClusterHasFeature(BIT_VECTOR_SEARCH_TEST_FEATURE));
@@ -741,6 +742,10 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assumeTrue(
             "lazy rescoring for knn DFS searches requires quantized vector search",
             oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
+        );
+        assumeFalse(
+            "testing compatibility between upgrades, so old clusters shouldn't have the current feature",
+            oldClusterHasFeature(DFS_KNN_RESCORE_TEST_FEATURE)
         );
         if (isOldCluster()) {
             String mapping = """

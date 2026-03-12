@@ -84,6 +84,7 @@ dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   testImplementation project(':modules:codecs-common')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

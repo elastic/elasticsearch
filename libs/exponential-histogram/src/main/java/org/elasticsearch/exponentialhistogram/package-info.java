@@ -64,7 +64,8 @@
  * For the zero-bucket, we merge the zero threshold from both histograms and collapse any overlapping buckets into the resulting new
  * zero bucket.
  * <p>
- * In order to bring both histograms to the same scale, we only reduce the scale of higher-scale histograms to match the lower one. If the merged histogram would exceed the allowed number of buckets, we reduce the scale further.
+ * In order to bring both histograms to the same scale, we only reduce the scale of higher-scale histograms to match the lower one.
+ * If the merged histogram would exceed the allowed number of buckets, we reduce the scale further.
  *
  * <h2>Distributions with Few Distinct Values</h2>
  *

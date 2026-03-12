@@ -26,7 +26,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
-import java.util.OptionalLong;
 import java.util.function.DoubleBinaryOperator;
 
 /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -17,12 +18,12 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-public class EsqlLogContext extends ActivityLoggerContext {
+public class EsqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
@@ -39,7 +40,8 @@ public class EsqlLogContext extends ActivityLoggerContext {
         this.response = null;
     }
 
-    String getQuery() {
+    @Override
+    public String getQuery() {
         return request.query();
     }
 
@@ -59,17 +61,19 @@ public class EsqlLogContext extends ActivityLoggerContext {
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
 
-    long getHits() {
+    @Override
+    public int getResultCount() {
         if (response == null) {
             return 0;
         }
-        return response.getRowCount();
+        return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 
+    @Override
     public String[] getIndices() {
         if (response == null) {
             return null;
@@ -87,16 +91,15 @@ public class EsqlLogContext extends ActivityLoggerContext {
 
     // CCS stuff
 
-    public Collection<String> remoteClusterAliases() {
+    @Override
+    public Map<String, String> remoteClusters() {
         if (response == null) {
-            return Collections.emptyList();
+            return Map.of();
         }
         return response.getExecutionInfo()
             .getClusters()
-            .keySet()
+            .entrySet()
             .stream()
-            .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
-            .toList();
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
     }
-
 }

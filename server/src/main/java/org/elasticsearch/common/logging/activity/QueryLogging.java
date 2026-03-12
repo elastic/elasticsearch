@@ -50,4 +50,8 @@ public interface QueryLogging {
      * List of remote clusters involved in this query.
      */
     String QUERY_FIELD_REMOTES = ES_QUERY_FIELDS_PREFIX + "remotes";
+    /**
+     * Counts of the statuses of the clusters - successful, skipped, failed, etc.
+     */
+    String QUERY_FIELD_REMOTE_STATUS = ES_QUERY_FIELDS_PREFIX + "clusters.";
 }

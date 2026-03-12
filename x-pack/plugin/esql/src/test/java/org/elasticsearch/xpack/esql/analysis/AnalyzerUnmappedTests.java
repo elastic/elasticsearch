@@ -2471,54 +2471,28 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
-    // same tree as above, except for the source nodes
+    // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142367)
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        var plan = analyzeStatement(setUnmappedLoad("""
-            FROM test,
-                (FROM languages
-                 | WHERE language_code > 10
-                 | RENAME language_name as languageName),
-                (FROM sample_data
-                | STATS max(@timestamp)),
-                (FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """));
-
-        // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
-
-        List<EsRelation> esRelations = plan.collect(EsRelation.class);
-        assertThat(
-            esRelations.stream().map(EsRelation::indexPattern).toList(),
-            is(
-                List.of(
-                    "test", // FROM
-                    "languages",
-                    "sample_data",
-                    "test", // LOOKUP JOIN
-                    "languages_lookup"
-                )
-            )
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test,
+                    (FROM languages
+                     | WHERE language_code > 10
+                     | RENAME language_name as languageName),
+                    (FROM sample_data
+                    | STATS max(@timestamp)),
+                    (FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code)
+                | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+                | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
+                | RENAME emp_no AS empNo, language_code AS languageCode
+                | MV_EXPAND languageCode
+                """),
+            "Subqueries and views are not supported with unmapped_fields=\"load\""
         );
-        for (var esr : esRelations) {
-            if (esr.indexMode() != IndexMode.LOOKUP) {
-                var dne = esr.output().stream().filter(a -> a.name().startsWith("does_not_exist")).toList();
-                assertThat(dne.size(), is(2));
-                var dne1 = as(dne.getFirst(), FieldAttribute.class);
-                var dne2 = as(dne.getLast(), FieldAttribute.class);
-                var pukesf1 = as(dne1.field(), PotentiallyUnmappedKeywordEsField.class);
-                var pukesf2 = as(dne2.field(), PotentiallyUnmappedKeywordEsField.class);
-                assertThat(pukesf1.getName(), is("does_not_exist1"));
-                assertThat(pukesf2.getName(), is("does_not_exist2"));
-            }
-        }
     }
 
     public void testFailSubquerysWithNoMainAndStatsOnlyNullify() {
@@ -3793,6 +3767,129 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         } else {
             assertThat(dneAttr.dataType(), is(DataType.NULL));
         }
+    }
+
+    // ---- unmapped_fields="load" disallows branching commands (see #142367) ----
+
+    public void testLoadModeDisallowsFork() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
+            "FORK is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsForkWithStats() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"),
+            "FORK is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsForkWithMultipleBranches() {
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | FORK (WHERE emp_no > 1)
+                       (WHERE emp_no < 100)
+                       (WHERE salary > 50000)
+                """),
+            "FORK is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsLookupJoin() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"),
+            "LOOKUP JOIN is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsLookupJoinAfterFilter() {
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | WHERE emp_no > 1
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP emp_no, language_name
+                """),
+            "LOOKUP JOIN is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        verificationFailure(
+            setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)"),
+            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeAllowsSingleSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        // A single subquery without a main index is merged into the main query during analysis,
+        // so there is no Subquery node in the plan and no branching — this is allowed.
+        analyzeStatement(setUnmappedLoad("FROM (FROM languages | WHERE language_code > 1)"));
+    }
+
+    public void testLoadModeDisallowsMultipleSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test,
+                    (FROM languages | WHERE language_code > 1),
+                    (FROM sample_data | STATS max(@timestamp))
+                """),
+            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsNestedSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        verificationFailure(
+            setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)"),
+            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsSubqueryWithLookupJoin() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test,
+                    (FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code)
+                """),
+            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    // ---- nullify mode should allow all branching commands ----
+
+    public void testNullifyModeAllowsFork() {
+        analyzeStatement(setUnmappedNullify("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
+    }
+
+    public void testNullifyModeAllowsForkWithStats() {
+        analyzeStatement(setUnmappedNullify("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"));
+    }
+
+    public void testNullifyModeAllowsLookupJoin() {
+        analyzeStatement(
+            setUnmappedNullify("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+        );
+    }
+
+    public void testNullifyModeAllowsSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        analyzeStatement(setUnmappedNullify("FROM test, (FROM languages | WHERE language_code > 1)"));
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

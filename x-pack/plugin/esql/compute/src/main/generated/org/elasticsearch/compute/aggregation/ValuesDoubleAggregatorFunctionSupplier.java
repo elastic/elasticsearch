@@ -31,13 +31,13 @@ public final class ValuesDoubleAggregatorFunctionSupplier implements AggregatorF
   @Override
   public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesDoubleAggregatorFunction.create(driverContext, channels);
+    return new ValuesDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public ValuesDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return ValuesDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new ValuesDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -38,17 +38,12 @@ public final class CountDistinctFloatGroupingAggregatorFunction implements Group
 
   private final int precision;
 
-  public CountDistinctFloatGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  CountDistinctFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int precision) {
     this.precision = precision;
-  }
-
-  public static CountDistinctFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int precision) {
-    return new CountDistinctFloatGroupingAggregatorFunction(channels, CountDistinctFloatAggregator.initGrouping(driverContext, precision), driverContext, precision);
+    this.channels = channels;
+    this.state = CountDistinctFloatAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

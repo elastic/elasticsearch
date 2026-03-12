@@ -32,14 +32,9 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private final List<Integer> channels;
     private final boolean countAll;
 
-    public static CountAggregatorFunction create(List<Integer> inputChannels) {
-        return new CountAggregatorFunction(inputChannels, new LongState(0));
-    }
-
-    protected CountAggregatorFunction(List<Integer> channels, LongState state) {
+    CountAggregatorFunction(List<Integer> channels) {
         this.channels = channels;
-        this.state = state;
-        // no channels specified means count-all/count(*)
+        this.state = new LongState(0);
         this.countAll = channels.isEmpty();
     }
 
@@ -181,12 +176,12 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
         @Override
         public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountAggregatorFunction.create(channels);
+            return new CountAggregatorFunction(channels);
         }
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountGroupingAggregatorFunction.create(driverContext, channels);
+            return new CountGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override

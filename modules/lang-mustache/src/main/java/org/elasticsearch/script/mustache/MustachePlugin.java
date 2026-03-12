@@ -56,8 +56,8 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     ) {
         Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestSearchTemplateAction(clusterSupportsFeature, settings),
-            new RestMultiSearchTemplateAction(settings),
+            new RestSearchTemplateAction(clusterSupportsFeature, restHandlersServices.crossProjectModeDecider()),
+            new RestMultiSearchTemplateAction(settings, restHandlersServices.crossProjectModeDecider()),
             new RestRenderSearchTemplateAction()
         );
     }

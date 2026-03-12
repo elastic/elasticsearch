@@ -37,16 +37,11 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   private final List<Integer> channels;
 
-  public LastExponentialHistogramByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, ExponentialHistogramStates.WithLongSingleState state) {
+  LastExponentialHistogramByTimestampAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastExponentialHistogramByTimestampAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new LastExponentialHistogramByTimestampAggregatorFunction(driverContext, channels, LastExponentialHistogramByTimestampAggregator.initSingle(driverContext));
+    this.state = LastExponentialHistogramByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

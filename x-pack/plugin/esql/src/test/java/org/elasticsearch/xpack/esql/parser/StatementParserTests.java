@@ -4608,8 +4608,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMMRCommands() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
-
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(

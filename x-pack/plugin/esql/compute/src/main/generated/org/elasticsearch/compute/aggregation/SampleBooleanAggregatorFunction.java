@@ -34,17 +34,11 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
 
   private final int limit;
 
-  public SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleBooleanAggregator.SingleState state, int limit) {
+  SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleBooleanAggregatorFunction(driverContext, channels, SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

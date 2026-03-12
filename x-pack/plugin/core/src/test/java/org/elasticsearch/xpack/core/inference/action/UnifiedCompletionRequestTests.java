@@ -534,7 +534,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent));
         assertFalse(request.containsMultimodalContent());
     }
-    
+
     public void testContainsMultimodalContentWithMixedNullAndMultimodalContent() {
         var messageWithNullContent = new Message(null, "assistant", "call_1", null, null, null);
         var messageWithMultimodalContent = new Message(

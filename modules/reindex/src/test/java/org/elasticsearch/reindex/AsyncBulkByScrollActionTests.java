@@ -59,7 +59,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;

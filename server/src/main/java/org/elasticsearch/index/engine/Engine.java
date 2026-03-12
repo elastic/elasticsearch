@@ -2641,7 +2641,10 @@ public abstract class Engine implements Closeable {
         };
 
         /**
-         * Called after the flush commit succeeds but before the flush lock is released.
+         * Called while the flush lock is still held, after the flush request has been processed. It is invoked regardless
+         * of whether a new commit was actually created, with the generation of the last committed segment infos. It is
+         * <b>NOT</b> called when the flush lock was never acquired, e.g. the request was skipped due to not waiting
+         * for the lock (i.e. {@code waitIfOngoing==false}) or if the engine does not use a flush lock at all.
          *
          * @param generation the segment generation of the commit that was just flushed
          */

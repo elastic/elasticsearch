@@ -34,17 +34,12 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   private final int precision;
 
-  public CountDistinctBytesRefAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, HllStates.SingleState state, int precision) {
+  CountDistinctBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, CountDistinctBytesRefAggregator.initSingle(driverContext, precision), precision);
+    this.state = CountDistinctBytesRefAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -9,13 +9,13 @@ package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BreakingTDigestHolder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
@@ -45,7 +45,6 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 import org.hamcrest.Matcher;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -493,19 +492,9 @@ public class BlockTestUtils {
         for (Centroid c : digest.centroids()) {
             sum += c.mean() * c.count();
         }
-
-        TDigestHolder digestHolder = new TDigestHolder();
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            // TODO: replace with BreakingTDigestHolder when added
-            for (Centroid centroid : digest.centroids()) {
-                out.writeVLong(centroid.count());
-                out.writeDouble(centroid.mean());
-            }
-            digestHolder.reset(out.bytes().toBytesRef(), digest.getMin(), digest.getMax(), sum, digest.size());
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to encode test TDigest", e);
-        }
-        return digestHolder;
+        BreakingTDigestHolder digestHolder = BreakingTDigestHolder.create(noopBreaker);
+        digestHolder.set(digest, sum, digest.getMin(), digest.getMax());
+        return digestHolder.accessor();
     }
 
     public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {

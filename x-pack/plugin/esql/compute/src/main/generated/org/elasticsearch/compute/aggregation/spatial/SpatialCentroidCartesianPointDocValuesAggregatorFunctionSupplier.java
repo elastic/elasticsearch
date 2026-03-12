@@ -33,13 +33,13 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSuppl
   @Override
   public SpatialCentroidCartesianPointDocValuesAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

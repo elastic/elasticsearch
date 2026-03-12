@@ -53,6 +53,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getNumNodes() == 1;
     }
 
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
+    }
+
     @Before
     public void configureChunks() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);

@@ -61,7 +61,7 @@ public class ElasticInferenceServiceAuthorizationModel {
         String baseEisUrl
     ) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
-        return createInternal(responseEntity.getAuthorizedEndpoints(), components);
+        return createInternal(responseEntity.authorizedEndpoints(), components);
     }
 
     private static ElasticInferenceServiceAuthorizationModel createInternal(

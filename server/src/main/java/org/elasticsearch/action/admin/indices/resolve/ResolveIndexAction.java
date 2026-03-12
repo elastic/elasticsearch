@@ -39,7 +39,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -597,15 +596,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ClusterService clusterService,
             ActionFilters actionFilters,
             ProjectResolver projectResolver,
-            Settings settings,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            CrossProjectModeDecider crossProjectModeDecider
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+            this.crossProjectModeDecider = crossProjectModeDecider;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
@@ -731,19 +730,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             );
         }
 
-        // Shortcut for tests that don't need index mode filtering
-        static void resolveIndices(
-            String[] names,
-            IndicesOptions indicesOptions,
-            ProjectState projectState,
-            IndexNameExpressionResolver resolver,
-            List<ResolvedIndex> indices,
-            List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
-        ) {
-            resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Collections.emptySet());
-        }
-
         /**
          * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
          *
@@ -779,6 +765,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
+            assert indicesOptions.indexAbstractionOptions().resolveViews() == false : "Views are not supported in ResolveIndexAction";
             Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
                 projectState.metadata(),
                 indicesOptions,

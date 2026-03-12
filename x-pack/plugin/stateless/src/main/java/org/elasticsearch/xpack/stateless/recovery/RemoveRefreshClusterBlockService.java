@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
@@ -45,7 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -80,7 +78,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
-    private record RefreshBlockExpiration(Index index, long timestampInMillis) {}
+    private record RefreshBlockExpiration(ProjectId projectId, Index index, long timestampInMillis) {}
 
     private final MasterServiceTaskQueue<RemoveRefreshBlockClusterStateUpdateTask> updateClusterStateTaskQueue;
     private final LinkedBlockingQueue<RefreshBlockExpiration> refreshBlocks = new LinkedBlockingQueue<>();
@@ -116,65 +114,96 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        @FixForMultiProject(description = "we may want to loop through all active projects")
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
-        var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
-        if (blockedIndices.isEmpty()) {
-            return;
-        }
 
         boolean scheduleExpiration = false;
         if (event.nodesDelta().masterNodeChanged()) {
-            logger.debug("Node is elected master, listing all indices with a refresh block");
-            scheduleExpiration = addRefreshBlockExpirationEntry(event.state(), blockedIndices);
-
-        } else if (event.metadataChanged()) {
-            var previousBlockedIndices = getIndicesWithRefreshBlock(event.previousState(), projectId);
-
-            var newBlockedIndices = Sets.difference(blockedIndices, previousBlockedIndices);
-            if (newBlockedIndices.isEmpty() == false) {
-                logger.debug("Found [{}] new indices with refresh block: {}", newBlockedIndices.size(), newBlockedIndices);
-                assert newBlockedIndices.stream().allMatch(index -> event.previousState().metadata().getProject().hasIndex(index) == false);
-                scheduleExpiration = addRefreshBlockExpirationEntry(event.state(), newBlockedIndices);
+            for (var projectId : event.state().metadata().projects().keySet()) {
+                var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
+                if (blockedIndices.isEmpty()) {
+                    continue;
+                }
+                logger.debug("Node is elected master, listing all indices in project [{}] with a refresh block", projectId);
+                scheduleExpiration |= addRefreshBlockExpirationEntry(event.state(), projectId, blockedIndices);
             }
+        } else if (event.metadataChanged()) {
+            // Lazy init
+            Map<ProjectId, Set<Index>> noReplicasBlocksToRemove = null;
+            for (var projectId : event.state().metadata().projects().keySet()) {
+                var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
+                if (blockedIndices.isEmpty()) {
+                    continue;
+                }
 
-            if (previousBlockedIndices.isEmpty() == false) {
-                logger.debug("Found [{}] existing indices with refresh block, checking replicas", previousBlockedIndices.size());
-                Set<Index> blocksToRemove = null;
-                for (var previous : previousBlockedIndices) {
-                    var indexMetadata = event.state().metadata().getProject().index(previous);
-                    if (indexMetadata != null && indexMetadata.getNumberOfReplicas() == 0) {
-                        logger.debug("Found index {} with refresh block but no replicas, removing block", indexMetadata.getIndex());
-                        if (blocksToRemove == null) {
-                            blocksToRemove = new HashSet<>();
+                var previousBlockedIndices = getIndicesWithRefreshBlock(event.previousState(), projectId);
+
+                var newBlockedIndices = Sets.difference(blockedIndices, previousBlockedIndices);
+                if (newBlockedIndices.isEmpty() == false) {
+                    logger.debug(
+                        "Found [{}] new indices in project [{}] with refresh block: [{}]",
+                        newBlockedIndices.size(),
+                        projectId,
+                        newBlockedIndices
+                    );
+                    assert newBlockedIndices.stream()
+                        .allMatch(
+                            index -> event.previousState().metadata().hasProject(projectId) == false
+                                || event.previousState().metadata().getProject(projectId).hasIndex(index) == false
+                        );
+                    scheduleExpiration |= addRefreshBlockExpirationEntry(event.state(), projectId, newBlockedIndices);
+                }
+
+                if (previousBlockedIndices.isEmpty() == false) {
+                    logger.debug(
+                        "Found [{}] existing indices in project [{}] with refresh block, checking replicas",
+                        projectId,
+                        previousBlockedIndices.size()
+                    );
+                    for (var previous : previousBlockedIndices) {
+                        var indexMetadata = event.state().metadata().getProject(projectId).index(previous);
+                        if (indexMetadata != null && indexMetadata.getNumberOfReplicas() == 0) {
+                            logger.debug(
+                                "Found index [{}] in project [{}] with refresh block but no replicas, removing block",
+                                indexMetadata.getIndex(),
+                                projectId
+                            );
+                            if (noReplicasBlocksToRemove == null) {
+                                noReplicasBlocksToRemove = new HashMap<>();
+                            }
+                            noReplicasBlocksToRemove.computeIfAbsent(projectId, k -> new HashSet<>()).add(indexMetadata.getIndex());
                         }
-                        blocksToRemove.add(indexMetadata.getIndex());
                     }
                 }
-                if (blocksToRemove != null && blocksToRemove.isEmpty() == false) {
-                    updateClusterStateTaskQueue.submitTask(
-                        "remove-refresh-blocks-no-replicas",
-                        new RemoveRefreshBlockClusterStateUpdateTask(blocksToRemove),
-                        null
-                    );
-                }
+            }
+            if (noReplicasBlocksToRemove != null && noReplicasBlocksToRemove.isEmpty() == false) {
+                updateClusterStateTaskQueue.submitTask(
+                    "remove-refresh-blocks-no-replicas",
+                    new RemoveRefreshBlockClusterStateUpdateTask(Map.copyOf(noReplicasBlocksToRemove)),
+                    null
+                );
             }
         }
 
         if (event.routingTableChanged()) {
-            Set<Index> blocksToRemove = new HashSet<>();
-            for (String blockedIndex : blockedIndices) {
-                if (event.indexRoutingTableChanged(event.state().metadata().getProject().index(blockedIndex).getIndex())) {
-                    var indexRoutingTable = event.state().routingTable().index(blockedIndex);
-                    if (indexRoutingTable.readyForSearch()) {
-                        blocksToRemove.add(indexRoutingTable.getIndex());
+            Map<ProjectId, Set<Index>> searchReadyBlocks = new HashMap<>();
+            for (var projectId : event.state().metadata().projects().keySet()) {
+                var blockedIndices = getIndicesWithRefreshBlock(event.state(), projectId);
+                if (blockedIndices.isEmpty()) {
+                    continue;
+                }
+                for (String blockedIndex : blockedIndices) {
+                    var index = event.state().metadata().getProject(projectId).index(blockedIndex).getIndex();
+                    if (event.indexRoutingTableChanged(index)) {
+                        var indexRoutingTable = event.state().routingTable(projectId).index(blockedIndex);
+                        if (indexRoutingTable.readyForSearch()) {
+                            searchReadyBlocks.computeIfAbsent(projectId, k -> new HashSet<>()).add(indexRoutingTable.getIndex());
+                        }
                     }
                 }
             }
-            if (blocksToRemove.isEmpty() == false) {
+            if (searchReadyBlocks.isEmpty() == false) {
                 updateClusterStateTaskQueue.submitTask(
                     "remove-refresh-blocks-for-indices-ready-for-search",
-                    new RemoveRefreshBlockClusterStateUpdateTask(Collections.unmodifiableSet(blocksToRemove)),
+                    new RemoveRefreshBlockClusterStateUpdateTask(Map.copyOf(searchReadyBlocks)),
                     null
                 );
             }
@@ -195,15 +224,15 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
             .collect(Collectors.toSet());
     }
 
-    private boolean addRefreshBlockExpirationEntry(ClusterState clusterState, Set<String> indices) {
+    private boolean addRefreshBlockExpirationEntry(ClusterState clusterState, ProjectId projectId, Set<String> indices) {
         final var timestampInMillis = threadPool.relativeTimeInMillis();
 
         boolean scheduleExpiration = false;
         for (var index : indices) {
-            var indexMetadata = clusterState.metadata().getProject().index(index);
-            assert clusterState.blocks().hasIndexBlock(index, IndexMetadata.INDEX_REFRESH_BLOCK) : index;
+            var indexMetadata = clusterState.metadata().getProject(projectId).index(index);
+            assert clusterState.blocks().hasIndexBlock(projectId, index, IndexMetadata.INDEX_REFRESH_BLOCK) : index;
 
-            refreshBlocks.add(new RefreshBlockExpiration(indexMetadata.getIndex(), timestampInMillis));
+            refreshBlocks.add(new RefreshBlockExpiration(projectId, indexMetadata.getIndex(), timestampInMillis));
             if (pendingRefreshBlocks.incrementAndGet() == 1) {
                 scheduleExpiration = true;
             }
@@ -235,7 +264,8 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
      * @return a {@link ExpirationCheck.Result}
      */
     private synchronized ExpirationCheck.Result runExpirationCheck(final long timeInMillis, final long expireAfterInMillis) {
-        final var blocksToRemove = new HashSet<Index>();
+        final var blocksToRemove = new HashMap<ProjectId, Set<Index>>();
+        int removedCount = 0;
 
         long nextBlockTimestampInMillis = 0L;
         RefreshBlockExpiration block;
@@ -247,17 +277,18 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
             }
             logger.trace("{} Found expired refresh block", block.index());
             var removed = refreshBlocks.poll();
-            blocksToRemove.add(block.index());
+            blocksToRemove.computeIfAbsent(block.projectId(), k -> new HashSet<>()).add(block.index());
+            removedCount++;
             assert removed == block;
         }
 
         if (blocksToRemove.isEmpty() == false) {
             updateClusterStateTaskQueue.submitTask(
                 "remove-expired-refresh-blocks",
-                new RemoveRefreshBlockClusterStateUpdateTask(Set.copyOf(blocksToRemove)),
+                new RemoveRefreshBlockClusterStateUpdateTask(Map.copyOf(blocksToRemove)),
                 null
             );
-            return new ExpirationCheck.Result(blocksToRemove.size(), nextBlockTimestampInMillis);
+            return new ExpirationCheck.Result(removedCount, nextBlockTimestampInMillis);
         }
         return new ExpirationCheck.Result(0, nextBlockTimestampInMillis);
     }
@@ -320,28 +351,32 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
     }
 
     /**
-     * A cluster state update task that removes the {{@link IndexMetadata#INDEX_REFRESH_BLOCK}} for a set of indices.
+     * A cluster state update task that removes the {{@link IndexMetadata#INDEX_REFRESH_BLOCK}} for sets of indices across projects.
      */
-    private record RemoveRefreshBlockClusterStateUpdateTask(Set<Index> indices) implements ClusterStateTaskListener {
+    private record RemoveRefreshBlockClusterStateUpdateTask(Map<ProjectId, Set<Index>> indicesByProject)
+        implements
+            ClusterStateTaskListener {
 
         private RemoveRefreshBlockClusterStateUpdateTask {
-            assert indices != null;
-            assert indices.isEmpty() == false;
+            assert indicesByProject != null;
+            assert indicesByProject.isEmpty() == false;
+            assert indicesByProject.values().stream().allMatch(indices -> indices != null && indices.isEmpty() == false);
         }
 
         private ClusterState execute(ClusterState currentState) {
             ClusterBlocks.Builder updatedBlocks = null;
-            for (var index : indices) {
-                if (currentState.blocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK) == false) {
-                    continue;
+            for (var entry : indicesByProject.entrySet()) {
+                var projectId = entry.getKey();
+                for (var index : entry.getValue()) {
+                    if (currentState.blocks().hasIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK) == false) {
+                        continue;
+                    }
+                    if (updatedBlocks == null) {
+                        updatedBlocks = ClusterBlocks.builder(currentState.blocks());
+                    }
+                    logger.trace("Removing expired refresh block from cluster state for project [{}], index [{}]", projectId, index);
+                    updatedBlocks.removeIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
                 }
-                if (updatedBlocks == null) {
-                    updatedBlocks = ClusterBlocks.builder(currentState.blocks());
-                }
-                logger.trace("{} Removing expired refresh block from cluster state", index);
-                @FixForMultiProject
-                final var projectId = Metadata.DEFAULT_PROJECT_ID;
-                updatedBlocks.removeIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
             if (updatedBlocks != null) {
                 return ClusterState.builder(currentState).blocks(updatedBlocks).build();
@@ -351,7 +386,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(() -> "Failed to remove refresh block for indices: " + indices, e);
+            logger.debug(() -> "Failed to remove refresh block for indices: " + indicesByProject, e);
         }
     }
 
@@ -364,7 +399,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
 
             @Override
             public void taskSucceeded(RemoveRefreshBlockClusterStateUpdateTask task, Void unused) {
-                logger.debug("Refresh blocks removed successfully for indices: {}", task.indices);
+                logger.debug("Refresh blocks removed successfully for indices: {}", task.indicesByProject);
             }
         };
 }

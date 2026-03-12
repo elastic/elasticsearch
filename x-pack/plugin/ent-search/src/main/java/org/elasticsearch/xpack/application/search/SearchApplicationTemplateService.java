@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,33 +28,44 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class SearchApplicationTemplateService {
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    private final Logger logger = LogManager.getLogger(SearchApplicationTemplateService.class);
-
-    public SearchApplicationTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+    public SearchApplicationTemplateService(
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     public SearchSourceBuilder renderQuery(SearchApplication searchApplication, Map<String, Object> templateParams) throws IOException,
-        ValidationException {
-        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplate();
+        ValidationException, XContentParseException {
+        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplateOrDefault();
         template.validateTemplateParams(templateParams);
-        final Map<String, Object> renderedTemplateParams = renderTemplate(searchApplication, templateParams);
+        final Map<String, Object> renderedTemplateParams = renderTemplateParams(template, templateParams);
         final Script script = template.script();
-
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(renderedTemplateParams);
-        final String requestSource = SearchTemplateHelper.stripTrailingComma(compiledTemplate.execute());
+        String requestSource;
+        try {
+            requestSource = SearchTemplateHelper.stripTrailingComma(compiledTemplate.execute());
+        } catch (JsonProcessingException e) {
+            JsonLocation loc = e.getLocation();
+            throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+        }
+
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, requestSource)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(parser, false);
+            builder.parseXContent(parser, false, clusterSupportsFeature);
             return builder;
         }
     }
@@ -65,13 +80,14 @@ public class SearchApplicationTemplateService {
      */
     public Map<String, Object> renderTemplate(SearchApplication searchApplication, Map<String, Object> queryParams)
         throws ValidationException {
+        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplateOrDefault();
+        return renderTemplateParams(template, queryParams);
+    }
 
-        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplate();
+    private Map<String, Object> renderTemplateParams(SearchApplicationTemplate template, Map<String, Object> queryParams) {
         final Script script = template.script();
-
         Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
         mergedTemplateParams.putAll(queryParams);
-
         return mergedTemplateParams;
     }
 }

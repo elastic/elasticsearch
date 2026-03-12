@@ -38,15 +38,21 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("ingest-common")
         .module("reindex")
         .module("wildcard")
+        .module("analysis-common")
+        .module("health-shards-availability")
+        .module("data-streams")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.DLM_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RANDOM_SAMPLING)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.client;
 
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.VersionCompatibility;
 
 import java.io.IOException;
 import java.net.JarURLConnection;
@@ -119,7 +120,7 @@ public class ClientVersion {
     // as well.
     public static boolean isServerCompatible(SqlVersion server) {
         // Starting with this version, the compatibility logic moved from the client to the server.
-        return SqlVersion.hasVersionCompatibility(server);
+        return VersionCompatibility.hasVersionCompatibility(server);
     }
 
     public static int jdbcMajorVersion() {

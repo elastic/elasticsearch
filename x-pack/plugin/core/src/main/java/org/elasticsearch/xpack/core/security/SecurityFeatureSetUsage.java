@@ -9,16 +9,15 @@ package org.elasticsearch.xpack.core.security;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
+public class SecurityFeatureSetUsage extends XPackFeatureUsage {
 
     private static final String REALMS_XFIELD = "realms";
     private static final String ROLES_XFIELD = "roles";
@@ -52,32 +51,20 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        realmsUsage = in.readMap();
-        rolesStoreUsage = in.readMap();
-        sslUsage = in.readMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            tokenServiceUsage = in.readMap();
-            apiKeyServiceUsage = in.readMap();
-        }
-        auditUsage = in.readMap();
-        ipFilterUsage = in.readMap();
-        anonymousUsage = in.readMap();
-        roleMappingStoreUsage = in.readMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            fips140Usage = in.readMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
-            operatorPrivilegesUsage = in.readMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            domainsUsage = in.readMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            userProfileUsage = in.readMap();
-        }
-        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
-            remoteClusterServerUsage = in.readMap();
-        }
+        realmsUsage = in.readGenericMap();
+        rolesStoreUsage = in.readGenericMap();
+        sslUsage = in.readGenericMap();
+        tokenServiceUsage = in.readGenericMap();
+        apiKeyServiceUsage = in.readGenericMap();
+        auditUsage = in.readGenericMap();
+        ipFilterUsage = in.readGenericMap();
+        anonymousUsage = in.readGenericMap();
+        roleMappingStoreUsage = in.readGenericMap();
+        fips140Usage = in.readGenericMap();
+        operatorPrivilegesUsage = in.readGenericMap();
+        domainsUsage = in.readGenericMap();
+        userProfileUsage = in.readGenericMap();
+        remoteClusterServerUsage = in.readGenericMap();
     }
 
     public SecurityFeatureSetUsage(
@@ -116,7 +103,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_0_0;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -125,29 +112,17 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            out.writeGenericMap(tokenServiceUsage);
-            out.writeGenericMap(apiKeyServiceUsage);
-        }
+        out.writeGenericMap(tokenServiceUsage);
+        out.writeGenericMap(apiKeyServiceUsage);
         out.writeGenericMap(auditUsage);
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            out.writeGenericMap(fips140Usage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
-            out.writeGenericMap(operatorPrivilegesUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            out.writeGenericMap(domainsUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            out.writeGenericMap(userProfileUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
-            out.writeGenericMap(remoteClusterServerUsage);
-        }
+        out.writeGenericMap(fips140Usage);
+        out.writeGenericMap(operatorPrivilegesUsage);
+        out.writeGenericMap(domainsUsage);
+        out.writeGenericMap(userProfileUsage);
+        out.writeGenericMap(remoteClusterServerUsage);
     }
 
     @Override

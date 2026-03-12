@@ -1,0 +1,10 @@
+scm:
+  enabled: true
+  owner: elastic
+  repository: elasticsearch
+  branch: "main" # this value is overwritten by the GH workflow to match current branch
+  commitusingapi: true
+  # begin updatecli-compose policy values
+  user: elasticmachine
+  email: 42973632+elasticmachine@users.noreply.github.com
+  # end updatecli-compose policy values

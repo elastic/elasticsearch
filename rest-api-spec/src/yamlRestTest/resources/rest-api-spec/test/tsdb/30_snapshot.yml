@@ -1,5 +1,9 @@
 ---
 setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
+
   - do:
       snapshot.create_repository:
         repository: test_repo
@@ -16,10 +20,10 @@ teardown:
 
 ---
 "Create a snapshot and then restore it":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   # Create index
   - do:
@@ -116,8 +120,6 @@ teardown:
   - do:
       indices.close:
         index : test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   # Restore index
   - do:
@@ -126,15 +128,11 @@ teardown:
         snapshot: test_restore_tsdb
         wait_for_completion: true
 
-  # Check recovery stats
+  # Verify that the index is healthy
   - do:
-      indices.recovery:
-        index: test_index
-
-  - match: { test_index.shards.0.type: SNAPSHOT }
-  - match: { test_index.shards.0.stage: DONE }
-  - match: { test_index.shards.0.index.files.recovered: 1}
-  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+      cluster.health:
+        wait_for_status: green
+  - match: { status: green }
 
   - do:
       search:
@@ -148,5 +146,5 @@ teardown:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507}
-  - match: {hits.hits.0.fields._tsid: [ { k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod } ] }
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 

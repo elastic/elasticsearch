@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ql;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -48,11 +47,6 @@ public class ParsingException extends QlClientException {
 
     public String getErrorMessage() {
         return super.getMessage();
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
     }
 
     @Override

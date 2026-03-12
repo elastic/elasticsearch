@@ -1,26 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,9 +36,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    private static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = TransportVersion.fromName("field_caps_add_cluster_alias");
+    static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+
+    private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -42,6 +51,27 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] filters = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
+    private boolean includeEmptyFields = true;
+    @Nullable
+    private ResolvedIndexExpressions resolvedIndexExpressions = null;
+    /**
+     * Controls whether the field caps response should always include the list of indices
+     * where a field is defined. This flag is only used locally on the coordinating node,
+     * and does not need to be serialized as the indices information is already carried
+     * in the response if required.
+     */
+    private transient boolean includeIndices = false;
+
+    private boolean includeResolvedTo = false;
+    private String projectRouting;
+
+    /**
+     * Controls whether all local indices should be returned if no remotes matched
+     * See {@link org.elasticsearch.transport.RemoteClusterService#groupIndices} returnLocalAll argument.
+     * This flag is only used locally on the coordinating node for index grouping and does not need to be serialized.
+     */
+    private transient boolean returnLocalAll = true;
+
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -57,10 +87,19 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         includeUnmapped = in.readBoolean();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
-        runtimeFields = in.readMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            filters = in.readStringArray();
-            types = in.readStringArray();
+        runtimeFields = in.readGenericMap();
+        filters = in.readStringArray();
+        types = in.readStringArray();
+        includeEmptyFields = in.readBoolean();
+        if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            clusterAlias = in.readOptionalString();
+        } else {
+            clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        }
+        if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            includeResolvedTo = in.readBoolean();
+        } else {
+            includeResolvedTo = false;
         }
     }
 
@@ -71,7 +110,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * <p>
      * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    boolean isMergeResults() {
+    public boolean isMergeResults() {
         return mergeResults;
     }
 
@@ -81,8 +120,16 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
      * <p>
      * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    void setMergeResults(boolean mergeResults) {
+    public void setMergeResults(boolean mergeResults) {
         this.mergeResults = mergeResults;
+    }
+
+    void clusterAlias(String clusterAlias) {
+        this.clusterAlias = clusterAlias;
+    }
+
+    String clusterAlias() {
+        return clusterAlias;
     }
 
     @Override
@@ -96,9 +143,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            out.writeStringArray(filters);
-            out.writeStringArray(types);
+        out.writeStringArray(filters);
+        out.writeStringArray(types);
+        out.writeBoolean(includeEmptyFields);
+        if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+            out.writeOptionalString(clusterAlias);
+        }
+        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            out.writeBoolean(includeResolvedTo);
         }
     }
 
@@ -168,6 +220,26 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this;
     }
 
+    public FieldCapabilitiesRequest includeEmptyFields(boolean includeEmptyFields) {
+        this.includeEmptyFields = includeEmptyFields;
+        return this;
+    }
+
+    public FieldCapabilitiesRequest includeIndices(boolean includeIndices) {
+        this.includeIndices = includeIndices;
+        return this;
+    }
+
+    public FieldCapabilitiesRequest includeResolvedTo(boolean includeResolvedTo) {
+        this.includeResolvedTo = includeResolvedTo;
+        return this;
+    }
+
+    public FieldCapabilitiesRequest returnLocalAll(boolean returnLocalAll) {
+        this.returnLocalAll = returnLocalAll;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -184,12 +256,56 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+        this.projectRouting = projectRouting;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean includeIndices() {
+        return includeIndices;
+    }
+
+    public boolean includeResolvedTo() {
+        return includeResolvedTo;
+    }
+
+    public boolean returnLocalAll() {
+        return returnLocalAll;
+    }
+
+    public boolean includeEmptyFields() {
+        return includeEmptyFields;
     }
 
     /**
@@ -230,6 +346,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);
         }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
+        }
         return validationException;
     }
 
@@ -247,12 +370,21 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Objects.equals(nowInMillis, that.nowInMillis)
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
-            && Objects.equals(runtimeFields, that.runtimeFields);
+            && Objects.equals(runtimeFields, that.runtimeFields)
+            && includeEmptyFields == that.includeEmptyFields;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(
+            indicesOptions,
+            includeUnmapped,
+            mergeResults,
+            indexFilter,
+            nowInMillis,
+            runtimeFields,
+            includeEmptyFields
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);
@@ -263,15 +395,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("indices[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
-        stringBuilder.append("], fields[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
-        stringBuilder.append("], filters[");
-        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));
-        stringBuilder.append("], types[");
-        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(types), ","));
-        stringBuilder.append("]");
-        return stringBuilder.toString();
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", 1024, stringBuilder);
+        return FieldCapabilitiesNodeRequest.completeDescription(stringBuilder, fields, filters, types, includeEmptyFields);
     }
 
     @Override

@@ -1,0 +1,166 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [loading_non_indexed_ip_fields]
+      reason: "Support for loading non indexed ip"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              boolean:
+                type: boolean
+              boolean_noidx:
+                type: boolean
+                index: false
+                doc_values: false
+              date:
+                type: date
+              date_noidx:
+                type: date
+                index: false
+                doc_values: false
+              double:
+                type: double
+              double_noidx:
+                type: double
+                index: false
+                doc_values: false
+              float:
+                type: float
+              float_noidx:
+                type: float
+                index: false
+                doc_values: false
+              integer:
+                type: integer
+              integer_noidx:
+                type: integer
+                index: false
+                doc_values: false
+              ip:
+                type: ip
+              ip_noidx:
+                type: ip
+                index: false
+                doc_values: false
+              keyword:
+                type: keyword
+              keyword_noidx:
+                type: keyword
+                index: false
+                doc_values: false
+              long:
+                type: long
+              long_noidx:
+                type: long
+                index: false
+                doc_values: false
+              text:
+                type: text
+              text_noidx:
+                type: text
+                index: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "keyword": "foo",
+            "keyword_noidx": "foo",
+            "boolean": true,
+            "boolean_noidx": true,
+            "integer": 10,
+            "integer_noidx": 10,
+            "long": 20,
+            "long_noidx": 20,
+            "float": 30,
+            "float_noidx": 30,
+            "double": 40,
+            "double_noidx": 40,
+            "date": "2021-04-28T18:50:04.467Z",
+            "date_noidx": "2021-04-28T18:50:04.467Z",
+            "ip": "192.168.0.1",
+            "ip_noidx": "192.168.0.1",
+            "text": "bar",
+            "text_noidx": "bar"
+          }
+
+---
+fetch:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
+      esql.query:
+        body:
+          query: 'from test'
+
+  - length: { columns: 18 }
+  - match: { columns.0.name: boolean }
+  - match: { columns.0.type: boolean }
+  - match: { columns.1.name: boolean_noidx }
+  - match: { columns.1.type: boolean }
+  - match: { columns.2.name: date }
+  - match: { columns.2.type: date }
+  - match: { columns.3.name: date_noidx }
+  - match: { columns.3.type: date }
+  - match: { columns.4.name: double }
+  - match: { columns.4.type: double }
+  - match: { columns.5.name: double_noidx }
+  - match: { columns.5.type: double }
+  - match: { columns.6.name: float }
+  - match: { columns.6.type: double }
+  - match: { columns.7.name: float_noidx }
+  - match: { columns.7.type: double }
+  - match: { columns.8.name: integer }
+  - match: { columns.8.type: integer }
+  - match: { columns.9.name: integer_noidx }
+  - match: { columns.9.type: integer }
+  - match: { columns.10.name: ip }
+  - match: { columns.10.type: ip }
+  - match: { columns.11.name: ip_noidx }
+  - match: { columns.11.type: ip }
+  - match: { columns.12.name: keyword }
+  - match: { columns.12.type: keyword }
+  - match: { columns.13.name: keyword_noidx }
+  - match: { columns.13.type: keyword }
+  - match: { columns.14.name: long }
+  - match: { columns.14.type: long }
+  - match: { columns.15.name: long_noidx }
+  - match: { columns.15.type: long }
+  - match: { columns.16.name: text }
+  - match: { columns.16.type: text }
+  - match: { columns.17.name: text_noidx }
+  - match: { columns.17.type: text }
+
+  - length: { values: 1 }
+  - match: { values.0.0: true }
+  - match: { values.0.1: true }
+  - match: { values.0.2: "2021-04-28T18:50:04.467Z" }
+  - match: { values.0.3: "2021-04-28T18:50:04.467Z" }
+  - match: { values.0.4: 40 }
+  - match: { values.0.5: 40 }
+  - match: { values.0.6: 30 }
+  - match: { values.0.7: 30 }
+  - match: { values.0.7: 30 }
+  - match: { values.0.8: 10 }
+  - match: { values.0.9: 10 }
+  - match: { values.0.10: "192.168.0.1" }
+  - match: { values.0.11: "192.168.0.1" }
+  - match: { values.0.12: "foo" }
+  - match: { values.0.13: "foo" }
+  - match: { values.0.14: 20 }
+  - match: { values.0.15: 20 }
+  - match: { values.0.16: "bar" }
+  - match: { values.0.17: "bar" }

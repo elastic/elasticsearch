@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,15 +51,20 @@ public interface ActionWithReservedState<T> {
 
     /**
      * Helper method that verifies for key clashes on reserved state updates
-     * @param state the current cluster state
+     * @param reservedStateMetadata the metadata to check
      * @param handlerName the name of the reserved state handler related to this implementation
      * @param modified the set of modified keys by the related request
-     * @param request a string representation of the request for error reporting purposes
+     * @param requestSupplier a supplier for a string representation of the request for error reporting purposes
      */
-    default void validateForReservedState(ClusterState state, String handlerName, Set<String> modified, String request) {
+    default void validateForReservedState(
+        Collection<ReservedStateMetadata> reservedStateMetadata,
+        String handlerName,
+        Set<String> modified,
+        Supplier<String> requestSupplier
+    ) {
         List<String> errors = new ArrayList<>();
 
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : reservedStateMetadata) {
             Set<String> conflicts = metadata.conflicts(handlerName, modified);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
@@ -66,7 +73,7 @@ public interface ActionWithReservedState<T> {
 
         if (errors.isEmpty() == false) {
             throw new IllegalArgumentException(
-                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
+                format("Failed to process request [%s] with errors: [%s]", requestSupplier.get(), String.join(", ", errors))
             );
         }
     }

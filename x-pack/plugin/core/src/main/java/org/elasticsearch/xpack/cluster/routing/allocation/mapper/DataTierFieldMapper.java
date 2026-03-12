@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -50,12 +50,12 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (caseInsensitive) {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
                 return false;
             }
@@ -63,12 +63,23 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getTierPreference();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            final String tierPreference = SearchExecutionContext.getFirstTierPreference(blContext.indexSettings().getSettings(), "");
+            return new ConstantBytes(new BytesRef(tierPreference));
         }
 
         @Override
@@ -77,25 +88,8 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            String tierPreference = getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
-        }
-
-        /**
-         * Retrieve the first tier preference from the index setting. If the setting is not
-         * present, then return null.
-         */
-        private String getTierPreference(SearchExecutionContext context) {
-            Settings settings = context.getIndexSettings().getSettings();
-            String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
-
-            if (Strings.hasText(value) == false) {
-                return null;
-            }
-
-            // Tier preference can be a comma-delimited list of tiers, ordered by preference
-            // It was decided we should only test the first of these potentially multiple preferences.
-            return value.split(",")[0].trim();
         }
     }
 
@@ -108,8 +102,4 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
 }

@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.search.CCSSingleCoordinatorSearchProgressListener;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -20,17 +22,23 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -39,7 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -49,7 +56,9 @@ import static java.util.Collections.singletonList;
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-final class AsyncSearchTask extends SearchTask implements AsyncTask {
+final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable {
+    private final Logger logger = Loggers.getLogger(getClass(), "async");
+
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -68,7 +77,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
-    private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
+    private final MutableSearchResponse searchResponse;
+
+    private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -96,7 +107,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         AsyncExecutionId searchId,
         Client client,
         ThreadPool threadPool,
-        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
+        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory,
+        AsyncTaskIndexService<AsyncSearchResponse> store
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
@@ -107,6 +119,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
+        searchResponse = new MutableSearchResponse(threadPool.getThreadContext());
+        this.store = store;
     }
 
     /**
@@ -150,7 +164,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(searchId.getTaskId()).setReason(reason);
             client.admin().cluster().cancelTasks(req, new ActionListener<>() {
                 @Override
-                public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                public void onResponse(ListTasksResponse cancelTasksResponse) {
                     runnable.run();
                 }
 
@@ -175,9 +189,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     /**
      * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
-     * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
+     * timeout occurs.
+     * In the case of a timeout and a still running query, the results are considered intermediate results and the consumed
+     * {@link AsyncSearchResponse} will contain partial results (hits and aggs) if <code>returnIntermediateResultsInResponse</code> is set
+     * to true, otherwise the partial results are  not included.
      */
-    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnIntermediateResultsInResponse
+    ) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -193,13 +214,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     } else {
                         remainingWaitForCompletion = TimeValue.ZERO;
                     }
-                    internalAddCompletionListener(listener, remainingWaitForCompletion);
+                    internalAddCompletionListener(listener, remainingWaitForCompletion, returnIntermediateResultsInResponse);
                 });
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
+        return true; // unused
     }
 
     /**
@@ -216,11 +238,46 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponseWithHeaders());
+            getResponseWithHeaders(ActionListener.wrap(resp -> { listener.accept(resp); }, e -> {
+                ElasticsearchException ex = (e instanceof ElasticsearchException)
+                    ? (ElasticsearchException) e
+                    : ExceptionsHelper.convertToElastic(e);
+                ex.setStackTrace(new StackTraceElement[0]);
+
+                // We are in the failure path where no MutableSearchResponse can be produced or retained.
+                // This happens only after the in-memory reference has been released and the stored response
+                // cannot be retrieved or retained (tryIncRef() failed or the doc is unavailable). At this point
+                // it is unsafe to call searchResponse.toAsyncSearchResponse(...): the underlying
+                // MutableSearchResponse is ref-counted and may already be closed (refcount == 0).
+                //
+                // Instead, we synthesize a minimal AsyncSearchResponse that carries the exception back to
+                // the caller. We set isRunning=false because both the in-memory state and stored document
+                // are unavailable and no further work can be observed. For isPartial we use false as a
+                // conservative choice: partial results may have existed earlier, but they are no longer
+                // accessible and we must not imply that any partial data is included.
+                AsyncSearchResponse failureResponse = new AsyncSearchResponse(
+                    searchId.getEncoded(),
+                    null,
+                    ex,
+                    false,
+                    false,
+                    getStartTime(),
+                    expirationTimeMillis
+                );
+                try {
+                    listener.accept(failureResponse);
+                } finally {
+                    failureResponse.decRef();
+                }
+            }), true);
         }
     }
 
-    private void internalAddCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    private void internalAddCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnIntermediateResultsInResponse
+    ) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
@@ -235,9 +292,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponseWithHeaders());
+                            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
                         }
-                    }, waitForCompletion, "generic");
+                    }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
                     listener.onFailure(exc);
                     return;
@@ -252,7 +309,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
     }
 
@@ -303,44 +360,119 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        AsyncSearchResponse finalResponse = getResponse();
-        for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-            consumer.accept(finalResponse);
-        }
+        getResponse(ActionListener.wrap(finalResponse -> {
+            for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                consumer.accept(finalResponse);
+            }
+        }, e -> {
+            ElasticsearchException ex = (e instanceof ElasticsearchException)
+                ? (ElasticsearchException) e
+                : ExceptionsHelper.convertToElastic(e);
+            ex.setStackTrace(new StackTraceElement[0]);
 
+            // We are in the failure path where no MutableSearchResponse can be produced or retained.
+            // This happens only after the in-memory reference has been released and the stored response
+            // cannot be retrieved or retained (tryIncRef() failed or the doc is unavailable). At this point
+            // it is unsafe to call searchResponse.toAsyncSearchResponse(...): the underlying
+            // MutableSearchResponse is ref-counted and may already be closed (refcount == 0).
+            //
+            // Instead, we synthesize a minimal AsyncSearchResponse that carries the exception back to
+            // the caller. We set isRunning=false because both the in-memory state and stored document
+            // are unavailable and no further work can be observed. For isPartial we use false as a
+            // conservative choice: partial results may have existed earlier, but they are no longer
+            // accessible and we must not imply that any partial data is included.
+            AsyncSearchResponse failureResponse = new AsyncSearchResponse(
+                searchId.getEncoded(),
+                null,
+                ex,
+                false,
+                false,
+                getStartTime(),
+                expirationTimeMillis
+            );
+            try {
+                for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                    consumer.accept(failureResponse);
+                }
+            } finally {
+                failureResponse.decRef();
+            }
+        }));
     }
 
     /**
-     * Returns the current {@link AsyncSearchResponse}.
+     * Invokes the listener with the current {@link AsyncSearchResponse}
+     * without restoring response headers into the calling thread context.
+     *
+     * Visible for testing
      */
-    private AsyncSearchResponse getResponse() {
-        return getResponse(false);
+    void getResponse(ActionListener<AsyncSearchResponse> listener) {
+        getResponse(false, true, listener);
     }
 
     /**
-     * Returns the current {@link AsyncSearchResponse} and restores the response headers
-     * in the local thread context.
+     * Invokes the listener with the current {@link AsyncSearchResponse},
+     * restoring response headers into the calling thread context.
      */
-    private AsyncSearchResponse getResponseWithHeaders() {
-        return getResponse(true);
+    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener, boolean returnPartialResultsInResponse) {
+        getResponse(true, returnPartialResultsInResponse, listener);
     }
 
-    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
-        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+    private void getResponse(
+        boolean restoreResponseHeaders,
+        boolean returnIntermediateResultsInResponse,
+        ActionListener<AsyncSearchResponse> listener
+    ) {
+        final MutableSearchResponse mutableSearchResponse = searchResponse;
         assert mutableSearchResponse != null;
         checkCancellation();
-        AsyncSearchResponse asyncSearchResponse;
-        try {
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
-        } catch (Exception e) {
-            ElasticsearchException exception = new ElasticsearchStatusException(
-                "Async search: error while reducing partial results",
-                ExceptionsHelper.status(e),
-                e
-            );
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+
+        // Fallback: fetch from store asynchronously
+        if (mutableSearchResponse.tryIncRef() == false) {
+            store.getResponse(searchId, restoreResponseHeaders, ActionListener.wrap(resp -> {
+                if (resp.tryIncRef() == false) {
+                    listener.onFailure(new ElasticsearchStatusException("Async search: result no longer available", RestStatus.GONE));
+                    return;
+                }
+                ActionListener.respondAndRelease(listener, resp);
+            }, e -> {
+                final Exception unwrapped = (Exception) ExceptionsHelper.unwrapCause(e);
+                listener.onFailure(
+                    new ElasticsearchStatusException("Async search: result no longer available", RestStatus.GONE, unwrapped)
+                );
+            }));
+            return;
         }
-        return asyncSearchResponse;
+
+        // At this point we successfully incremented the ref on the MutableSearchResponse.
+        // This guarantees that the underlying SearchResponse it wraps will not be closed
+        // while we are using it, so calling toAsyncSearchResponse(..) is safe.
+        try {
+            AsyncSearchResponse asyncSearchResponse;
+            try {
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(
+                    this,
+                    expirationTimeMillis,
+                    restoreResponseHeaders,
+                    returnIntermediateResultsInResponse
+                );
+            } catch (Exception e) {
+                final ElasticsearchException ex = new ElasticsearchStatusException(
+                    "Async search: error while reducing partial results",
+                    ExceptionsHelper.status(e),
+                    e
+                );
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, ex);
+            }
+            ActionListener.respondAndRelease(listener, asyncSearchResponse);
+        } finally {
+            mutableSearchResponse.decRef();
+        }
+    }
+
+    // Visible for testing.
+    MutableSearchResponse getSearchResponse() {
+        return searchResponse;
     }
 
     // checks if the search task should be cancelled
@@ -356,7 +488,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * Returns the status from {@link AsyncSearchTask}
      */
     public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
-        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse;
         assert mutableSearchResponse != null;
         return mutableSearchResponse.toStatusResponse(
             asyncTask.searchId.getEncoded(),
@@ -365,28 +497,68 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         );
     }
 
+    @Override
+    public void close() {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "AsyncSearchTask.close(): byThread={}, asyncId={}, taskId={}, hasCompleted={}, stack={}",
+                Thread.currentThread().getName(),
+                searchId != null ? searchId.getEncoded() : "<null>",
+                getId(),
+                hasCompleted,
+                new Exception().getStackTrace()
+            );
+        }
+        searchResponse.decRef();
+    }
+
     class Listener extends SearchProgressActionListener {
 
+        // needed when there's a single coordinator for all CCS search phases (minimize_roundtrips=false)
+        private CCSSingleCoordinatorSearchProgressListener delegate;
+
         @Override
-        protected void onQueryResult(int shardIndex) {
+        protected void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
             checkCancellation();
+            if (delegate != null) {
+                delegate.onQueryResult(shardIndex, queryResult);
+            }
+        }
+
+        @Override
+        protected void onRankFeatureResult(int shardIndex) {
+            checkCancellation();
+            if (delegate != null) {
+                delegate.onRankFeatureResult(shardIndex);
+            }
         }
 
         @Override
         protected void onFetchResult(int shardIndex) {
             checkCancellation();
+            if (delegate != null) {
+                delegate.onFetchResult(shardIndex);
+            }
         }
 
         @Override
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get()
-                .addQueryFailure(
-                    shardIndex,
-                    // the nodeId is null if all replicas of this shard failed
-                    new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
-                );
+            if (delegate != null) {
+                delegate.onQueryFailure(shardIndex, shardTarget, exc);
+            }
+            searchResponse.addQueryFailure(
+                shardIndex,
+                // the nodeId is null if all replicas of this shard failed
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
+            );
+        }
+
+        @Override
+        protected void onRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            // best effort to cancel expired tasks
+            checkCancellation();
         }
 
         @Override
@@ -401,15 +573,28 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // in which case the final response already includes results as well as shard fetch failures)
         }
 
+        /**
+         * onListShards is guaranteed to be the first SearchProgressListener method called and
+         * the search will not progress until this returns, so this is a safe place to initialize state
+         * that is needed for handling subsequent callbacks.
+         */
         @Override
-        protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
+        protected void onListShards(
+            List<SearchShard> shards,
+            List<SearchShard> skipped,
+            Clusters clusters,
+            boolean fetchPhase,
+            TransportSearchAction.SearchTimeProvider timeProvider
+        ) {
             // best effort to cancel expired tasks
             checkCancellation();
+            assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
-            searchResponse.compareAndSet(
-                null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
-            );
+            if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
+                delegate = new CCSSingleCoordinatorSearchProgressListener();
+                delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
+            }
+            searchResponse.updateShardsAndClusters(shards.size() + skipped.size(), skipped.size(), clusters);
             executeInitListeners();
         }
 
@@ -417,6 +602,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
+            if (delegate != null) {
+                delegate.onPartialReduce(shards, totalHits, aggregations, reducePhase);
+            }
             // The way that the MutableSearchResponse will build the aggs.
             Supplier<InternalAggregations> reducedAggs;
             if (aggregations == null) {
@@ -433,7 +621,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase, false);
+            searchResponse.updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
         /**
@@ -444,23 +632,44 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase, true);
+            if (delegate != null) {
+                delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
+            }
+            searchResponse.updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
+        }
+
+        /**
+         * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
+         *
+         * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
+         *                     The cluster alias for the local cluster is RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.
+         * @param clusterResponse SearchResponse from cluster 'clusterAlias'
+         */
+        @Override
+        public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+            checkCancellation();
+            // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
+            searchResponse.updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
+            searchResponse.updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 
         @Override
         public void onFailure(Exception exc) {
-            // if the failure occurred before calling onListShards
-            searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            searchResponse.get()
-                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
+            searchResponse.updateWithFailure(
+                new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc)
+            );
             executeInitListeners();
             executeCompletionListeners();
         }
+    }
+
+    @Override
+    public boolean isAsync() {
+        return true;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -22,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -37,7 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.elasticsearch.index.IndexSortConfig.IndexSortConfigDefaults.TIME_SERIES_SORT;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp
@@ -53,6 +55,8 @@ public class TimeSeriesIndexSearcher {
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
+    private Float minimumScore = null;
+
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         try {
             this.searcher = new ContextIndexSearcher(
@@ -67,19 +71,28 @@ public class TimeSeriesIndexSearcher {
             throw new RuntimeException(e);
         }
         this.cancellations = cancellations;
-        cancellations.forEach(cancellation -> this.searcher.addQueryCancellation(cancellation));
+        cancellations.forEach(this.searcher::addQueryCancellation);
 
-        assert TIME_SERIES_SORT.length == 2;
-        assert TIME_SERIES_SORT[0].getField().equals(TimeSeriesIdFieldMapper.NAME);
-        assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-        this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        assert TIME_SERIES_SORT.fields().size() == 2;
+        assert TIME_SERIES_SORT.fields().get(0).equals(TimeSeriesIdFieldMapper.NAME);
+        assert TIME_SERIES_SORT.fields().get(1).equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+        this.timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
+    }
+
+    public void setMinimumScore(Float minimumScore) {
+        this.minimumScore = minimumScore;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
-        int seen = 0;
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
+        search(bucketCollector, weight);
+        bucketCollector.postCollection();
+    }
+
+    private void search(BucketCollector bucketCollector, Weight weight) throws IOException {
+        int seen = 0;
         int[] tsidOrd = new int[1];
 
         // Create LeafWalker for each subreader
@@ -90,6 +103,9 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
+                if (minimumScore != null) {
+                    scorer = new MinScoreScorer(scorer, minimumScore);
+                }
                 LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
@@ -197,6 +213,7 @@ public class TimeSeriesIndexSearcher {
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
+
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -209,7 +226,7 @@ public class TimeSeriesIndexSearcher {
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
-            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
         }
 
         void collectCurrent() throws IOException {
@@ -246,11 +263,7 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd != tsids.ordValue()) {
-                return true;
-            } else {
-                return false;
-            }
+            return tsidOrd != tsids.ordValue();
         }
     }
 }

@@ -96,8 +96,8 @@
 
 ---
 "specifying size fails":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "size supported until 8"
 
   - do:
@@ -107,7 +107,7 @@
         body:   { "text": "test" }
 
   - do:
-      catch: /invalid parameter \[size\], use \[max_docs\] instead/
+      catch: /(invalid parameter \[size\], use \[max_docs\] instead|unknown field \[size\])/
       reindex:
         body:
           source:
@@ -118,8 +118,8 @@
 
 ---
 "invalid max_docs in body fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -139,8 +139,8 @@
 
 ---
 "max_docs shoule be greater than slices":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -161,8 +161,8 @@
 
 ---
 "invalid max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -182,8 +182,8 @@
 
 ---
 "inconsistent max_docs in body and max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:

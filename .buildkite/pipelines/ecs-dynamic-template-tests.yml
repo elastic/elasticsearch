@@ -1,0 +1,16 @@
+steps:
+  - label: ecs-dynamic-templates-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true :x-pack:plugin:stack:javaRestTest
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      diskSizeGb: 350
+      machineType: custom-32-98304
+notify:
+  - slack: "#es-delivery"
+    if: build.state == "failed"
+  - slack: "#es-data-management"
+    if: build.state == "failed"
+  - email: "logs-plus@elastic.co"
+    if: build.state == "failed"

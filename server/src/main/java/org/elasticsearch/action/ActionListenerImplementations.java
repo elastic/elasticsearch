@@ -1,21 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Internal implementation details of the various utility methods on {@link ActionListener}.
@@ -54,6 +58,20 @@ class ActionListenerImplementations {
         };
     }
 
+    static CheckedRunnable<Exception> checkedRunnableFromReleasable(Releasable releasable) {
+        return new CheckedRunnable<>() {
+            @Override
+            public void run() {
+                Releasables.closeExpectNoException(releasable);
+            }
+
+            @Override
+            public String toString() {
+                return "release[" + releasable + "]";
+            }
+        };
+    }
+
     static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
         assert e != null;
         try {
@@ -63,8 +81,7 @@ class ActionListenerImplementations {
             if (e != null && ex != e) {
                 ex.addSuppressed(e);
             }
-            assert false : new AssertionError("listener.onFailure failed", ex);
-            throw ex;
+            expectNoException(ex);
         }
     }
 
@@ -93,8 +110,7 @@ class ActionListenerImplementations {
             try {
                 delegate.onResponse(mapped);
             } catch (RuntimeException e) {
-                assert false : new AssertionError("map: listener.onResponse failed", e);
-                throw e;
+                expectNoException(e);
             }
         }
 
@@ -106,6 +122,65 @@ class ActionListenerImplementations {
         @Override
         public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
             return new MappedActionListener<>(t -> this.fn.apply(fn.apply(t)), this.delegate);
+        }
+
+        @Override
+        public <T> ActionListener<T> safeMap(Function<T, Response> fn) {
+            return new MappedActionListener<>(t -> this.fn.apply(applyExpectNoExceptions(fn, t)), this.delegate);
+        }
+    }
+
+    static final class SafeMappedActionListener<Response, MappedResponse> extends DelegatingActionListener<Response, MappedResponse> {
+
+        private final Function<Response, MappedResponse> fn;
+
+        SafeMappedActionListener(Function<Response, MappedResponse> fn, ActionListener<MappedResponse> delegate) {
+            super(delegate);
+            this.fn = fn;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            try {
+                delegate.onResponse(applyExpectNoExceptions(fn, response));
+            } catch (RuntimeException e) {
+                expectNoException(e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + fn;
+        }
+
+        @Override
+        public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
+            return new MappedActionListener<>(t -> {
+                var innerResult = fn.apply(t);
+                return applyExpectNoExceptions(this.fn, innerResult);
+            }, this.delegate);
+        }
+
+        @Override
+        public <T> ActionListener<T> safeMap(Function<T, Response> fn) {
+            return new SafeMappedActionListener<>(fn.andThen(this.fn), this.delegate);
+        }
+    }
+
+    private static void expectNoException(RuntimeException e) {
+        assert false : e;
+        throw e;
+    }
+
+    private static <Response, MappedResponse> MappedResponse applyExpectNoExceptions(
+        Function<Response, MappedResponse> fn,
+        Response innerResult
+    ) {
+        try {
+            return fn.apply(innerResult);
+        } catch (RuntimeException e) {
+            assert false : e;
+            throw e;
         }
     }
 
@@ -138,6 +213,11 @@ class ActionListenerImplementations {
         }
     }
 
+    /**
+     * Replaces the onResponse handling of a given ActionListener with a lambda that receives both the original listener and a response.
+     * This is useful when a listener is needed to do some additional work with a response before passing a response on to the original
+     * listener.
+     */
     static final class DelegatingFailureActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final BiConsumer<ActionListener<R>, T> bc;
@@ -149,7 +229,11 @@ class ActionListenerImplementations {
 
         @Override
         public void onResponse(T t) {
-            bc.accept(delegate, t);
+            try {
+                bc.accept(delegate, t);
+            } catch (RuntimeException e) {
+                expectNoException(e);
+            }
         }
 
         @Override
@@ -158,6 +242,10 @@ class ActionListenerImplementations {
         }
     }
 
+    /**
+     * The same as {@link DelegatingFailureActionListener} with the addition of exception handling in {@link #onResponse(Object)} to forward
+     * any exceptions to {@link #onFailure(Exception)}.
+     */
     static final class ResponseWrappingActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final CheckedBiConsumer<ActionListener<R>, T, ? extends Exception> bc;
@@ -179,6 +267,33 @@ class ActionListenerImplementations {
         @Override
         public String toString() {
             return super.toString() + "/" + bc;
+        }
+    }
+
+    /**
+     * The same as {@link ResponseWrappingActionListener} except that the response is dropped
+     */
+    static final class ResponseDroppingActionListener<T, R> extends DelegatingActionListener<T, R> {
+
+        private final CheckedConsumer<ActionListener<R>, ? extends Exception> consumer;
+
+        ResponseDroppingActionListener(ActionListener<R> delegate, CheckedConsumer<ActionListener<R>, ? extends Exception> consumer) {
+            super(delegate);
+            this.consumer = consumer;
+        }
+
+        @Override
+        public void onResponse(T ignored) {
+            try {
+                consumer.accept(delegate);
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "/" + consumer;
         }
     }
 
@@ -248,6 +363,37 @@ class ActionListenerImplementations {
         @Override
         public String toString() {
             return super.toString() + "/" + runBefore;
+        }
+    }
+
+    // Extend AtomicReference directly for minimum memory overhead and indirection.
+    static final class NotifyOnceActionListener<Response> extends AtomicReference<ActionListener<Response>>
+        implements
+            ActionListener<Response> {
+
+        NotifyOnceActionListener(ActionListener<Response> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            final var acquired = getAndSet(null);
+            if (acquired != null) {
+                acquired.onResponse(response);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            final var acquired = getAndSet(null);
+            if (acquired != null) {
+                safeOnFailure(acquired, e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "notifyOnce[" + get() + "]";
         }
     }
 }

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -38,38 +40,50 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
 /**
  * Test for serialization and parsing of {@link ClusterRerouteRequest} and its commands. See the superclass for, well, everything.
  */
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = List.of(
-        () -> new AllocateReplicaAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000), randomAlphaOfLengthBetween(2, 10)),
+        () -> new AllocateReplicaAllocationCommand(
+            randomAlphaOfLengthBetween(2, 10),
+            between(0, 1000),
+            randomAlphaOfLengthBetween(2, 10),
+            projectId
+        ),
         () -> new AllocateEmptyPrimaryAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new AllocateStalePrimaryAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new CancelAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomBoolean()
+            randomBoolean(),
+            projectId
         ),
         () -> new MoveAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),
             between(0, 1000),
             randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10)
+            randomAlphaOfLengthBetween(2, 10),
+            projectId
         )
     );
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -79,7 +93,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
     }
 
     private ClusterRerouteRequest randomRequest() {
-        ClusterRerouteRequest request = new ClusterRerouteRequest();
+        ClusterRerouteRequest request = new ClusterRerouteRequest(randomTimeValue(), randomTimeValue());
         int commands = between(0, 10);
         for (int i = 0; i < commands; i++) {
             request.add(randomFrom(RANDOM_COMMAND_GENERATORS).get());
@@ -96,10 +110,12 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request, request);
             assertEquals(request.hashCode(), request.hashCode());
 
-            ClusterRerouteRequest copy = new ClusterRerouteRequest().add(
+            ClusterRerouteRequest copy = new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).add(
                 request.getCommands().commands().toArray(new AllocationCommand[0])
             );
-            copy.dryRun(request.dryRun()).explain(request.explain()).timeout(request.timeout()).setRetryFailed(request.isRetryFailed());
+            AcknowledgedRequest<ClusterRerouteRequest> clusterRerouteRequestAcknowledgedRequest = copy.dryRun(request.dryRun())
+                .explain(request.explain());
+            clusterRerouteRequestAcknowledgedRequest.ackTimeout(request.ackTimeout()).setRetryFailed(request.isRetryFailed());
             copy.masterNodeTimeout(request.masterNodeTimeout());
             assertEquals(request, copy);
             assertEquals(copy, request); // Commutative
@@ -122,10 +138,10 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request.hashCode(), copy.hashCode());
 
             // Changing timeout makes requests not equal
-            copy.timeout(timeValueMillis(request.timeout().millis() + 1));
+            copy.ackTimeout(timeValueMillis(request.ackTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.timeout(request.timeout());
+            copy.ackTimeout(request.ackTimeout());
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
@@ -175,7 +191,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
 
     private ClusterRerouteRequest roundTripThroughRestRequest(ClusterRerouteRequest original) throws IOException {
         RestRequest restRequest = toRestRequest(original);
-        return RestClusterRerouteAction.createRequest(restRequest);
+        return RestClusterRerouteAction.createRequest(restRequest, projectId);
     }
 
     private RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
@@ -193,14 +209,14 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             builder.field("dry_run", original.dryRun());
         }
         params.put("explain", Boolean.toString(original.explain()));
-        if (false == original.timeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
-            params.put("timeout", original.timeout().toString());
+        if (false == original.ackTimeout().equals(DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
+            params.put("timeout", original.ackTimeout().getStringRep());
         }
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("master_timeout", original.masterNodeTimeout().toString());
+        if (false == original.masterNodeTimeout().equals(RestUtils.REST_MASTER_TIMEOUT_DEFAULT) || randomBoolean()) {
+            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().getStringRep());
         }
         if (original.getCommands() != null) {
             hasBody = true;

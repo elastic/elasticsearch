@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -108,6 +110,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.fuzzyTranspositions(randomBoolean());
         }
+        // TODO extend checks in doAssertLuceneQuery for the three failing cases
+        result.type(
+            randomFrom(
+                List.of(
+                    MultiMatchQueryBuilder.Type.BEST_FIELDS,
+                    MultiMatchQueryBuilder.Type.MOST_FIELDS,
+                    MultiMatchQueryBuilder.Type.PHRASE
+                )
+            )
+        );
         return result;
     }
 
@@ -154,6 +166,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             FuzzyQuery.defaultTranspositions,
             SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS
         );
+        assertEquals(SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     public void testDefaultNullComplainFlags() {
@@ -179,11 +192,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
+        qb.type(null);
         assertEquals(
             "Setting operator to null should result in returning to default value.",
             SimpleQueryStringBuilder.DEFAULT_OPERATOR,
             qb.defaultOperator()
         );
+        assertEquals("Setting type to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     // Check operator handling, and default field handling.
@@ -301,7 +316,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 result++;
             }
         }
@@ -345,7 +360,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             {
               "simple_query_string" : {
                 "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
-                "fields" : [ "body^5.0" ]
+                "fields" : [ "body^5.0" ],
+                "type" : "best_fields"
               }
             }""";
 
@@ -357,6 +373,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 0, parsed.fuzzyPrefixLength());
         assertEquals(json, 50, parsed.fuzzyMaxExpansions());
         assertEquals(json, true, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.BEST_FIELDS, parsed.type());
     }
 
     public void testFromJson() throws IOException {
@@ -375,6 +392,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
                 "fuzzy_transpositions" : false,
+                "type" : "cross_fields",
                 "boost" : 2.0
               }
             }""";
@@ -389,6 +407,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 1, parsed.fuzzyPrefixLength());
         assertEquals(json, 5, parsed.fuzzyMaxExpansions());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.CROSS_FIELDS, parsed.type());
     }
 
     public void testMinimumShouldMatch() throws IOException {
@@ -634,7 +653,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .lenient(true)
             .toQuery(createSearchExecutionContext());
         List<Query> expectedQueries = new ArrayList<>();
-        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(Queries.NO_DOCS_INSTANCE);
         expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t")));
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
@@ -674,11 +693,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         query = new BoolQueryBuilder().should(new SimpleQueryStringBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
@@ -721,9 +740,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
     }

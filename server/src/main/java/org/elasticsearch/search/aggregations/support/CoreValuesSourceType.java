@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -31,7 +33,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -40,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
@@ -79,13 +82,13 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             Number missing;
             if (rawMissing instanceof Number) {
                 missing = (Number) rawMissing;
             } else {
-                missing = docValueFormat.parseDouble(rawMissing.toString(), false, context::nowInMillis);
+                missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowInMillis);
             }
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
@@ -138,7 +141,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
@@ -156,7 +159,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw AggregationErrors.valuesSourceDoesNotSupportScritps(this.value());
         }
 
         @Override
@@ -174,7 +177,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             // TODO: also support the structured formats of geo points
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
@@ -194,7 +197,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw AggregationErrors.valuesSourceDoesNotSupportScritps(this.value());
         }
 
         @Override
@@ -213,7 +216,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
@@ -239,9 +242,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -298,7 +301,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isIndexed()) {
+                    if (fieldContext.fieldType().indexType().hasPoints()) {
                         log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
@@ -312,12 +315,18 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[0] = dft.resolution().parsePointAsMillis(min);
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
+                    } else if (dft.hasDocValuesSkipper()) {
+                        log.trace("Attempting to apply skipper-based data rounding");
+                        range[0] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMinValue(context.searcher().getIndexReader(), fieldContext.field()));
+                        range[1] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMaxValue(context.searcher().getIndexReader(), fieldContext.field()));
                     }
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().isIndexed()) {
+                        if (fieldContext.fieldType().indexType().hasPoints()) {
                             PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;
@@ -337,14 +346,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
                                 // Only extract bounds queries that must filter the results
-                                switch (occur) {
-                                    case MUST:
-                                    case FILTER:
-                                        return this;
-
-                                    default:
-                                        return QueryVisitor.EMPTY_VISITOR;
-                                }
+                                return switch (occur) {
+                                    case MUST, FILTER -> this;
+                                    default -> QueryVisitor.EMPTY_VISITOR;
+                                };
                             };
 
                             @Override
@@ -385,9 +390,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -422,9 +427,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -449,5 +454,5 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

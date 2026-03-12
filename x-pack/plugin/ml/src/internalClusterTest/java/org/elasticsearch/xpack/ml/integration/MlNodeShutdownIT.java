@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -29,9 +30,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     public void testJobsVacateShuttingDownNode() throws Exception {
@@ -91,12 +94,19 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Call the shutdown API for the chosen node.
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-        final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-            : null;
+        final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -187,12 +197,19 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Call the shutdown API for the chosen node.
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-        final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-            : null;
+        final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName,
+                grace
+            )
         ).actionGet();
 
         if (randomBoolean()) {

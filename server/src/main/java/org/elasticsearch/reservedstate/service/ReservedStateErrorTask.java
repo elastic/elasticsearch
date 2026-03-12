@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -15,9 +16,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.RESTORED_VERSION;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -47,17 +53,26 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     }
 
     // package private for testing
-    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
+    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion, ReservedStateVersionCheck versionCheck) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
-            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
-            || existingMetadata.errorMetadata().version() < newStateVersion);
+            || versionCheck.test(existingMetadata.errorMetadata().version(), newStateVersion)
+            || newStateVersion.equals(RESTORED_VERSION)
+            || newStateVersion.equals(EMPTY_VERSION)
+            || newStateVersion.equals(NO_VERSION));
+    }
+
+    static ReservedStateMetadata getMetadata(ClusterState state, ErrorState errorState) {
+        return errorState.projectId()
+            .map(ProjectStateRegistry.get(state)::reservedStateMetadata)
+            .orElseGet(() -> state.metadata().reservedStateMetadata())
+            .get(errorState.namespace());
     }
 
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
-        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+        ReservedStateMetadata existingMetadata = getMetadata(currentState, errorState);
         // check for noop here
-        if (isNewError(existingMetadata, errorState.version()) == false) {
+        if (isNewError(existingMetadata, errorState.version(), errorState.versionCheck()) == false) {
             logger.info(
                 () -> format(
                     "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
@@ -76,13 +91,31 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
 
     ClusterState execute(ClusterState currentState) {
         ClusterState.Builder stateBuilder = new ClusterState.Builder(currentState);
-        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-        ReservedStateMetadata reservedMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
-        ReservedStateMetadata.Builder resMetadataBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
-        resMetadataBuilder.errorMetadata(new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors()));
-        metadataBuilder.put(resMetadataBuilder.build());
-        ClusterState newState = stateBuilder.metadata(metadataBuilder).build();
+        var errorMetadata = new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors());
 
-        return newState;
+        if (errorState.projectId().isPresent()) {
+            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(currentState);
+
+            ProjectId projectId = errorState.projectId().get();
+            ReservedStateMetadata reservedMetadata = projectStateRegistry.reservedStateMetadata(projectId).get(errorState.namespace());
+            ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
+            resBuilder.errorMetadata(errorMetadata);
+
+            stateBuilder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(projectStateRegistry).putReservedStateMetadata(projectId, resBuilder.build()).build()
+            );
+        } else {
+            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+
+            ReservedStateMetadata reservedMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+            ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
+            resBuilder.errorMetadata(errorMetadata);
+
+            metadataBuilder.put(resBuilder.build());
+            stateBuilder.metadata(metadataBuilder);
+        }
+
+        return stateBuilder.build();
     }
 }

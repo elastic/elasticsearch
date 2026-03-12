@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -15,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
@@ -72,6 +76,73 @@ public class XContentParserTests extends ESTestCase {
                 default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
             }
         }
+    }
+
+    public void testLongCoercion() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+
+            builder.field("five", "5.5");
+            builder.field("minusFive", "-5.5");
+
+            builder.field("minNegative", "-9.2233720368547758089999e18");
+            builder.field("tooNegative", "-9.223372036854775809e18");
+            builder.field("maxPositive", "9.2233720368547758079999e18");
+            builder.field("tooPositive", "9.223372036854775808e18");
+
+            builder.field("expTooBig", "2e100");
+            builder.field("minusExpTooBig", "-2e100");
+            builder.field("maxPositiveExp", "1e2147483647");
+            builder.field("tooPositiveExp", "1e2147483648");
+
+            builder.field("expTooSmall", "2e-100");
+            builder.field("minusExpTooSmall", "-2e-100");
+            builder.field("maxNegativeExp", "1e-2147483647");
+
+            builder.field("tooNegativeExp", "1e-2147483648");
+
+            builder.endObject();
+
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+
+                assertFieldWithValue("five", 5L, parser);
+                assertFieldWithValue("minusFive", -5L, parser); // Rounds toward zero
+
+                assertFieldWithValue("minNegative", Long.MIN_VALUE, parser);
+                assertFieldWithInvalidLongValue("tooNegative", parser);
+                assertFieldWithValue("maxPositive", Long.MAX_VALUE, parser);
+                assertFieldWithInvalidLongValue("tooPositive", parser);
+
+                assertFieldWithInvalidLongValue("expTooBig", parser);
+                assertFieldWithInvalidLongValue("minusExpTooBig", parser);
+                assertFieldWithInvalidLongValue("maxPositiveExp", parser);
+                assertFieldWithInvalidLongValue("tooPositiveExp", parser);
+
+                // too small goes to zero
+                assertFieldWithValue("expTooSmall", 0L, parser);
+                assertFieldWithValue("minusExpTooSmall", 0L, parser);
+                assertFieldWithValue("maxNegativeExp", 0L, parser);
+
+                assertFieldWithInvalidLongValue("tooNegativeExp", parser);
+            }
+        }
+    }
+
+    private static void assertFieldWithValue(String fieldName, long fieldValue, XContentParser parser) throws IOException {
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(fieldName));
+        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+        assertThat(parser.longValue(), equalTo(fieldValue));
+    }
+
+    private static void assertFieldWithInvalidLongValue(String fieldName, XContentParser parser) throws IOException {
+        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(fieldName));
+        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+        expectThrows(IllegalArgumentException.class, parser::longValue);
     }
 
     public void testReadList() throws IOException {
@@ -475,6 +546,41 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
+    public void testFlatteningParserObject() throws IOException {
+        String content = """
+            {
+              "parent": {
+                "child1" : 1,
+                "child2": {
+                  "grandChild" : 1
+                },
+                "child3" : 1
+              }
+            }
+            """;
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("parent", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        XContentParser subParser = new FlatteningXContentParser(parser, parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child1", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        String secondChildName = subParser.currentName();
+        assertEquals("parent.child2", secondChildName);
+        assertEquals(XContentParser.Token.START_OBJECT, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("grandChild", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child3", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+
+    }
+
     public void testSubParserArray() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfArrayElements = randomInt(10);
@@ -549,6 +655,99 @@ public class XContentParserTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
+    }
+
+    public void testJsonIncludeSourceOnParserError() throws IOException {
+        var xContent = XContentFactory.xContent(XContentType.JSON);
+        var source = "{\"field\": invalid}"; // causes parse exception
+        var sourceEnabled = XContentParserConfiguration.EMPTY;
+        var sourceDisabled = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(false);
+
+        var parseException = expectThrows(XContentParseException.class, () -> createParser(xContent, sourceEnabled, source).map());
+        assertThat(parseException.getMessage(), containsString(source));
+
+        parseException = expectThrows(XContentParseException.class, () -> createParser(xContent, sourceDisabled, source).map());
+        assertThat(parseException.getMessage(), not(containsString(source)));
+    }
+
+    public void testYamlTokenLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(-1L, parser.getTokenLocation().byteOffset());
+        }
+    }
+
+    public void testYamlGetCurrentLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation current = parser.getCurrentLocation();
+            assertNotNull(current);
+            assertEquals(-1L, current.byteOffset());
+        }
+    }
+
+    public void testCborHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] cbor;
+        try (var builder = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            try (XContentParser jsonParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            cbor = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, cbor)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testSmileHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] smile;
+        try (var builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+            try (XContentParser jsonParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            smile = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, smile)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testFilterXContentParserDelegatesGetCurrentLocation() throws IOException {
+        byte[] json = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser inner = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            XContentParser wrapper = new FilterXContentParserWrapper(inner);
+            assertEquals(XContentParser.Token.START_OBJECT, wrapper.nextToken());
+
+            XContentLocation tokenLoc = wrapper.getTokenLocation();
+            assertEquals(inner.getTokenLocation(), tokenLoc);
+            assertEquals(0L, tokenLoc.byteOffset());
+
+            XContentLocation currentLoc = wrapper.getCurrentLocation();
+            assertEquals(inner.getCurrentLocation(), currentLoc);
+            assertTrue(currentLoc.byteOffset() > 0);
+        }
+    }
+
+    private XContentParser createParser(XContent xContent, XContentParserConfiguration config, String content) throws IOException {
+        return randomBoolean()
+            ? xContent.createParser(config, content)
+            : xContent.createParser(config, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

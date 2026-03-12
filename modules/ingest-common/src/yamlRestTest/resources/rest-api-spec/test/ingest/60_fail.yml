@@ -1,6 +1,10 @@
 ---
 teardown:
   - do:
+      indices.delete:
+        index: "test"
+        ignore_unavailable: true
+  - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
         ignore: 404
@@ -10,7 +14,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
-        body:  >
+        body: >
           {
             "description": "_description",
             "processors": [
@@ -36,7 +40,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
-        body:  >
+        body: >
           {
             "description": "_description",
             "processors": [
@@ -69,3 +73,87 @@ teardown:
         index: test
         id: "1"
   - match: { _source.error_message: "fail_processor_ran" }
+
+---
+"Test Fail Processor with Upsert (bulk)":
+  - requires:
+      cluster_features: "gte_v8.12.1"
+      reason: 'https://github.com/elastic/elasticsearch/issues/36746 fixed in 8.12.1'
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message": "error-message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        pipeline: "my_pipeline"
+        body:
+          - update:
+              _index: test
+              _id: 3
+          - '{"upsert":{"some":"fields"},"script":"ctx"}'
+  - match: { errors: true }
+  - match: { items.0.update._index: test }
+  - match: { items.0.update._id: "3" }
+  - match: { items.0.update.status: 500 }
+  - match: { items.0.update.error.type: fail_processor_exception }
+  - match: { items.0.update.error.reason: /error-message/ }
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        id: "3"
+
+---
+"Test Fail Processor with Upsert (_update)":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message": "error-message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              default_pipeline: "my_pipeline"
+
+  - do:
+      update:
+        index: test
+        id: "4"
+        body:
+          script:
+            source: "ctx._source.foo = 'bar'"
+          upsert:
+            foo: "bar"
+      catch: /error-message/
+
+  - do:
+      catch: missing
+      get:
+        index: test
+        id: "4"

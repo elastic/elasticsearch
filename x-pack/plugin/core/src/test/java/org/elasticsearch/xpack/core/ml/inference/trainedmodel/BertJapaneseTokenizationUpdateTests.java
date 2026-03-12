@@ -74,9 +74,6 @@ public class BertJapaneseTokenizationUpdateTests extends AbstractBWCWireSerializ
 
     @Override
     protected BertJapaneseTokenizationUpdate mutateInstanceForVersion(BertJapaneseTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
-            return new BertJapaneseTokenizationUpdate(instance.getTruncate(), null);
-        }
 
         return instance;
     }

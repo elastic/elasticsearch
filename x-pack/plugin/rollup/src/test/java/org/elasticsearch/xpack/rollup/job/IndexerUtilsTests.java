@@ -11,7 +11,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.index.IndexRequest;
@@ -20,10 +19,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -89,7 +88,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
@@ -108,7 +106,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         metricAgg.forEach(compositeBuilder::subAggregation);
 
         CompositeAggregation composite = searchAndReduce(
-            indexSearcher,
+            indexReader,
             new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
         );
         indexReader.close();
@@ -148,7 +146,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
@@ -169,7 +166,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         metricAgg.forEach(compositeBuilder::subAggregation);
 
         CompositeAggregation composite = searchAndReduce(
-            indexSearcher,
+            indexReader,
             new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
         );
         indexReader.close();
@@ -206,7 +203,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
 
@@ -221,7 +217,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        CompositeAggregation composite = searchAndReduce(indexSearcher, new AggTestConfig(compositeBuilder, valueFieldType));
+        CompositeAggregation composite = searchAndReduce(indexReader, new AggTestConfig(compositeBuilder, valueFieldType));
         indexReader.close();
         directory.close();
 
@@ -259,7 +255,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
@@ -279,7 +274,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         metricAgg.forEach(compositeBuilder::subAggregation);
 
         CompositeAggregation composite = searchAndReduce(
-            indexSearcher,
+            indexReader,
             new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
         );
         indexReader.close();
@@ -311,7 +306,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys = shuffleMap(keys, Collections.emptySet());
             when(bucket.getKey()).thenReturn(keys);
 
-            List<Aggregation> list = new ArrayList<>(3);
+            List<InternalAggregation> list = new ArrayList<>(3);
             InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
             when(mockAgg.getName()).thenReturn("123");
             list.add(mockAgg);
@@ -326,7 +321,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
             Collections.shuffle(list, random());
 
-            Aggregations aggs = new Aggregations(list);
+            InternalAggregations aggs = InternalAggregations.from(list);
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 
@@ -362,7 +357,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys = shuffleMap(keys, Collections.emptySet());
             when(bucket.getKey()).thenReturn(keys);
 
-            List<Aggregation> list = new ArrayList<>(3);
+            List<InternalAggregation> list = new ArrayList<>(3);
             InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
             when(mockAgg.getName()).thenReturn("123");
             list.add(mockAgg);
@@ -377,7 +372,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
             Collections.shuffle(list, random());
 
-            Aggregations aggs = new Aggregations(list);
+            InternalAggregations aggs = InternalAggregations.from(list);
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 
@@ -405,7 +400,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys.put("abc.histogram", null);
             when(bucket.getKey()).thenReturn(keys);
 
-            Aggregations aggs = new Aggregations(Collections.emptyList());
+            InternalAggregations aggs = InternalAggregations.from(Collections.emptyList());
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 
@@ -449,7 +444,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
         MappedFieldType metricFieldType = new NumberFieldMapper.NumberFieldType(metricField, NumberFieldMapper.NumberType.LONG);
@@ -465,10 +459,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        CompositeAggregation composite = searchAndReduce(
-            indexSearcher,
-            new AggTestConfig(compositeBuilder, valueFieldType, metricFieldType)
-        );
+        CompositeAggregation composite = searchAndReduce(indexReader, new AggTestConfig(compositeBuilder, valueFieldType, metricFieldType));
         indexReader.close();
         directory.close();
 
@@ -516,7 +507,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.DateFieldType timestampFieldType = new DateFieldMapper.DateFieldType(timestampField);
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(valueField, NumberFieldMapper.NumberType.LONG);
@@ -539,7 +529,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         metricAgg.forEach(compositeBuilder::subAggregation);
 
         CompositeAggregation composite = searchAndReduce(
-            indexSearcher,
+            indexReader,
             new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
         );
         indexReader.close();

@@ -15,6 +15,6 @@ public final class BulkUpdateApiKeyAction extends ActionType<BulkUpdateApiKeyRes
     public static final BulkUpdateApiKeyAction INSTANCE = new BulkUpdateApiKeyAction();
 
     private BulkUpdateApiKeyAction() {
-        super(NAME, BulkUpdateApiKeyResponse::new);
+        super(NAME);
     }
 }

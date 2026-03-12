@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -37,21 +37,22 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/preview";
 
     private PreviewDataFrameAnalyticsAction() {
-        super(NAME, PreviewDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField CONFIG = new ParseField("config");
 
         private final DataFrameAnalyticsConfig config;
 
-        static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_data_frame_analytics_response", Request.Builder::new);
+        static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_data_frame_analytics_response", Builder::new);
+
         static {
-            PARSER.declareObject(Request.Builder::setConfig, DataFrameAnalyticsConfig.STRICT_PARSER::apply, CONFIG);
+            PARSER.declareObject(Builder::setConfig, DataFrameAnalyticsConfig.STRICT_PARSER::apply, CONFIG);
         }
 
-        public static Request.Builder fromXContent(XContentParser parser) {
+        public static Builder fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
@@ -142,8 +143,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            this.featureValues = in.readList(StreamInput::readMap);
+            this.featureValues = in.readCollectionAsList(StreamInput::readGenericMap);
         }
 
         public List<Map<String, Object>> getFeatureValues() {

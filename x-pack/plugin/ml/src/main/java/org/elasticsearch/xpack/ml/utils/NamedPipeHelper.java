@@ -78,7 +78,7 @@ public class NamedPipeHelper {
         // All these factors need to align for everything to work in production. If any changes
         // are made here then CNamedPipeFactory::defaultPath() in the C++ code will probably
         // also need to be changed.
-        return env.tmpFile().toString() + PathUtils.getDefaultFileSystem().getSeparator();
+        return env.tmpDir().toString() + PathUtils.getDefaultFileSystem().getSeparator();
     }
 
     /**
@@ -182,7 +182,7 @@ public class NamedPipeHelper {
      * @return A stream opened to read from the named pipe.
      * @throws IOException if the named pipe cannot be opened.
      */
-    private OutputStream openNamedPipeOutputStreamWindows(Path file, Duration timeout) throws IOException {
+    private static OutputStream openNamedPipeOutputStreamWindows(Path file, Duration timeout) throws IOException {
         long timeoutMillisRemaining = timeout.toMillis();
 
         // Can't use File.isFile() on Windows, but luckily there's an even simpler check (that's not possible on *nix)
@@ -225,7 +225,7 @@ public class NamedPipeHelper {
      * @return A stream opened to read from the named pipe.
      * @throws IOException if the named pipe cannot be opened.
      */
-    private OutputStream openNamedPipeOutputStreamUnix(Path file, Duration timeout) throws IOException {
+    private static OutputStream openNamedPipeOutputStreamUnix(Path file, Duration timeout) throws IOException {
         long timeoutMillisRemaining = timeout.toMillis();
 
         // Periodically check whether the file exists until the timeout expires, then, if
@@ -263,7 +263,7 @@ public class NamedPipeHelper {
      * it wrapped in a RuntimeException.  However, the privileged calls could also possibly throw other
      * RuntimeExceptions, so this method accounts for this case too.
      */
-    private void propagatePrivilegedException(RuntimeException e) throws IOException {
+    private static void propagatePrivilegedException(RuntimeException e) throws IOException {
         Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
         if (ioe != null) {
             throw (IOException) ioe;

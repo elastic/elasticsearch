@@ -8,15 +8,8 @@
 package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.io.IOException;
-
-public final class RepositoriesMeteringRequest extends BaseNodesRequest<RepositoriesMeteringRequest> {
-    public RepositoriesMeteringRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
+public final class RepositoriesMeteringRequest extends BaseNodesRequest {
     public RepositoriesMeteringRequest(String... nodesIds) {
         super(nodesIds);
     }

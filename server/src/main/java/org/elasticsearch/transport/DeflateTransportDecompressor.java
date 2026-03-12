@@ -1,39 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-public class DeflateTransportDecompressor implements TransportDecompressor {
+public class DeflateTransportDecompressor extends TransportDecompressor {
 
     private final Inflater inflater;
-    private final Recycler<BytesRef> recycler;
-    private final ArrayDeque<Recycler.V<BytesRef>> pages;
-    private int pageOffset = 0;
-    private int pageLength = 0;
-    private boolean hasSkippedHeader = false;
 
     public DeflateTransportDecompressor(Recycler<BytesRef> recycler) {
-        this.recycler = recycler;
+        super(recycler);
         inflater = new Inflater(true);
-        pages = new ArrayDeque<>(4);
     }
 
     @Override
@@ -53,14 +45,7 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
             bytesConsumed += ref.length;
             boolean continueInflating = true;
             while (continueInflating) {
-                final boolean isNewPage = pageOffset == pageLength;
-                if (isNewPage) {
-                    Recycler.V<BytesRef> newPage = recycler.obtain();
-                    pageOffset = 0;
-                    pageLength = newPage.v().length;
-                    assert newPage.v().length > 0;
-                    pages.add(newPage);
-                }
+                final boolean isNewPage = maybeAddNewPage();
                 final Recycler.V<BytesRef> page = pages.getLast();
 
                 BytesRef output = page.v();
@@ -97,28 +82,6 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
     }
 
     @Override
-    public ReleasableBytesReference pollDecompressedPage(boolean isEOS) {
-        if (pages.isEmpty()) {
-            return null;
-        } else if (pages.size() == 1) {
-            if (isEOS) {
-                assert isEOS();
-                Recycler.V<BytesRef> page = pages.pollFirst();
-                BytesArray delegate = new BytesArray(page.v().bytes, page.v().offset, pageOffset);
-                ReleasableBytesReference reference = new ReleasableBytesReference(delegate, page);
-                pageLength = 0;
-                pageOffset = 0;
-                return reference;
-            } else {
-                return null;
-            }
-        } else {
-            Recycler.V<BytesRef> page = pages.pollFirst();
-            return new ReleasableBytesReference(new BytesArray(page.v()), page);
-        }
-    }
-
-    @Override
     public Compression.Scheme getScheme() {
         return Compression.Scheme.DEFLATE;
     }
@@ -126,8 +89,6 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
     @Override
     public void close() {
         inflater.end();
-        for (Recycler.V<BytesRef> page : pages) {
-            page.close();
-        }
+        super.close();
     }
 }

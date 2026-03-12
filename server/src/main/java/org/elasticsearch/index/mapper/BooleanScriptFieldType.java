@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.mapper.blockloader.script.BooleanScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -26,13 +28,18 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
+
+    private static final MatchNoDocsQuery NEITHER_TRUE_NOR_FALSE_QUERY = new MatchNoDocsQuery("neither true nor false allowed");
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
@@ -42,7 +49,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             BooleanFieldScript.Factory factory,
             Script script,
@@ -53,12 +60,14 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         }
 
         @Override
-        BooleanFieldScript.Factory getParseFromSourceFactory() {
+        protected BooleanFieldScript.Factory getParseFromSourceFactory() {
             return BooleanFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        BooleanFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected BooleanFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return BooleanFieldScript.leafAdapter(parentScriptFactory);
         }
 
@@ -80,7 +89,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -106,6 +116,54 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         checkNoFormat(format);
         checkNoTimeZone(timeZone);
         return DocValueFormat.BOOLEAN;
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::booleans,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
+    }
+
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Boolean>(null) {
+            @Override
+            public void convertValue(Object value, List<Boolean> accumulator) {
+                try {
+                    if (value instanceof Boolean b) {
+                        accumulator.add(b);
+                    } else {
+                        accumulator.add(Booleans.parseBoolean(value.toString(), false));
+                    }
+                } catch (Exception e) {
+                    // value is malformed, skip it
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<Boolean> values, BlockLoader.Builder blockBuilder) {
+                var booleanBuilder = (BlockLoader.BooleanBuilder) blockBuilder;
+                for (boolean value : values) {
+                    booleanBuilder.appendBoolean(value);
+                }
+            }
+
+            @Override
+            protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) throws IOException {
+                try {
+                    accumulator.add(parser.booleanValue());
+                } catch (Exception e) {
+                    // value is malformed, skip it
+                }
+            }
+        };
     }
 
     @Override
@@ -226,7 +284,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
-        return new MatchNoDocsQuery("neither true nor false allowed");
+        return NEITHER_TRUE_NOR_FALSE_QUERY;
     }
 
     private static boolean toBoolean(Object value) {

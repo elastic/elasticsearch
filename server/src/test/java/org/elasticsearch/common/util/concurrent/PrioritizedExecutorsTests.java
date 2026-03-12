@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util.concurrent;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -60,7 +62,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             null
         );
@@ -94,7 +96,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             null
         );
@@ -128,7 +130,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             null
         );
@@ -162,7 +164,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getTestName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             null
         );
@@ -194,10 +196,12 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     }
 
     public void testTimeout() throws Exception {
-        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName())
+        );
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             timer
         );
@@ -264,7 +268,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
             timer
         );

@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -29,16 +28,11 @@ setup:
       indices.create:
           index: test_2
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 number:
                   type: double
 
-  - do:
-      cluster.health:
-        wait_for_status: green
 ---
 "Basic test":
   - do:
@@ -85,6 +79,10 @@ setup:
 
 ---
 "IP test":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "Changed rest status for error in 8.12"
+
   - do:
       index:
         index: test_1
@@ -150,7 +148,7 @@ setup:
   - match: { aggregations.ip_terms.buckets.0.key: "::1" }
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         index: test_1
@@ -698,7 +696,6 @@ setup:
 
 ---
 "Global ordinals are loaded with the global_ordinals execution hint":
-
   - do:
       index:
         refresh: true
@@ -729,7 +726,17 @@ setup:
   - do:
       search:
         index: test_1
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
+        body: {
+          "size" : 0,
+          "aggs" : {
+            "str_terms" : {
+              "terms" : {
+                "field" : "str",
+                "execution_hint" : "global_ordinals"
+              }
+            }
+          }
+        }
 
   - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
@@ -740,12 +747,12 @@ setup:
         metric: fielddata
         fielddata_fields: str
 
-  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+  - gte: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
 ---
 "No field or script":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason:  "Exception was a deep, server exception before 7.8"
   - do:
       catch: /Required one of fields \[field, script\], but none were specified/
@@ -756,8 +763,8 @@ setup:
 
 ---
 "string profiler via global ordinals filters implementation":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: profile info changed in 8.0.0 to be backported to 7.14.0
   - do:
       bulk:
@@ -808,8 +815,8 @@ setup:
 
 ---
 "string profiler via global ordinals native implementation":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: debug information added in 7.9.0
   - do:
       bulk:
@@ -869,7 +876,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -921,8 +927,8 @@ setup:
 
 ---
 "string profiler via map":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: debug information added in 7.9.0
   - do:
       bulk:
@@ -970,8 +976,8 @@ setup:
 
 ---
 "numeric profiler":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: debug information added in 7.9.0
   - do:
       bulk:
@@ -1007,8 +1013,8 @@ setup:
 
 ---
 "min_doc_count":
-  - skip:
-      version: " - 7.9.2"
+  - requires:
+      cluster_features: ["gte_v7.9.3"]
       reason: broken in 7.9.1, was fixed in 7.9.2
 
   - do:
@@ -1172,9 +1178,9 @@ setup:
 
 ---
 "order by sub agg containing nested":
-  - skip:
-        version: " - 7.11.2"
-        reason: "It was fixed in 7.11.2"
+  - requires:
+      cluster_features: ["gte_v7.11.3"]
+      reason: "It was fixed in 7.11.2"
   - do:
       indices.put_mapping:
           index: test_1
@@ -1328,9 +1334,9 @@ precise size:
 
 ---
 huge size:
-  - skip:
-        version: " - 7.14.0"
-        reason: "Fixed in 7.14.1"
+  - requires:
+      cluster_features: ["gte_v7.14.1"]
+      reason: "Fixed in 7.14.1"
 
   - do:
       bulk:
@@ -1372,9 +1378,9 @@ huge size:
 
 ---
 Value type mismatch fails shard:
-  - skip:
-        version: " - 8.0.99"
-        reason: "Fixed in 8.1"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
+      reason: "Fixed in 8.1"
 
   - do:
       indices.create:
@@ -1382,7 +1388,6 @@ Value type mismatch fails shard:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1393,7 +1398,6 @@ Value type mismatch fails shard:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1448,9 +1452,9 @@ Value type mismatch fails shard:
 
 ---
 Value type mismatch fails shard with no docs:
-  - skip:
-        version: " - 8.0.99"
-        reason: "Fixed in 8.1"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
+      reason: "Fixed in 8.1"
 
   - do:
       indices.create:
@@ -1458,7 +1462,6 @@ Value type mismatch fails shard with no docs:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1469,7 +1472,6 @@ Value type mismatch fails shard with no docs:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:

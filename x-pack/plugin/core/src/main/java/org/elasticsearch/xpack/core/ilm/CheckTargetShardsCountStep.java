@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
-
-import java.util.Locale;
 
 /**
  * This step checks whether the new shrunken index's shards count is a factor of the source index's shards count.
@@ -41,8 +40,8 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -53,8 +52,7 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
             int sourceNumberOfShards = indexMetadata.getNumberOfShards();
             if (sourceNumberOfShards % numberOfShards != 0) {
                 String policyName = indexMetadata.getLifecyclePolicyName();
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "lifecycle action of policy [%s] for index [%s] cannot make progress "
                         + "because the target shards count [%d] must be a factor of the source index's shards count [%d]",
                     policyName,

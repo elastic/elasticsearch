@@ -51,7 +51,7 @@ public class PyTorchBuilderTests extends ESTestCase {
         new PyTorchBuilder(
             nativeController,
             processPipes,
-            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL)
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L)
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -73,7 +73,7 @@ public class PyTorchBuilderTests extends ESTestCase {
         new PyTorchBuilder(
             nativeController,
             processPipes,
-            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL)
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL, 0L, 0L)
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -94,7 +94,7 @@ public class PyTorchBuilderTests extends ESTestCase {
         new PyTorchBuilder(
             nativeController,
             processPipes,
-            new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW)
+            new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW, 0L, 0L)
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());

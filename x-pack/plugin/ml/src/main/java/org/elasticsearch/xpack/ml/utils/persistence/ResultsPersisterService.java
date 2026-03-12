@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -192,8 +191,9 @@ public class ResultsPersisterService {
     ) {
         if (isShutdown || isResetMode) {
             finalListener.onFailure(
-                new ElasticsearchException(
+                new ElasticsearchStatusException(
                     "Bulk indexing has failed as {}",
+                    RestStatus.TOO_MANY_REQUESTS,
                     isShutdown ? "node is shutting down." : "machine learning feature is being reset."
                 )
             );
@@ -218,7 +218,7 @@ public class ResultsPersisterService {
                 headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 providedBulkRequest,
                 listener
             )
@@ -233,12 +233,13 @@ public class ResultsPersisterService {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor
     ) {
         if (isShutdown || isResetMode) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "Bulk indexing has failed as {}",
+                RestStatus.TOO_MANY_REQUESTS,
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
         bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
         return getResponseFuture.actionGet();
     }
@@ -281,7 +282,7 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
-        final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<SearchResponse> getResponse = new PlainActionFuture<>();
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
@@ -293,7 +294,10 @@ public class ResultsPersisterService {
             client,
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
-            removeListener
+            removeListener.delegateFailure((l, r) -> {
+                r.mustIncRef();
+                l.onResponse(r);
+            })
         );
         onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
@@ -321,7 +325,7 @@ public class ResultsPersisterService {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private static class BulkRequestRewriter {
+    static class BulkRequestRewriter {
         private volatile BulkRequest bulkRequest;
 
         BulkRequestRewriter(BulkRequest initialRequest) {
@@ -469,7 +473,7 @@ public class ResultsPersisterService {
                 TimeValue.timeValueMillis(MIN_RETRY_SLEEP_MILLIS),
                 TimeValue.MAX_VALUE,
                 listener,
-                UTILITY_THREAD_POOL_NAME
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
             );
             this.jobId = jobId;
             this.shouldRetry = shouldRetry;
@@ -529,7 +533,7 @@ public class ResultsPersisterService {
         }
     }
 
-    private static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
+    static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
         Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
@@ -538,6 +542,9 @@ public class ResultsPersisterService {
             .collect(Collectors.toSet());
         bulkRequest.requests().forEach(docWriteRequest -> {
             if (failedDocIds.contains(docWriteRequest.id())) {
+                if (docWriteRequest instanceof IndexRequest ir) {
+                    ir.reset();
+                }
                 bulkRequestOfFailures.add(docWriteRequest);
             }
         });

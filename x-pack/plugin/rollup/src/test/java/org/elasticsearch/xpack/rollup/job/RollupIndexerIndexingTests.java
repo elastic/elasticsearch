@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -28,27 +27,26 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,7 +78,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -92,27 +89,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     @Before
     private void setup() {
         settings = createIndexSettings();
-        searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            settings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        searchExecutionContext = SearchExecutionContextHelper.createSimple(settings, null, null);
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -703,7 +680,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         Map<String, MappedFieldType> fieldTypeLookup = createFieldTypes(config);
         Directory dir = index(docs, fieldTypeLookup);
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
@@ -712,7 +688,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
                 job,
-                searcher,
+                reader,
                 fieldTypeLookup.values().toArray(new MappedFieldType[0]),
                 fieldTypeLookup.get(dateHistoField)
             );
@@ -736,23 +712,18 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(
-                    field,
-                    NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.CURRENT,
-                    null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, defaultIndexSettings())
+                    .build(MapperBuilderContext.root(false, false))
+                    .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.CURRENT).build(MapperBuilderContext.root(false))
-                    .fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, defaultIndexSettings()).build(
+                    MapperBuilderContext.root(false, false)
+                ).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -763,11 +734,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     metric.getField(),
                     NumberType.LONG,
                     ScriptCompiler.NONE,
-                    false,
-                    false,
-                    IndexVersion.CURRENT,
-                    null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                    defaultIndexSettings()
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -813,7 +781,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     class SyncRollupIndexer extends RollupIndexer {
-        private final IndexSearcher searcher;
+        private final IndexReader reader;
         private final MappedFieldType[] fieldTypes;
         private final MappedFieldType timestampField;
         private final List<IndexRequest> documents = new ArrayList<>();
@@ -823,12 +791,12 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         SyncRollupIndexer(
             ThreadPool threadPool,
             RollupJob job,
-            IndexSearcher searcher,
+            IndexReader reader,
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
             super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
-            this.searcher = searcher;
+            this.reader = reader;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;
         }
@@ -882,23 +850,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 .iterator()
                 .next();
 
-            CompositeAggregation result = null;
+            InternalComposite result = null;
             try {
-                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
+                result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponseSections sections = new SearchResponseSections(
-                null,
-                new Aggregations(Collections.singletonList(result)),
-                null,
-                false,
-                null,
-                null,
-                1
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(result)).build()
             );
-            SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-            listener.onResponse(response);
         }
 
         @Override
@@ -921,11 +882,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         public List<IndexRequest> triggerAndWaitForCompletion(long now) throws Exception {
             assertTrue(maybeTriggerAsyncJob(now));
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(latch);
             if (exc != null) {
                 throw exc;
             }

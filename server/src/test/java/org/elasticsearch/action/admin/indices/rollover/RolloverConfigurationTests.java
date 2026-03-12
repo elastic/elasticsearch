@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -48,10 +49,16 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RolloverConfiguration createTestInstance() {
-        return randomRolloverConditions();
+        return randomRolloverConfiguration();
     }
 
-    public static RolloverConfiguration randomRolloverConditions() {
+    public static RolloverConfiguration randomRolloverConfiguration() {
+        RolloverConditions.Builder concreteConditionsBuilder = randomRolloverConditionsWithoutMaxAgeBuilder();
+        Set<String> automaticConditions = randomAutomaticConditions(concreteConditionsBuilder);
+        return new RolloverConfiguration(concreteConditionsBuilder.build(), automaticConditions);
+    }
+
+    private static RolloverConditions.Builder randomRolloverConditionsWithoutMaxAgeBuilder() {
         ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
@@ -59,10 +66,10 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
-        RolloverConditions.Builder concreteConditionsBuilder = RolloverConditions.newBuilder()
+        return RolloverConditions.newBuilder()
             .addMaxIndexSizeCondition(maxSize)
             .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
             .addMaxIndexDocsCondition(maxDocs)
@@ -72,20 +79,31 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
             .addMinIndexAgeCondition(minAge)
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
+    }
+
+    private static Set<String> randomAutomaticConditions(RolloverConditions.Builder conditionsBuilder) {
         Set<String> automaticConditions = new HashSet<>();
         if (randomBoolean()) {
             if (randomBoolean()) {
-                concreteConditionsBuilder.addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+                conditionsBuilder.addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
             } else {
                 automaticConditions.add(MaxAgeCondition.NAME);
             }
         }
-        return new RolloverConfiguration(concreteConditionsBuilder.build(), automaticConditions);
+        return automaticConditions;
     }
 
     @Override
     protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
-        return randomValueOtherThan(instance, RolloverConfigurationTests::randomRolloverConditions);
+        RolloverConditions originalConditions = instance.getConcreteConditions();
+        RolloverConditions newConditions = randomValueOtherThan(
+            originalConditions,
+            () -> RolloverConfigurationTests.randomRolloverConditionsWithoutMaxAgeBuilder().build()
+        );
+        // There is no point mutating automatic conditions. If they change, then the concrete conditions
+        // should also change to produce a valid configuration Consequently, the mutated instance is guaranteed to be
+        // different from the original instance and the test purpose would be voided.
+        return new RolloverConfiguration(newConditions, instance.getAutomaticConditions());
     }
 
     public void testConstructorValidation() {
@@ -267,12 +285,16 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(91)), equalTo(TimeValue.timeValueDays(30)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(90)), equalTo(TimeValue.timeValueDays(7)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(14)), equalTo(TimeValue.timeValueDays(1)));
-        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(23)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(12)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(0)), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testToXContent() throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
-            RolloverConfiguration rolloverConfiguration = randomRolloverConditions();
+            RolloverConfiguration rolloverConfiguration = randomRolloverConfiguration();
             rolloverConfiguration.toXContent(builder, EMPTY_PARAMS);
             Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
             RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();
@@ -346,12 +368,12 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
     private static final List<Consumer<RolloverConfiguration.ValueParser>> conditionsGenerator = Arrays.asList(
         (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -93,7 +93,6 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         Path keyPath = createTempDir().resolve("testnode_updated.pem");
         Path certPath = createTempDir().resolve("testnode_updated.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
@@ -113,8 +112,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
+        SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        SSLSocketFactory sslSocketFactory = sslProfile.socketFactory();
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         // Fails as our nodes do not trust testnode_updated.crt
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
@@ -127,6 +126,9 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             fail("handshake should not have been successful!");
         } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
+        } catch (IOException e) {
+            // BouncyCastle throws a different exception
+            assertThat(e.getClass().getName(), is("org.bouncycastle.tls.TlsFatalAlertReceived"));
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
         try {

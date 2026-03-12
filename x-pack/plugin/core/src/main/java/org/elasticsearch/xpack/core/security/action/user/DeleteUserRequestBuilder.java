@@ -15,11 +15,7 @@ public class DeleteUserRequestBuilder extends ActionRequestBuilder<DeleteUserReq
         WriteRequestBuilder<DeleteUserRequestBuilder> {
 
     public DeleteUserRequestBuilder(ElasticsearchClient client) {
-        this(client, DeleteUserAction.INSTANCE);
-    }
-
-    public DeleteUserRequestBuilder(ElasticsearchClient client, DeleteUserAction action) {
-        super(client, action, new DeleteUserRequest());
+        super(client, DeleteUserAction.INSTANCE, new DeleteUserRequest());
     }
 
     public DeleteUserRequestBuilder username(String username) {

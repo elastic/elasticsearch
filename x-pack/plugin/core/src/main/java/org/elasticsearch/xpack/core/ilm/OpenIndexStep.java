@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 
@@ -31,18 +31,18 @@ final class OpenIndexStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
-            getClient().admin().indices().open(request, ActionListener.wrap(openIndexResponse -> {
+            getClient(currentState.projectId()).admin().indices().open(request, listener.delegateFailureAndWrap((l, openIndexResponse) -> {
                 if (openIndexResponse.isAcknowledged() == false) {
                     throw new ElasticsearchException("open index request failed to be acknowledged");
                 }
-                listener.onResponse(null);
-            }, listener::onFailure));
+                l.onResponse(null);
+            }));
 
         } else {
             listener.onResponse(null);

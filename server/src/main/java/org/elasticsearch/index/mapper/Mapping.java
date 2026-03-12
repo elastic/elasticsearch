@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,16 +12,17 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -30,11 +32,24 @@ public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
         new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ),
         new MetadataFieldMapper[0],
         null
     );
+
+    /**
+     * Holder class for lazy initialization of EMPTY_COMPRESSED. Creating a CompressedXContent calls
+     * MessageDigests.sha256() which resets the thread-local SHA-256 digest, so we must not do this
+     * during Mapping class loading (which can happen at unpredictable times via XContentHelper.parseToType).
+     */
+    private static class EmptyCompressedHolder {
+        static final CompressedXContent INSTANCE = EMPTY.toCompressedXContent();
+    }
+
+    public static CompressedXContent emptyCompressed() {
+        return EmptyCompressedHolder.INSTANCE;
+    }
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
@@ -51,11 +66,11 @@ public final class Mapping implements ToXContentFragment {
         for (int i = 0; i < metadataMappers.length; i++) {
             MetadataFieldMapper metadataMapper = metadataMappers[i];
             metadataMappersMap[i] = Map.entry(metadataMapper.getClass(), metadataMapper);
-            metadataMappersByName[i] = Map.entry(metadataMapper.name(), metadataMapper);
+            metadataMappersByName[i] = Map.entry(metadataMapper.fullPath(), metadataMapper);
         }
         this.root = rootObjectMapper;
         // keep root mappers sorted for consistent serialization
-        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::name));
+        Arrays.sort(metadataMappers, Comparator.comparing(Mapper::fullPath));
         this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
         this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
@@ -69,14 +84,14 @@ public final class Mapping implements ToXContentFragment {
         try {
             return new CompressedXContent(this);
         } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.fullPath() + "]", e);
         }
     }
 
     /**
      * Returns the root object for the current mapping
      */
-    RootObjectMapper getRoot() {
+    public RootObjectMapper getRoot() {
         return root;
     }
 
@@ -101,7 +116,7 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+    public MetadataFieldMapper getMetadataMapperByName(String mapperName) {
         return metadataMappersByName.get(mapperName);
     }
 
@@ -113,60 +128,34 @@ public final class Mapping implements ToXContentFragment {
     }
 
     /**
-     * Generate a mapping update for the given root object mapper.
-     */
-    Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
-        return new Mapping(rootObjectMapper, metadataMappers, meta);
-    }
-
-    private boolean isSourceSynthetic() {
-        SourceFieldMapper sfm = (SourceFieldMapper) metadataMappersByName.get(SourceFieldMapper.NAME);
-        return sfm != null && sfm.isSynthetic();
-    }
-
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
-    }
-
-    /**
-     * Merges a new mapping into the existing one.
+     * Returns a {@link SourceLoader.SyntheticVectorsLoader} that loads synthetic vector values
+     * from a source document, optionally applying a {@link SourceFilter}.
+     * <p>
+     * The {@code filter}, if provided, can be used to limit which fields from the mapping
+     * are considered when computing synthetic vectors. This allows for performance
+     * optimizations or targeted vector extraction.
+     * </p>
      *
-     * @param mergeWith the new mapping to merge into this one.
-     * @param reason the reason this merge was initiated.
-     * @return the resulting merged mapping.
+     * @param filter an optional {@link SourceFilter} to restrict the fields considered during loading;
+     *               may be {@code null} to indicate no filtering
+     * @return a {@link SourceLoader.SyntheticVectorsLoader} for extracting synthetic vectors,
+     *         potentially using the provided filter
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic()));
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
+        return root.syntheticVectorsLoader(filter);
+    }
 
-        // When merging metadata fields as part of applying an index template, new field definitions
-        // completely overwrite existing ones instead of being merged. This behavior matches how we
-        // merge leaf fields in the 'properties' section of the mapping.
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetadataMappers = new HashMap<>(metadataMappersMap);
-        for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
-            MetadataFieldMapper mergeInto = mergedMetadataMappers.get(metaMergeWith.getClass());
-            MetadataFieldMapper merged;
-            if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
-                merged = metaMergeWith;
-            } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic()));
-            }
-            mergedMetadataMappers.put(merged.getClass(), merged);
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
+        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
+        return root.syntheticFieldLoader(filter, mappers, false);
+    }
+
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        IgnoredSourceFieldMapper isfm = (IgnoredSourceFieldMapper) metadataMappersByName.get(IgnoredSourceFieldMapper.NAME);
+        if (isfm == null) {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }
-
-        // If we are merging the _meta object as part of applying an index template, then the new object
-        // is deep-merged into the existing one to allow individual keys to be added or overwritten. For
-        // standard mapping updates, the new _meta object completely replaces the old one.
-        Map<String, Object> mergedMeta;
-        if (mergeWith.meta == null) {
-            mergedMeta = meta;
-        } else if (meta == null || reason != MergeReason.INDEX_TEMPLATE) {
-            mergedMeta = mergeWith.meta;
-        } else {
-            mergedMeta = new HashMap<>(mergeWith.meta);
-            XContentHelper.mergeDefaults(mergedMeta, meta);
-        }
-
-        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+        return isfm.ignoredSourceFormat();
     }
 
     @Override

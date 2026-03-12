@@ -10,24 +10,19 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Request to gather usage statistics
  */
-public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
+public class EqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 
     public EqlStatsRequest() {
         super((String[]) null);
-    }
-
-    public EqlStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeStats = in.readBoolean();
     }
 
     public boolean includeStats() {
@@ -39,17 +34,11 @@ public class EqlStatsRequest extends BaseNodesRequest<EqlStatsRequest> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeStats);
-    }
-
-    @Override
     public String toString() {
         return "eql_stats";
     }
 
-    static class NodeStatsRequest extends TransportRequest {
+    static class NodeStatsRequest extends AbstractTransportRequest {
         boolean includeStats;
 
         NodeStatsRequest(StreamInput in) throws IOException {

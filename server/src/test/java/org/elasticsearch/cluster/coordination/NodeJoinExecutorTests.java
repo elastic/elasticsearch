@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
@@ -21,6 +21,9 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -28,34 +31,46 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.index.IndexVersionUtils.getPreviousVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -68,46 +83,243 @@ import static org.mockito.Mockito.when;
 
 public class NodeJoinExecutorTests extends ESTestCase {
 
-    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.running(() -> {
-        throw new AssertionError("should not complete publication");
-    });
+    private static final ActionListener<Void> NO_FAILURE_LISTENER = ActionTestUtils.assertNoFailureListener(t -> {});
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
 
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT), metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
+                metadata
+            )
         );
     }
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
+            .settings(settings(IndexVersion.fromId(6080099))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
-        expectThrows(IllegalStateException.class, () -> NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                metadata
+            )
+        );
+    }
+
+    public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(randomBlock, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("legacy")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099))))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+                )
+            );
+        }
+        var indexCreated = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
+        );
+        {
+            var indexMetadata = IndexMetadata.builder("regular")
+                .settings(
+                    Settings.builder()
+                        .put(randomBlock, true)
+                        .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, false);
+            }
+            var indexMetadata = IndexMetadata.builder("regular").settings(settings).numberOfShards(1).numberOfReplicas(1).build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+                )
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, randomBoolean());
+            }
+
+            var indexMetadata = IndexMetadata.builder("regular-not-read-only-verified")
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
+                )
+            );
+        }
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final Version version = randomCompatibleVersion(random(), Version.CURRENT);
-        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(version).build());
-        builder.add(DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(randomCompatibleVersion(random(), version)).build());
+        final Version version = randomCompatibleVersion(Version.CURRENT);
+        builder.add(
+            DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+                .version(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                .build()
+        );
+        builder.add(
+            DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+                .version(randomCompatibleVersion(version), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                .build()
+        );
         DiscoveryNodes nodes = builder.build();
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
@@ -124,14 +336,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final Version oldVersion = randomValueOtherThanMany(
             v -> v.onOrAfter(minNodeVersion),
-            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion(random())
+            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion()
         );
         expectThrows(IllegalStateException.class, () -> NodeJoinExecutor.ensureVersionBarrier(oldVersion, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
         // we have to stick with the same major
             minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
-        final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
+        final Version justGood = randomVersionBetween(minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
             NodeJoinExecutor.ensureNodesCompatibility(justGood, nodes);
@@ -140,69 +352,338 @@ public class NodeJoinExecutorTests extends ESTestCase {
         }
     }
 
-    public void testPreventJoinClusterWithUnsupportedTransportVersion() {
-        List<TransportVersion> versions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
-            .toList();
-        TransportVersion min = Collections.min(versions);
+    public void testPreventJoinClusterWithMissingFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
+            }
+        }));
 
-        // should not throw
-        NodeJoinExecutor.ensureTransportVersionBarrier(
-            TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()),
-            versions
-        );
-        expectThrows(
-            IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureTransportVersionBarrier(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersionUtils.getFirstVersion(),
-                    TransportVersionUtils.getPreviousVersion(min)
-                ),
-                versions
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), otherNode.getId(), Set.of("f1", "f2")))
+            .build();
+
+        DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionListener.wrap(
+                        o -> fail("Should have failed"),
+                        t -> assertThat(t.getMessage(), containsString("is missing required features [f2]"))
+                    ),
+                    0L
+                )
             )
         );
     }
 
+    public void testCanJoinClusterWithMissingIncompleteFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), otherNode.getId(), Set.of("f1")))
+            .build();
+
+        DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
+        );
+    }
+
+    @SuppressForbidden(reason = "we need to actually check what is in cluster state")
+    private static Map<String, Set<String>> getRecordedNodeFeatures(ClusterState state) {
+        return state.clusterFeatures().nodeFeatures();
+    }
+
+    private static Version nextMajor() {
+        return Version.fromId((Version.CURRENT.major + 1) * 1_000_000 + 99);
+    }
+
+    public void testCanJoinClusterWithAssumedFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true), new NodeFeature("af2", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1", "af2"));
+        features.put(otherNode.getId(), Set.of("f1", "af1", "af2"));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        // it is valid for major+1 versions to join clusters assumed features still present
+        // this can happen in the process of marking, then removing, assumed features
+        // they should still be recorded appropriately
+        DiscoveryNode newNode = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1", "af2"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+        features.put(newNode.getId(), Set.of("f1", "af2"));
+
+        // extra final check that the recorded cluster features are as they should be
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumed() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        // even though a next major has joined without af1, this doesnt allow the current major to join with af1 missing features
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        AtomicReference<Exception> ex = new AtomicReference<>();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeCurMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [af1]"));
+
+        // a next major can't join missing non-assumed features
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        ex.set(null);
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajorMissing,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra final check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    /*
+     * Same as above but the current major missing features is processed in the same execution
+     */
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumedSameExecute() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        // even though a next major could join, this doesnt allow the current major to join with missing features
+        // nor a next major missing non-assumed features
+        AtomicReference<Exception> thisMajorEx = new AtomicReference<>();
+        AtomicReference<Exception> nextMajorEx = new AtomicReference<>();
+        List<JoinTask> tasks = List.of(
+            JoinTask.singleNode(
+                newNodeNextMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                NO_FAILURE_LISTENER,
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeCurMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(thisMajorEx::set),
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeNextMajorMissing,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(nextMajorEx::set),
+                0L
+            )
+        );
+        if (randomBoolean()) {
+            // sometimes combine them together into a single task for completeness
+            tasks = List.of(new JoinTask(tasks.stream().flatMap(t -> t.nodeJoinTasks().stream()).toList(), false, 0L, null));
+        }
+
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        assertThat(thisMajorEx.get().getMessage(), containsString("missing required features [af1]"));
+        assertThat(nextMajorEx.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
     public void testSuccess() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId));
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            Version createdVersion = getRandomCompatibleVersion();
+            IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
             if (randomBoolean()) {
                 builder.put(
                     IndexMetadata.SETTING_VERSION_COMPATIBILITY,
-                    VersionUtils.randomVersionBetween(random(), createdVersion, Version.CURRENT)
+                    IndexVersionUtils.randomVersionBetween(createdVersion, IndexVersion.current())
                 );
             }
         } else {
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));
-            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersionUtils.randomCompatibleVersion().id());
         }
         return builder;
-    }
-
-    private static Version getRandomCompatibleVersion() {
-        return VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
 
     private static final JoinReason TEST_REASON = new JoinReason("test", null);
@@ -216,22 +697,19 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
         final DiscoveryNode actualNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        final DiscoveryNode bwcNode = new DiscoveryNode(
-            actualNode.getName(),
-            actualNode.getId(),
-            actualNode.getEphemeralId(),
-            actualNode.getHostName(),
-            actualNode.getHostAddress(),
-            actualNode.getAddress(),
-            actualNode.getAttributes(),
-            new HashSet<>(randomSubsetOf(actualNode.getRoles())),
-            actualNode.getVersion()
-        );
+        final DiscoveryNode bwcNode = DiscoveryNodeUtils.builder(actualNode.getId())
+            .name(actualNode.getName())
+            .ephemeralId(actualNode.getEphemeralId())
+            .address(actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress())
+            .attributes(actualNode.getAttributes())
+            .roles(new HashSet<>(randomSubsetOf(actualNode.getRoles())))
+            .version(actualNode.getVersionInformation())
+            .build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
             .build();
@@ -239,7 +717,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
-            List.of(JoinTask.singleNode(actualNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            List.of(
+                JoinTask.singleNode(actualNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
         );
 
         assertThat(resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
@@ -250,7 +730,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -270,12 +750,25 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     executor,
                     randomBoolean()
                         ? List.of(
-                            JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                            JoinTask.singleNode(
+                                masterNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER,
+                                executorTerm
+                            )
                         )
                         : List.of(
                             JoinTask.completingElection(
                                 Stream.of(
-                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                                    new JoinTask.NodeJoinTask(
+                                        masterNode,
+                                        CompatibilityVersionsUtils.staticCurrent(),
+                                        Set.of(),
+                                        TEST_REASON,
+                                        NO_FAILURE_LISTENER
+                                    )
                                 ),
                                 executorTerm
                             )
@@ -293,7 +786,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
@@ -321,12 +814,25 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     executor,
                     randomBoolean()
                         ? List.of(
-                            JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                            JoinTask.singleNode(
+                                masterNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER,
+                                executorTerm
+                            )
                         )
                         : List.of(
                             JoinTask.completingElection(
                                 Stream.of(
-                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                                    new JoinTask.NodeJoinTask(
+                                        masterNode,
+                                        CompatibilityVersionsUtils.staticCurrent(),
+                                        Set.of(),
+                                        TEST_REASON,
+                                        NO_FAILURE_LISTENER
+                                    )
                                 ),
                                 executorTerm
                             )
@@ -344,7 +850,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -362,7 +868,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
                     clusterState,
                     executor,
-                    List.of(JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)),
+                    List.of(
+                        JoinTask.singleNode(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER,
+                            executorTerm
+                        )
+                    ),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
                 )
@@ -376,21 +891,18 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNodeOld = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
-        final var otherNodeNew = new DiscoveryNode(
-            otherNodeOld.getName(),
-            otherNodeOld.getId(),
-            UUIDs.randomBase64UUID(random()),
-            otherNodeOld.getHostName(),
-            otherNodeOld.getHostAddress(),
-            otherNodeOld.getAddress(),
-            otherNodeOld.getAttributes(),
-            otherNodeOld.getRoles(),
-            otherNodeOld.getVersion()
-        );
+        final var otherNodeNew = DiscoveryNodeUtils.builder(otherNodeOld.getId())
+            .name(otherNodeOld.getName())
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .address(otherNodeOld.getHostName(), otherNodeOld.getHostAddress(), otherNodeOld.getAddress())
+            .attributes(otherNodeOld.getAttributes())
+            .roles(otherNodeOld.getRoles())
+            .version(otherNodeOld.getVersionInformation())
+            .build();
 
         final var afterElectionClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             ClusterState.builder(ClusterName.DEFAULT)
@@ -406,8 +918,20 @@ public class NodeJoinExecutorTests extends ESTestCase {
             List.of(
                 JoinTask.completingElection(
                     Stream.of(
-                        new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER),
-                        new JoinTask.NodeJoinTask(otherNodeNew, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                        new JoinTask.NodeJoinTask(
+                            masterNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        ),
+                        new JoinTask.NodeJoinTask(
+                            otherNodeNew,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        )
                     ),
                     executorTerm
                 )
@@ -428,8 +952,25 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 afterElectionClusterState,
                 executor,
                 List.of(
-                    JoinTask.singleNode(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm),
-                    JoinTask.singleNode(otherNodeOld, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                    JoinTask.singleNode(
+                        masterNode,
+                        CompatibilityVersionsUtils.staticCurrent(),
+                        Set.of(),
+                        TEST_REASON,
+                        NO_FAILURE_LISTENER,
+                        executorTerm
+                    ),
+                    JoinTask.singleNode(
+                        otherNodeOld,
+                        CompatibilityVersionsUtils.staticCurrent(),
+                        Set.of(),
+                        TEST_REASON,
+                        ActionListener.wrap(
+                            r -> fail("Task should have failed"),
+                            e -> assertThat(e.getMessage(), containsString("found existing node"))
+                        ),
+                        executorTerm
+                    )
                 )
             ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
             equalTo(otherNodeNew.getEphemeralId())
@@ -441,7 +982,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
@@ -479,8 +1020,20 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 List.of(
                     JoinTask.completingElection(
                         Stream.of(
-                            new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER),
-                            new JoinTask.NodeJoinTask(otherNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                            new JoinTask.NodeJoinTask(
+                                masterNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER
+                            ),
+                            new JoinTask.NodeJoinTask(
+                                otherNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER
+                            )
                         ),
                         executorTerm
                     )
@@ -492,7 +1045,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 executor,
                 List.of(
                     JoinTask.completingElection(
-                        Stream.of(new JoinTask.NodeJoinTask(masterNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                        Stream.of(
+                            new JoinTask.NodeJoinTask(
+                                masterNode,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                TEST_REASON,
+                                NO_FAILURE_LISTENER
+                            )
+                        ),
                         executorTerm
                     )
                 )
@@ -500,7 +1061,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                 clusterState,
                 executor,
-                List.of(JoinTask.singleNode(otherNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
+                List.of(
+                    JoinTask.singleNode(
+                        otherNode,
+                        CompatibilityVersionsUtils.staticCurrent(),
+                        Set.of(),
+                        TEST_REASON,
+                        NO_FAILURE_LISTENER,
+                        executorTerm
+                    )
+                )
             );
         }
 
@@ -517,7 +1087,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long currentTerm = randomLongBetween(100, 1000);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -545,7 +1115,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var actualizedDesiredNodes = randomList(0, 5, this::createActualizedDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -565,7 +1135,16 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
         var tasks = joiningNodes.stream()
-            .map(node -> JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            .map(
+                node -> JoinTask.singleNode(
+                    node,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
             .toList();
 
         final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
@@ -584,7 +1163,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenANewMasterIsElected() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var actualizedDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -601,7 +1180,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var completingElectionTask = JoinTask.completingElection(
             clusterState.nodes()
                 .stream()
-                .map(node -> new JoinTask.NodeJoinTask(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                .map(
+                    node -> new JoinTask.NodeJoinTask(
+                        node,
+                        CompatibilityVersionsUtils.staticCurrent(),
+                        Set.of(),
+                        TEST_REASON,
+                        NO_FAILURE_LISTENER
+                    )
+                ),
             1L
         );
 
@@ -627,22 +1214,21 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeJoinExecutor.class);
+            var mockLog = MockLog.capture(NodeJoinExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var node1 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
@@ -650,20 +1236,22 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node1, TransportVersion.current(), TEST_REASON, future, 0L), null),
-                    10,
-                    TimeUnit.SECONDS
+                        .submitTask(
+                            "test",
+                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, listener, 0L),
+                            null
+                        )
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var node2 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
             final var testReasonWithLink = new JoinReason("test", ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "warn message with troubleshooting link",
                     LOGGER_NAME,
                     Level.WARN,
@@ -671,22 +1259,111 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         + node2.descriptionWithoutAttributes()
                         + "] with reason ["
                         + testReasonWithLink.message()
-                        + "]; for troubleshooting guidance, see https://www.elastic.co/guide/en/elasticsearch/reference/*"
+                        + "]; for troubleshooting guidance, see "
+                        + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster*"
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node2, TransportVersion.current(), testReasonWithLink, future, 0L), null),
-                    10,
-                    TimeUnit.SECONDS
+                        .submitTask(
+                            "test",
+                            JoinTask.singleNode(
+                                node2,
+                                CompatibilityVersionsUtils.staticCurrent(),
+                                Set.of(),
+                                testReasonWithLink,
+                                listener,
+                                0L
+                            ),
+                            null
+                        )
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testResetsNodeLeftGenerationOnNewTerm() throws Exception {
+        final AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
+
+        final long term = randomLongBetween(0, Long.MAX_VALUE - 1);
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(term).build()))
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).add(otherNode).remove(otherNode))
+            .build();
+
+        assertEquals(term, clusterState.term());
+        assertEquals(1L, clusterState.nodes().getNodeLeftGeneration());
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(
+                        new JoinTask.NodeJoinTask(
+                            otherNode,
+                            CompatibilityVersionsUtils.staticCurrent(),
+                            Set.of(),
+                            TEST_REASON,
+                            NO_FAILURE_LISTENER
+                        )
+                    ),
+                    randomLongBetween(term + 1, Long.MAX_VALUE)
+                )
+            )
+        );
+
+        assertThat(resultingState.term(), greaterThan(term));
+        assertEquals(0L, resultingState.nodes().getNodeLeftGeneration());
+    }
+
+    public void testSetsNodeFeaturesWhenRejoining() throws Exception {
+        final AllocationService allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
+
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+
+        final DiscoveryNode rejoinNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(rejoinNode)
+            )
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), rejoinNode.getId(), Set.of()))
+            .build();
+
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f1")), is(false));
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f2")), is(false));
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    rejoinNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1", "f2"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1")), is(true));
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2")), is(true));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {
@@ -699,9 +1376,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, term)
             : JoinTask.completingElection(
-                Stream.of(new JoinTask.NodeJoinTask(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                Stream.of(
+                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER)
+                ),
                 term
             );
     }
@@ -713,6 +1392,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
             invocationOnMock -> invocationOnMock.getArguments()[0]
         );
         return allocationService;
+    }
+
+    private static FeatureService createFeatureService() {
+        return new FeatureService(List.of());
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

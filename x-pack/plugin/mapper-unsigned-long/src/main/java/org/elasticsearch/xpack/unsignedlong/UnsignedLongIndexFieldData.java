@@ -8,22 +8,26 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
-    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+    protected final IndexType indexType;
 
     UnsignedLongIndexFieldData(
         IndexNumericFieldData signedLongFieldData,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+        IndexType indexType
     ) {
         this.signedLongIFD = signedLongFieldData;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexType = indexType;
     }
 
     @Override
@@ -49,6 +53,11 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return false;
+    }
+
+    @Override
+    protected IndexType indexType() {
+        return indexType;
     }
 
     @Override

@@ -9,18 +9,14 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +26,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -63,13 +60,13 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -78,6 +75,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static final Set<String> RELATED_TASKS = Set.of(MlTasks.DATAFEED_TASK_NAME, MlTasks.JOB_TASK_NAME);
@@ -99,7 +97,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<PutJobAction.Response> listener = new PlainActionFuture<>();
             client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), listener);
             listener.actionGet();
         });
@@ -112,7 +110,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> listener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), listener);
         PutJobAction.Response response = listener.actionGet();
         assertNotNull(response);
@@ -122,7 +120,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String jobId = "testmachinelearningopenjobactionrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response response = putJobListener.actionGet();
         assertNotNull(response);
@@ -133,7 +131,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(false);
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<NodeAcknowledgedResponse> listener = new PlainActionFuture<>();
             client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), listener);
             listener.actionGet();
         });
@@ -153,7 +151,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         });
 
         // test that license restricted apis do now work
-        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), listener);
         NodeAcknowledgedResponse response2 = listener.actionGet();
         assertNotNull(response2);
@@ -164,7 +162,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
@@ -175,7 +173,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(false);
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<PutDatafeedAction.Response> listener = new PlainActionFuture<>();
             client().execute(
                 PutDatafeedAction.INSTANCE,
                 new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))),
@@ -192,7 +190,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutDatafeedAction.Response> listener = new PlainActionFuture<>();
         client().execute(
             PutDatafeedAction.INSTANCE,
             new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))),
@@ -211,12 +209,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
 
         // put job
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
         // put datafeed
-        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = new PlainActionFuture<>();
         client().execute(
             PutDatafeedAction.INSTANCE,
             new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(datafeedIndex))),
@@ -225,12 +223,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
         // open job
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
         NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
         // start datafeed
-        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = new PlainActionFuture<>();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
         listener.actionGet();
 
@@ -251,7 +249,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
@@ -260,12 +258,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
 
         // open job
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener2);
         NodeAcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
         assertNotNull(openJobResponse3);
         // start datafeed
-        PlainActionFuture<NodeAcknowledgedResponse> listener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener2 = new PlainActionFuture<>();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener2);
         listener2.actionGet();
 
@@ -276,7 +274,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STARTED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(2, tasks.size());
         });
@@ -296,7 +294,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
@@ -310,11 +308,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         prepareCreate(datafeedIndex).setMapping("""
             {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
-        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = new PlainActionFuture<>();
         client().execute(
             PutDatafeedAction.INSTANCE,
             new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(datafeedIndex))),
@@ -322,7 +320,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         );
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
         NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
@@ -336,14 +334,14 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
 
         // test that license restricted apis do not work
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<NodeAcknowledgedResponse> listener = new PlainActionFuture<>();
             client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
             listener.actionGet();
         });
@@ -357,12 +355,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         // test that license restricted apis do now work
         // re-open job now that the license is valid again
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener2 = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener2);
         NodeAcknowledgedResponse openJobResponse3 = openJobListener2.actionGet();
         assertNotNull(openJobResponse3);
 
-        PlainActionFuture<NodeAcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> listener = new PlainActionFuture<>();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), listener);
         NodeAcknowledgedResponse response = listener.actionGet();
         assertNotNull(response);
@@ -376,11 +374,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         prepareCreate(datafeedIndex).setMapping("""
             {"_doc":{"properties":{"time":{"type":"date"}}}}""").get();
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
-        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = new PlainActionFuture<>();
         client().execute(
             PutDatafeedAction.INSTANCE,
             new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(datafeedIndex))),
@@ -388,11 +386,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         );
         PutDatafeedAction.Response putDatafeedResponse = putDatafeedListener.actionGet();
         assertNotNull(putDatafeedResponse);
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
         NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
-        PlainActionFuture<NodeAcknowledgedResponse> startDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> startDatafeedListener = new PlainActionFuture<>();
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L), startDatafeedListener);
         NodeAcknowledgedResponse startDatafeedResponse = startDatafeedListener.actionGet();
         assertNotNull(startDatafeedResponse);
@@ -404,7 +402,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             enableLicensing(randomValidLicenseType());
         }
 
-        PlainActionFuture<StopDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<StopDatafeedAction.Response> listener = new PlainActionFuture<>();
         client().execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId), listener);
         if (invalidLicense) {
             // the stop datafeed due to invalid license happens async, so check if the datafeed turns into stopped state:
@@ -433,11 +431,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
-        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<NodeAcknowledgedResponse> openJobListener = new PlainActionFuture<>();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId), openJobListener);
         NodeAcknowledgedResponse openJobResponse = openJobListener.actionGet();
         assertNotNull(openJobResponse);
@@ -449,7 +447,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             enableLicensing(randomValidLicenseType());
         }
 
-        PlainActionFuture<CloseJobAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<CloseJobAction.Response> listener = new PlainActionFuture<>();
         CloseJobAction.Request request = new CloseJobAction.Request(jobId);
         request.setCloseTimeout(TimeValue.timeValueSeconds(20));
         if (invalidLicense) {
@@ -469,7 +467,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
@@ -478,7 +476,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         License.OperationMode mode = randomLicenseType();
         enableLicensing(mode);
 
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         client().execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId), listener);
         listener.actionGet();
     }
@@ -488,11 +486,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<PutJobAction.Response> putJobListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutJobAction.Response> putJobListener = new PlainActionFuture<>();
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(createJob(jobId)), putJobListener);
         PutJobAction.Response putJobResponse = putJobListener.actionGet();
         assertNotNull(putJobResponse);
-        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = PlainActionFuture.newFuture();
+        PlainActionFuture<PutDatafeedAction.Response> putDatafeedListener = new PlainActionFuture<>();
         client().execute(
             PutDatafeedAction.INSTANCE,
             new PutDatafeedAction.Request(createDatafeed(datafeedId, jobId, Collections.singletonList(jobId))),
@@ -505,7 +503,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         License.OperationMode mode = randomLicenseType();
         enableLicensing(mode);
 
-        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         client().execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeedId), listener);
         listener.actionGet();
     }
@@ -527,24 +525,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   }]}
             """;
         // Creating a pipeline should work
-        PlainActionFuture<AcknowledgedResponse> putPipelineListener = PlainActionFuture.newFuture();
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListener
-        );
-        AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
-        assertTrue(putPipelineResponse.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline", pipeline);
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
 
         String simulateSource = Strings.format("""
             {
@@ -557,12 +540,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   "col4": 10
                 }}]
             }""", pipeline);
-        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
-        client().execute(
-            SimulatePipelineAction.INSTANCE,
-            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON),
-            simulatePipelineListener
-        );
+        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = new PlainActionFuture<>();
+        client().execute(SimulatePipelineAction.INSTANCE, jsonSimulatePipelineRequest(simulateSource), simulatePipelineListener);
 
         assertThat(simulatePipelineListener.actionGet().getResults(), is(not(empty())));
 
@@ -573,36 +552,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the previous pipeline should still work
         try {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline")
-                .setSource("{}", XContentType.JSON)
-                .execute()
-                .actionGet();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
         } catch (ElasticsearchSecurityException ex) {
             fail(ex.getMessage());
         }
 
         // Creating a new pipeline with an inference processor should work
-        putPipelineListener = PlainActionFuture.newFuture();
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline_again",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListener
-        );
-        putPipelineResponse = putPipelineListener.actionGet();
-        assertTrue(putPipelineResponse.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline_again", pipeline);
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline_again")
-                .setSource("{}", XContentType.JSON)
-                .execute()
-                .actionGet();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
         assertThat(e.getMessage(), containsString("non-compliant"));
@@ -611,7 +571,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Simulating the pipeline should fail
         SimulateDocumentBaseResult simulateResponse = (SimulateDocumentBaseResult) client().execute(
             SimulatePipelineAction.INSTANCE,
-            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
+            jsonSimulatePipelineRequest(simulateSource)
         ).actionGet().getResults().get(0);
         assertThat(simulateResponse.getFailure(), is(not(nullValue())));
         assertThat((simulateResponse.getFailure()).getCause(), is(instanceOf(ElasticsearchSecurityException.class)));
@@ -621,40 +581,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<AcknowledgedResponse> putPipelineListenerNewLicense = PlainActionFuture.newFuture();
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListenerNewLicense
-        );
-        AcknowledgedResponse putPipelineResponseNewLicense = putPipelineListenerNewLicense.actionGet();
-        assertTrue(putPipelineResponseNewLicense.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline", pipeline);
 
-        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListenerNewLicense = PlainActionFuture.newFuture();
-        client().execute(
-            SimulatePipelineAction.INSTANCE,
-            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON),
-            simulatePipelineListenerNewLicense
-        );
+        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListenerNewLicense = new PlainActionFuture<>();
+        client().execute(SimulatePipelineAction.INSTANCE, jsonSimulatePipelineRequest(simulateSource), simulatePipelineListenerNewLicense);
 
         assertThat(simulatePipelineListenerNewLicense.actionGet().getResults(), is(not(empty())));
 
         // both ingest pipelines should work
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline_again")
-            .setSource("{}", XContentType.JSON)
-            .execute()
-            .actionGet();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
     }
 
     public void testMachineLearningInferModelRestricted() {
@@ -662,15 +599,16 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         putInferenceModel(modelId);
 
-        PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> inferModelSuccess = new PlainActionFuture<>();
         client().execute(
             InferModelAction.INSTANCE,
             InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                false
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                false,
+                TimeValue.timeValueSeconds(5)
+            ),
             inferModelSuccess
         );
         InferModelAction.Response response = inferModelSuccess.actionGet();
@@ -690,8 +628,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
-                    false
-                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
+                    false,
+                    TimeValue.timeValueSeconds(5)
+                )
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -699,15 +638,16 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackField.MACHINE_LEARNING));
 
         // Inferring with previously Licensed == true should pass, but indicate license issues
-        inferModelSuccess = PlainActionFuture.newFuture();
+        inferModelSuccess = new PlainActionFuture<>();
         client().execute(
             InferModelAction.INSTANCE,
             InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                true
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                true,
+                TimeValue.timeValueSeconds(5)
+            ),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -719,15 +659,16 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
 
-        PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<InferModelAction.Response> listener = new PlainActionFuture<>();
         client().execute(
             InferModelAction.INSTANCE,
             InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                false
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                false,
+                TimeValue.timeValueSeconds(5)
+            ),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
@@ -772,7 +713,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         SearchRequest search = new SearchRequest(index);
         search.source().aggregation(termsAgg);
-        client().search(search).actionGet();
+        client().search(search).actionGet().decRef();
 
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();

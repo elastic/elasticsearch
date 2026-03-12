@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
+import java.util.Comparator;
 
 /**
  * A query rescorer interface used to re-rank the Top-K results of a previously
@@ -46,5 +49,23 @@ public interface Rescorer {
      */
     Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext, Explanation sourceExplanation)
         throws IOException;
+
+    Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
+        int cmp = Float.compare(o2.score, o1.score);
+        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
+    };
+
+    /**
+     * Returns a new {@link TopDocs} with the topN from the incoming one,
+     * or the same TopDocs if the number of hits is already &lt;= topN.
+     */
+    static TopDocs topN(TopDocs in, int topN) {
+        if (in.scoreDocs.length <= topN) {
+            return in;
+        }
+        ScoreDoc[] subset = new ScoreDoc[topN];
+        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+        return new TopDocs(in.totalHits, subset);
+    }
 
 }

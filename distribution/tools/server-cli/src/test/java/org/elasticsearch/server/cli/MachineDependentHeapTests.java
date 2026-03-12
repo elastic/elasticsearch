@@ -1,131 +1,104 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.hamcrest.Matcher;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.junit.Assert.assertThat;
 
 // TODO: rework these tests to mock jvm option finder so they can run with security manager, no forking needed
-@WithoutSecurityManager
 public class MachineDependentHeapTests extends ESTestCase {
 
     public void testDefaultHeapSize() throws Exception {
-        MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
-        List<String> options = heap.determineHeapSettings(configPath(), Collections.emptyList());
+        MachineDependentHeap heap = new MachineDependentHeap();
+        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInGigabytes(8), Collections.emptyList());
         assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
     }
 
     public void testUserPassedHeapArgs() throws Exception {
-        MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
-        List<String> options = heap.determineHeapSettings(configPath(), List.of("-Xmx4g"));
+        var systemMemoryInfo = systemMemoryInGigabytes(8);
+        MachineDependentHeap heap = new MachineDependentHeap();
+        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xmx4g"));
         assertThat(options, empty());
 
-        options = heap.determineHeapSettings(configPath(), List.of("-Xms4g"));
+        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xms4g"));
         assertThat(options, empty());
     }
 
     // Explicitly test odd heap sizes
     // See: https://github.com/elastic/elasticsearch/issues/86431
     public void testOddUserPassedHeapArgs() throws Exception {
-        MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
-        List<String> options = heap.determineHeapSettings(configPath(), List.of("-Xmx409m"));
+        var systemMemoryInfo = systemMemoryInGigabytes(8);
+        MachineDependentHeap heap = new MachineDependentHeap();
+        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xmx409m"));
         assertThat(options, empty());
 
-        options = heap.determineHeapSettings(configPath(), List.of("-Xms409m"));
+        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xms409m"));
         assertThat(options, empty());
     }
 
-    public void testMasterOnlyOptions() {
-        List<String> options = calculateHeap(16, "master");
-        assertThat(options, containsInAnyOrder("-Xmx9830m", "-Xms9830m"));
-
-        options = calculateHeap(64, "master");
-        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
+    public void testMasterOnlyOptions() throws Exception {
+        assertHeapOptions(16, containsInAnyOrder("-Xmx9830m", "-Xms9830m"), "master");
+        assertHeapOptions(64, containsInAnyOrder("-Xmx31744m", "-Xms31744m"), "master");
     }
 
-    public void testMlOnlyOptions() {
-        List<String> options = calculateHeap(1, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx408m", "-Xms408m"));
-
-        options = calculateHeap(4, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx1636m", "-Xms1636m"));
-
-        options = calculateHeap(32, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx8192m", "-Xms8192m"));
-
-        options = calculateHeap(64, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx11468m", "-Xms11468m"));
-
+    public void testMlOnlyOptions_new() throws Exception {
+        assumeTrue("feature flag must be enabled for new memory computation", new FeatureFlag("new_ml_memory_computation").isEnabled());
+        assertHeapOptions(1, containsInAnyOrder("-Xmx272m", "-Xms272m"), "ml");
+        assertHeapOptions(4, containsInAnyOrder("-Xmx1092m", "-Xms1092m"), "ml");
+        assertHeapOptions(32, containsInAnyOrder("-Xmx5460m", "-Xms5460m"), "ml");
+        assertHeapOptions(64, containsInAnyOrder("-Xmx7644m", "-Xms7644m"), "ml");
         // We'd never see a node this big in Cloud, but this assertion proves that the 31GB absolute maximum
         // eventually kicks in (because 0.4 * 16 + 0.1 * (263 - 16) > 31)
-        options = calculateHeap(263, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
-
+        assertHeapOptions(263, containsInAnyOrder("-Xmx21228m", "-Xms21228m"), "ml");
     }
 
-    public void testDataNodeOptions() {
-        List<String> options = calculateHeap(1, "data");
-        assertThat(options, containsInAnyOrder("-Xmx512m", "-Xms512m"));
-
-        options = calculateHeap(8, "data");
-        assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
-
-        options = calculateHeap(64, "data");
-        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
-
-        options = calculateHeap(0.5, "data");
-        assertThat(options, containsInAnyOrder("-Xmx204m", "-Xms204m"));
-
-        options = calculateHeap(0.2, "data");
-        assertThat(options, containsInAnyOrder("-Xmx128m", "-Xms128m"));
+    public void testMlOnlyOptions_old() throws Exception {
+        assumeTrue(
+            "feature flag must be disabled for old memory computation",
+            new FeatureFlag("new_ml_memory_computation").isEnabled() == false
+        );
+        assertHeapOptions(1, containsInAnyOrder("-Xmx408m", "-Xms408m"), "ml");
+        assertHeapOptions(4, containsInAnyOrder("-Xmx1636m", "-Xms1636m"), "ml");
+        assertHeapOptions(32, containsInAnyOrder("-Xmx8192m", "-Xms8192m"), "ml");
+        assertHeapOptions(64, containsInAnyOrder("-Xmx11468m", "-Xms11468m"), "ml");
+        // We'd never see a node this big in Cloud, but this assertion proves that the 31GB absolute maximum
+        // eventually kicks in (because 0.4 * 16 + 0.1 * (263 - 16) > 31)
+        assertHeapOptions(263, containsInAnyOrder("-Xmx31744m", "-Xms31744m"), "ml");
     }
 
-    private static List<String> calculateHeap(double memoryInGigabytes, String... roles) {
-        MachineDependentHeap machineDependentHeap = new MachineDependentHeap(systemMemoryInGigabytes(memoryInGigabytes));
-        String configYaml = "node.roles: [" + String.join(",", roles) + "]";
-        return calculateHeap(machineDependentHeap, configYaml);
+    public void testDataNodeOptions() throws Exception {
+        assertHeapOptions(1, containsInAnyOrder("-Xmx512m", "-Xms512m"), "data");
+        assertHeapOptions(8, containsInAnyOrder("-Xmx4096m", "-Xms4096m"), "data");
+        assertHeapOptions(64, containsInAnyOrder("-Xmx31744m", "-Xms31744m"), "data");
+        assertHeapOptions(0.5, containsInAnyOrder("-Xmx204m", "-Xms204m"), "data");
+        assertHeapOptions(0.2, containsInAnyOrder("-Xmx128m", "-Xms128m"), "data");
     }
 
-    private static List<String> calculateHeap(MachineDependentHeap machineDependentHeap, String configYaml) {
-        try (InputStream in = new ByteArrayInputStream(configYaml.getBytes(StandardCharsets.UTF_8))) {
-            return machineDependentHeap.determineHeapSettings(in);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private void assertHeapOptions(double memoryInGigabytes, Matcher<Iterable<? extends String>> optionsMatcher, String... roles)
+        throws Exception {
+        SystemMemoryInfo systemMemoryInfo = systemMemoryInGigabytes(memoryInGigabytes);
+        MachineDependentHeap machineDependentHeap = new MachineDependentHeap();
+        Settings nodeSettings = Settings.builder().putList("node.roles", roles).build();
+        List<String> heapOptions = machineDependentHeap.determineHeapSettings(nodeSettings, systemMemoryInfo, Collections.emptyList());
+        assertThat(heapOptions, optionsMatcher);
     }
 
     private static SystemMemoryInfo systemMemoryInGigabytes(double gigabytes) {
         return () -> (long) (gigabytes * 1024 * 1024 * 1024);
-    }
-
-    private static Path configPath() {
-        URL resource = MachineDependentHeapTests.class.getResource("/config/elasticsearch.yml");
-        try {
-            return Paths.get(resource.toURI()).getParent();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

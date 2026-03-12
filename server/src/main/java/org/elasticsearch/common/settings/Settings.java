@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -12,12 +13,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,6 +64,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -77,6 +79,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
 
@@ -240,7 +243,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // create the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
         // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;
@@ -286,6 +289,28 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    /**
+     * Returns the values for the given settings pattern.
+     *
+     * Either a concrete setting name, or a pattern containing a single glob is supported.
+     *
+     * @param settingPattern name of a setting or a setting name pattern containing a glob
+     * @return zero or more values for any settings in this settings object that match the given pattern
+     */
+    public Stream<String> getValues(String settingPattern) {
+        int globIndex = settingPattern.indexOf(".*.");
+        Stream<String> settingNames;
+        if (globIndex == -1) {
+            settingNames = Stream.of(settingPattern);
+        } else {
+            String prefix = settingPattern.substring(0, globIndex + 1);
+            String suffix = settingPattern.substring(globIndex + 2);
+            Settings subSettings = getByPrefix(prefix);
+            settingNames = subSettings.names().stream().map(k -> prefix + k + suffix);
+        }
+        return settingNames.map(this::getAsList).flatMap(List::stream).filter(Objects::nonNull);
     }
 
     /**
@@ -522,13 +547,21 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /**
      * Returns a parsed version.
      */
-    public Version getAsVersion(String setting, Version defaultVersion) throws SettingsException {
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion) throws SettingsException {
+        return getAsVersionId(setting, parseVersion, null);
+    }
+
+    /**
+     * Returns a parsed version.
+     */
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion, T defaultVersion)
+        throws SettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultVersion;
         }
         try {
-            return Version.fromId(Integer.parseInt(sValue));
+            return parseVersion.apply(Integer.parseInt(sValue));
         } catch (Exception e) {
             throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
         }
@@ -636,7 +669,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        out.writeMap(settings, StreamOutput::writeString, Settings::writeSettingValue);
+        out.writeMap(settings, Settings::writeSettingValue);
     }
 
     private static void writeSettingValue(StreamOutput streamOutput, Object value) throws IOException {
@@ -844,6 +877,40 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         return newKeySet;
     }
 
+    /*
+     * This method merges the given newSettings into this Settings, returning either a new Settings object or this if the newSettings are
+     * empty. If any values are null in newSettings, those keys are removed from the returned object.
+     */
+    public Settings merge(Settings newSettings) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
+            return this;
+        }
+        Settings.Builder builder = Settings.builder().put(this);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (rawValue == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, rawValue);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Checks if all settings start with the specified prefix and renames any that do not. Returns the current instance if nothing needs
+     * to be done. See {@link Builder#normalizePrefix(String)} for more info.
+     */
+    public Settings maybeNormalizePrefix(String prefix) {
+        for (String key : settings.keySet()) {
+            if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                return builder().put(this).normalizePrefix(prefix).build();
+            }
+        }
+        return this;
+    }
+
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to
@@ -1028,8 +1095,15 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             return this;
         }
 
-        public Builder put(String setting, Version version) {
-            put(setting, version.id);
+        /**
+         * Sets the setting with the provided setting key and the {@code VersionId} value.
+         *
+         * @param setting The setting key
+         * @param version The version value
+         * @return The builder
+         */
+        public Builder put(String setting, VersionId<?> version) {
+            put(setting, version.id());
             return this;
         }
 
@@ -1130,9 +1204,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
          * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
         public Builder put(Settings settings, boolean copySecureSettings) {
-            Map<String, Object> settingsMap = new HashMap<>(settings.settings);
-            processLegacyLists(settingsMap);
-            map.putAll(settingsMap);
+            map.putAll(settings.settings);
+            processLegacyLists(map);
             if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }
@@ -1551,7 +1624,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
      * @param s string to intern
      * @return interned string
      */
-    static String internKeyOrValue(String s) {
+    public static String internKeyOrValue(String s) {
         return settingLiteralDeduplicator.deduplicate(s);
     }
 

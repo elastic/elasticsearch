@@ -43,9 +43,9 @@
 
 ---
 "Master timing stats":
-  - skip:
-      features: [arbitrary_key]
-      version: "- 7.15.99"
+  - requires:
+      test_runner_features: ["arbitrary_key"]
+      cluster_features: ["gte_v7.16.0"]
       reason: "master timing stats added in 7.16.0"
 
   - do:
@@ -139,9 +139,9 @@
 
 ---
 "Master cluster applier stats":
-  - skip:
-      features: [arbitrary_key]
-      version: "- 7.15.99"
+  - requires:
+      test_runner_features: ["arbitrary_key"]
+      cluster_features: ["gte_v7.16.0"]
       reason: "Cluster state applier stats available since 7.16.0"
 
   - do:
@@ -161,9 +161,9 @@
 
 ---
 "Master serialization stats":
-  - skip:
-      features: [arbitrary_key]
-      version: "- 7.15.99"
+  - requires:
+      test_runner_features: ["arbitrary_key"]
+      cluster_features: ["gte_v7.16.0"]
       reason: "master serialization stats added in 7.16.0"
 
   - do:

@@ -10,17 +10,18 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -106,13 +106,13 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, FIELD_NAME, randomPrecision(), null, iw -> {
             // Intentionally not writing any docs
         }, geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); });
     }
 
     public void testUnmapped() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "wrong_field", randomPrecision(), null, iw -> {
             iw.addDocument(Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D))));
         }, geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); });
     }
@@ -120,14 +120,14 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     public void testUnmappedMissingGeoShape() throws IOException {
         // default value type for agg is GEOPOINT, so missing value is parsed as a GEOPOINT
         GeoGridAggregationBuilder builder = createBuilder("_name").field("wrong_field").missing("-34.0,53.4");
-        testCase(new MatchAllDocsQuery(), 1, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, 1, null, iw -> {
             iw.addDocument(Collections.singleton(GeoTestUtils.binaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D))));
         }, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
     }
 
     public void testMappedMissingGeoShape() throws IOException {
         GeoGridAggregationBuilder builder = createBuilder("_name").field(FIELD_NAME).missing("LINESTRING (30 10, 10 30, 40 40)");
-        testCase(new MatchAllDocsQuery(), 1, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, 1, null, iw -> {
             iw.addDocument(Collections.singleton(new SortedSetDocValuesField("string", new BytesRef("a"))));
         }, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()), builder);
     }
@@ -159,7 +159,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         }
 
         final long numDocsInBucket = numDocsWithin;
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, FIELD_NAME, precision, bbox, iw -> {
             for (BinaryShapeDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
             }
@@ -177,7 +177,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         int precision = randomIntBetween(1, 4);
         int numShapes = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, FIELD_NAME, precision, null, iw -> {
             List<Point> shapes = new ArrayList<>();
             Document document = new Document();
             Set<String> distinctHashesPerDoc = new HashSet<>();
@@ -258,6 +258,8 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             Orientation.RIGHT,
             null,
             null,
+            null,
+            false,
             Collections.emptyMap()
         );
         testCase(

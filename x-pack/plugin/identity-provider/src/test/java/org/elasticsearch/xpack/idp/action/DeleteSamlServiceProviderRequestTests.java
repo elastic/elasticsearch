@@ -26,11 +26,7 @@ public class DeleteSamlServiceProviderRequestTests extends IdpSamlTestCase {
             randomAlphaOfLengthBetween(1, 100),
             randomFrom(WriteRequest.RefreshPolicy.values())
         );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_7_7_0,
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         final DeleteSamlServiceProviderRequest read = copyWriteable(
             request,
             new NamedWriteableRegistry(List.of()),

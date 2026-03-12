@@ -3,31 +3,8 @@
  * is using a password protected keystore in its nodes.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
-dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'))
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  keystorePassword 'keystore-password'
-
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.authc.anonymous.roles', 'anonymous'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
-  setting 'xpack.security.transport.ssl.key', 'transport.key'
-  setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
-  setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
-
-  extraConfigFile 'transport.key', file('src/javaRestTest/resources/ssl/transport.key')
-  extraConfigFile 'transport.crt', file('src/javaRestTest/resources/ssl/transport.crt')
-  extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
-
-  rolesFile file('src/javaRestTest/resources/roles.yml')
-
-  user username: 'admin_user', password: 'admin-password'
-  user username:'test-user' ,password: 'test-user-password', role: 'user_role'
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
 }

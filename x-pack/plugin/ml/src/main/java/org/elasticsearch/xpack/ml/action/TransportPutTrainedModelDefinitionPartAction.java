@@ -15,7 +15,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +61,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
         Client client,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(PutTrainedModelDefinitionPartAction.NAME, transportService, actionFilters, Request::new);
+        super(PutTrainedModelDefinitionPartAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
@@ -110,7 +111,8 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
                         return;
                     }
                     listener.onResponse(AcknowledgedResponse.TRUE);
-                }, listener::onFailure)
+                }, listener::onFailure),
+                request.isOverwritingAllowed()
             );
         }, listener::onFailure);
 

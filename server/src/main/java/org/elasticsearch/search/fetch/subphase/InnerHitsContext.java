@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -21,10 +22,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +45,7 @@ public final class InnerHitsContext {
         this.innerHits = new HashMap<>();
     }
 
-    InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
+    public InnerHitsContext(Map<String, InnerHitSubContext> innerHits) {
         this.innerHits = Objects.requireNonNull(innerHits);
     }
 
@@ -82,10 +85,23 @@ public final class InnerHitsContext {
             this.context = context;
         }
 
+        public InnerHitSubContext(InnerHitSubContext innerHitSubContext) {
+            super(innerHitSubContext);
+            this.name = innerHitSubContext.name;
+            this.context = innerHitSubContext.context;
+        }
+
+        public abstract InnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext);
+
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return null;
         }
 
         @Override
@@ -172,7 +188,11 @@ public final class InnerHitsContext {
                 }
             }
         } catch (CollectionTerminatedException e) {
-            // ignore and continue
+            // collection was terminated prematurely
+            // continue with the following leaf
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

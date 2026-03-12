@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -45,6 +46,12 @@ public class LiveVersionMapTestUtils {
         }
     }
 
+    public static void maybePutIndex(LiveVersionMap map, String id, IndexVersionValue version) {
+        try (Releasable r = acquireLock(map, uid(id))) {
+            map.maybePutIndexUnderLock(uid(id), version);
+        }
+    }
+
     public static void putDelete(LiveVersionMap map, String id, DeleteVersionValue version) {
         try (Releasable r = acquireLock(map, uid(id))) {
             map.putDeleteUnderLock(uid(id), version);
@@ -55,11 +62,19 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
-    static IndexVersionValue randomIndexVersionValue() {
+    public static long reclaimableRefreshRamBytes(LiveVersionMap map) {
+        return map.reclaimableRefreshRamBytes();
+    }
+
+    public static long refreshingBytes(LiveVersionMap map) {
+        return map.getRefreshingBytes();
+    }
+
+    public static IndexVersionValue randomIndexVersionValue() {
         return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    static Translog.Location randomTranslogLocation() {
+    public static Translog.Location randomTranslogLocation() {
         if (randomBoolean()) {
             return null;
         } else {
@@ -85,5 +100,13 @@ public class LiveVersionMapTestUtils {
 
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
+    }
+
+    public static void enforceSafeAccess(LiveVersionMap map) {
+        map.enforceSafeAccess();
+    }
+
+    public static LiveVersionMapArchive getArchive(LiveVersionMap map) {
+        return map.getArchive();
     }
 }

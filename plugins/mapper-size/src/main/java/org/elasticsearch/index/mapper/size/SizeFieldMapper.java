@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.size;
@@ -12,11 +13,11 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -43,6 +44,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return NAME;
+        }
+
+        @Override
         public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
         }
@@ -50,7 +56,20 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private static class SizeFieldType extends NumberFieldType {
         SizeFieldType() {
-            super(NAME, NumberType.INTEGER, true, true, true, false, null, Collections.emptyMap(), null, false, null, null);
+            super(
+                NAME,
+                NumberType.INTEGER,
+                IndexType.points(true, true),
+                true,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null,
+                false
+            );
         }
 
         @Override
@@ -62,10 +81,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     private final Explicit<Boolean> enabled;
 
@@ -90,16 +106,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        NumberType.INTEGER.addFields(context.doc(), name(), value, true, true, true);
+        NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

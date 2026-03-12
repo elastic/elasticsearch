@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,7 +19,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,10 +40,10 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/query";
 
     private QueryWatchesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -106,7 +105,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             size = in.readOptionalVInt();
             query = in.readOptionalNamedWriteable(QueryBuilder.class);
             if (in.readBoolean()) {
-                sorts = in.readList(FieldSortBuilder::new);
+                sorts = in.readCollectionAsList(FieldSortBuilder::new);
             } else {
                 sorts = null;
             }
@@ -154,7 +153,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             out.writeOptionalNamedWriteable(query);
             if (sorts != null) {
                 out.writeBoolean(true);
-                out.writeList(sorts);
+                out.writeCollection(sorts);
             } else {
                 out.writeBoolean(false);
             }
@@ -162,7 +161,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (from != null) {
                 builder.field(FROM_FIELD.getPreferredName(), from);
@@ -215,8 +214,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            watches = in.readList(Item::new);
+            watches = in.readCollectionAsList(Item::new);
             watchTotalCount = in.readVLong();
         }
 
@@ -230,7 +228,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(watches);
+            out.writeCollection(watches);
             out.writeVLong(watchTotalCount);
         }
 

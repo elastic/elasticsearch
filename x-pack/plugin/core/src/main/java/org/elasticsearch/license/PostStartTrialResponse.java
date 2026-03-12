@@ -48,12 +48,11 @@ public class PostStartTrialResponse extends ActionResponse {
 
     }
 
-    private Status status;
-    private Map<String, String[]> acknowledgeMessages;
-    private String acknowledgeMessage;
+    private final Status status;
+    private final Map<String, String[]> acknowledgeMessages;
+    private final String acknowledgeMessage;
 
     PostStartTrialResponse(StreamInput in) throws IOException {
-        super(in);
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
@@ -88,7 +87,7 @@ public class PostStartTrialResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     Map<String, String[]> getAcknowledgementMessages() {

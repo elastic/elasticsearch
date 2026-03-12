@@ -1,35 +1,34 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
+esplugin {
+  name = 'queryable-reserved-roles-test'
+  description = 'A test plugin for testing that changes to reserved roles are made queryable'
+  classname = 'org.elasticsearch.xpack.security.role.QueryableBuiltInRolesTestPlugin'
+  extendedPlugins = ['x-pack-core', 'x-pack-security']
+}
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation project(":client:rest-high-level")
+  compileOnly project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:security')
+  clusterPlugins project(':x-pack:plugin:security:qa:security-basic')
 }
 
-if (BuildParams.inFipsJvm){
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}
+
+tasks.named("javadoc").configure { enabled = false }
+
+if (buildParams.inFipsJvm) {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
-  tasks.named("javaRestTest").configure{enabled = false }
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.ssl.diagnose.trust', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.transport.ssl.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-
-  rolesFile file('src/javaRestTest/resources/roles.yml')
-  user username: "admin_user", password: "admin-password"
-  user username: "security_test_user", password: "security-test-password", role: "security_test_role"
-  user username: "api_key_admin", password: "security-test-password", role: "api_key_admin_role"
-  user username: "api_key_user", password: "security-test-password", role: "api_key_user_role"
+  tasks.named("javaRestTest").configure { enabled = false }
 }

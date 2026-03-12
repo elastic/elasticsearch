@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -36,7 +37,7 @@ public class SetupSection {
     }
 
     public static SetupSection parse(XContentParser parser) throws IOException {
-        SkipSection skipSection = SkipSection.parseIfNext(parser);
+        PrerequisiteSection prerequisiteSection = PrerequisiteSection.parseIfNext(parser);
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
@@ -51,21 +52,21 @@ public class SetupSection {
             parser.nextToken();
         }
         parser.nextToken();
-        return new SetupSection(skipSection, executableSections);
+        return new SetupSection(prerequisiteSection, executableSections);
     }
 
-    public static final SetupSection EMPTY = new SetupSection(SkipSection.EMPTY, Collections.emptyList());
+    public static final SetupSection EMPTY = new SetupSection(PrerequisiteSection.EMPTY, Collections.emptyList());
 
-    private final SkipSection skipSection;
+    private final PrerequisiteSection prerequisiteSection;
     private final List<ExecutableSection> executableSections;
 
-    public SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
-        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+    public SetupSection(PrerequisiteSection prerequisiteSection, List<ExecutableSection> executableSections) {
+        this.prerequisiteSection = Objects.requireNonNull(prerequisiteSection, "skip section cannot be null");
         this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
-    public SkipSection getSkipSection() {
-        return skipSection;
+    public PrerequisiteSection getPrerequisiteSection() {
+        return prerequisiteSection;
     }
 
     public List<ExecutableSection> getExecutableSections() {

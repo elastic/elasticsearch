@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.api;
@@ -455,10 +456,10 @@ public class Augmentation {
     public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
         Matcher m = pattern.matcher(receiver);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         do {
             m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         } while (m.find());
@@ -476,7 +477,7 @@ public class Augmentation {
             // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();
@@ -671,6 +672,10 @@ public class Augmentation {
 
     public static String sha256(String source) {
         return MessageDigests.toHexString(MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public static String sha512(String source) {
+        return MessageDigests.toHexString(MessageDigests.sha512().digest(source.getBytes(StandardCharsets.UTF_8)));
     }
 
     public static final int UNLIMITED_PATTERN_FACTOR = 0;

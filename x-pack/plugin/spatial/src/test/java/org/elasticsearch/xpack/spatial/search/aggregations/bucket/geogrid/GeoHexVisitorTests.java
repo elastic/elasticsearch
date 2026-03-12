@@ -22,10 +22,10 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         // we ignore polar cells are they are problematic and do not keep the relationships
         long h3 = randomValueOtherThanMany(
             l -> l == H3.geoToH3(90, 0, H3.getResolution(l)) || l == H3.geoToH3(-90, 0, H3.getResolution(l)),
-            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 14))
+            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 13))
         );
         long centerChild = H3.childPosToH3(h3, 0);
         // children position 3 is chosen so we never use a polar polygon
@@ -83,9 +83,10 @@ public class GeoHexVisitorTests extends ESTestCase {
             visitor.reset(centerChild);
             reader.visit(visitor);
             if (hasArea) {
-                if (h3CrossesDateline && visitor.getLeftX() > visitor.getRightX()) {
-                    // if both polygons crosses the dateline it cannot be inside due to the polygon splitting technique
-                    assertEquals("failing h3: " + h3, GeoRelation.QUERY_CROSSES, visitor.relation());
+                if (h3CrossesDateline) {
+                    // if the h3 crosses the dateline, we might get CROSSES due to the polygon splitting technique. We can't
+                    // be sure which one is the correct one, so we just check that it is not DISJOINT
+                    assertNotSame("failing h3: " + h3, GeoRelation.QUERY_DISJOINT, visitor.relation());
                 } else {
                     assertEquals("failing h3: " + h3, GeoRelation.QUERY_INSIDE, visitor.relation());
                 }

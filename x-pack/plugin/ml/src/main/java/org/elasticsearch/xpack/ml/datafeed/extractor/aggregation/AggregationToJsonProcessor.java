@@ -11,7 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -19,7 +20,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -89,7 +89,7 @@ class AggregationToJsonProcessor {
         this.compositeAggDateValueSourceName = compositeAggDateValueSourceName;
     }
 
-    public void process(Aggregations aggs) throws IOException {
+    public void process(InternalAggregations aggs) throws IOException {
         processAggs(0, aggs.asList());
     }
 
@@ -102,7 +102,7 @@ class AggregationToJsonProcessor {
      *       <li>{@link Percentiles}</li>
      *   </ul>
      */
-    private void processAggs(long docCount, List<Aggregation> aggregations) throws IOException {
+    private void processAggs(long docCount, List<InternalAggregation> aggregations) throws IOException {
         if (aggregations.isEmpty()) {
             // This means we reached a bucket aggregation without sub-aggs. Thus, we can flush the path written so far.
             queueDocToWrite(keyValuePairs, docCount);
@@ -230,7 +230,7 @@ class AggregationToJsonProcessor {
                 }
             }
 
-            List<Aggregation> childAggs = bucket.getAggregations().asList();
+            List<InternalAggregation> childAggs = bucket.getAggregations().asList();
             processAggs(bucket.getDocCount(), childAggs);
             keyValuePairs.remove(timeField);
         }
@@ -269,7 +269,7 @@ class AggregationToJsonProcessor {
             }
 
             Collection<String> addedFields = processCompositeAggBucketKeys(bucket.getKey());
-            List<Aggregation> childAggs = bucket.getAggregations().asList();
+            List<InternalAggregation> childAggs = bucket.getAggregations().asList();
             processAggs(bucket.getDocCount(), childAggs);
             keyValuePairs.remove(timeField);
             for (String fieldName : addedFields) {
@@ -300,7 +300,7 @@ class AggregationToJsonProcessor {
      * Date Histograms have a {@link ZonedDateTime} object as the key,
      * Histograms have either a Double or Long.
      */
-    private long toHistogramKeyToEpoch(Object key) {
+    private static long toHistogramKeyToEpoch(Object key) {
         if (key instanceof ZonedDateTime) {
             return ((ZonedDateTime) key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
@@ -335,7 +335,7 @@ class AggregationToJsonProcessor {
         }
 
         boolean foundRequiredAgg = false;
-        List<Aggregation> aggs = asList(aggregation.getBuckets().get(0).getAggregations());
+        List<InternalAggregation> aggs = asList(aggregation.getBuckets().get(0).getAggregations());
         for (Aggregation agg : aggs) {
             if (fields.contains(agg.getName())) {
                 foundRequiredAgg = true;
@@ -407,8 +407,8 @@ class AggregationToJsonProcessor {
     }
 
     private boolean processPercentiles(Percentiles percentiles) {
-        Iterator<Percentile> percentileIterator = percentiles.iterator();
-        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().getValue());
+        var percentileIterator = percentiles.iterator();
+        var aggregationAdded = percentileIterator.hasNext() && addMetricIfFinite(percentiles.getName(), percentileIterator.next().value());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }
@@ -484,7 +484,7 @@ class AggregationToJsonProcessor {
         return keyValueWrittenCount;
     }
 
-    private static List<Aggregation> asList(@Nullable Aggregations aggs) {
+    private static List<InternalAggregation> asList(@Nullable InternalAggregations aggs) {
         return aggs == null ? Collections.emptyList() : aggs.asList();
     }
 }

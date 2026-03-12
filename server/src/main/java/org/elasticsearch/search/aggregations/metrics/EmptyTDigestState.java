@@ -1,37 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.tdigest.TDigest;
-
-import java.util.List;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 
 public final class EmptyTDigestState extends TDigestState {
     public EmptyTDigestState() {
-        super(1.0D);
+        // Use the sorting implementation to minimize memory allocation.
+        super(new NoopCircuitBreaker("empty-tdigest-state-noop-breaker"), Type.SORTING, 1.0D);
     }
 
     @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 
     @Override
-    public void add(List<? extends TDigest> others) {
+    public void add(double x) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 
     @Override
-    public void compress() {}
-
-    @Override
-    public void add(TDigest other) {
+    public void add(TDigestState other) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 }

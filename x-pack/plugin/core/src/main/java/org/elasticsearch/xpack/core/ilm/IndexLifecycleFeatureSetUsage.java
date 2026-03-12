@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -26,20 +26,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+public class IndexLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     private List<PolicyStats> policyStats;
 
     public IndexLifecycleFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         if (input.readBoolean()) {
-            policyStats = input.readList(PolicyStats::new);
+            policyStats = input.readCollectionAsList(PolicyStats::new);
         }
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_0_0;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -48,7 +48,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         boolean hasPolicyStats = policyStats != null;
         out.writeBoolean(hasPolicyStats);
         if (hasPolicyStats) {
-            out.writeList(policyStats);
+            out.writeCollection(policyStats);
         }
     }
 
@@ -111,7 +111,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(phaseStats, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            out.writeMap(phaseStats, StreamOutput::writeWriteable);
             out.writeVInt(indicesManaged);
         }
 
@@ -426,24 +426,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.shrinkNumberOfShards = in.readOptionalVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-                this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
-            } else {
-                this.rolloverMaxPrimaryShardDocs = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-                this.rolloverMinAge = in.readOptionalTimeValue();
-                this.rolloverMinDocs = in.readOptionalVLong();
-                this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-                this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-                this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
-            } else {
-                this.rolloverMinAge = null;
-                this.rolloverMinDocs = null;
-                this.rolloverMinPrimaryShardSize = null;
-                this.rolloverMinSize = null;
-                this.rolloverMinPrimaryShardDocs = null;
-            }
+            this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
+            this.rolloverMinAge = in.readOptionalTimeValue();
+            this.rolloverMinDocs = in.readOptionalVLong();
+            this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
         }
 
         @Override
@@ -457,16 +445,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-                out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
-                out.writeOptionalTimeValue(rolloverMinAge);
-                out.writeOptionalVLong(rolloverMinDocs);
-                out.writeOptionalWriteable(rolloverMinPrimaryShardSize);
-                out.writeOptionalWriteable(rolloverMinSize);
-                out.writeOptionalVLong(rolloverMinPrimaryShardDocs);
-            }
+            out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
+            out.writeOptionalTimeValue(rolloverMinAge);
+            out.writeOptionalVLong(rolloverMinDocs);
+            out.writeOptionalWriteable(rolloverMinPrimaryShardSize);
+            out.writeOptionalWriteable(rolloverMinSize);
+            out.writeOptionalVLong(rolloverMinPrimaryShardDocs);
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -16,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -25,8 +26,10 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,7 +41,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
@@ -68,6 +70,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
+    private final TranslogOperationAsserter operationAsserter;
+    private final boolean fsync;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order try(Releasable lock = writeLock.acquire()) -> synchronized(this)
@@ -78,7 +82,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private ReleasableBytesStreamOutput buffer;
+    private RecyclerBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -91,21 +95,23 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     record LastModifiedTimeCache(long lastModifiedTime, long totalOffset, long syncedOffset) {}
 
     private TranslogWriter(
-        final ShardId shardId,
-        final Checkpoint initialCheckpoint,
-        final FileChannel channel,
-        final FileChannel checkpointChannel,
-        final Path path,
-        final Path checkpointPath,
-        final ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier,
+        ShardId shardId,
+        Checkpoint initialCheckpoint,
+        FileChannel channel,
+        FileChannel checkpointChannel,
+        Path path,
+        Path checkpointPath,
+        ByteSizeValue bufferSize,
+        LongSupplier globalCheckpointSupplier,
         LongSupplier minTranslogGenerationSupplier,
         TranslogHeader header,
-        final TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays,
-        final DiskIoBufferPool diskIoBufferPool,
-        final OperationListener operationListener
+        TragicExceptionHolder tragedy,
+        LongConsumer persistedSequenceNumberConsumer,
+        BigArrays bigArrays,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener,
+        TranslogOperationAsserter operationAsserter,
+        boolean fsync
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -133,6 +139,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
         this.operationListener = operationListener;
+        this.operationAsserter = operationAsserter;
+        this.fsync = fsync;
         this.lastModifiedTimeCache = new LastModifiedTimeCache(-1, -1, -1);
     }
 
@@ -143,17 +151,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Path file,
         ChannelFactory channelFactory,
         ByteSizeValue bufferSize,
-        final long initialMinTranslogGen,
+        long initialMinTranslogGen,
         long initialGlobalCheckpoint,
-        final LongSupplier globalCheckpointSupplier,
-        final LongSupplier minTranslogGenerationSupplier,
-        final long primaryTerm,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier minTranslogGenerationSupplier,
+        long primaryTerm,
         TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays,
+        LongConsumer persistedSequenceNumberConsumer,
+        BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
-        final OperationListener operationListener
-
+        OperationListener operationListener,
+        TranslogOperationAsserter operationAsserter,
+        boolean fsync
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -162,14 +171,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
+            header.write(channel, fsync);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint);
+            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint, fsync);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -196,7 +205,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 diskIoBufferPool,
-                operationListener
+                operationListener,
+                operationAsserter,
+                fsync
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -217,14 +228,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
+     * Add the serialized operation to the translog with the specified sequence number; returns the location the operation was written to.
      *
-     * @param data  the bytes to write
+     * @param operation  the serialized operation to write
      * @param seqNo the sequence number associated with the operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.Serialized operation, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -234,12 +245,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new ReleasableBytesStreamOutput(bigArrays);
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
-            totalOffset += data.length();
-            data.writeTo(buffer);
+            totalOffset += operation.length();
+            operation.writeToTranslogBuffer(buffer);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
@@ -251,45 +262,40 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            assert assertNoSeqNumberConflict(seqNo, data);
+            assert assertNoSeqNumberConflict(seqNo, operation);
 
-            location = new Translog.Location(generation, offset, data.length());
-            operationListener.operationAdded(data, seqNo, location);
+            location = new Translog.Location(generation, offset, operation.length());
+            operationListener.operationAdded(operation, seqNo, location);
             bufferedBytes = buffer.size();
         }
 
         return location;
     }
 
-    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, Translog.Serialized serialized) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
-        } else if (seenSequenceNumbers.containsKey(seqNo)) {
+            return true;
+        }
+
+        BytesReference data = serialized.toBytesReference();
+        if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
                 Translog.Operation prvOp = Translog.readOperation(
                     new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion")
                 );
-                // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
                 if (newOp instanceof final Translog.Index o2 && prvOp instanceof final Translog.Index o1) {
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && Objects.equals(o1.source(), o2.source())
-                        && Objects.equals(o1.routing(), o2.routing())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
+                    sameOp = operationAsserter.assertSameIndexOperation(o1, o2);
                 } else if (newOp instanceof final Translog.Delete o1 && prvOp instanceof final Translog.Delete o2) {
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
+                    sameOp = o1.equals(o2);
                 } else {
                     sameOp = false;
                 }
-                if (sameOp == false) {
-                    throw new AssertionError(
+                assert sameOp
+                    : new AssertionError(
                         "seqNo ["
                             + seqNo
                             + "] was processed twice in generation ["
@@ -297,12 +303,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             + "], with different data. "
                             + "prvOp ["
                             + prvOp
+                            + (prvOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "], newOp ["
                             + newOp
+                            + (newOp instanceof Translog.Index index ? " source: " + Source.fromBytes(index.source()).source() : "")
                             + "]",
                         previous.v2()
                     );
-                }
             }
         } else {
             seenSequenceNumbers.put(
@@ -504,10 +511,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // we can continue writing to the buffer etc.
                     try {
                         assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
-                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset && fsync) {
                             channel.force(false);
                         }
-                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync);
+                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync, fsync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -541,10 +548,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            ReleasableBytesStreamOutput toWrite = this.buffer;
-            this.buffer = null;
-            this.bufferedBytes = 0;
-            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
+                this.buffer = null;
+                this.bufferedBytes = 0;
+                return toWrite.moveToBytesReference();
+            }
         } else {
             return ReleasableBytesReference.empty();
         }

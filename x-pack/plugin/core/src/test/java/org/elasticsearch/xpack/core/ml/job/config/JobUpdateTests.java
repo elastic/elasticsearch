@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,8 +34,6 @@ import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
-    private boolean useInternalParser = randomBoolean();
-
     @Override
     protected JobUpdate createTestInstance() {
         return createRandom(randomAlphaOfLength(4), null);
@@ -49,7 +46,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public JobUpdate createRandom(String jobId, @Nullable Job job) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -126,23 +123,8 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotId(randomAlphaOfLength(10));
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(Version.CURRENT);
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
-        }
-        if (useInternalParser) {
-            update.setClearFinishTime(randomBoolean());
-        }
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
-        }
-        if (useInternalParser && randomBoolean() && (job == null || job.isDeleting() == false)) {
-            update.setBlocked(BlockedTests.createRandom());
         }
         if (randomBoolean() && job != null) {
             update.setModelPruneWindow(
@@ -251,11 +233,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        if (useInternalParser) {
-            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
-        } else {
-            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
-        }
+        return JobUpdate.PARSER.apply(parser, null).build();
     }
 
     public void testMergeWithJob() {
@@ -291,7 +269,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
-        updateBuilder.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        updateBuilder.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion());
         updateBuilder.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         JobUpdate update = updateBuilder.build();
 
@@ -382,7 +360,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(512L, ByteSizeUnit.MB))
+            () -> update.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(512L, ByteSizeUnit.MB))
         );
         assertEquals(
             "model_memory_limit [1gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [512mb]",
@@ -408,14 +386,61 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
 
         Exception e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(5000L, ByteSizeUnit.MB))
+            () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(5000L, ByteSizeUnit.MB))
         );
         assertEquals(
             "model_memory_limit [7.8gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [4.8gb]",
             e.getMessage()
         );
 
-        updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(10000L, ByteSizeUnit.MB));
+        updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), ByteSizeValue.of(10000L, ByteSizeUnit.MB));
+    }
+
+    public void testUpdate_WithNullUpdateCategorizationExamplesLimitAndAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(3L));
+    }
+
+    public void testUpdate_WithNullAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
+    }
+
+    public void testUpdate_WithNullUpdateModelMemoryLimitAndAnalysisLimitsPreviouslyDefined() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detectorBuilder = new Detector.Builder("info_content", "domain");
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setAnalysisLimits(new AnalysisLimits(1024L, 3L));
+        Job job = jobBuilder.build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(null, 5L)).build();
+        Job updated = update.mergeWithJob(job, ByteSizeValue.ZERO);
+
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(1024L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
     }
 
     public void testUpdate_givenEmptySnapshot() {

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests that involve interactions of ML jobs that are persistent tasks
  * and trained models.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
     public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
@@ -105,7 +107,7 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             modelDefinitionDoc.toXContent(builder, null);
             client().execute(
-                IndexAction.INSTANCE,
+                TransportIndexAction.TYPE,
                 new IndexRequest(InferenceIndexConstants.nativeDefinitionStore()).source(builder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             ).actionGet();
@@ -127,7 +129,8 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
                     BertTokenizer.PAD_TOKEN
                 ),
                 List.of(),
-                List.of()
+                List.of(),
+                false
             )
         ).actionGet();
 

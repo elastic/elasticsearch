@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -53,15 +55,16 @@ public class ValuesSourceRegistry {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static final RegistryKey UNREGISTERED_KEY = new RegistryKey<>("unregistered", RegistryKey.class);
-
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
-        private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
+        private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
 
         public Builder() {
-            this.usageServiceBuilder = new AggregationUsageService.Builder();
+            this(MeterRegistry.NOOP);
+        }
+
+        public Builder(MeterRegistry meterRegistry) {
+            this.usageServiceBuilder = new AggregationUsageService.Builder(meterRegistry);
         }
 
         /**
@@ -150,7 +153,7 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private final Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
 
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
@@ -158,10 +161,6 @@ public class ValuesSourceRegistry {
     ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
-    }
-
-    public boolean isRegistered(RegistryKey<?> registryKey) {
-        return aggregatorRegistry.containsKey(registryKey);
     }
 
     public <T> T getAggregator(RegistryKey<T> registryKey, ValuesSourceConfig valuesSourceConfig) {
@@ -183,6 +182,8 @@ public class ValuesSourceRegistry {
             }
             return supplier;
         }
+        // This should be a startup error. Should never happen, probably indicates a bad plugin if it does. Should probably log and have
+        // actual docs on how to resolve.
         throw new AggregationExecutionException(
             "Unregistered Aggregation [" + (registryKey != null ? registryKey.getName() : "unknown aggregation") + "]"
         );

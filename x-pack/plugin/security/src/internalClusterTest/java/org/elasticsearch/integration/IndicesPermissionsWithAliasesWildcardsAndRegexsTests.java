@@ -8,10 +8,9 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,6 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,15 +93,12 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testGetResolveWildcardsRegexs() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text")
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource("field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -127,149 +124,175 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testSearchResolveWildcardsRegexs() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field1", "type=text", "field2", "type=text")
                 .addAlias(new Alias("my_alias"))
                 .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource("field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        ).prepareSearch("test").setQuery(QueryBuilders.termQuery("_id", "1")).get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field1"), equalTo("value1"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field1"), equalTo("value1"));
+            }
+        );
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("my_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("my_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field2"), equalTo("value2"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("an_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("an_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field3"), equalTo("value3"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("*_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("*_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(2));
-        assertThat((String) source.get("field2"), equalTo("value2"));
-        assertThat((String) source.get("field3"), equalTo("value3"));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("*_alias", "t*")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(3));
-        assertThat((String) source.get("field1"), equalTo("value1"));
-        assertThat((String) source.get("field2"), equalTo("value2"));
-        assertThat((String) source.get("field3"), equalTo("value3"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("*_alias", "t*")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(3));
+                assertThat((String) source.get("field1"), equalTo("value1"));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
     }
 
     public void testSearchResolveDataStreams() throws Exception {
         putComposableIndexTemplate("id1", List.of("test*"));
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("test");
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test"
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         aliasesRequest.addAliasAction(
             new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).aliases("my_alias", "an_alias")
                 .index("test")
         );
-        assertAcked(client().admin().indices().aliases(aliasesRequest).actionGet());
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
 
         String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-        client().prepareIndex("test")
-            .setCreate(true)
+        prepareIndex("test").setCreate(true)
             .setId("1")
             .setSource(DEFAULT_TIMESTAMP_FIELD, value, "field1", "value1", "field2", "value2", "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        ).prepareSearch("test").setQuery(QueryBuilders.termQuery("_id", "1")).get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field1"), equalTo("value1"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field1"), equalTo("value1"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("my_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field2"), equalTo("value2"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("my_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("an_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(1));
-        assertThat((String) source.get("field3"), equalTo("value3"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("an_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("*_alias")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(2));
-        assertThat((String) source.get("field2"), equalTo("value2"));
-        assertThat((String) source.get("field3"), equalTo("value3"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("*_alias")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(2));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("*_alias", "t*")
-            .setQuery(QueryBuilders.termQuery("_id", "1"))
-            .get();
-        assertThat(response.getHits().getHits().length, equalTo(1));
-        source = response.getHits().getHits()[0].getSourceAsMap();
-        assertThat(source.size(), equalTo(3));
-        assertThat((String) source.get("field1"), equalTo("value1"));
-        assertThat((String) source.get("field2"), equalTo("value2"));
-        assertThat((String) source.get("field3"), equalTo("value3"));
+        assertResponse(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("*_alias", "t*")
+                .setQuery(QueryBuilders.termQuery("_id", "1")),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.size(), equalTo(3));
+                assertThat((String) source.get("field1"), equalTo("value1"));
+                assertThat((String) source.get("field2"), equalTo("value2"));
+                assertThat((String) source.get("field3"), equalTo("value3"));
+            }
+        );
     }
 
     private void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(null, null, null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(null, null, null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 }

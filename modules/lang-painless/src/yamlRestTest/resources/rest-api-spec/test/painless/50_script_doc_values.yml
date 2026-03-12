@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
   - do:
       indices.create:
         index: test
@@ -180,9 +183,9 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               boolean:
                 type: boolean
@@ -5630,9 +5633,9 @@ version and sequence number synthetic _source:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword

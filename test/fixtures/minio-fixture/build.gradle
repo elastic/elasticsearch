@@ -1,11 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
 description = 'Fixture for MinIO Storage service'
 
+configurations.all {
+  exclude group: 'org.hamcrest', module: 'hamcrest-core'
+}
+dependencies {
+  testImplementation (project(':test:framework'))
+  api "junit:junit:${versions.junit}"
+  api project(':test:fixtures:testcontainer-utils')
+  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
+    transitive = false
+  }
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"){
+    transitive = false
+  }
+
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
+}

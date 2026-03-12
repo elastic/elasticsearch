@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
@@ -20,8 +20,6 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
@@ -51,19 +49,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        List<Object> values = valueFetcher.fetchValues(source, docId, new ArrayList<>());
-        if (values.size() > 1 && fetchContext.sourceLoader().reordersFieldValues()) {
-            throw new IllegalArgumentException(
-                "The fast vector highlighter doesn't support loading multi-valued fields from _source in index ["
-                    + fetchContext.getIndexName()
-                    + "] because _source can reorder field values"
-            );
-        }
-        Field[] fields = new Field[values.size()];
-        for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(fieldType.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
-        }
-        return fields;
+        return SourceSimpleFragmentsBuilder.doGetFields(docId, valueFetcher, source, fetchContext, fieldType);
     }
 
     @Override

@@ -60,21 +60,18 @@ public class ScaleFunctionTests extends ESTestCase {
                     double k0 = k.k(0, compression, n);
                     int m = 0;
                     for (int i = 0; i < n;) {
-                        double cnt = 1;
-                        while (i + cnt < n && k.k((i + cnt + 1) / (n - 1), compression, n) - k0 < 1) {
+                        int cnt = 1;
+                        while (i + cnt < n && k.k((i + cnt + 1.0) / (n - 1.0), compression, n) - k0 < 1) {
                             cnt++;
                         }
-                        double size = n * max(k.max(i / (n - 1), compression, n), k.max((i + cnt) / (n - 1), compression, n));
+                        double size = n * max(k.max(i / (n - 1), compression, n), k.max((i + cnt) / (n - 1.0), compression, n));
 
                         // check that we didn't cross the midline (which makes the size limit very conservative)
                         double left = i - (n - 1) / 2;
                         double right = i + cnt - (n - 1) / 2;
                         boolean sameSide = left * right > 0;
                         if (k.toString().endsWith("NO_NORM") == false && sameSide) {
-                            assertTrue(
-                                String.format(Locale.ROOT, "%s %.0f %.0f %.3f vs %.3f @ %.3f", k, compression, n, cnt, size, i / (n - 1)),
-                                cnt == 1 || cnt <= max(1.1 * size, size + 1)
-                            );
+                            assertTrue(cnt == 1 || cnt <= max(1.1 * size, size + 1));
                         }
                         i += cnt;
                         k0 = k.k(i / (n - 1), compression, n);

@@ -13,18 +13,21 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -53,6 +56,9 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -62,6 +68,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
     private VerifyingClient client;
     private ClusterService clusterService;
     private ILMHistoryStore historyStore;
+    private ProjectId projectId;
 
     @Before
     public void setup() {
@@ -80,20 +87,27 @@ public class ILMHistoryStoreTests extends ESTestCase {
             NamedXContentRegistry.EMPTY
         );
         ClusterState state = clusterService.state();
+        projectId = randomProjectIdOrDefault();
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(state)
-                .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).indexTemplates(registry.getComposableTemplateConfigs()))
                 .build()
         );
-        historyStore = new ILMHistoryStore(client, clusterService, threadPool, ActionListener.noop(), TimeValue.timeValueMillis(500));
+        historyStore = new ILMHistoryStore(
+            client,
+            clusterService,
+            threadPool,
+            TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
+            ActionListener.noop(),
+            TimeValue.timeValueMillis(500)
+        );
     }
 
     @After
     public void setdown() {
         historyStore.close();
         clusterService.close();
-        client.close();
         threadPool.shutdownNow();
     }
 
@@ -113,7 +127,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             latch.countDown();
             return null;
         });
-        historyStore.putAsync(record);
+        historyStore.putAsync(projectId, record);
         assertFalse(latch.await(2, TimeUnit.SECONDS));
     }
 
@@ -132,7 +146,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
@@ -154,7 +168,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 );
             });
 
-            historyStore.putAsync(record);
+            historyStore.putAsync(projectId, record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
 
@@ -172,11 +186,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
-                if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                if (action == TransportCreateIndexAction.TYPE && request instanceof CreateIndexRequest) {
                     return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
                 }
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(BulkAction.class));
+                assertSame(TransportBulkAction.TYPE, action);
                 assertThat(request, instanceOf(BulkRequest.class));
                 BulkRequest bulkRequest = (BulkRequest) request;
                 bulkRequest.requests().forEach(dwr -> {
@@ -205,7 +219,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 );
             });
 
-            historyStore.putAsync(record);
+            historyStore.putAsync(projectId, record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
     }
@@ -225,7 +239,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         long numberOfDocs = 400_000;
         CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
         client.setVerifier((action, request, listener) -> {
-            assertThat(action, instanceOf(BulkAction.class));
+            assertSame(TransportBulkAction.TYPE, action);
             assertThat(request, instanceOf(BulkRequest.class));
             BulkRequest bulkRequest = (BulkRequest) request;
             List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
@@ -253,23 +267,32 @@ public class ILMHistoryStoreTests extends ESTestCase {
             );
             return bulkItemResponse;
         });
-        try (ILMHistoryStore localHistoryStore = new ILMHistoryStore(client, clusterService, threadPool, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse response) {
-                int itemsInResponse = response.getItems().length;
-                actions.addAndGet(itemsInResponse);
-                for (int i = 0; i < itemsInResponse; i++) {
-                    latch.countDown();
-                }
-                logger.info("cumulative responses: {}", actions.get());
-            }
+        try (
+            ILMHistoryStore localHistoryStore = new ILMHistoryStore(
+                client,
+                clusterService,
+                threadPool,
+                TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        int itemsInResponse = response.getItems().length;
+                        actions.addAndGet(itemsInResponse);
+                        for (int i = 0; i < itemsInResponse; i++) {
+                            latch.countDown();
+                        }
+                        logger.info("cumulative responses: {}", actions.get());
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(e);
-                fail(e.getMessage());
-            }
-        }, TimeValue.timeValueMillis(randomIntBetween(50, 1000)))) {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(e);
+                        fail(e.getMessage());
+                    }
+                },
+                TimeValue.timeValueMillis(randomIntBetween(50, 1000))
+            )
+        ) {
             for (int i = 0; i < numberOfDocs; i++) {
                 ILMHistoryItem record1 = ILMHistoryItem.success(
                     "index",
@@ -278,11 +301,15 @@ public class ILMHistoryStoreTests extends ESTestCase {
                     10L,
                     LifecycleExecutionState.builder().setPhase("phase").build()
                 );
-                localHistoryStore.putAsync(record1);
+                localHistoryStore.putAsync(projectId, record1);
             }
             latch.await(5, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));
         }
+    }
+
+    public void testTemplateNameIsVersioned() {
+        assertThat(ILM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
 
     /**

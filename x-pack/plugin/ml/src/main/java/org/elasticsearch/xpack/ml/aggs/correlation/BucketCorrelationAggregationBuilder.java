@@ -137,6 +137,6 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_14_0;
+        return TransportVersion.zero();
     }
 }

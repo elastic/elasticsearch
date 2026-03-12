@@ -21,15 +21,23 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Random;
 
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
+
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     final Random gen = new Random();
     private final double compression;
     private AVLGroupTree summary;
@@ -39,6 +47,16 @@ public class AVLTreeDigest extends AbstractTDigest {
     // Indicates if a sample has been added after the last compression.
     private boolean needsCompression;
 
+    static AVLTreeDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLTreeDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * A histogram structure that will record a sketch of a distribution.
      *
@@ -47,14 +65,20 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    public AVLTreeDigest(double compression) {
+    private AVLTreeDigest(TDigestArrays arrays, double compression) {
+        this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree();
+        summary = AVLGroupTree.create(arrays);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + summary.ramBytesUsed();
     }
 
     /**
      * Sets the seed for the RNG.
-     * In cases where a predicatable tree should be created, this function may be used to make the
+     * In cases where a predictable tree should be created, this function may be used to make the
      * randomness in this AVLTree become more deterministic.
      *
      * @param seed The random seed to use for RNG purposes
@@ -69,17 +93,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     }
 
     @Override
-    public void add(List<? extends TDigest> others) {
-        for (TDigest other : others) {
-            setMinMax(Math.min(min, other.getMin()), Math.max(max, other.getMax()));
-            for (Centroid centroid : other.centroids()) {
-                add(centroid.mean(), centroid.count());
-            }
-        }
-    }
-
-    @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         checkValue(x);
         needsCompression = true;
 
@@ -95,7 +109,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
 
         if (start == NIL) { // empty summary
-            assert summary.size() == 0;
+            assert summary.isEmpty();
             summary.add(x, w);
             count = w;
         } else {
@@ -138,7 +152,7 @@ public class AVLTreeDigest extends AbstractTDigest {
                 // if the nearest point was not unique, then we may not be modifying the first copy
                 // which means that ordering can change
                 double centroid = summary.mean(closest);
-                int count = summary.count(closest);
+                long count = summary.count(closest);
                 centroid = weightedAverage(centroid, count, x, w);
                 count += w;
                 summary.update(closest, centroid, count);
@@ -159,26 +173,27 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
         needsCompression = false;
 
-        AVLGroupTree centroids = summary;
-        this.summary = new AVLGroupTree();
+        try (AVLGroupTree centroids = summary) {
+            this.summary = AVLGroupTree.create(arrays);
 
-        final int[] nodes = new int[centroids.size()];
-        nodes[0] = centroids.first();
-        for (int i = 1; i < nodes.length; ++i) {
-            nodes[i] = centroids.next(nodes[i - 1]);
-            assert nodes[i] != IntAVLTree.NIL;
-        }
-        assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
+            final int[] nodes = new int[centroids.size()];
+            nodes[0] = centroids.first();
+            for (int i = 1; i < nodes.length; ++i) {
+                nodes[i] = centroids.next(nodes[i - 1]);
+                assert nodes[i] != IntAVLTree.NIL;
+            }
+            assert centroids.next(nodes[nodes.length - 1]) == IntAVLTree.NIL;
 
-        for (int i = centroids.size() - 1; i > 0; --i) {
-            final int other = gen.nextInt(i + 1);
-            final int tmp = nodes[other];
-            nodes[other] = nodes[i];
-            nodes[i] = tmp;
-        }
+            for (int i = centroids.size() - 1; i > 0; --i) {
+                final int other = gen.nextInt(i + 1);
+                final int tmp = nodes[other];
+                nodes[other] = nodes[i];
+                nodes[i] = tmp;
+            }
 
-        for (int node : nodes) {
-            add(centroids.mean(node), centroids.count(node));
+            for (int node : nodes) {
+                add(centroids.mean(node), centroids.count(node));
+            }
         }
     }
 
@@ -200,7 +215,7 @@ public class AVLTreeDigest extends AbstractTDigest {
     @Override
     public double cdf(double x) {
         AVLGroupTree values = summary;
-        if (values.size() == 0) {
+        if (values.isEmpty()) {
             return Double.NaN;
         }
         if (values.size() == 1) {
@@ -283,7 +298,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
 
         AVLGroupTree values = summary;
-        if (values.size() == 0) {
+        if (values.isEmpty()) {
             // no centroids means no data, no way to get a quantile
             return Double.NaN;
         } else if (values.size() == 1) {
@@ -304,7 +319,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
 
         int currentNode = values.first();
-        int currentWeight = values.count(currentNode);
+        long currentWeight = values.count(currentNode);
 
         // Total mass to the left of the center of the current node.
         double weightSoFar = currentWeight / 2.0;
@@ -316,7 +331,7 @@ public class AVLTreeDigest extends AbstractTDigest {
 
         for (int i = 0; i < values.size() - 1; i++) {
             int nextNode = values.next(currentNode);
-            int nextWeight = values.count(nextNode);
+            long nextWeight = values.count(nextNode);
             // this is the mass between current center and next center
             double dw = (currentWeight + nextWeight) / 2.0;
 
@@ -361,5 +376,14 @@ public class AVLTreeDigest extends AbstractTDigest {
     public int byteSize() {
         compress();
         return 64 + summary.size() * 13;
+    }
+
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(summary);
+        }
     }
 }

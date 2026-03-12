@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction.MAX_REQUEST_SIZE;
 
@@ -48,9 +49,11 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
         }
 
         String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
-        XContentParser parser = restRequest.contentParser();
-        UpdateDataFrameAnalyticsAction.Request updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
-        updateRequest.timeout(restRequest.paramAsTime("timeout", updateRequest.timeout()));
+        UpdateDataFrameAnalyticsAction.Request updateRequest;
+        try (XContentParser parser = restRequest.contentParser()) {
+            updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
+        }
+        updateRequest.ackTimeout(getAckTimeout(restRequest));
 
         return channel -> client.execute(UpdateDataFrameAnalyticsAction.INSTANCE, updateRequest, new RestToXContentListener<>(channel));
     }

@@ -84,11 +84,6 @@ public class Order extends Expression {
     }
 
     @Override
-    public boolean foldable() {
-        return false;
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(child, direction, nulls);
     }

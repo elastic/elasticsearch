@@ -7,13 +7,19 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -21,6 +27,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
@@ -34,6 +41,7 @@ import java.util.List;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
@@ -99,8 +107,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -119,8 +126,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -212,6 +218,34 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return false;   // null is an error for constant keyword
     }
 
+    /**
+     * Test loading blocks when there is no defined value. This is allowed
+     * for newly created indices that haven't received any documents that
+     * contain the field.
+     */
+    public void testNullValueBlockLoader() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
+        try (Directory directory = newDirectory()) {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (
+                DirectoryReader reader = DirectoryReader.open(directory);
+                BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(reader.leaves().get(0)).apply(breaker)
+            ) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                assertThat(block.get(0), nullValue());
+            }
+        }
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("constant_keyword doesn't support ignore_malformed", ignoreMalformed);
@@ -238,11 +272,22 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValueSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
-        }));
+        })).documentMapper();
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
+    public void testNoValueInDocumentSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.field("value", randomAlphaOfLength(5));
+            b.endObject();
+        })).documentMapper();
+
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 
@@ -254,5 +299,18 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean addsValueWhenNotSupplied() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO this should surely be able to support pruning
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

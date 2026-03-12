@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -36,14 +37,14 @@ public class CloseToAssertion extends Assertion {
                 throw new IllegalArgumentException("expected a map with value and error but got a map with " + map.size() + " fields");
             }
             Object valObj = map.get("value");
-            if (valObj instanceof Number == false) {
-                throw new IllegalArgumentException("value is missing or not a number");
+            if (valObj == null) {
+                throw new IllegalArgumentException("value is missing");
             }
             Object errObj = map.get("error");
             if (errObj instanceof Number == false) {
                 throw new IllegalArgumentException("error is missing or not a number");
             }
-            return new CloseToAssertion(location, fieldValueTuple.v1(), ((Number) valObj).doubleValue(), ((Number) errObj).doubleValue());
+            return new CloseToAssertion(location, fieldValueTuple.v1(), valObj, ((Number) errObj).doubleValue());
         } else {
             throw new IllegalArgumentException(
                 "expected a map with value and error but got " + fieldValueTuple.v2().getClass().getSimpleName()
@@ -56,7 +57,7 @@ public class CloseToAssertion extends Assertion {
 
     private final double error;
 
-    public CloseToAssertion(XContentLocation location, String field, Double expectedValue, Double error) {
+    public CloseToAssertion(XContentLocation location, String field, Object expectedValue, Double error) {
         super(location, field, expectedValue);
         this.error = error;
     }
@@ -68,10 +69,14 @@ public class CloseToAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is close to [{}] with error [{}] (field [{}])", actualValue, expectedValue, error, getField());
+        if ((expectedValue instanceof Number) == false) {
+            throw new AssertionError("Expected value should be a number, but was [" + expectedValue + "], which is not a number");
+        }
+
         if (actualValue instanceof Number actualValueNumber) {
-            assertThat(actualValueNumber.doubleValue(), closeTo((Double) expectedValue, error));
+            assertThat(actualValueNumber.doubleValue(), closeTo(((Number) expectedValue).doubleValue(), error));
         } else {
-            throw new AssertionError("excpected a value close to " + expectedValue + " but got " + actualValue + ", which is not a number");
+            throw new AssertionError("expected a value close to " + expectedValue + " but got " + actualValue + ", which is not a number");
         }
     }
 }

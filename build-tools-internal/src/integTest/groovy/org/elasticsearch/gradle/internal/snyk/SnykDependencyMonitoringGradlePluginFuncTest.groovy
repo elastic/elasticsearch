@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.snyk
@@ -13,6 +14,7 @@ import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.gradle.util.GradleVersion
 import org.skyscreamer.jsonassert.JSONAssert
+import spock.lang.Unroll
 
 import static java.net.HttpURLConnection.HTTP_CREATED
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR
@@ -28,6 +30,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         configurationCacheCompatible = false // configuration is not cc compliant
     }
 
+    @Unroll
     def "can calculate snyk dependency graph"() {
         given:
         buildFile << """
@@ -35,18 +38,22 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             version = "$version"
 
             repositories {
-                mavenCentral() 
+                mavenCentral()
             }
-            
+
             dependencies {
                 implementation 'org.apache.lucene:lucene-monitor:9.2.0'
+            }
+
+            tasks.named('generateSnykDependencyGraph').configure {
+                remoteUrl = "http://acme.org"
             }
         """
         when:
         def build = gradleRunner("generateSnykDependencyGraph").build()
         then:
         build.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        JSONAssert.assertEquals(file("build/snyk/dependencies.json").text, """{
+        JSONAssert.assertEquals("""{
             "meta": {
                 "method": "custom gradle",
                 "id": "gradle",
@@ -101,7 +108,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                         {
                             "nodeId": "org.apache.lucene:lucene-core@9.2.0",
                             "deps": [
-                                
+
                             ],
                             "pkgId": "org.apache.lucene:lucene-core@9.2.0"
                         },
@@ -155,8 +162,8 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                 ]
             },
             "target": {
-                "remoteUrl": "http://github.com/elastic/elasticsearch.git",
-                "branch": "unknown"
+                "remoteUrl": "http://acme.org",
+                "branch": "$version"
             },
             "targetReference": "$version",
             "projectAttributes": {
@@ -164,7 +171,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                   "$expectedLifecycle"
                 ]
             }
-        }""", true)
+        }""", file("build/snyk/dependencies.json").text, true)
 
         where:
         version        | expectedLifecycle
@@ -172,37 +179,33 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         '1.0'          | 'production'
     }
 
-    def "upload fails with reasonable error message"() {
+    @Unroll
+    def "upload #scenario"() {
         given:
         buildFile << """
             apply plugin:'java'
         """
         when:
-        def result = withWireMock(PUT, "/api/v1/monitor/gradle/graph", "OK", HTTP_CREATED) { server ->
+        def result = withWireMock(PUT, GRADLE_GRAPH_ENDPOINT, responseBody, httpStatus) { server ->
             buildFile << """
             tasks.named('uploadSnykDependencyGraph').configure {
                 getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
                 getToken().set("myToken")
             }
             """
-            gradleRunner("uploadSnykDependencyGraph", '-i', '--stacktrace').build()
-        }
-        then:
-        result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        result.output.contains("Snyk API call response status: 201")
-
-        when:
-        result = withWireMock(PUT, GRADLE_GRAPH_ENDPOINT, "Internal Error", HTTP_INTERNAL_ERROR) { server ->
-            buildFile << """
-            tasks.named('uploadSnykDependencyGraph').configure {
-                getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')
+            if (expectSuccess) {
+                gradleRunner("uploadSnykDependencyGraph", '-i', '--stacktrace').build()
+            } else {
+                gradleRunner("uploadSnykDependencyGraph", '-i').buildAndFail()
             }
-            """
-            gradleRunner("uploadSnykDependencyGraph", '-i').buildAndFail()
         }
-
         then:
-        result.task(":uploadSnykDependencyGraph").outcome == TaskOutcome.FAILED
-        result.output.contains("Uploading Snyk Graph failed with http code 500: Internal Error")
+        result.task(":uploadSnykDependencyGraph").outcome == expectedOutcome
+        result.output.contains(expectedOutput)
+
+        where:
+        scenario                                     | httpStatus          | responseBody     | expectSuccess | expectedOutcome      | expectedOutput
+        "succeeds with HTTP 201"                     | HTTP_CREATED        | "OK"             | true          | TaskOutcome.SUCCESS  | "Snyk API call response status: 201"
+        "fails with reasonable error message"        | HTTP_INTERNAL_ERROR | "Internal Error" | false         | TaskOutcome.FAILED   | "Uploading Snyk Graph failed with http code 500: Internal Error"
     }
 }

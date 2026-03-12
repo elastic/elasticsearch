@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
@@ -20,8 +21,8 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -35,7 +36,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
      * a complete part of the {@link #fileInfo} at once in the cache and should not be
      * used for anything else than what the {@link #prefetchPart(int, Supplier)} method does.
      */
-    public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
+    public static final IOContext CACHE_WARMING_CONTEXT = IOContext.DEFAULT.withHints(StandardIOBehaviorHint.INSTANCE);
 
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
 
@@ -101,7 +102,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
+        ensureContext(ctx -> ctx.hints().contains(StandardIOBehaviorHint.INSTANCE) == false);
         final long position = getAbsolutePosition();
         final int length = b.remaining();
 
@@ -117,9 +118,15 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, rangeToWrite);
-        final int bytesRead = populateCacheFuture.get();
+        final int bytesRead = populateAndRead(b, position, cacheFile, rangeToWrite).get();
         assert bytesRead == length : bytesRead + " vs " + length;
+    }
+
+    /**
+     * @return Returns the number of bytes already cached for the file in the cold persistent cache
+     */
+    public long getPersistentCacheInitialLength() throws Exception {
+        return cacheFileReference.get().getInitialLength();
     }
 
     /**
@@ -132,7 +139,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
      * or {@code -1} if the prewarming was cancelled
      */
     public long prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
-        ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
+        ensureContext(ctx -> ctx.hints().contains(StandardIOBehaviorHint.INSTANCE));
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
         }
@@ -183,7 +190,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     if (isCancelled.get()) {
                         return -1L;
                     }
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes);
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
                     final ByteRange rangeToWrite = ByteRange.of(readStart, readStart + bytesRead);
@@ -237,9 +244,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         return true;
     }
 
-    @Override
-    public CachedBlobContainerIndexInput clone() {
-        return (CachedBlobContainerIndexInput) super.clone();
+    private void ensureContext(Predicate<IOContext> predicate) throws IOException {
+        if (predicate.test(context) == false) {
+            assert false : "this method should not be used with this context " + context;
+            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
+        }
     }
 
     @Override
@@ -257,7 +266,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

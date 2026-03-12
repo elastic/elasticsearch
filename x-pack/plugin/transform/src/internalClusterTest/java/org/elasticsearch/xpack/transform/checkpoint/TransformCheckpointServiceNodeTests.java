@@ -17,13 +17,14 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -43,8 +44,11 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -54,6 +58,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -79,6 +84,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     // re-use the mock client for the whole test suite as the underlying thread pool and the
     // corresponding context if recreated cause unreliable test execution
     // see https://github.com/elastic/elasticsearch/issues/45238 and https://github.com/elastic/elasticsearch/issues/42577
+    private static TestThreadPool threadPool;
     private static MockClientForCheckpointing mockClientForCheckpointing = null;
 
     private IndexBasedTransformConfigManager transformsConfigManager;
@@ -93,11 +99,10 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         /**
          * Mock client for checkpointing
          *
-         * @param testName name of the test, used for naming the threadpool
          * @param supportTransformCheckpointApi whether to mock the checkpoint API, if false throws action not found
          */
-        MockClientForCheckpointing(String testName, boolean supportTransformCheckpointApi) {
-            super(testName);
+        MockClientForCheckpointing(ThreadPool threadPool, boolean supportTransformCheckpointApi) {
+            super(threadPool);
             this.supportTransformCheckpointApi = supportTransformCheckpointApi;
         }
 
@@ -153,15 +158,19 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     @Before
     public void createComponents() {
         // it's not possible to run it as @BeforeClass as clients aren't initialized
+        if (threadPool == null) {
+            threadPool = new TestThreadPool("TransformCheckpointServiceNodeTests");
+        }
         if (mockClientForCheckpointing == null) {
-            mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests", randomBoolean());
+            mockClientForCheckpointing = new MockClientForCheckpointing(threadPool, randomBoolean());
         }
         ClusterService clusterService = mock(ClusterService.class);
         transformsConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
 
         // use a mock for the checkpoint service
@@ -169,12 +178,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            new ClusterService(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                mock(TaskManager.class)
-            ),
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             mockAuditor
         );
@@ -182,8 +186,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
     @AfterClass
     public static void tearDownClient() {
-        mockClientForCheckpointing.close();
         mockClientForCheckpointing = null;
+        threadPool.close();
+        threadPool = null;
     }
 
     public void testCreateReadDeleteCheckpoint() throws InterruptedException {
@@ -401,11 +406,12 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformProgress nextCheckpointProgress,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
-            listener.onResponse(infoBuilder.build());
-        }, listener::onFailure);
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = listener.delegateFailureAndWrap(
+            (l, infoBuilder) -> l.onResponse(infoBuilder.build())
+        );
         transformCheckpointService.getCheckpointingInfo(
-            mockClientForCheckpointing,
+            new ParentTaskAssigningClient(mockClientForCheckpointing, new TaskId("dummy-node:123456")),
+            TimeValue.timeValueSeconds(5),
             transformId,
             lastCheckpointNumber,
             nextCheckpointPosition,

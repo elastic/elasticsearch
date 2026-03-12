@@ -7,19 +7,13 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public final class OpenIdConnectLogoutResponse extends ActionResponse {
 
-    private String endSessionUrl;
-
-    public OpenIdConnectLogoutResponse(StreamInput in) throws IOException {
-        super(in);
-        this.endSessionUrl = in.readString();
-    }
+    private final String endSessionUrl;
 
     public OpenIdConnectLogoutResponse(String endSessionUrl) {
         this.endSessionUrl = endSessionUrl;

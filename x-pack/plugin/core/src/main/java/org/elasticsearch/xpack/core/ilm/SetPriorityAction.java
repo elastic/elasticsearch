@@ -21,8 +21,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
@@ -31,7 +31,6 @@ public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
     public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         a -> new SetPriorityAction((Integer) a[0])
@@ -101,22 +100,20 @@ public class SetPriorityAction implements LifecycleAction {
         Settings indexPriority = recoveryPriority == null
             ? NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
-        return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
+        return List.of(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         SetPriorityAction that = (SetPriorityAction) o;
-
-        return recoveryPriority != null ? recoveryPriority.equals(that.recoveryPriority) : that.recoveryPriority == null;
+        return Objects.equals(recoveryPriority, that.recoveryPriority);
     }
 
     @Override
     public int hashCode() {
-        return recoveryPriority != null ? recoveryPriority.hashCode() : 0;
+        return Objects.hash(recoveryPriority);
     }
 
     @Override

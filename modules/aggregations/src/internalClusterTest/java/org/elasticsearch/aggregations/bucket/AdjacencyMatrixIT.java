@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket;
@@ -12,7 +13,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
@@ -35,7 +35,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,19 +62,19 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
         for (int i = 0; i < numTag1Docs; i++) {
             numSingleTag1Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag1").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted
                 // docs that match the filter
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs; i < (numTag1Docs + numTag2Docs); i++) {
             numSingleTag2Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).field("tag", "tag2").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         for (int i = numTag1Docs + numTag2Docs; i < numDocs; i++) {
@@ -80,17 +82,15 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             numTag1Docs++;
             numTag2Docs++;
             XContentBuilder source = jsonBuilder().startObject().field("value", i + 1).array("tag", "tag1", "tag2").endObject();
-            builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+            builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             if (randomBoolean()) {
-                builders.add(client().prepareIndex("idx").setId("" + i).setSource(source));
+                builders.add(prepareIndex("idx").setId("" + i).setSource(source));
             }
         }
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
-                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+                prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
         indexRandom(true, builders);
@@ -98,183 +98,180 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-            .get();
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")))
+            ),
+            response -> {
+                AdjacencyMatrix matrix = response.getAggregations().get("tags");
+                assertThat(matrix, notNullValue());
+                assertThat(matrix.getName(), equalTo("tags"));
 
-        assertSearchResponse(response);
+                int expected = numMultiTagDocs > 0 ? 3 : 2;
+                assertThat(matrix.getBuckets().size(), equalTo(expected));
 
-        AdjacencyMatrix matrix = response.getAggregations().get("tags");
-        assertThat(matrix, notNullValue());
-        assertThat(matrix.getName(), equalTo("tags"));
+                AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey("tag1");
+                assertThat(bucket, Matchers.notNullValue());
+                assertThat(bucket.getDocCount(), equalTo((long) numTag1Docs));
 
-        int expected = numMultiTagDocs > 0 ? 3 : 2;
-        assertThat(matrix.getBuckets().size(), equalTo(expected));
+                bucket = matrix.getBucketByKey("tag2");
+                assertThat(bucket, Matchers.notNullValue());
+                assertThat(bucket.getDocCount(), equalTo((long) numTag2Docs));
 
-        AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey("tag1");
-        assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getDocCount(), equalTo((long) numTag1Docs));
-
-        bucket = matrix.getBucketByKey("tag2");
-        assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getDocCount(), equalTo((long) numTag2Docs));
-
-        bucket = matrix.getBucketByKey("tag1&tag2");
-        if (numMultiTagDocs == 0) {
-            assertThat(bucket, Matchers.nullValue());
-        } else {
-            assertThat(bucket, Matchers.notNullValue());
-            assertThat(bucket.getDocCount(), equalTo((long) numMultiTagDocs));
-        }
-
+                bucket = matrix.getBucketByKey("tag1&tag2");
+                if (numMultiTagDocs == 0) {
+                    assertThat(bucket, Matchers.nullValue());
+                } else {
+                    assertThat(bucket, Matchers.notNullValue());
+                    assertThat(bucket.getDocCount(), equalTo((long) numMultiTagDocs));
+                }
+            }
+        );
     }
 
     public void testCustomSeparator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", "\t", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-            .get();
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                adjacencyMatrix("tags", "\t", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")))
+            ),
+            response -> {
+                AdjacencyMatrix matrix = response.getAggregations().get("tags");
+                assertThat(matrix, notNullValue());
 
-        assertSearchResponse(response);
-
-        AdjacencyMatrix matrix = response.getAggregations().get("tags");
-        assertThat(matrix, notNullValue());
-
-        AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey("tag1\ttag2");
-        if (numMultiTagDocs == 0) {
-            assertThat(bucket, Matchers.nullValue());
-        } else {
-            assertThat(bucket, Matchers.notNullValue());
-            assertThat(bucket.getDocCount(), equalTo((long) numMultiTagDocs));
-        }
-
+                AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey("tag1\ttag2");
+                if (numMultiTagDocs == 0) {
+                    assertThat(bucket, Matchers.nullValue());
+                } else {
+                    assertThat(bucket, Matchers.notNullValue());
+                    assertThat(bucket.getDocCount(), equalTo((long) numMultiTagDocs));
+                }
+            }
+        );
     }
 
     // See NullPointer issue when filters are empty:
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1"))))
-            .get();
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(adjacencyMatrix("tags", newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1")))),
+            response -> {
+                AdjacencyMatrix filters = response.getAggregations().get("tags");
+                assertThat(filters, notNullValue());
+                AdjacencyMatrix.Bucket allBucket = filters.getBucketByKey("all");
+                assertThat(allBucket.getDocCount(), equalTo((long) numDocs));
 
-        assertSearchResponse(response);
-
-        AdjacencyMatrix filters = response.getAggregations().get("tags");
-        assertThat(filters, notNullValue());
-        AdjacencyMatrix.Bucket allBucket = filters.getBucketByKey("all");
-        assertThat(allBucket.getDocCount(), equalTo((long) numDocs));
-
-        AdjacencyMatrix.Bucket bucket = filters.getBucketByKey("tag1");
-        assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getDocCount(), equalTo((long) numTag1Docs));
+                AdjacencyMatrix.Bucket bucket = filters.getBucketByKey("tag1");
+                assertThat(bucket, Matchers.notNullValue());
+                assertThat(bucket.getDocCount(), equalTo((long) numTag1Docs));
+            }
+        );
     }
 
     public void testWithSubAggregation() throws Exception {
         BoolQueryBuilder boolQ = new BoolQueryBuilder();
         boolQ.must(termQuery("tag", "tag1"));
         boolQ.must(termQuery("tag", "tag2"));
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")).add("both", boolQ))
                     .subAggregation(avg("avg_value").field("value"))
-            )
-            .get();
+            ),
+            response -> {
+                AdjacencyMatrix matrix = response.getAggregations().get("tags");
+                assertThat(matrix, notNullValue());
+                assertThat(matrix.getName(), equalTo("tags"));
 
-        assertSearchResponse(response);
+                int expectedBuckets = 0;
+                if (numTag1Docs > 0) {
+                    expectedBuckets++;
+                }
+                if (numTag2Docs > 0) {
+                    expectedBuckets++;
+                }
+                if (numMultiTagDocs > 0) {
+                    // both, both&tag1, both&tag2, tag1&tag2
+                    expectedBuckets += 4;
+                }
 
-        AdjacencyMatrix matrix = response.getAggregations().get("tags");
-        assertThat(matrix, notNullValue());
-        assertThat(matrix.getName(), equalTo("tags"));
+                assertThat(matrix.getBuckets().size(), equalTo(expectedBuckets));
+                assertThat(((InternalAggregation) matrix).getProperty("_bucket_count"), equalTo(expectedBuckets));
 
-        int expectedBuckets = 0;
-        if (numTag1Docs > 0) {
-            expectedBuckets++;
-        }
-        if (numTag2Docs > 0) {
-            expectedBuckets++;
-        }
-        if (numMultiTagDocs > 0) {
-            // both, both&tag1, both&tag2, tag1&tag2
-            expectedBuckets += 4;
-        }
+                Object[] propertiesKeys = (Object[]) ((InternalAggregation) matrix).getProperty("_key");
+                Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) matrix).getProperty("_count");
+                Object[] propertiesCounts = (Object[]) ((InternalAggregation) matrix).getProperty("avg_value.value");
 
-        assertThat(matrix.getBuckets().size(), equalTo(expectedBuckets));
-        assertThat(((InternalAggregation) matrix).getProperty("_bucket_count"), equalTo(expectedBuckets));
+                assertEquals(expectedBuckets, propertiesKeys.length);
+                assertEquals(propertiesKeys.length, propertiesDocCounts.length);
+                assertEquals(propertiesKeys.length, propertiesCounts.length);
 
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation) matrix).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) matrix).getProperty("_count");
-        Object[] propertiesCounts = (Object[]) ((InternalAggregation) matrix).getProperty("avg_value.value");
+                for (int i = 0; i < propertiesCounts.length; i++) {
+                    AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey(propertiesKeys[i].toString());
+                    assertThat(bucket, Matchers.notNullValue());
+                    Avg avgValue = bucket.getAggregations().get("avg_value");
+                    assertThat(avgValue, notNullValue());
+                    assertThat((long) propertiesDocCounts[i], equalTo(bucket.getDocCount()));
+                    assertThat((double) propertiesCounts[i], equalTo(avgValue.getValue()));
+                }
 
-        assertEquals(expectedBuckets, propertiesKeys.length);
-        assertEquals(propertiesKeys.length, propertiesDocCounts.length);
-        assertEquals(propertiesKeys.length, propertiesCounts.length);
+                AdjacencyMatrix.Bucket tag1Bucket = matrix.getBucketByKey("tag1");
+                assertThat(tag1Bucket, Matchers.notNullValue());
+                assertThat(tag1Bucket.getDocCount(), equalTo((long) numTag1Docs));
+                long sum = 0;
+                for (int i = 0; i < numSingleTag1Docs; i++) {
+                    sum += i + 1;
+                }
+                for (int i = numSingleTag1Docs + numSingleTag2Docs; i < numDocs; i++) {
+                    sum += i + 1;
+                }
+                assertThat(tag1Bucket.getAggregations().asList().isEmpty(), is(false));
+                Avg avgBucket1Value = tag1Bucket.getAggregations().get("avg_value");
+                assertThat(avgBucket1Value, notNullValue());
+                assertThat(avgBucket1Value.getName(), equalTo("avg_value"));
+                assertThat(avgBucket1Value.getValue(), equalTo((double) sum / numTag1Docs));
 
-        for (int i = 0; i < propertiesCounts.length; i++) {
-            AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey(propertiesKeys[i].toString());
-            assertThat(bucket, Matchers.notNullValue());
-            Avg avgValue = bucket.getAggregations().get("avg_value");
-            assertThat(avgValue, notNullValue());
-            assertThat((long) propertiesDocCounts[i], equalTo(bucket.getDocCount()));
-            assertThat((double) propertiesCounts[i], equalTo(avgValue.getValue()));
-        }
+                Bucket tag2Bucket = matrix.getBucketByKey("tag2");
+                assertThat(tag2Bucket, Matchers.notNullValue());
+                assertThat(tag2Bucket.getDocCount(), equalTo((long) numTag2Docs));
+                sum = 0;
+                for (int i = numSingleTag1Docs; i < numDocs; i++) {
+                    sum += i + 1;
+                }
+                assertThat(tag2Bucket.getAggregations().asList().isEmpty(), is(false));
+                Avg avgBucket2Value = tag2Bucket.getAggregations().get("avg_value");
+                assertThat(avgBucket2Value, notNullValue());
+                assertThat(avgBucket2Value.getName(), equalTo("avg_value"));
+                assertThat(avgBucket2Value.getValue(), equalTo((double) sum / numTag2Docs));
 
-        AdjacencyMatrix.Bucket tag1Bucket = matrix.getBucketByKey("tag1");
-        assertThat(tag1Bucket, Matchers.notNullValue());
-        assertThat(tag1Bucket.getDocCount(), equalTo((long) numTag1Docs));
-        long sum = 0;
-        for (int i = 0; i < numSingleTag1Docs; i++) {
-            sum += i + 1;
-        }
-        for (int i = numSingleTag1Docs + numSingleTag2Docs; i < numDocs; i++) {
-            sum += i + 1;
-        }
-        assertThat(tag1Bucket.getAggregations().asList().isEmpty(), is(false));
-        Avg avgBucket1Value = tag1Bucket.getAggregations().get("avg_value");
-        assertThat(avgBucket1Value, notNullValue());
-        assertThat(avgBucket1Value.getName(), equalTo("avg_value"));
-        assertThat(avgBucket1Value.getValue(), equalTo((double) sum / numTag1Docs));
+                // Check intersection buckets are computed correctly by comparing with
+                // ANDed query bucket results
+                Bucket bucketBothQ = matrix.getBucketByKey("both");
+                if (numMultiTagDocs == 0) {
+                    // Empty intersections are not returned.
+                    assertThat(bucketBothQ, Matchers.nullValue());
+                    Bucket bucketIntersectQ = matrix.getBucketByKey("tag1&tag2");
+                    assertThat(bucketIntersectQ, Matchers.nullValue());
+                    Bucket tag1Both = matrix.getBucketByKey("both&tag1");
+                    assertThat(tag1Both, Matchers.nullValue());
+                } else {
+                    assertThat(bucketBothQ, Matchers.notNullValue());
+                    assertThat(bucketBothQ.getDocCount(), equalTo((long) numMultiTagDocs));
+                    Avg avgValueBothQ = bucketBothQ.getAggregations().get("avg_value");
 
-        Bucket tag2Bucket = matrix.getBucketByKey("tag2");
-        assertThat(tag2Bucket, Matchers.notNullValue());
-        assertThat(tag2Bucket.getDocCount(), equalTo((long) numTag2Docs));
-        sum = 0;
-        for (int i = numSingleTag1Docs; i < numDocs; i++) {
-            sum += i + 1;
-        }
-        assertThat(tag2Bucket.getAggregations().asList().isEmpty(), is(false));
-        Avg avgBucket2Value = tag2Bucket.getAggregations().get("avg_value");
-        assertThat(avgBucket2Value, notNullValue());
-        assertThat(avgBucket2Value.getName(), equalTo("avg_value"));
-        assertThat(avgBucket2Value.getValue(), equalTo((double) sum / numTag2Docs));
+                    Bucket bucketIntersectQ = matrix.getBucketByKey("tag1&tag2");
+                    assertThat(bucketIntersectQ, Matchers.notNullValue());
+                    assertThat(bucketIntersectQ.getDocCount(), equalTo((long) numMultiTagDocs));
+                    Avg avgValueIntersectQ = bucketBothQ.getAggregations().get("avg_value");
+                    assertThat(avgValueIntersectQ.getValue(), equalTo(avgValueBothQ.getValue()));
 
-        // Check intersection buckets are computed correctly by comparing with
-        // ANDed query bucket results
-        Bucket bucketBothQ = matrix.getBucketByKey("both");
-        if (numMultiTagDocs == 0) {
-            // Empty intersections are not returned.
-            assertThat(bucketBothQ, Matchers.nullValue());
-            Bucket bucketIntersectQ = matrix.getBucketByKey("tag1&tag2");
-            assertThat(bucketIntersectQ, Matchers.nullValue());
-            Bucket tag1Both = matrix.getBucketByKey("both&tag1");
-            assertThat(tag1Both, Matchers.nullValue());
-        } else {
-            assertThat(bucketBothQ, Matchers.notNullValue());
-            assertThat(bucketBothQ.getDocCount(), equalTo((long) numMultiTagDocs));
-            Avg avgValueBothQ = bucketBothQ.getAggregations().get("avg_value");
-
-            Bucket bucketIntersectQ = matrix.getBucketByKey("tag1&tag2");
-            assertThat(bucketIntersectQ, Matchers.notNullValue());
-            assertThat(bucketIntersectQ.getDocCount(), equalTo((long) numMultiTagDocs));
-            Avg avgValueIntersectQ = bucketBothQ.getAggregations().get("avg_value");
-            assertThat(avgValueIntersectQ.getValue(), equalTo(avgValueBothQ.getValue()));
-
-            Bucket tag1Both = matrix.getBucketByKey("both&tag1");
-            assertThat(tag1Both, Matchers.notNullValue());
-            assertThat(tag1Both.getDocCount(), equalTo((long) numMultiTagDocs));
-            Avg avgValueTag1BothIntersectQ = tag1Both.getAggregations().get("avg_value");
-            assertThat(avgValueTag1BothIntersectQ.getValue(), equalTo(avgValueBothQ.getValue()));
-        }
-
+                    Bucket tag1Both = matrix.getBucketByKey("both&tag1");
+                    assertThat(tag1Both, Matchers.notNullValue());
+                    assertThat(tag1Both.getDocCount(), equalTo((long) numMultiTagDocs));
+                    Avg avgValueTag1BothIntersectQ = tag1Both.getAggregations().get("avg_value");
+                    assertThat(avgValueTag1BothIntersectQ.getValue(), equalTo(avgValueBothQ.getValue()));
+                }
+            }
+        );
     }
 
     public void testTooLargeMatrix() {
@@ -291,7 +288,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             }
 
             try {
-                client().prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
+                prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
                 fail("SearchPhaseExecutionException should have been thrown");
             } catch (SearchPhaseExecutionException ex) {
                 assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
@@ -303,37 +300,34 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testAsSubAggregation() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 histogram("histo").field("value").interval(2L).subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery())))
-            )
-            .get();
+            ),
+            response -> {
+                Histogram histo = response.getAggregations().get("histo");
+                assertThat(histo, notNullValue());
+                assertThat(histo.getBuckets().size(), greaterThanOrEqualTo(1));
 
-        assertSearchResponse(response);
-
-        Histogram histo = response.getAggregations().get("histo");
-        assertThat(histo, notNullValue());
-        assertThat(histo.getBuckets().size(), greaterThanOrEqualTo(1));
-
-        for (Histogram.Bucket bucket : histo.getBuckets()) {
-            AdjacencyMatrix matrix = bucket.getAggregations().get("matrix");
-            assertThat(matrix, notNullValue());
-            assertThat(matrix.getBuckets().size(), equalTo(1));
-            AdjacencyMatrix.Bucket filterBucket = matrix.getBuckets().get(0);
-            assertEquals(bucket.getDocCount(), filterBucket.getDocCount());
-        }
+                for (Histogram.Bucket bucket : histo.getBuckets()) {
+                    AdjacencyMatrix matrix = bucket.getAggregations().get("matrix");
+                    assertThat(matrix, notNullValue());
+                    assertThat(matrix.getBuckets().size(), equalTo(1));
+                    AdjacencyMatrix.Bucket filterBucket = matrix.getBuckets().get(0);
+                    assertEquals(bucket.getDocCount(), filterBucket.getDocCount());
+                }
+            }
+        );
     }
 
     public void testWithContextBasedSubAggregation() throws Exception {
 
         try {
-            client().prepareSearch("idx")
-                .addAggregation(
-                    adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))).subAggregation(
-                        avg("avg_value")
-                    )
+            prepareSearch("idx").addAggregation(
+                adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))).subAggregation(
+                    avg("avg_value")
                 )
-                .get();
+            ).get();
 
             fail(
                 "expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
@@ -346,26 +340,27 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                histogram("histo").field("value")
-                    .interval(1L)
-                    .minDocCount(0)
-                    .subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery())))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    histogram("histo").field("value")
+                        .interval(1L)
+                        .minDocCount(0)
+                        .subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery())))
+                ),
+            response -> {
+                assertHitCount(response, 2L);
+                Histogram histo = response.getAggregations().get("histo");
+                assertThat(histo, Matchers.notNullValue());
+                Histogram.Bucket bucket = histo.getBuckets().get(1);
+                assertThat(bucket, Matchers.notNullValue());
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
-        Histogram histo = searchResponse.getAggregations().get("histo");
-        assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBuckets().get(1);
-        assertThat(bucket, Matchers.notNullValue());
-
-        AdjacencyMatrix matrix = bucket.getAggregations().get("matrix");
-        assertThat(matrix, notNullValue());
-        AdjacencyMatrix.Bucket all = matrix.getBucketByKey("all");
-        assertThat(all, Matchers.nullValue());
+                AdjacencyMatrix matrix = bucket.getAggregations().get("matrix");
+                assertThat(matrix, notNullValue());
+                AdjacencyMatrix.Bucket all = matrix.getBucketByKey("all");
+                assertThat(all, Matchers.nullValue());
+            }
+        );
     }
 
     // Helper methods for building maps of QueryBuilders

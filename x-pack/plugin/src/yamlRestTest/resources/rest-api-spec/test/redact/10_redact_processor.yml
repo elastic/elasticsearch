@@ -24,7 +24,7 @@
         index: test
         id: "1"
         pipeline: "pipeline-using-a-redact-processor"
-        body: {to_redact: "0.0.0.1 is my secret IP to redact"}
+        body: { to_redact: "0.0.0.1 is my secret IP to redact" }
 
   - do:
       get:
@@ -96,3 +96,25 @@
           }
   - length: { docs: 1 }
   - match: { docs.0.doc._source.to_redact: "==*EMAIL*== will be redacted" }
+---
+"Test redact with trace_redact":
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "redact": {
+                    "field": "to_redact",
+                    "patterns": ["%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}"],
+                    "trace_redact": true
+                  }
+                }
+              ]
+            },
+            "docs": [{"_source": {"to_redact": "this-email@address.com will be redacted"}}]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.to_redact: "<EMAIL> will be redacted" }
+  - match: { docs.0.doc._ingest._redact._is_redacted: true }

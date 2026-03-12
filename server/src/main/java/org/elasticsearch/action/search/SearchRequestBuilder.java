@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -15,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -41,8 +41,8 @@ import java.util.Map;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
-    public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
-        super(client, action, new SearchRequest());
+    public SearchRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportSearchAction.TYPE, new SearchRequest());
     }
 
     /**
@@ -62,34 +62,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch" or "query_then_fetch".
-     */
-    public SearchRequestBuilder setSearchType(String searchType) {
-        request.searchType(searchType);
-        return this;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request.
-     */
-    public SearchRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
-        return this;
-    }
-
-    /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequestBuilder setScroll(TimeValue keepAlive) {
-        request.scroll(keepAlive);
-        return this;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchRequestBuilder setScroll(String keepAlive) {
         request.scroll(keepAlive);
         return this;
     }
@@ -252,29 +227,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executed against it.
-     *
-     * @param index      The index to apply the boost against
-     * @param indexBoost The boost to apply to the index
-     */
-    public SearchRequestBuilder addIndexBoost(String index, float indexBoost) {
-        sourceBuilder().indexBoost(index, indexBoost);
-        return this;
-    }
-
-    /**
      * The stats groups this request will be aggregated under.
      */
     public SearchRequestBuilder setStats(String... statsGroups) {
         sourceBuilder().stats(Arrays.asList(statsGroups));
-        return this;
-    }
-
-    /**
-     * The stats groups this request will be aggregated under.
-     */
-    public SearchRequestBuilder setStats(List<String> statsGroups) {
-        sourceBuilder().stats(statsGroups);
         return this;
     }
 
@@ -307,6 +263,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         sourceBuilder().fetchSource(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchRequestBuilder setExcludeVectors(boolean excludeVectors) {
+        sourceBuilder().excludeVectors(excludeVectors);
         return this;
     }
 

@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.Closeable;
@@ -99,11 +101,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         port = in.readVInt();
         query = in.readBytesReference();
         username = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
-            password = new SecureString(in.readOptionalString().toCharArray());
-        } else {
-            password = in.readOptionalSecureString();
-        }
+        password = in.readOptionalSecureString();
         int headersLength = in.readVInt();
         Map<String, String> headers = Maps.newMapWithExpectedSize(headersLength);
         for (int i = 0; i < headersLength; i++) {
@@ -122,11 +120,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         out.writeVInt(port);
         out.writeBytesReference(query);
         out.writeOptionalString(username);
-        if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
-            out.writeOptionalString(password.toString());
-        } else {
-            out.writeOptionalSecureString(password);
-        }
+        out.writeOptionalSecureString(password);
         out.writeVInt(headers.size());
         for (Map.Entry<String, String> header : headers.entrySet()) {
             out.writeString(header.getKey());
@@ -202,13 +196,6 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         if (pathPrefix != null) {
             b.append(" pathPrefix=").append(pathPrefix);
         }
-        b.append(" query=").append(query.utf8ToString());
-        if (username != null) {
-            b.append(" username=").append(username);
-        }
-        if (password != null) {
-            b.append(" password=<<>>");
-        }
         return b.toString();
     }
 
@@ -267,12 +254,16 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         return BytesReference.bytes(builder.map(map));
     }
 
+    private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withRegistry(
+        NamedXContentRegistry.EMPTY
+    ).withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
+
     private static boolean isQueryJson(BytesReference bytesReference) {
         try (
-            XContentParser parser = QUERY_CONTENT_TYPE.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                bytesReference.streamInput()
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                PARSER_CONFIGURATION,
+                bytesReference,
+                QUERY_CONTENT_TYPE.type()
             )
         ) {
             Map<String, Object> query = parser.map();

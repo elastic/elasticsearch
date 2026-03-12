@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -31,35 +32,30 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+
 /**
- * This class is responsible for working out if APM tracing is configured and if so, preparing
+ * This class is responsible for working out if APM telemetry is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
  * APM doesn't need to be enabled, as that can be toggled at runtime, but some configuration e.g.
  * server URL and secret key can only be provided when Elasticsearch starts.
  */
 class APMJvmOptions {
+
     /**
      * Contains agent configuration that must always be applied, and cannot be overridden.
      */
-    // tag::noformat
-    private static final Map<String, String> STATIC_CONFIG = Map.of(
-        // Identifies the version of Elasticsearch in the captured trace data.
-        "service_version", Version.CURRENT.toString(),
-
-        // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
-        // by the agent. Don't disable writing to a log file, as the agent will then
-        // require extra Security Manager permissions when it tries to do something
-        // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
-
+    private static final Map<String, String> STATIC_CONFIG = Map.ofEntries(
+        Map.entry("service_version", Build.current().version()),
         // ES does not use auto-instrumentation.
-        "instrument", "false"
-        );
+        Map.entry("instrument", "false"),
+        Map.entry("enable_experimental_instrumentations", "true")
+    );
 
     /**
      * Contains default configuration that will be used unless overridden by explicit configuration.
      */
-    private static final Map<String, String> CONFIG_DEFAULTS = Map.of(
+    private static final Map<String, String> CONFIG_DEFAULTS = Map.ofEntries(
         // This is used to keep all the errors and transactions of a service
         // together and is the primary filter in the Elastic APM user interface.
         //
@@ -70,23 +66,29 @@ class APMJvmOptions {
         // the reported hostname (automatically discovered or manually
         // configured through hostname). However, if this node's `node.name` is
         // set, then that value is used for the `service_node_name`.
-        "service_name", "elasticsearch",
+        Map.entry("service_name", "elasticsearch"),
 
         // An arbitrary string that identifies this deployment environment. For
         // example, "dev", "staging" or "prod". Can be anything you like, but must
         // have the same value across different systems in the same deployment
         // environment.
-        "environment", "dev",
+        Map.entry("environment", "dev"),
 
         // Logging configuration. Unless you need detailed logs about what the APM
-        // is doing, leave this value alone.
-        "log_level", "error",
-        "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "120s",
-        "breakdown_metrics", "false",
-        "central_config", "false"
-        );
-    // end::noformat
+        // is doing, leave this at warn or error.
+        Map.entry("log_level", "error"),
+        Map.entry("log_format_file", "JSON"),
+        Map.entry("application_packages", "org.elasticsearch,org.apache.lucene"),
+        Map.entry("metrics_interval", "120s"),
+        Map.entry("breakdown_metrics", "false"),
+        Map.entry("central_config", "false"),
+        Map.entry("transaction_sample_rate", "0.001"),
+        // Only report root spans (transactions), discard internal spans
+        Map.entry("transaction_max_spans", "0"),
+        // Don't collect stacktraces for spans, typically these are of little use as
+        // always pointing to APMTracer.stopTrace invoked from TaskManager
+        Map.entry("stack_trace_limit", "0")
+    );
 
     /**
      * Lists all APM configuration keys that are not dynamic and must be configured via the config file.
@@ -128,22 +130,39 @@ class APMJvmOptions {
     );
 
     /**
-     * This method works out if APM tracing is enabled, and if so, prepares a temporary config file
+     * This method works out if APM telemetry is enabled, and if so, prepares a temporary config file
      * for the APM Java agent and CLI options to the JVM to configure APM. The config file is temporary
      * because it will be deleted once Elasticsearch starts.
      *
      * @param settings the Elasticsearch settings to consider
      * @param secrets a wrapper to access the secrets, or null if there is no secrets
+     * @param logsDir the directory to write the apm log into
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path tmpdir) throws UserException, IOException {
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
+        IOException {
+        boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
+        boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
+        boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+        boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
+
         final Path agentJar = findAgentJar();
 
-        if (agentJar == null) {
+        if (attachAgent == false || agentJar == null) {
             return List.of();
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        if (metricsEnabled == false || agentMetricsEnabled == false) {
+            propertiesMap.put("metrics_interval", "0s");
+            propertiesMap.put("disable_metrics", "*");
+        }
+
+        // Configures a log file to write to. Don't disable writing to a log file,
+        // as the agent will then require extra Security Manager permissions when
+        // it tries to do something else, and it's just painful.
+        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
         if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
@@ -179,11 +198,13 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+    // package private for testing
+    static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
+            String prefix = "telemetry.";
+            if (settingNames.contains(prefix + key)) {
+                try (SecureString token = secrets.getString(prefix + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }
@@ -213,11 +234,35 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        final String telemetryAgentPrefix = "telemetry.agent.";
 
+        final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
+
+        StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
+        if (globalLabels.length() > 0) {
+            propertiesMap.put("global_labels", globalLabels.toString());
+        }
+
+        // These settings must not be changed
+        for (String key : STATIC_CONFIG.keySet()) {
+            if (propertiesMap.containsKey(key)) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Do not set a value for [telemetry.agent." + key + "], as this is configured automatically by Elasticsearch"
+                );
+            }
+        }
+
+        CONFIG_DEFAULTS.forEach(propertiesMap::putIfAbsent);
+
+        propertiesMap.putAll(STATIC_CONFIG);
+        return propertiesMap;
+    }
+
+    private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {
         // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
+        final Settings globalLabelsSettings = settings.getByPrefix(prefix + "global_labels.");
         final StringJoiner globalLabels = new StringJoiner(",");
 
         for (var globalLabel : globalLabelsSettings.keySet()) {
@@ -232,25 +277,7 @@ class APMJvmOptions {
                 globalLabels.add(String.join("=", globalLabel, globalLabelValue));
             }
         }
-
-        if (globalLabels.length() > 0) {
-            propertiesMap.put("global_labels", globalLabels.toString());
-        }
-
-        // These settings must not be changed
-        for (String key : STATIC_CONFIG.keySet()) {
-            if (propertiesMap.containsKey(key)) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "Do not set a value for [tracing.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
-                );
-            }
-        }
-
-        CONFIG_DEFAULTS.forEach(propertiesMap::putIfAbsent);
-
-        propertiesMap.putAll(STATIC_CONFIG);
-        return propertiesMap;
+        return globalLabels;
     }
 
     // package private for testing
@@ -306,7 +333,7 @@ class APMJvmOptions {
         final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 
         if (Files.notExists(apmModule)) {
-            if (Build.CURRENT.isProductionRelease()) {
+            if (Build.current().isProductionRelease()) {
                 throw new UserException(
                     ExitCodes.CODE_ERROR,
                     "Expected to find [apm] module in [" + apmModule + "]! Installation is corrupt"
@@ -317,7 +344,7 @@ class APMJvmOptions {
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
+                path -> path.getFileName().toString().matches("elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar")
             ).toList();
 
             if (paths.size() > 1) {

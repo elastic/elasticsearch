@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -21,7 +22,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public InternalTDigestPercentileRanks(
         String name,
         double[] cdfValues,
-        TDigestState state,
+        HistogramUnionState state,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -45,11 +46,13 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         String name,
         double[] keys,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, format, metadata);
+        HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
+        return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 
     @Override
@@ -79,14 +82,14 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     protected AbstractInternalTDigestPercentiles createReduced(
         String name,
         double[] keys,
-        TDigestState merged,
+        HistogramUnionState merged,
         boolean keyed,
         Map<String, Object> metadata
     ) {
         return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
-    public static double percentileRank(TDigestState state, double value) {
+    public static double percentileRank(HistogramUnionState state, double value) {
         double percentileRank = state.cdf(value);
         if (percentileRank < 0) {
             percentileRank = 0;
@@ -99,10 +102,10 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;
-        private final TDigestState state;
+        private final HistogramUnionState state;
         private int i;
 
-        public Iter(double[] values, TDigestState state) {
+        public Iter(double[] values, HistogramUnionState state) {
             this.values = values;
             this.state = Objects.requireNonNull(state);
             i = 0;

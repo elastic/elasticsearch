@@ -7,20 +7,26 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,10 +39,10 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -76,49 +82,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
-        verify(stagnatingIndicesFinder, times(1)).find();
-    }
-
-    public void testIsYellowIfThereIsOneStagnatingIndicesAndDetailsEmptyIfNoVerbose() throws IOException {
-        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
-        var action = randomAction();
-        var policyName = randomAlphaOfLength(10);
-        var indexName = randomAlphaOfLength(10);
-        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of(indexMetadata(indexName, policyName, action)));
-        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
-
-        var indicatorResult = service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
-
-        assertEquals(indicatorResult.name(), NAME);
-        assertEquals(indicatorResult.status(), YELLOW);
-        assertEquals(indicatorResult.symptom(), "An index has stayed on the same action longer than expected.");
-        assertEquals(xContentToMap(indicatorResult.details()), Map.of());
-        assertThat(indicatorResult.impacts(), hasSize(1));
-        assertThat(
-            indicatorResult.impacts().get(0),
-            equalTo(
-                new HealthIndicatorImpact(
-                    NAME,
-                    IlmHealthIndicatorService.STAGNATING_INDEX_IMPACT_ID,
-                    3,
-                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. "
-                        + "The performance and stability of the indices and/or the cluster could be impacted.",
-                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-                )
-            )
-        );
-        assertThat(indicatorResult.diagnosisList(), hasSize(1));
-        assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action));
-
-        var affectedResources = indicatorResult.diagnosisList().get(0).affectedResources();
-        assertThat(affectedResources, hasSize(2));
-        assertEquals(affectedResources.get(0).getType(), Diagnosis.Resource.Type.ILM_POLICY);
-        assertThat(affectedResources.get(0).getValues(), hasSize(1));
-        assertThat(affectedResources.get(0).getValues(), containsInAnyOrder(policyName));
-        assertThat(affectedResources.get(1).getValues(), hasSize(1));
-        assertEquals(affectedResources.get(1).getType(), Diagnosis.Resource.Type.INDEX);
-        assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexName));
-
         verify(stagnatingIndicesFinder, times(1)).find();
     }
 
@@ -195,7 +158,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
     private static IndexMetadata indexMetadata(String indexName, String policyName, String action) {
         return IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("action", action))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -216,7 +179,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "Index Lifecycle Management is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1, "stagnating_indices", 0)),
-                    Collections.singletonList(
+                    List.of(
                         new HealthIndicatorImpact(
                             NAME,
                             IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
@@ -276,6 +239,36 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         verifyNoInteractions(stagnatingIndicesFinder);
     }
 
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), status));
+        var stagnatingIndicesFinder = mockedStagnatingIndicesFinder(List.of());
+        var service = createIlmHealthIndicatorService(clusterState, stagnatingIndicesFinder);
+
+        assertThat(
+            service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Index Lifecycle Management is not running",
+                    HealthIndicatorDetails.EMPTY,
+                    List.of(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
+                            3,
+                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of the "
+                                + "cluster could be impacted.",
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    ),
+                    List.of()
+                )
+            )
+        );
+    }
+
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
     // they need to be declared in the health-api-indexer.edn in the telemetry repository.
     public void testMappedFieldsForTelemetry() {
@@ -304,7 +297,11 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
     private static ClusterState createClusterStateWith(IndexLifecycleMetadata metadata) {
         var builder = new ClusterState.Builder(new ClusterName("test-cluster"));
         if (metadata != null) {
-            builder.metadata(new Metadata.Builder().putCustom(IndexLifecycleMetadata.TYPE, metadata));
+            @FixForMultiProject(description = "ilm is not project aware")
+            final ProjectId projectId = ProjectId.DEFAULT;
+            builder.metadata(
+                new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(IndexLifecycleMetadata.TYPE, metadata))
+            );
         }
         return builder.build();
     }
@@ -322,6 +319,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
     ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                Settings.EMPTY,
+                Set.of(
+                    IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
+                    IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
+                    IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+                )
+            )
+        );
 
         return new IlmHealthIndicatorService(clusterService, stagnatingIndicesFinder);
     }

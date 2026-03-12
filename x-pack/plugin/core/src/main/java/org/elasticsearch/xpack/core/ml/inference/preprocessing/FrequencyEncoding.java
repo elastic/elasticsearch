@@ -159,7 +159,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeString(featureName);
-        out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(frequencyMap, StreamOutput::writeDouble);
         out.writeBoolean(custom);
     }
 

@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,14 +26,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -43,7 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class MlInitializationService implements ClusterStateListener {
+public final class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
@@ -55,6 +57,8 @@ public class MlInitializationService implements ClusterStateListener {
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
+
     private boolean isMaster = false;
 
     MlInitializationService(
@@ -62,10 +66,13 @@ public class MlInitializationService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         MlAssignmentNotifier mlAssignmentNotifier,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             client,
@@ -77,10 +84,13 @@ public class MlInitializationService implements ClusterStateListener {
                 client,
                 clusterService,
                 mlAssignmentNotifier,
+                indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             ),
+            adaptiveAllocationsScalerService,
             clusterService
         );
     }
@@ -90,11 +100,13 @@ public class MlInitializationService implements ClusterStateListener {
         Client client,
         ThreadPool threadPool,
         MlDailyMaintenanceService dailyMaintenanceService,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         ClusterService clusterService
     ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -104,6 +116,12 @@ public class MlInitializationService implements ClusterStateListener {
                         MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
                         mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+                        mlDailyMaintenanceService::setRolloverMaxSize
+                    );
+
             }
 
             @Override
@@ -115,11 +133,13 @@ public class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
+        adaptiveAllocationsScalerService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
+        adaptiveAllocationsScalerService.stop();
     }
 
     @Override
@@ -146,7 +166,7 @@ public class MlInitializationService implements ClusterStateListener {
             AnnotationIndex.createAnnotationsIndexIfNecessary(
                 client,
                 event.state(),
-                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
                     if (e.getMessage().equals(previousException)) {
                         logger.debug("Error creating ML annotations index or aliases", e);
@@ -174,7 +194,7 @@ public class MlInitializationService implements ClusterStateListener {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
 
         // Step 5: Handle errors encountered on the way.
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
+        ActionListener<IndicesAliasesResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
             if (updateAliasesResponse.isAcknowledged() == false) {
                 logger.warn("One or more of the ML internal aliases could not be made hidden.");
                 return;
@@ -184,7 +204,10 @@ public class MlInitializationService implements ClusterStateListener {
 
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
         ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
-            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            );
             for (var entry : getAliasesResponse.getAliases().entrySet()) {
                 for (AliasMetadata existingAliasMetadata : entry.getValue()) {
                     if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
@@ -195,7 +218,7 @@ public class MlInitializationService implements ClusterStateListener {
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                finalListener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                 return;
             }
             String indicesWithNonHiddenAliasesString = indicesAliasesRequest.getAliasActions()
@@ -203,7 +226,7 @@ public class MlInitializationService implements ClusterStateListener {
                 .map(aliasAction -> aliasAction.indices()[0] + ": " + String.join(",", aliasAction.aliases()))
                 .collect(Collectors.joining("; "));
             logger.debug("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, finalListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndicesAliasesAction.TYPE, indicesAliasesRequest, finalListener);
         }, finalListener::onFailure);
 
         // Step 3: Once indices are hidden, fetch ML internal aliases to find out whether the aliases are hidden or not.
@@ -212,8 +235,9 @@ public class MlInitializationService implements ClusterStateListener {
                 logger.warn("One or more of the ML internal indices could not be made hidden.");
                 return;
             }
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(mlHiddenIndexPatterns)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).indices(
+                mlHiddenIndexPatterns
+            ).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
             executeAsyncWithOrigin(client, ML_ORIGIN, GetAliasesAction.INSTANCE, getAliasesRequest, getAliasesResponseListener);
         }, finalListener::onFailure);
 
@@ -230,16 +254,17 @@ public class MlInitializationService implements ClusterStateListener {
                 updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+            String nonHiddenIndicesString = String.join(", ", nonHiddenIndices);
             logger.debug("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(nonHiddenIndices)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .settings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true));
-            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateSettingsAction.INSTANCE, updateSettingsRequest, updateSettingsListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportUpdateSettingsAction.TYPE, updateSettingsRequest, updateSettingsListener);
         }, finalListener::onFailure);
 
         // Step 1: Fetch ML internal indices settings to find out whether they are already hidden or not.
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(mlHiddenIndexPatterns)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
     }

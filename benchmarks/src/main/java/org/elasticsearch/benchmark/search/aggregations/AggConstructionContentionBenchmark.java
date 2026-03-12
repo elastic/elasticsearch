@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.search.aggregations;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -94,8 +96,7 @@ public class AggConstructionContentionBenchmark {
     private final Index index = new Index("test", "uuid");
     private final IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
         Settings.EMPTY,
-        new IndexFieldDataCache.Listener() {
-        }
+        new IndexFieldDataCache.Listener() {}
     );
 
     private CircuitBreakerService breakerService;
@@ -108,7 +109,12 @@ public class AggConstructionContentionBenchmark {
     @Setup
     public void setup() {
         breakerService = switch (breaker) {
-            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                Settings.EMPTY,
+                List.of(),
+                clusterSettings
+            );
             case "noop" -> new NoneCircuitBreakerService();
             default -> throw new UnsupportedOperationException();
         };
@@ -146,7 +152,7 @@ public class AggConstructionContentionBenchmark {
     }
 
     private class DummyAggregationContext extends AggregationContext {
-        private final Query query = new MatchAllDocsQuery();
+        private final Query query = Queries.ALL_DOCS_INSTANCE;
         private final List<Releasable> releaseMe = new ArrayList<>();
 
         private final CircuitBreaker breaker;
@@ -206,9 +212,12 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
-            }, index, ft.name());
-            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
+            IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(
+                new IndexFieldDataCache.Listener() {},
+                index,
+                ft.name()
+            );
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark")).build(indexFieldDataCache, breakerService);
         }
 
         @Override
@@ -222,11 +231,6 @@ public class AggConstructionContentionBenchmark {
         @Override
         public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return field.startsWith("int");
         }
 
         @Override
@@ -266,6 +270,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public IndexSettings getIndexSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ClusterSettings getClusterSettings() {
             throw new UnsupportedOperationException();
         }
 

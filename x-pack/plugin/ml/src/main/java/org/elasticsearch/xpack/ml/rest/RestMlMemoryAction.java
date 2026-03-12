@@ -21,13 +21,14 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestMlMemoryAction extends BaseRestHandler {
 
     public static final String NODE_ID = "nodeId";
-    public static final String MASTER_TIMEOUT = "master_timeout";
+    public static final String MASTER_TIMEOUT = REST_MASTER_TIMEOUT_PARAM;
     public static final String TIMEOUT = "timeout";
 
     @Override
@@ -48,7 +49,7 @@ public class RestMlMemoryAction extends BaseRestHandler {
         }
         MlMemoryAction.Request request = new MlMemoryAction.Request(nodeId);
         request.masterNodeTimeout(restRequest.paramAsTime(MASTER_TIMEOUT, request.masterNodeTimeout()));
-        request.timeout(restRequest.paramAsTime(TIMEOUT, request.timeout()));
+        request.ackTimeout(restRequest.paramAsTime(TIMEOUT, request.ackTimeout()));
         return channel -> client.execute(MlMemoryAction.INSTANCE, request, new NodesResponseRestListener<>(channel));
     }
 }

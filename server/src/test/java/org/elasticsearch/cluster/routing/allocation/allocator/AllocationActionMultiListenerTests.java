@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -35,8 +37,8 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
 
         var l1 = new AtomicInteger();
         var l2 = new AtomicInteger();
-        listener.delay(ActionListener.wrap(l1::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(1);
-        listener.delay(ActionListener.wrap(l2::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(2);
+        listener.delay(ActionTestUtils.assertNoFailureListener(l1::set)).onResponse(1);
+        listener.delay(ActionTestUtils.assertNoFailureListener(l2::set)).onResponse(2);
         if (randomBoolean()) {
             listener.reroute().onResponse(null);
         } else {
@@ -51,9 +53,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var completed = new AtomicBoolean(false);
-        var delegate = listener.delay(ActionListener.wrap(ignore -> completed.set(true), exception -> {
-            throw new AssertionError("Should not fail in test");
-        }));
+        var delegate = listener.delay(ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)));
 
         switch (randomInt(2)) {
             case 0 -> delegate.onResponse(AcknowledgedResponse.TRUE);
@@ -89,12 +89,8 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
             start.countDown();
             awaitQuietly(start);
             for (int i = 0; i < count; i++) {
-                listener.delay(
-                    ActionListener.wrap(
-                        ignore -> completed.countDown(),
-                        exception -> { throw new AssertionError("Should not fail in test"); }
-                    )
-                ).onResponse(AcknowledgedResponse.TRUE);
+                listener.delay(ActionTestUtils.assertNoFailureListener(ignore -> completed.countDown()))
+                    .onResponse(AcknowledgedResponse.TRUE);
             }
         });
 

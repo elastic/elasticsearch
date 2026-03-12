@@ -35,21 +35,7 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
-            return new QuestionAnsweringConfigUpdate(
-                instance.getQuestion(),
-                instance.getNumTopClasses(),
-                instance.getMaxAnswerLength(),
-                instance.getResultsField(),
-                null
-            );
-        }
         return instance;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override
@@ -126,11 +112,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setNumTopClasses(4)
-                    .setMaxAnswerLength(40)
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setNumTopClasses(4)
+                        .setMaxAnswerLength(40)
+                        .build()
+                )
             )
         );
         assertThat(
@@ -143,10 +130,9 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 "updated-field"
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -162,10 +148,11 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

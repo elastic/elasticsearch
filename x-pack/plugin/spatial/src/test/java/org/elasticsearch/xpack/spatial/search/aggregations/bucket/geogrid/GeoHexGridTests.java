@@ -6,15 +6,11 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGridBucket;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.util.List;
@@ -25,18 +21,6 @@ public class GeoHexGridTests extends GeoGridTestCase<InternalGeoHexGridBucket, I
     @Override
     protected SearchPlugin registerPlugin() {
         return new LocalStateSpatialPlugin();
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(GeoHexGridAggregationBuilder.NAME),
-                (p, c) -> ParsedGeoHexGrid.fromXContent(p, (String) c)
-            )
-        );
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -70,17 +70,18 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, docValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                weights = bigArrays().grow(weights, bucket + 1);
-                valueSums = bigArrays().grow(valueSums, bucket + 1);
-                valueCompensations = bigArrays().grow(valueCompensations, bucket + 1);
-                weightCompensations = bigArrays().grow(weightCompensations, bucket + 1);
-
                 if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
                     if (docWeights.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "Encountered more than one weight for a "
                                 + "single document. Use a script to combine multiple weights-per-doc into a single value."
                         );
+                    }
+                    if (bucket >= weights.size()) {
+                        weights = bigArrays().grow(weights, bucket + 1);
+                        valueSums = bigArrays().grow(valueSums, bucket + 1);
+                        valueCompensations = bigArrays().grow(valueCompensations, bucket + 1);
+                        weightCompensations = bigArrays().grow(weightCompensations, bucket + 1);
                     }
                     // There should always be one weight if advanceExact lands us here, either
                     // a real weight or a `missing` weight

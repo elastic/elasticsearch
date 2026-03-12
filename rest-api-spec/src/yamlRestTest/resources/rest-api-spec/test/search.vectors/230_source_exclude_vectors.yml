@@ -1,0 +1,225 @@
+setup:
+  - requires:
+      reason: 'exclude_vectors option is required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_vectors_param ]
+  - skip:
+      features: "headers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              sparse_vector:
+                type: sparse_vector
+              vector:
+                type: dense_vector
+                dims: 5
+                similarity: l2_norm
+
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    dims: 5
+                    similarity: l2_norm
+                  sparse_vector:
+                    type: sparse_vector
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [36, 267, -311, 12, -202]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          - paragraph_id: 2
+            vector: [0, 100.0, 0, 14.8, -156.0]
+          - paragraph_id: 3
+            vector: [0, 1.0, 0, 1.8, -15.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          sparse_vector:
+            running: 3
+            good: 17
+            run: 22
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          name: zoolander.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+              sparse_vector:
+                running: 3
+                good: 17
+                run: 22
+            - paragraph_id: 1
+              sparse_vector:
+                modeling: 32
+                model: 20
+                mode: 54
+            - paragraph_id: 2
+              vector: [ -9.8, 109, 32, 14.8, 23 ]
+
+
+  - do:
+      indices.refresh: {}
+
+---
+"exclude vectors":
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+          sort: ["name"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - not_exists:   hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - not_exists:   hits.hits.2._source.vector
+  - not_exists:   hits.hits.2._source.sparse_vector
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+  - not_exists:   hits.hits.3._source.nested.0.sparse_vector
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+  - not_exists:   hits.hits.3._source.nested.1.sparse_vector
+  - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
+  - not_exists:   hits.hits.3._source.nested.2.vector
+  - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+
+---
+"include vectors":
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+          sort: ["name"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - exists:       hits.hits.0._source.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - exists:       hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - exists:       hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - exists:       hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - exists:       hits.hits.2._source.vector
+  - exists:       hits.hits.2._source.sparse_vector
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - exists:       hits.hits.3._source.nested.0.vector
+  - exists:       hits.hits.3._source.nested.0.sparse_vector
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+  - exists:       hits.hits.3._source.nested.1.sparse_vector
+  - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
+  - exists:       hits.hits.3._source.nested.2.vector
+  - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+
+---
+"exclude vectors with fields":
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+          sort: ["name"]
+          fields: [vector, sparse_vector, nested.*]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+  - exists:       hits.hits.0.fields.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - not_exists:   hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - not_exists:   hits.hits.2._source.vector
+  - exists:       hits.hits.2.fields.vector
+  - not_exists:   hits.hits.2._source.sparse_vector
+  - exists:       hits.hits.2.fields.sparse_vector
+
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+  - exists:       hits.hits.3.fields.nested.0.vector
+  - not_exists:   hits.hits.3._source.nested.0.sparse_vector
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+  - exists:       hits.hits.3.fields.nested.0.sparse_vector
+  - not_exists:   hits.hits.3._source.nested.1.sparse_vector
+  - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
+  - exists:       hits.hits.3.fields.nested.1.sparse_vector
+  - not_exists:   hits.hits.3._source.nested.2.vector
+  - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+  - exists:       hits.hits.3.fields.nested.2.vector

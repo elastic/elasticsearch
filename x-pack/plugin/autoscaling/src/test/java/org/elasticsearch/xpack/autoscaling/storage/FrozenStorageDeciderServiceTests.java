@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -38,7 +41,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
         final int shards = between(1, 10);
         final int replicas = between(0, 9);
         final IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(shards)
             .numberOfReplicas(replicas)
             .build();
@@ -50,22 +53,28 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testScale() {
+        @NotMultiProjectCapable(description = "FrozenStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+
         FrozenStorageDeciderService service = new FrozenStorageDeciderService();
 
         int shards = between(1, 3);
         int replicas = between(0, 2);
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder("index")
-                    .settings(FrozenUtilsTests.indexSettings(DataTier.DATA_FROZEN))
-                    .numberOfShards(shards)
-                    .numberOfReplicas(replicas)
+                ProjectMetadata.builder(projectId)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .settings(FrozenUtilsTests.indexSettings(DataTier.DATA_FROZEN))
+                            .numberOfShards(shards)
+                            .numberOfReplicas(replicas)
+                    )
             )
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         AutoscalingDeciderContext context = mock(AutoscalingDeciderContext.class);
         when(context.state()).thenReturn(state);
-        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.index("index"));
+        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.getProject(projectId).index("index"));
         final long dataSetSize = sizeAndClusterInfo.v1();
         final ClusterInfo info = sizeAndClusterInfo.v2();
         when(context.info()).thenReturn(info);
@@ -109,7 +118,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
             // add irrelevant shards noise for completeness (should not happen IRL).
             sizes.put(new ShardId(index, i), randomLongBetween(0, Integer.MAX_VALUE));
         }
-        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), Map.of(), sizes, Map.of(), Map.of());
+        ClusterInfo info = ClusterInfo.builder().shardDataSetSizes(sizes).build();
         return Tuple.tuple(totalSize, info);
     }
 }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -111,6 +113,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return this.nodeId;
     }
 
+    /**
+     * Number of shards assigned to this node. Includes relocating shards. Use {@link #numberOfOwningShards()} to exclude relocating shards.
+     */
     public int size() {
         return shards.size();
     }
@@ -209,18 +214,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
-
-    public ShardRouting[] initializing() {
-        return initializingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> initializing() {
+        return Iterables.assertReadOnly(initializingShards);
     }
 
-    public ShardRouting[] relocating() {
-        return relocatingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> relocating() {
+        return Iterables.assertReadOnly(relocatingShards);
     }
 
-    public ShardRouting[] started() {
-        return startedShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterable<ShardRouting> started() {
+        return Iterables.assertReadOnly(startedShards);
     }
 
     /**
@@ -308,6 +311,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         sb.append(" assigned shards])");
         return sb.toString();
     }
+
+    /**
+     * @return {@link DiscoveryNode#getShortNodeDescription()} if available, or just "{nodeId}" otherwise
+     */
+    public String getShortNodeDescription() {
+        return node != null ? node.getShortNodeDescription() : nodeId;
+    }
+
+    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] copyShards() {
         return shards.values().toArray(EMPTY_SHARD_ROUTING_ARRAY);

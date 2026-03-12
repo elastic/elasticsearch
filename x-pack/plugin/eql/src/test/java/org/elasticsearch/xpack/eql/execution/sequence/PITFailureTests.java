@@ -27,6 +27,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -67,7 +68,8 @@ public class PITFailureTests extends ESTestCase {
     private final List<HitExtractor> keyExtractors = emptyList();
 
     public void testHandlingPitFailure() {
-        try (ESMockClient esClient = new ESMockClient();) {
+        try (var threadPool = createThreadPool()) {
+            final var esClient = new ESMockClient(threadPool);
 
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 new String[] { "test" },
@@ -81,6 +83,9 @@ public class PITFailureTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
+                null,
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -130,7 +135,15 @@ public class PITFailureTests extends ESTestCase {
             );
 
             SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(
                 wrap(
                     p -> { fail("Search succeeded despite PIT failure"); },
@@ -146,8 +159,8 @@ public class PITFailureTests extends ESTestCase {
      */
     private class ESMockClient extends NoOpClient {
 
-        ESMockClient() {
-            super(getTestName());
+        ESMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

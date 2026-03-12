@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -26,8 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This class holds the configuration of the rollover conditions as they are defined in DLM lifecycle. Currently, it can handle automatic
- * configuration for the max index age condition.
+ * This class holds the configuration of the rollover conditions as they are defined in data stream lifecycle. Currently, it can handle
+ * automatic configuration for the max index age condition.
  */
 public class RolloverConfiguration implements Writeable, ToXContentObject {
 
@@ -65,13 +66,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     public RolloverConfiguration(StreamInput in) throws IOException {
-        this(new RolloverConditions(in), in.readSet(StreamInput::readString));
+        this(new RolloverConditions(in), in.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(concreteConditions);
-        out.writeCollection(automaticConditions, StreamOutput::writeString);
+        out.writeStringCollection(automaticConditions);
     }
 
     @Override
@@ -89,7 +90,8 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
      * Evaluates the automatic conditions and converts the whole configuration to XContent.
      * For the automatic conditions is also adds the suffix [automatic]
      */
-    public XContentBuilder evaluateAndConvertToXContent(XContentBuilder builder, Params params, TimeValue retention) throws IOException {
+    public XContentBuilder evaluateAndConvertToXContent(XContentBuilder builder, Params params, @Nullable TimeValue retention)
+        throws IOException {
         builder.startObject();
         concreteConditions.toXContentFragment(builder, params);
         for (String automaticCondition : automaticConditions) {
@@ -171,13 +173,17 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     /**
      * When max_age is auto we’ll use the following retention dependent heuristics to compute the value of max_age:
      * - If retention is null aka infinite (default), max_age will be 30 days
-     * - If retention is configured to anything lower than 14 days, max_age will be 1 day
-     * - If retention is configured to anything lower than 90 days, max_age will be 7 days
-     * - If retention is configured to anything greater than 90 days, max_age will be 30 days
+     * - If retention is less than or equal to 1 day, max_age will be 1 hour
+     * - If retention is less than or equal to 14 days, max_age will be 1 day
+     * - If retention is less than or equal to 90 days, max_age will be 7 days
+     * - If retention is greater than 90 days, max_age will be 30 days
      */
     static TimeValue evaluateMaxAgeCondition(@Nullable TimeValue retention) {
         if (retention == null) {
             return TimeValue.timeValueDays(30);
+        }
+        if (retention.compareTo(TimeValue.timeValueDays(1)) <= 0) {
+            return TimeValue.timeValueHours(1);
         }
         if (retention.compareTo(TimeValue.timeValueDays(14)) <= 0) {
             return TimeValue.timeValueDays(1);

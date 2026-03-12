@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -11,17 +12,21 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.arrayWithSize;
+
 public class RequestValidatorsTests extends ESTestCase {
 
-    private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, state, indices) -> Optional.empty();
-    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL = (request, state, indices) -> Optional.of(
+    private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, projectMetadata, indices) -> Optional.empty();
+    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL = (request, projectMetadata, indices) -> Optional.of(
         new Exception("failure")
     );
 
@@ -32,17 +37,17 @@ public class RequestValidatorsTests extends ESTestCase {
             validators.add(EMPTY);
         }
         final RequestValidators<PutMappingRequest> requestValidators = new RequestValidators<>(validators);
-        assertThat(requestValidators.validateRequest(null, null, null), OptionalMatchers.isEmpty());
+        assertThat(requestValidators.validateRequest(null, null, null), isEmpty());
     }
 
     public void testFailure() {
         final RequestValidators<PutMappingRequest> validators = new RequestValidators<>(List.of(FAIL));
-        assertThat(validators.validateRequest(null, null, null), OptionalMatchers.isPresent());
+        assertThat(validators.validateRequest(null, null, null), isPresent());
     }
 
     public void testValidatesAfterFailure() {
         final RequestValidators<PutMappingRequest> validators = new RequestValidators<>(List.of(FAIL, EMPTY));
-        assertThat(validators.validateRequest(null, null, null), OptionalMatchers.isPresent());
+        assertThat(validators.validateRequest(null, null, null), isPresent());
     }
 
     public void testMultipleFailures() {
@@ -53,9 +58,7 @@ public class RequestValidatorsTests extends ESTestCase {
         }
         final RequestValidators<PutMappingRequest> requestValidators = new RequestValidators<>(validators);
         final Optional<Exception> e = requestValidators.validateRequest(null, null, null);
-        assertThat(e, OptionalMatchers.isPresent());
-        // noinspection OptionalGetWithoutIsPresent
-        assertThat(e.get().getSuppressed(), Matchers.arrayWithSize(numberOfFailures - 1));
+        assertThat(e, isPresentWith(transformedMatch(Exception::getSuppressed, arrayWithSize(numberOfFailures - 1))));
     }
 
     public void testRandom() {
@@ -74,11 +77,9 @@ public class RequestValidatorsTests extends ESTestCase {
         final RequestValidators<PutMappingRequest> requestValidators = new RequestValidators<>(validators);
         final Optional<Exception> e = requestValidators.validateRequest(null, null, null);
         if (numberOfFailures == 0) {
-            assertThat(e, OptionalMatchers.isEmpty());
+            assertThat(e, isEmpty());
         } else {
-            assertThat(e, OptionalMatchers.isPresent());
-            // noinspection OptionalGetWithoutIsPresent
-            assertThat(e.get().getSuppressed(), Matchers.arrayWithSize(numberOfFailures - 1));
+            assertThat(e, isPresentWith(transformedMatch(Exception::getSuppressed, arrayWithSize(numberOfFailures - 1))));
         }
     }
 

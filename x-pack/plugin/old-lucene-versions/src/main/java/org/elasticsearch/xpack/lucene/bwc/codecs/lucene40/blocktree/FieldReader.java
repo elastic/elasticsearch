@@ -35,6 +35,9 @@ import java.io.IOException;
 
 /**
  * BlockTree's implementation of {@link Terms}.
+ *
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene40.blocktree.FieldReader} that allows to read from ancient
+ * Lucene versions. The key difference is the FST loading which relies on {@link FST}.
  */
 public final class FieldReader extends Terms {
 

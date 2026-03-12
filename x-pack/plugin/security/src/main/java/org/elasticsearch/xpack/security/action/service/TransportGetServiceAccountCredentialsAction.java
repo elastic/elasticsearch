@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.security.action.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
@@ -30,7 +31,13 @@ public class TransportGetServiceAccountCredentialsAction extends HandledTranspor
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService
     ) {
-        super(GetServiceAccountCredentialsAction.NAME, transportService, actionFilters, GetServiceAccountCredentialsRequest::new);
+        super(
+            GetServiceAccountCredentialsAction.NAME,
+            transportService,
+            actionFilters,
+            GetServiceAccountCredentialsRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.serviceAccountService = serviceAccountService;
     }
 

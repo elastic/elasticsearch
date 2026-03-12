@@ -1,28 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -54,7 +57,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test")
-        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
         .numberOfShards(1)
         .numberOfReplicas(1)
         .build();
@@ -78,10 +81,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchReqest(createSearchRequest());
+        return createShardSearchRequest(createSearchRequest());
     }
 
-    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
@@ -110,7 +113,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             Math.abs(randomLong()),
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
-            keepAlive
+            keepAlive,
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
@@ -180,7 +184,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(null), copy.cacheKey(null));
+        assertThat(copy.cacheKey(null), equalBytes(orig.cacheKey(null)));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
@@ -207,7 +211,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
             try (
-                InputStream inputStream = bytes.streamInput();
+                InputStream inputStream = CompressorFactory.COMPRESSOR.uncompress(bytes).streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
@@ -224,18 +228,9 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-            if (request.isForceSyntheticSource()) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.current());
-            }
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
             if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_7_0, TransportVersion.current());
-            }
-            if (request.source() != null && request.source().rankBuilder() != null) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_8_0, TransportVersion.current());
-            }
-            if (request.source() != null && request.source().subSearches().size() >= 2) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_500_013, TransportVersion.current());
+                version = TransportVersionUtils.randomCompatibleVersion();
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);
@@ -255,18 +250,5 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         };
         shardSearchRequest.cacheKey(differentiator);
         assertThat(invoked.get(), is(true));
-    }
-
-    public void testForceSyntheticUnsupported() throws IOException {
-        SearchRequest request = createSearchRequest();
-        if (request.source() != null) {
-            request.source().rankBuilder(null);
-        }
-        request.setForceSyntheticSource(true);
-        ShardSearchRequest shardRequest = createShardSearchReqest(request);
-        StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersion.V_8_3_0);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));
-        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

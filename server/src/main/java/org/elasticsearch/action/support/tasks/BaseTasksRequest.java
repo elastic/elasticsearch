@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends LegacyActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
@@ -102,7 +103,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     /**
      * Returns the id of the task that should be processed.
-     *
+     * <p>
      * By default tasks with any ids are returned.
      */
     public TaskId getTargetTaskId() {
@@ -167,12 +168,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @SuppressWarnings("unchecked")
     public final Request setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (Request) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public final Request setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
 

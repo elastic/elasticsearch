@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -36,7 +35,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
     public void testDesiredBalanceWithShutdown() throws Exception {
 
         final var oldNodeName = internalCluster().startNode();
-        final var oldNodeId = internalCluster().getInstance(ClusterService.class, oldNodeName).localNode().getId();
+        final var oldNodeId = getNodeId(oldNodeName);
 
         createIndex(
             INDEX,
@@ -51,9 +50,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 logger.info("--> excluding index from [{}] and concurrently starting replacement with [{}]", oldNodeName, newNodeName);
 
                 final PlainActionFuture<AcknowledgedResponse> excludeFuture = new PlainActionFuture<>();
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(INDEX)
+                indicesAdmin().prepareUpdateSettings(INDEX)
                     .setSettings(
                         Settings.builder()
                             .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNodeName)
@@ -65,6 +62,8 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                     client().execute(
                         PutShutdownNodeAction.INSTANCE,
                         new PutShutdownNodeAction.Request(
+                            TEST_REQUEST_TIMEOUT,
+                            TEST_REQUEST_TIMEOUT,
                             oldNodeId,
                             SingleNodeShutdownMetadata.Type.REPLACE,
                             "test",
@@ -84,8 +83,10 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
         logger.info("--> waiting for replacement to complete");
 
         assertBusy(() -> {
-            final var getShutdownResponse = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request())
-                .actionGet(10, TimeUnit.SECONDS);
+            final var getShutdownResponse = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet(10, TimeUnit.SECONDS);
             assertTrue(
                 Strings.toString(getShutdownResponse, true, true),
                 getShutdownResponse.getShutdownStatuses()

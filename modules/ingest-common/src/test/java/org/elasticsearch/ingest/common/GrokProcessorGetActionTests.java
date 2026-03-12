@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,8 +62,9 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testResponseSorting() {
         List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             LEGACY_TEST_PATTERNS,
             ECS_TEST_PATTERNS
@@ -109,8 +112,9 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testEcsCompatibilityMode() {
         List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             LEGACY_TEST_PATTERNS,
             ECS_TEST_PATTERNS

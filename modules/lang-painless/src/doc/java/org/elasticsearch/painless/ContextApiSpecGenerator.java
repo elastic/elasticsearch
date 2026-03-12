@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -45,7 +46,7 @@ public class ContextApiSpecGenerator {
             PrintStream jsonStream = new PrintStream(
                 Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -62,7 +63,7 @@ public class ContextApiSpecGenerator {
                 PrintStream jsonStream = new PrintStream(
                     Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                     false,
-                    StandardCharsets.UTF_8.name()
+                    StandardCharsets.UTF_8
                 )
             ) {
 
@@ -121,7 +122,7 @@ public class ContextApiSpecGenerator {
         public InputStream openClassFile(String className) throws IOException {
             // TODO(stu): handle primitives & not stdlib
             if (className.contains(".")) {
-                int dollarPosition = className.indexOf("$");
+                int dollarPosition = className.indexOf('$');
                 if (dollarPosition >= 0) {
                     className = className.substring(0, dollarPosition);
                 }
@@ -131,10 +132,10 @@ public class ContextApiSpecGenerator {
                     Path classPath = root.resolve(path + ".java");
                     return new FileInputStream(classPath.toFile());
                 } else {
-                    String packageName = className.substring(0, className.lastIndexOf("."));
+                    String packageName = className.substring(0, className.lastIndexOf('.'));
                     Path packageRoot = pkgRoots.get(packageName);
                     if (packageRoot != null) {
-                        Path classPath = packageRoot.resolve(className.substring(className.lastIndexOf(".") + 1) + ".java");
+                        Path classPath = packageRoot.resolve(className.substring(className.lastIndexOf('.') + 1) + ".java");
                         return new FileInputStream(classPath.toFile());
                     }
                 }

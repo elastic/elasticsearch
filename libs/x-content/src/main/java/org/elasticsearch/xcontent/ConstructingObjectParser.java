@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -217,6 +218,27 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             numberOfFields += 1;
             objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);
         }
+    }
+
+    /**
+     * Declare a field that is an array of objects or null. Used to avoid calling the consumer when used with
+     * {@link #optionalConstructorArg()} or {@link #constructorArg()}.
+     * @param consumer Consumer that will be passed as is to the {@link #declareField(BiConsumer, ContextParser, ParseField, ValueType)}.
+     * @param objectParser Parser that will parse the objects in the array, checking for nulls.
+     * @param field Field to declare.
+     */
+    @Override
+    public <T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field
+    ) {
+        declareField(
+            consumer,
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
+            field,
+            ValueType.OBJECT_ARRAY_OR_NULL
+        );
     }
 
     @Override

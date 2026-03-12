@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * A configuration loader for SSL Settings
  */
-public class SslSettingsLoader extends SslConfigurationLoader {
+public final class SslSettingsLoader extends SslConfigurationLoader {
 
     private final Settings settings;
     private final Map<String, Setting<? extends SecureString>> secureSettings;
@@ -128,7 +128,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     public SslConfiguration load(Environment env) {
-        return load(env.configFile());
+        return load(env.configDir());
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {

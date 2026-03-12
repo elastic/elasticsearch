@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 140457
+pr: 141811
+summary: "PIT: Throw error when unknown transport version is parsed"
+type: bug

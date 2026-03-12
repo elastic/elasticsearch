@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -21,7 +22,6 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -44,15 +44,14 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TruncateTranslogAction;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -60,6 +59,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
 public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
@@ -127,6 +127,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexMetadata = clusterState.metadata()
+                    .getProject()
                     .indices()
                     .values()
                     .stream()
@@ -144,7 +145,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             // otherwise resolve shardPath based on the index name and shard id
             String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-            indexMetadata = clusterState.metadata().index(indexName);
+            indexMetadata = clusterState.metadata().getProject().index(indexName);
         }
 
         if (indexMetadata == null) {
@@ -249,13 +250,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
 
-            final PrintWriter writer = terminal.getWriter();
-            final PrintStream printStream = new PrintStream(new OutputStream() {
-                @Override
-                public void write(int b) {
-                    writer.write(b);
-                }
-            }, false, "UTF-8");
+            final PrintStream printStream = new PrintStream(terminal.asLineOutputStream(UTF_8), false, UTF_8);
             final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
             final Directory indexDirectory = getDirectory(indexPath);
@@ -403,14 +398,14 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 // We can only safely do it because we will generate a new history uuid this shard.
                 final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
                 // Also advances the local checkpoint of the last commit to its max_seqno.
-                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo));
+                userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(commitInfo.maxSeqNo()));
             }
 
             // commit the new history id
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
             final String commitESVersion = userData.get(Engine.ES_VERSION);
-            if (commitESVersion == null || Version.fromString(commitESVersion).onOrBefore(Version.CURRENT)) {
-                userData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+            if (commitESVersion == null || Engine.readIndexVersion(commitESVersion).onOrBefore(IndexVersion.current())) {
+                userData.put(Engine.ES_VERSION, IndexVersion.current().toString());
             }
 
             indexWriter.setLiveCommitData(userData.entrySet());

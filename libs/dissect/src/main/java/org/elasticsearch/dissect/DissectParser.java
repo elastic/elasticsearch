@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.dissect;
@@ -129,7 +130,6 @@ public final class DissectParser {
         Set<String> appendKeyNames = dissectPairs.stream()
             .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.key().getModifier()))
             .map(KEY_NAME)
-            .distinct()
             .collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
             List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());
@@ -204,7 +204,7 @@ public final class DissectParser {
             DissectKey key = dissectPair.key();
             byte[] delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
             // start dissection after the first delimiter
-            int i = leadingDelimiter.length();
+            int i = leadingDelimiter.getBytes(StandardCharsets.UTF_8).length;
             int valueStart = i;
             int lookAheadMatches;
             // start walking the input string byte by byte, look ahead for matches where needed

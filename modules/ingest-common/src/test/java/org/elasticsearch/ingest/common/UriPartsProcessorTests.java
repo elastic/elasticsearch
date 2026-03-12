@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -178,6 +179,31 @@ public class UriPartsProcessorTests extends ESTestCase {
                 "query",
                 "foo1=bar1&foo2=bar2"
             )
+        );
+    }
+
+    public void testDotPathWithoutExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithoutextension",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithoutextension")
+        );
+    }
+
+    public void testDotPathWithExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithextension.txt",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithextension.txt", "extension", "txt")
+        );
+    }
+
+    /**
+     * This test verifies that we return an empty extension instead of <code>null</code> if the URI ends with a period. This is probably
+     * not behaviour we necessarily want to keep forever, but this test ensures that we're conscious about changing that behaviour.
+     */
+    public void testEmptyExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/foo/bar.",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/foo/bar.", "extension", "")
         );
     }
 

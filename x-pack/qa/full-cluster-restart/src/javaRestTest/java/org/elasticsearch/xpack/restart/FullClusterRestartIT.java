@@ -11,12 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -95,6 +95,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Request createDoc = new Request("PUT", docLocation);
             createDoc.addParameter("refresh", "true");
             createDoc.setJsonEntity(doc);
+            createDoc.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(createDoc);
         }
 
@@ -208,7 +209,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84700")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
 
@@ -289,7 +289,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        assumeTrue("no service accounts in versions before " + Version.V_7_13_0, getOldClusterVersion().onOrAfter(Version.V_7_13_0));
         if (isRunningAgainstOldCluster()) {
             final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/fleet-server/credential/token");
             final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
@@ -352,29 +351,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                         )
                     )
             );
-            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key"
-                    }""");
-            } else {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key",
-                       "role_descriptors": {
-                         "super": {
-                           "cluster": [ "all" ],
-                           "indices": [
-                             {
-                               "names": [ "*" ],
-                               "privileges": [ "all" ],
-                               "allow_restricted_indices": true
-                             }
-                           ]
-                         }
-                       }
-                    }""");
-            }
+            createApiKeyRequest.setJsonEntity("""
+                {
+                   "name": "super_legacy_key"
+                }""");
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
@@ -384,20 +364,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             final Request saveApiKeyRequest = new Request("PUT", "/api_keys/_doc/super_legacy_key");
             saveApiKeyRequest.setJsonEntity("{\"auth_header\":\"" + apiKeyAuthHeader + "\"}");
             assertOK(client().performRequest(saveApiKeyRequest));
-
-            if (getOldClusterVersion().before(Version.V_8_0_0)) {
-                final Request indexRequest = new Request("POST", ".security/_doc");
-                indexRequest.setJsonEntity("""
-                    {
-                      "doc_type": "foo"
-                    }""");
-                if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
-                    indexRequest.setOptions(systemIndexWarningHandlerOptions(".security-7").addHeader("Authorization", apiKeyAuthHeader));
-                } else {
-                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
-                }
-                assertOK(client().performRequest(indexRequest));
-            }
         } else {
             final Request getRequest = new Request("GET", "/api_keys/_doc/super_legacy_key");
             final Map<String, Object> getResponseMap = responseAsMap(client().performRequest(getRequest));
@@ -427,6 +393,24 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
      */
     public void testRollupAfterRestart() throws Exception {
         if (isRunningAgainstOldCluster()) {
+            // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+            {
+                Request req = new Request("PUT", "dummy-rollup-index");
+                req.setJsonEntity("""
+                    {
+                        "mappings":{
+                            "_meta": {
+                                "_rollup":{
+                                    "my-id": {}
+                                }
+                            }
+                        }
+                    }
+                    """);
+                req.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
+                client().performRequest(req);
+            }
+
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
 
@@ -441,19 +425,13 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             final Request bulkRequest = new Request("POST", "/_bulk");
             bulkRequest.setJsonEntity(bulk.toString());
+            bulkRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(bulkRequest);
 
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
-
-            String intervalType;
-            if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
-                intervalType = "fixed_interval";
-            } else {
-                intervalType = "interval";
-            }
-
-            createRollupJobRequest.setJsonEntity(Strings.format("""
+            createRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            createRollupJobRequest.setJsonEntity("""
                 {
                   "index_pattern": "rollup-*",
                   "rollup_index": "results-rollup",
@@ -462,7 +440,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                   "groups": {
                     "date_histogram": {
                       "field": "timestamp",
-                      "%s": "5m"
+                      "fixed_interval": "5m"
                     }
                   },
                   "metrics": [
@@ -471,13 +449,14 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                       "metrics": [ "min", "max", "sum" ]
                     }
                   ]
-                }""", intervalType));
+                }""");
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
             final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-job-test/_start");
+            startRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -497,7 +476,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
-        assumeTrue("Before 7.2 transforms didn't exist", getOldClusterVersion().onOrAfter(Version.V_7_2_0));
         if (isRunningAgainstOldCluster()) {
 
             // create the source index
@@ -515,16 +493,12 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     }
                   }
                 }""");
-
+            createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
             assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // create a transform
-            String endpoint = getOldClusterVersion().onOrAfter(Version.V_7_5_0)
-                ? "_transform/transform-full-cluster-restart-test"
-                : "_data_frame/transforms/transform-full-cluster-restart-test";
-            final Request createTransformRequest = new Request("PUT", endpoint);
-
+            final Request createTransformRequest = new Request("PUT", "_transform/transform-full-cluster-restart-test");
             createTransformRequest.setJsonEntity("""
                 {
                   "source": {
@@ -584,7 +558,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Collections.singletonMap("indices", Collections.singletonList("*")),
             null
         );
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
+        if (isRunningAgainstOldCluster()) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
             String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
@@ -598,7 +572,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
+        if (isRunningAgainstOldCluster() == false) {
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);
@@ -719,7 +693,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         Map<String, Object> updateWatch = entityAsMap(client().performRequest(createWatchRequest));
         assertThat(updateWatch.get("created"), equalTo(false));
-        assertThat(updateWatch.get("_version"), equalTo(2));
+        assertThat((int) updateWatch.get("_version"), greaterThanOrEqualTo(2));
 
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));
@@ -749,11 +723,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 Map<?, ?> hits = (Map<?, ?>) response.get("hits");
                 logger.info("Hits are: {}", hits);
                 Integer total;
-                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-                    total = (Integer) ((Map<?, ?>) hits.get("total")).get("value");
-                } else {
-                    total = (Integer) hits.get("total");
-                }
+                total = (Integer) ((Map<?, ?>) hits.get("total")).get("value");
                 assertThat(total, greaterThanOrEqualTo(expectedHits));
             } catch (IOException ioe) {
                 if (ioe instanceof ResponseException) {
@@ -855,6 +825,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
+        getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
         assertNotNull(job);
@@ -897,7 +868,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
-
+            getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -929,7 +900,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
-        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {
             createComposableTemplate(client(), "dst", "ds");
 
@@ -940,6 +910,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 .field("@timestamp", System.currentTimeMillis())
                 .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
+            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             assertOK(client().performRequest(indexRequest));
         }
 
@@ -965,11 +936,21 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(
-            DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()),
-            indices.get(0).get("index_name")
-        );
+        assertEquals(DataStreamTestHelper.getLegacyDefaultBackingIndexName("ds", 1, timestamp), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
+    }
+
+    /**
+     * Ignore the warning about the {@code _field_names} field. We intentionally
+     * turn that field off sometimes. And other times old versions spuriously
+     * send it back to us.
+     */
+    private WarningsHandler fieldNamesFieldOk() {
+        return warnings -> switch (warnings.size()) {
+            case 0 -> false;  // old versions don't return a warning
+            case 1 -> false == warnings.get(0).contains("_field_names");
+            default -> true;
+        };
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {

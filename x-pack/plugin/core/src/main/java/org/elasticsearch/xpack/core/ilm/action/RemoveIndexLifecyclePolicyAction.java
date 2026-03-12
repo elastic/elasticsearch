@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,7 +30,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
     protected RemoveIndexLifecyclePolicyAction() {
-        super(NAME, RemoveIndexLifecyclePolicyAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -48,11 +48,10 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
         }
 
-        private List<String> failedIndexes;
+        private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            failedIndexes = in.readStringList();
+            failedIndexes = in.readStringCollectionAsList();
         }
 
         public Response(List<String> failedIndexes) {
@@ -114,9 +113,8 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {}
-
-        public Request(String... indices) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
+            super(masterNodeTimeout, ackTimeout);
             if (indices == null) {
                 throw new IllegalArgumentException("indices cannot be null");
             }
@@ -140,11 +138,6 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
 
         public IndicesOptions indicesOptions() {
             return indicesOptions;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
+import org.hamcrest.Matchers;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.AUTH_API_KEY;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.AUTH_USER;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.NETWORK_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_SIZE;
@@ -32,6 +35,7 @@ import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PROPERT
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.QUERY_TIMEOUT;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration.URL_FULL_PREFIX;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration.URL_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -43,12 +47,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testInvalidUrl() {
         JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
-        assertEquals(
-            "Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
-                + "http://localhost9200/?ssl=#5#; format should be "
-                + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]",
-            e.getMessage()
-        );
+        assertThat(e.getMessage(), Matchers.startsWith("Invalid URL: Invalid connection configuration: Illegal character in fragment"));
     }
 
     public void testJustThePrefix() throws Exception {
@@ -118,6 +117,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
         assertThat(ci.flushAlways(), is(false));
+    }
+
+    public void testProjectRouting() throws Exception {
+        JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?project.routing=foo");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.projectRouting(), is("foo"));
     }
 
     public void testTypeInParam() throws Exception {
@@ -316,7 +321,6 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
     public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
@@ -397,5 +401,41 @@ public class JdbcConfigurationTests extends ESTestCase {
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
         JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(url, props, 0));
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
+    }
+
+    public void testApiKeyInUrl() throws Exception {
+        String apiKey = "test_api_key_encoded";
+        JdbcConfiguration ci = ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey);
+        assertThat(ci.apiKey(), is(apiKey));
+        assertNull(ci.authUser());
+        assertNull(ci.authPass());
+    }
+
+    public void testApiKeyInProperties() throws Exception {
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(AUTH_API_KEY, apiKey);
+        JdbcConfiguration ci = JdbcConfiguration.create(jdbcPrefix() + "test:9200", props, 0);
+        assertThat(ci.apiKey(), is(apiKey));
+        assertNull(ci.authUser());
+        assertNull(ci.authPass());
+    }
+
+    public void testApiKeyAndUserMutuallyExclusive() {
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(AUTH_API_KEY, apiKey);
+        props.setProperty(AUTH_USER, "user");
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200", props, 0));
+        assertThat(ex.getMessage(), containsString("Cannot use both API key and basic authentication"));
+    }
+
+    public void testApiKeyAndUserInUrlMutuallyExclusive() {
+        String apiKey = "test_api_key_encoded";
+        JdbcSQLException ex = expectThrows(
+            JdbcSQLException.class,
+            () -> ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey + "&user=testuser")
+        );
+        assertThat(ex.getMessage(), containsString("Cannot use both API key and basic authentication"));
     }
 }

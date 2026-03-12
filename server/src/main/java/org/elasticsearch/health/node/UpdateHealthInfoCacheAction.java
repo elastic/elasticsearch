@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -15,16 +17,20 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -33,20 +39,52 @@ import java.util.Objects;
  * regarding this node.
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
+
+    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
+        @Nullable
         private final DiskHealthInfo diskHealthInfo;
+        @Nullable
+        private final DataStreamLifecycleHealthInfo dslHealthInfo;
+        @Nullable
+        private final RepositoriesHealthInfo repositoriesHealthInfo;
+        @Nullable
+        private final FileSettingsHealthInfo fileSettingsHealthInfo;
 
-        public Request(String nodeId, DiskHealthInfo diskHealthInfo) {
+        public Request(
+            String nodeId,
+            DiskHealthInfo diskHealthInfo,
+            DataStreamLifecycleHealthInfo dslHealthInfo,
+            RepositoriesHealthInfo repositoriesHealthInfo,
+            @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
+        ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
+            this.dslHealthInfo = dslHealthInfo;
+            this.repositoriesHealthInfo = repositoriesHealthInfo;
+            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+        }
+
+        public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
+            this.nodeId = nodeId;
+            this.diskHealthInfo = null;
+            this.repositoriesHealthInfo = null;
+            this.dslHealthInfo = dslHealthInfo;
+            this.fileSettingsHealthInfo = null;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            this.diskHealthInfo = new DiskHealthInfo(in);
+            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+            this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
+            this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
+            this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
+                ? in.readOptionalWriteable(FileSettingsHealthInfo::new)
+                : null;
         }
 
         public String getNodeId() {
@@ -55,6 +93,19 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         public DiskHealthInfo getDiskHealthInfo() {
             return diskHealthInfo;
+        }
+
+        public DataStreamLifecycleHealthInfo getDslHealthInfo() {
+            return dslHealthInfo;
+        }
+
+        public RepositoriesHealthInfo getRepositoriesHealthInfo() {
+            return repositoriesHealthInfo;
+        }
+
+        @Nullable
+        public FileSettingsHealthInfo getFileSettingsHealthInfo() {
+            return fileSettingsHealthInfo;
         }
 
         @Override
@@ -66,25 +117,82 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            diskHealthInfo.writeTo(out);
+            out.writeOptionalWriteable(diskHealthInfo);
+            out.writeOptionalWriteable(dslHealthInfo);
+            out.writeOptionalWriteable(repositoriesHealthInfo);
+            if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
+                out.writeOptionalWriteable(fileSettingsHealthInfo);
+            }
         }
 
         @Override
         public String getDescription() {
-            return "Update health info cache for node [" + nodeId + "] with health info [" + diskHealthInfo + "].";
+            return String.format(
+                Locale.ROOT,
+                "Update health info cache for node [%s] with disk health info [%s], DSL health info [%s], repositories health info [%s].",
+                nodeId,
+                diskHealthInfo,
+                dslHealthInfo,
+                repositoriesHealthInfo
+            );
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
-            return Objects.equals(nodeId, request.nodeId) && Objects.equals(diskHealthInfo, request.diskHealthInfo);
+            return Objects.equals(nodeId, request.nodeId)
+                && Objects.equals(diskHealthInfo, request.diskHealthInfo)
+                && Objects.equals(dslHealthInfo, request.dslHealthInfo)
+                && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo)
+                && Objects.equals(fileSettingsHealthInfo, request.fileSettingsHealthInfo);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo);
+            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
+        }
+
+        public static class Builder {
+            private String nodeId;
+            private DiskHealthInfo diskHealthInfo;
+            private RepositoriesHealthInfo repositoriesHealthInfo;
+            private DataStreamLifecycleHealthInfo dslHealthInfo;
+            private FileSettingsHealthInfo fileSettingsHealthInfo;
+
+            public Builder nodeId(String nodeId) {
+                this.nodeId = nodeId;
+                return this;
+            }
+
+            public Builder diskHealthInfo(DiskHealthInfo diskHealthInfo) {
+                this.diskHealthInfo = diskHealthInfo;
+                return this;
+            }
+
+            public Builder repositoriesHealthInfo(RepositoriesHealthInfo repositoriesHealthInfo) {
+                this.repositoriesHealthInfo = repositoriesHealthInfo;
+                return this;
+            }
+
+            public Builder dslHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
+                this.dslHealthInfo = dslHealthInfo;
+                return this;
+            }
+
+            public Builder fileSettingsHealthInfo(FileSettingsHealthInfo fileSettingsHealthInfo) {
+                this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+                return this;
+            }
+
+            public Request build() {
+                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
+            }
         }
     }
 
@@ -92,7 +200,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
     public static final String NAME = "cluster:monitor/update/health/info";
 
     private UpdateHealthInfoCacheAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class TransportAction extends TransportHealthNodeAction<Request, AcknowledgedResponse> {
@@ -114,7 +222,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 actionFilters,
                 UpdateHealthInfoCacheAction.Request::new,
                 AcknowledgedResponse::readFrom,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.nodeHealthOverview = nodeHealthOverview;
         }
@@ -126,8 +234,21 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             ClusterState clusterState,
             ActionListener<AcknowledgedResponse> listener
         ) {
-            nodeHealthOverview.updateNodeHealth(request.getNodeId(), request.getDiskHealthInfo());
+            logger.debug(
+                "Updating health info cache on node [{}][{}] from node [{}]",
+                clusterService.getNodeName(),
+                clusterService.localNode().getId(),
+                request.getNodeId()
+            );
+            nodeHealthOverview.updateNodeHealth(
+                request.getNodeId(),
+                request.getDiskHealthInfo(),
+                request.getDslHealthInfo(),
+                request.getRepositoriesHealthInfo(),
+                request.getFileSettingsHealthInfo()
+            );
             listener.onResponse(AcknowledgedResponse.of(true));
         }
     }
+
 }

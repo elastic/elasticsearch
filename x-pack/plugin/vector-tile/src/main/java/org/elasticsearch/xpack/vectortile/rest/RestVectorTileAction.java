@@ -11,7 +11,7 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -28,12 +28,14 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
@@ -43,9 +45,11 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
 import java.io.IOException;
@@ -62,6 +66,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 /**
  * Main class handling a call to the _mvt API.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String META_LAYER = "meta";
@@ -85,7 +90,13 @@ public class RestVectorTileAction extends BaseRestHandler {
     // internal label position runtime field name
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
-    public RestVectorTileAction() {}
+    private final SearchUsageHolder searchUsageHolder;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, CrossProjectModeDecider crossProjectModeDecider) {
+        this.searchUsageHolder = searchUsageHolder;
+        this.crossProjectModeDecider = crossProjectModeDecider;
+    }
 
     @Override
     public List<Route> routes() {
@@ -99,10 +110,23 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest);
+        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
+
+        if (crossProjectEnabled && request.allowsCrossProject()) {
+            searchRequestBuilder.setIndicesOptions(
+                IndicesOptions.builder(searchRequestBuilder.request().indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        } else if (crossProjectEnabled == false && request.getProjectRouting() != null) {
+            throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+        }
+
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 
             @Override
@@ -134,9 +158,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                     final InternalGeoBounds bounds = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(BOUNDS_FIELD)
                         : null;
-                    final Aggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
+                    final InternalAggregations aggsWithoutGridAndBounds = searchResponse.getAggregations() == null
                         ? null
-                        : new Aggregations(
+                        : InternalAggregations.from(
                             searchResponse.getAggregations()
                                 .asList()
                                 .stream()
@@ -144,21 +168,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                                 .collect(Collectors.toList())
                         );
                     final SearchResponse meta = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(
-                                SearchHits.EMPTY,
-                                searchResponse.getHits().getTotalHits(),
-                                searchResponse.getHits().getMaxScore()
-                            ), // remove actual hits
-                            aggsWithoutGridAndBounds,
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            searchResponse.getProfileResults() == null
-                                ? null
-                                : new SearchProfileResults(searchResponse.getProfileResults()),
-                            searchResponse.getNumReducePhases()
-                        ),
+                        // remove actual hits
+                        SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
+                        aggsWithoutGridAndBounds,
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),
                         searchResponse.getSuccessfulShards(),
@@ -167,10 +184,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getShardFailures(),
                         searchResponse.getClusters()
                     );
-                    tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
-                    ensureOpen();
-                    tileBuilder.build().writeTo(bytesOut);
-                    return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    try {
+                        tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
+                        ensureOpen();
+                        tileBuilder.build().writeTo(bytesOut);
+                        return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    } finally {
+                        meta.decRef();
+                    }
                 }
             }
         });
@@ -276,10 +297,10 @@ public class RestVectorTileAction extends BaseRestHandler {
         for (SortBuilder<?> sortBuilder : request.getSortBuilders()) {
             searchRequestBuilder.addSort(sortBuilder);
         }
+        searchRequestBuilder.request().setProjectRouting(request.getProjectRouting());
         return searchRequestBuilder;
     }
 
-    @SuppressWarnings("unchecked")
     private static VectorTile.Tile.Layer.Builder buildHitsLayer(SearchHit[] hits, VectorTileRequest request, FeatureFactory featureFactory)
         throws IOException {
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());

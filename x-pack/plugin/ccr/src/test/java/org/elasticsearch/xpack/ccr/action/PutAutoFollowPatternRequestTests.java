@@ -25,13 +25,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected PutAutoFollowPatternAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutAutoFollowPatternAction.Request.fromXContent(parser, null);
+        return PutAutoFollowPatternAction.Request.fromXContent(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, parser, null);
     }
 
     @Override
@@ -41,7 +36,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
 
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName(randomAlphaOfLength(4));
 
         request.setRemoteCluster(randomAlphaOfLength(4));
@@ -67,7 +62,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     protected PutAutoFollowPatternAction.Request createXContextTestInstance(XContentType xContentType) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
@@ -83,7 +78,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidate() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[name] is missing"));
@@ -123,7 +118,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidateName() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("_alias");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -133,7 +128,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidateNameComma() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("_alias");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -144,7 +139,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidateNameLeadingUnderscore() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("_alias");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -155,7 +150,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidateNameUnderscores() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("_alias");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -165,7 +160,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializin
     }
 
     public void testValidateNameTooLong() {
-        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("_alias");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 

@@ -1,0 +1,38 @@
+{
+  "esql.async_query_stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-stop",
+      "description": "Stop async ES|QL query"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/async/{id}/stop",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async query ID"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "drop_null_columns": {
+        "type": "boolean",
+        "default": false,
+        "description": "Indicates whether columns that are entirely `null` will be removed from the `columns` and `values` portion of the results."
+      }
+    }
+  }
+}

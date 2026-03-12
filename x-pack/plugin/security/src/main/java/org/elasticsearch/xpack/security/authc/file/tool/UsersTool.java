@@ -46,6 +46,12 @@ import java.util.stream.Collectors;
 
 class UsersTool extends MultiCommand {
 
+    // Initialize the reserved roles store for the list of reserved roles so that they can be accessed by commands
+    // By not include a filtering, it includes everything the reserved roles store has to offer.
+    static {
+        new ReservedRolesStore();
+    }
+
     UsersTool() {
         super("Manages elasticsearch file users");
         subcommands.put("useradd", newAddUserCommand());
@@ -128,7 +134,13 @@ class UsersTool extends MultiCommand {
             FileUserPasswdStore.writeFile(users, passwordFile);
 
             if (roles.length > 0) {
-                Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(rolesFile, null));
+                final Map<String, String[]> userRoles;
+                if (Files.exists(rolesFile)) {
+                    userRoles = new HashMap<>(FileUserRolesStore.parseFile(rolesFile, null));
+                } else {
+                    terminal.println("Roles file [" + rolesFile + "] does not exist, will attempt to create it");
+                    userRoles = new HashMap<>();
+                }
                 userRoles.put(username, roles);
                 FileUserRolesStore.writeFile(userRoles, rolesFile);
             }

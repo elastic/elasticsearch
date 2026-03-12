@@ -21,8 +21,8 @@ setup:
 ---
 "Field caps with runtime mappings section":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: Runtime mappings support was added in 7.12
 
   - do:
@@ -34,7 +34,7 @@ setup:
             day_of_week:
               type: keyword
               script:
-                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
 
   - match: {indices:                             ["test-1"]}
   - length: {fields.timestamp:                            1}
@@ -49,8 +49,8 @@ setup:
 ---
 "Field caps with runtime mappings section overwriting existing mapping":
 
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: Runtime mappings support was added in 7.10
 
   - do:
@@ -78,7 +78,7 @@ setup:
             day_of_week:
               type: keyword
               script:
-                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                source: "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
 
   - match: {indices:                    ["test-1", "test-2"]}
   - length: {fields.day_of_week:                          1}
@@ -89,8 +89,8 @@ setup:
 ---
 "Field caps with errors in runtime mappings section throws":
 
-  - skip:
-      version: " - 7.11.99"
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
       reason: Runtime mappings support was added in 7.12
 
   - do:

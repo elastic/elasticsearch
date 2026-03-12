@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -61,6 +64,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
         checkNegativeBoost(boost);
@@ -120,6 +124,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
             }
             if (queryName != null) {
+                if (context.rewriteToNamedQuery()) {
+                    query = NamedMatches.wrapQuery(queryName, query);
+                }
                 context.addNamedQuery(queryName, query);
             }
         }
@@ -210,12 +217,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String v) {
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
+        } else if (obj instanceof CharBuffer v) {
+            return BytesRefs.checkIndexableLength(new BytesRef(v));
+        } else if (obj instanceof BigInteger v) {
+            return BytesRefs.toBytesRef(v);
         }
         return obj;
     }
@@ -267,11 +274,19 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        return in.readNamedWriteableList(QueryBuilder.class);
+        return in.readNamedWriteableCollectionAsList(QueryBuilder.class);
     }
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        if (queryRewriteInterceptor != null) {
+            var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
+            if (rewritten != this) {
+                return new InterceptedQueryBuilderWrapper(rewritten);
+            }
+        }
+
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
@@ -291,6 +306,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteContext == null) {
             return this;
         }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
+        }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
             return doCoordinatorRewrite(crc);
@@ -298,6 +317,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         final SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
         if (sec != null) {
             return doSearchRewrite(sec);
+        }
+        final QueryRewriteContext context = queryRewriteContext.convertToIndexMetadataContext();
+        if (context != null) {
+            return doIndexMetadataRewrite(context);
         }
         return this;
     }
@@ -318,6 +341,28 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query.
      */
     protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
+        return doIndexMetadataRewrite(searchExecutionContext);
+    }
+
+    /**
+     * Optional rewrite logic that only needs access to index level metadata and services (e.g. index settings and mappings)
+     * on the data node, but not the shard / Lucene index.
+     * The can_match phase can use this logic to early terminate a search without doing any search related i/o.
+     *
+     * @param context an {@link QueryRewriteContext} instance that has access the mappings and other index metadata
+     * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
+     */
+    protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
         return this;
     }
 

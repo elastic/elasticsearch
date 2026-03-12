@@ -1,25 +1,27 @@
 {
-  "watcher.delete_watch":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-delete-watch.html",
-      "description":"Removes a watch from Watcher."
+  "watcher.delete_watch": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-delete-watch",
+      "description": "Delete a watch"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/watch/{id}",
-          "methods":[
+          "path": "/_watcher/watch/{id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Watch ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Watch ID"
             }
           }
         }

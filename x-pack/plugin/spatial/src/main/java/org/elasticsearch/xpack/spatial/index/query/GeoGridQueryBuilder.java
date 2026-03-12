@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -41,14 +43,17 @@ import java.util.Objects;
 /**
  * Creates a Lucene query that will filter for all documents that intersects the specified
  * bin of a grid.
- *
+ * <p>
  * It supports geohash and geotile grids for both GeoShape and GeoPoint and the geohex grid
  * only for GeoPoint.
- * */
+ *
+ */
 public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilder> {
     public static final String NAME = "geo_grid";
 
-    /** Grids supported by this query */
+    /**
+     * Grids supported by this query
+     */
     public enum Grid {
         GEOHASH {
 
@@ -201,7 +206,9 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
     private static final boolean DEFAULT_IGNORE_UNMAPPED = false;
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
-    /** Name of field holding geo coordinates to compute the bounding box on.*/
+    /**
+     * Name of field holding geo coordinates to compute the bounding box on.
+     */
     private final String fieldName;
     private Grid grid;
     private String gridId;
@@ -209,8 +216,10 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     /**
      * Create new grid query.
+     *
      * @param fieldName name of index field containing geo coordinates to operate on.
-     * */
+     *
+     */
     public GeoGridQueryBuilder(String fieldName) {
         if (fieldName == null) {
             throw new IllegalArgumentException("Field name must not be empty.");
@@ -239,7 +248,8 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     /**
      * Adds the grid and the gridId
-     * @param grid The type of grid
+     *
+     * @param grid   The type of grid
      * @param gridId The grid bin identifier
      */
     public GeoGridQueryBuilder setGridId(Grid grid, String gridId) {
@@ -249,7 +259,9 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
         return this;
     }
 
-    /** Returns the name of the field to base the grid computation on. */
+    /**
+     * Returns the name of the field to base the grid computation on.
+     */
     public String fieldName() {
         return this.fieldName;
     }
@@ -278,12 +290,12 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        return grid.toQuery(context, fieldName, fieldType, gridId);
+        return new ConstantScoreQuery(grid.toQuery(context, fieldName, fieldType, gridId));
     }
 
     @Override
@@ -398,6 +410,6 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_3_0;
+        return TransportVersion.minimumCompatible();
     }
 }

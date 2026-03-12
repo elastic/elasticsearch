@@ -24,7 +24,6 @@ import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
@@ -32,6 +31,7 @@ import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManager;
@@ -77,12 +77,11 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testRemoteClusterSslConfigurationsWhenPortNotEnabled() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
         }
-        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build());
+        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build(), Set.of());
         // Server (SSL is not built when port is not enabled)
         assertThat(settingsMap, not(hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)));
         // Client (SSL is always built)
@@ -99,9 +98,8 @@ public class SslSettingsLoaderTests extends ESTestCase {
      * Tests that the Remote Cluster port is configured if enabled and properly uses the default settings.
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
-        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings, Set.of());
         // Server
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
         SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
@@ -120,7 +118,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
      * covered.
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithItsSettings() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(
@@ -135,7 +132,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
             .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX + SslConfigurationKeys.VERIFICATION_MODE, "certificate")
             .setSecureSettings(secureSettings)
             .build();
-        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings, Set.of());
 
         // Server
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
@@ -233,7 +230,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -248,7 +245,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { configurationSettings.x509KeyPair.legacyKeystorePassword });
     }
@@ -267,7 +264,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -283,7 +280,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] {
@@ -302,7 +299,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -318,7 +315,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -332,7 +329,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -351,10 +348,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
-        assertThat(
-            ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
-        );
+        assertThat(ksKeyInfo, equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir())));
     }
 
     public void testThatEmptySettingsAreEqual() {

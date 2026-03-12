@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
@@ -55,16 +56,12 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
-        }
+        multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            multiValueMode.writeTo(out);
-        }
+        multiValueMode.writeTo(out);
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
@@ -99,6 +96,6 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersion.zero();
     }
 }

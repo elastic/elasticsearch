@@ -1,50 +1,54 @@
 {
-  "ml.get_calendar_events":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar-event.html",
-      "description":"Retrieves information about the scheduled events in calendars."
+  "ml.get_calendar_events": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-calendar-events",
+      "description": "Get info about events in calendars"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/calendars/{calendar_id}/events",
-          "methods":[
+          "path": "/_ml/calendars/{calendar_id}/events",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "calendar_id":{
-              "type":"string",
-              "description":"The ID of the calendar containing the events"
+          "parts": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The ID of the calendar containing the events"
             }
           }
         }
       ]
     },
-    "params":{
-      "job_id":{
-        "type":"string",
-        "description":"Get events for the job. When this option is used calendar_id must be '_all'"
+    "params": {
+      "job_id": {
+        "type": "string",
+        "description": "Get events for the job. When this option is used calendar_id must be '_all'"
       },
-      "start":{
-        "type":"string",
-        "description":"Get events after this time"
+      "start": {
+        "type": "date",
+        "description": "Get events after this time"
       },
-      "end":{
-        "type":"date",
-        "description":"Get events before this time"
+      "end": {
+        "type": "date",
+        "description": "Get events before this time"
       },
-      "from":{
-        "type":"int",
-        "description":"Skips a number of events"
+      "from": {
+        "type": "int",
+        "default": 0,
+        "description": "Skips a number of events"
       },
-      "size":{
-        "type":"int",
-        "description":"Specifies a max number of events to get"
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "Specifies a max number of events to get"
       }
     }
   }

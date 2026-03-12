@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -118,13 +118,13 @@ public class ReleasableLockTests extends ESTestCase {
         int timeout = randomFrom(0, 5, 10);
         List<Thread> threads = IntStream.range(0, numberOfThreads).mapToObj(i -> new Thread(() -> {
             try {
-                barrier.await(10, TimeUnit.SECONDS);
+                safeAwait(barrier);
                 try (ReleasableLock locked = lock.tryAcquire(TimeValue.timeValueMillis(timeout))) {
                     if (locked != null) {
                         lockedCounter.incrementAndGet();
                     }
                 }
-            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
         })).toList();

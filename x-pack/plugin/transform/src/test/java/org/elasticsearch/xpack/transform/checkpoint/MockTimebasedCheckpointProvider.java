@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -65,6 +66,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         TransformCheckpoint nextCheckpoint,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
         TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
@@ -85,6 +87,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         long lastCheckpointNumber,
         TransformIndexerPosition nextCheckpointPosition,
         TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfoBuilder> listener
     ) {
         long timestamp = System.currentTimeMillis();
@@ -106,7 +109,7 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
             timestamp - timeSyncConfig.getDelay().millis()
         );
 
-        getCheckpointingInfo(lastCheckpoint, nextCheckpoint, nextCheckpointPosition, nextCheckpointProgress, listener);
+        getCheckpointingInfo(lastCheckpoint, nextCheckpoint, nextCheckpointPosition, nextCheckpointProgress, timeout, listener);
     }
 
 }

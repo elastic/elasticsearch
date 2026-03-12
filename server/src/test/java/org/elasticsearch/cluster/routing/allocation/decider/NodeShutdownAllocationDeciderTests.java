@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,7 +56,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
     private final IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
-        .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
+        .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
         .build();
 
     private static final List<SingleNodeShutdownMetadata.Type> REMOVE_SHUTDOWN_TYPES = List.of(
@@ -226,15 +227,12 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(nodeId)
+                .setNodeEphemeralId(nodeId)
                 .setType(shutdownType)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(1L)
                 .setTargetNodeName(targetNodeName)
-                .setGracePeriod(
-                    shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM
-                        ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                        : null
-                )
+                .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
                 .build()
         );
     }

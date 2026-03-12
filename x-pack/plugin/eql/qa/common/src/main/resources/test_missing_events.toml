@@ -385,3 +385,16 @@ join_keys = ["foo", "foo",
              "foo", "foo",
              "baz", "baz"]
 
+[[queries]]
+name = "interleaved_3_missing"
+query = '''
+  sequence with maxspan=1h
+   ![ test1 where tag == "foobar" ]
+    [ test1 where tag == "normal" ]
+   ![ test1 where tag == "foobar" ]
+    [ test1 where tag == "normal" ]
+   ![ test1 where tag == "foobar" ]
+'''
+expected_event_ids = [-1, 1, -1, 2, -1,
+                      -1, 2, -1, 4, -1]
+

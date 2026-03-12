@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.event;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventFieldTests.randomEventSearchField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField.SESSION_FIELD;
@@ -46,12 +47,12 @@ public class SearchAnalyticsEventTests extends AnalyticsEventParserTestCase {
     }
 
     public static AnalyticsEvent randomSearchEvent() throws IOException {
-        MapBuilder<String, Object> payloadBuilder = MapBuilder.newMapBuilder();
+        Map<String, Object> payloadBuilder = Map.ofEntries(
+            entry(SESSION_FIELD.getPreferredName(), randomEventSessionField()),
+            entry(USER_FIELD.getPreferredName(), randomEventUserField()),
+            entry(SEARCH_FIELD.getPreferredName(), randomEventSearchField())
+        );
 
-        payloadBuilder.put(SESSION_FIELD.getPreferredName(), randomEventSessionField());
-        payloadBuilder.put(USER_FIELD.getPreferredName(), randomEventUserField());
-        payloadBuilder.put(SEARCH_FIELD.getPreferredName(), randomEventSearchField());
-
-        return randomAnalyticsEvent(AnalyticsEvent.Type.SEARCH, payloadBuilder.map());
+        return randomAnalyticsEvent(AnalyticsEvent.Type.SEARCH, payloadBuilder);
     }
 }

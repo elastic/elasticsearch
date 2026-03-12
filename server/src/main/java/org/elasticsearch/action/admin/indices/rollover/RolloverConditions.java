@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +29,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.DECREASE_SHARDS;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
+
 /**
  * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
- * the Index Lifecycle Management and the Data Lifecycle Management.
+ * the Index Lifecycle Management and the Data Stream Lifecycle.
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
     public static final ObjectParser<RolloverConditions.Builder, Void> PARSER = new ObjectParser<>("rollover_conditions");
@@ -113,11 +118,17 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         return conditions.values().stream().anyMatch(c -> Condition.Type.MIN == c.type());
     }
 
+    /**
+     * Returns true if there is at least one condition of any type
+     */
+    public boolean hasConditions() {
+        return conditions.isEmpty() == false;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
-            StreamOutput::writeNamedWriteable
+        out.writeNamedWriteableCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList()
         );
     }
 
@@ -237,7 +248,12 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             .filter(c -> Condition.Type.MAX == c.type())
             .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
+        boolean anyAutomaticConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.AUTOMATIC == c.type())
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet) || anyAutomaticConditionsMet;
     }
 
     public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
@@ -398,6 +414,19 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             if (numDocs != null) {
                 MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
                 this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds an optimal shard count condition if the autosharding result is of type INCREASE or DECREASE_SHARDS, ignores it otherwise.
+         */
+        public Builder addOptimalShardCountCondition(AutoShardingResult autoShardingResult) {
+            if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(DECREASE_SHARDS)) {
+                OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(
+                    autoShardingResult.targetNumberOfShards()
+                );
+                this.conditions.put(optimalShardCountCondition.name, optimalShardCountCondition);
             }
             return this;
         }

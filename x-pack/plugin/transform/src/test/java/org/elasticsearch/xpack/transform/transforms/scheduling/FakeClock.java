@@ -16,11 +16,11 @@ import java.util.Objects;
 /**
  * {@link FakeClock} class in a test implementation of {@link Clock} and provides the possibility to set arbitrary current time.
  */
-class FakeClock extends Clock {
+public class FakeClock extends Clock {
 
     private Instant currentTime;
 
-    FakeClock(Instant time) {
+    public FakeClock(Instant time) {
         currentTime = Objects.requireNonNull(time);
     }
 

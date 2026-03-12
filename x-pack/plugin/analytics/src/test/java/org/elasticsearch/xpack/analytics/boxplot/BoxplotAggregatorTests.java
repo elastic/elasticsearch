@@ -11,10 +11,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -79,11 +80,17 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, boxplot -> {
@@ -96,7 +103,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -106,14 +113,14 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, boxplot -> {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
-            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(2.25, boxplot.getQ1(), 0);
             assertEquals(3.5, boxplot.getQ2(), 0);
-            assertEquals(5, boxplot.getQ3(), 0);
+            assertEquals(4.75, boxplot.getQ3(), 0);
         });
     }
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -123,9 +130,9 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, boxplot -> {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
-            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(2.25, boxplot.getQ1(), 0);
             assertEquals(3.5, boxplot.getQ2(), 0);
-            assertEquals(5, boxplot.getQ3(), 0);
+            assertEquals(4.75, boxplot.getQ3(), 0);
         });
     }
 
@@ -141,9 +148,9 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, boxplot -> {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
-            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(2.25, boxplot.getQ1(), 0);
             assertEquals(3.5, boxplot.getQ2(), 0);
-            assertEquals(5, boxplot.getQ3(), 0);
+            assertEquals(4.75, boxplot.getQ3(), 0);
         });
     }
 
@@ -159,9 +166,9 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, boxplot -> {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(10, boxplot.getMax(), 0);
-            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(2.25, boxplot.getQ1(), 0);
             assertEquals(3.5, boxplot.getQ2(), 0);
-            assertEquals(5, boxplot.getQ3(), 0);
+            assertEquals(4.75, boxplot.getQ3(), 0);
         });
     }
 
@@ -270,29 +277,29 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("boxplot"));
-            InternalBoxplot boxplot = (InternalBoxplot) histo.getBuckets().get(0).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("boxplot"));
+            InternalBoxplot boxplot = histo.getBuckets().get(0).getAggregations().get("boxplot");
             assertEquals(1, boxplot.getMin(), 0);
             assertEquals(3, boxplot.getMax(), 0);
-            assertEquals(1, boxplot.getQ1(), 0);
+            assertEquals(1.5, boxplot.getQ1(), 0);
             assertEquals(2, boxplot.getQ2(), 0);
-            assertEquals(3, boxplot.getQ3(), 0);
+            assertEquals(2.5, boxplot.getQ3(), 0);
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("boxplot"));
-            boxplot = (InternalBoxplot) histo.getBuckets().get(1).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("boxplot"));
+            boxplot = histo.getBuckets().get(1).getAggregations().get("boxplot");
             assertEquals(Double.POSITIVE_INFINITY, boxplot.getMin(), 0);
             assertEquals(Double.NEGATIVE_INFINITY, boxplot.getMax(), 0);
             assertEquals(Double.NaN, boxplot.getQ1(), 0);
             assertEquals(Double.NaN, boxplot.getQ2(), 0);
             assertEquals(Double.NaN, boxplot.getQ3(), 0);
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("boxplot"));
-            boxplot = (InternalBoxplot) histo.getBuckets().get(2).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("boxplot"));
+            boxplot = histo.getBuckets().get(2).getAggregations().get("boxplot");
             assertEquals(21, boxplot.getMin(), 0);
             assertEquals(23, boxplot.getMax(), 0);
-            assertEquals(21, boxplot.getQ1(), 0);
+            assertEquals(21.5, boxplot.getQ1(), 0);
             assertEquals(22, boxplot.getQ2(), 0);
-            assertEquals(23, boxplot.getQ3(), 0);
+            assertEquals(22.5, boxplot.getQ3(), 0);
         }, new AggTestConfig(histogram, fieldType));
     }
 
@@ -310,14 +317,14 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalBoxplot>) boxplot -> {
             assertEquals(1, boxplot.getMin(), 0);
             assertEquals(5, boxplot.getMax(), 0);
-            assertEquals(1.75, boxplot.getQ1(), 0);
+            assertEquals(2, boxplot.getQ1(), 0);
             assertEquals(3, boxplot.getQ2(), 0);
-            assertEquals(4.25, boxplot.getQ3(), 0);
+            assertEquals(4, boxplot.getQ3(), 0);
             assertEquals("0001.0", boxplot.getMinAsString());
             assertEquals("0005.0", boxplot.getMaxAsString());
-            assertEquals("0001.8", boxplot.getQ1AsString());
+            assertEquals("0002.0", boxplot.getQ1AsString());
             assertEquals("0003.0", boxplot.getQ2AsString());
-            assertEquals("0004.2", boxplot.getQ3AsString());
+            assertEquals("0004.0", boxplot.getQ3AsString());
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
@@ -337,8 +344,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(5, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("boxplot"));
-            InternalBoxplot boxplot = (InternalBoxplot) global.getAggregations().asMap().get("boxplot");
+            assertNotNull(global.getAggregations().get("boxplot"));
+            InternalBoxplot boxplot = global.getAggregations().get("boxplot");
             assertThat(global.getProperty("boxplot"), equalTo(boxplot));
             assertThat(global.getProperty("boxplot.min"), equalTo(1.0));
             assertThat(global.getProperty("boxplot.max"), equalTo(5.0));
@@ -359,9 +366,9 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalBoxplot>) boxplot -> {
             assertEquals(2, boxplot.getMin(), 0);
             assertEquals(8, boxplot.getMax(), 0);
-            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(3.5, boxplot.getQ1(), 0);
             assertEquals(5, boxplot.getQ2(), 0);
-            assertEquals(8, boxplot.getQ3(), 0);
+            assertEquals(6.5, boxplot.getQ3(), 0);
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 

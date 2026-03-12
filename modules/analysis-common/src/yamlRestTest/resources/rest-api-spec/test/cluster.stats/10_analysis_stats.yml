@@ -1,8 +1,8 @@
 ---
 "get cluster stats returns analysis stats":
 
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  "analysis stats are added for v7.7.0"
 
   - do:

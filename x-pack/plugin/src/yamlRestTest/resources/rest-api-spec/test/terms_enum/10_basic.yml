@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.15.0"
+  - requires:
+      cluster_features: ["gte_v7.15.1"]
       reason:  original indices are propagated correctly in 7.15.1
-      features: headers
+      test_runner_features: headers
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -123,7 +123,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -142,7 +141,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -159,7 +157,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -175,7 +172,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -193,7 +189,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               ck:
@@ -243,7 +238,13 @@ setup:
   - do: #superuser
      cluster.health:
           index: test_f
-          wait_for_status: green
+          wait_for_status: yellow
+          wait_for_no_initializing_shards: true
+
+  # terms_enum returns 0 results if the search fails, so perform a search here so that any failures are picked up early
+  - do:
+      count:
+        index:  test_*
 
 ---
 teardown:
@@ -316,8 +317,8 @@ teardown:
 
 ---
 "Test basic term enumeration on doc value only field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -328,8 +329,8 @@ teardown:
 
 ---
 "Test basic term enumeration on version field":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "terms enum support for version fields was added in 8.8.0"
 
   - do:
@@ -392,8 +393,8 @@ teardown:
 
 ---
 "Test case insensitivity on doc value only field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -410,8 +411,8 @@ teardown:
 
 ---
 "Test null search string allowed":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  TODO remove this skip after PR 73144 is backported to 7.x
 
   - do:
@@ -448,8 +449,8 @@ teardown:
 
 ---
 "Test search after on doc value only keyword field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -530,8 +531,8 @@ teardown:
 
 ---
 "Test search after on unconfigured constant keyword field":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  bug fixed in 8.3.0
 
   - do:

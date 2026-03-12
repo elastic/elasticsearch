@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.application.search;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -50,7 +48,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplication implements Writeable, ToXContentObject {
 
+    public static final String NO_TEMPLATE_STORED_WARNING = "Using default search application template which is subject to change. "
+        + "We recommend storing a template to avoid breaking changes.";
+
+    public static final String NO_ALIAS_WARNING = "Alias is missing for the search application";
     private final String name;
+
+    @Nullable
     private final String[] indices;
     private final long updatedAtMillis;
     private final String analyticsCollectionName;
@@ -83,14 +87,17 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
-        this.searchApplicationTemplate = searchApplicationTemplate != null
-            ? searchApplicationTemplate
-            : SearchApplicationTemplate.DEFAULT_TEMPLATE;
+        this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
     public SearchApplication(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    public SearchApplication(StreamInput in, String[] indices) throws IOException {
         this.name = in.readString();
-        this.indices = in.readStringArray();
+
+        this.indices = indices; // Uses the provided indices, as they are no longer serialized;
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
         this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
@@ -99,7 +106,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
         out.writeOptionalWriteable(searchApplicationTemplate);
@@ -119,14 +125,13 @@ public class SearchApplication implements Writeable, ToXContentObject {
                 }
             }
             @SuppressWarnings("unchecked")
-            final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+            final String[] indices = (params[1] != null) ? ((List<String>) params[1]).toArray(String[]::new) : new String[0];
             final String analyticsCollectionName = (String) params[2];
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
             final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
-            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
-            return newApp;
+            return new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
         }
     );
 
@@ -140,7 +145,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
         PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchApplicationTemplate.parse(p), null, TEMPLATE_FIELD);
@@ -183,8 +188,11 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        if (indices != null) {
+            builder.field(INDICES_FIELD.getPreferredName(), indices);
+        }
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
@@ -230,8 +238,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    public @Nullable SearchApplicationTemplate searchApplicationTemplate() {
-        return searchApplicationTemplate;
+    public boolean hasStoredTemplate() {
+        return searchApplicationTemplate != null;
+    }
+
+    public SearchApplicationTemplate searchApplicationTemplateOrDefault() {
+        return hasStoredTemplate() ? searchApplicationTemplate : SearchApplicationTemplate.DEFAULT_TEMPLATE;
     }
 
     @Override
@@ -240,7 +252,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplication app = (SearchApplication) o;
         return name.equals(app.name)
-            && Arrays.equals(indices, app.indices)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)
             && updatedAtMillis == app.updatedAtMillis()
             && Objects.equals(searchApplicationTemplate, app.searchApplicationTemplate);
@@ -248,9 +259,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
-        result = 31 * result + Arrays.hashCode(indices);
-        return result;
+        return Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
     }
 
     @Override
@@ -262,15 +271,13 @@ public class SearchApplication implements Writeable, ToXContentObject {
      * Returns the merged {@link SearchApplication} from the current state and the provided {@param update}.
      * This function returns the current instance if the update is a noop.
      *
-     * @param update The source of the update represented in bytes.
+     * @param update       The source of the update represented in bytes.
      * @param xContentType The format of the bytes.
-     * @param bigArrays The {@link BigArrays} to use to recycle bytes array.
-     *
      * @return The merged {@link SearchApplication}.
      */
-    SearchApplication merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) throws IOException {
+    SearchApplication merge(BytesReference update, XContentType xContentType) throws IOException {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent;
-        try (ReleasableBytesStreamOutput sourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (BytesStreamOutput sourceBuffer = new BytesStreamOutput()) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder(sourceBuffer)) {
                 toXContent(builder, EMPTY_PARAMS);
             }
@@ -285,7 +292,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             return this;
         }
 
-        try (ReleasableBytesStreamOutput newSourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (BytesStreamOutput newSourceBuffer = new BytesStreamOutput()) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder(newSourceBuffer)) {
                 builder.value(newSourceAsMap);
             }

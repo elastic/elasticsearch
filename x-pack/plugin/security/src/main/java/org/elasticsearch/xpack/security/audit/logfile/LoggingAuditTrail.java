@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
@@ -43,12 +44,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -71,6 +76,8 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -83,18 +90,17 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -102,11 +108,12 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
+import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -125,7 +132,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -263,18 +269,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         RUN_AS_GRANTED.toString(),
         SECURITY_CONFIG_CHANGE.toString()
     );
-    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.include"),
         DEFAULT_EVENT_INCLUDES,
-        Function.identity(),
         value -> AuditLevel.parse(value, List.of()),
         Property.NodeScope,
         Property.Dynamic
     );
-    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.exclude"),
-        Collections.emptyList(),
-        Function.identity(),
         value -> AuditLevel.parse(List.of(), value),
         Property.NodeScope,
         Property.Dynamic
@@ -290,9 +293,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         PutUserAction.NAME,
         PutRoleAction.NAME,
         PutRoleMappingAction.NAME,
-        SetEnabledAction.NAME,
-        ChangePasswordAction.NAME,
+        ActionTypes.BULK_PUT_ROLES.name(),
+        ActionTypes.BULK_DELETE_ROLES.name(),
+        TransportSetEnabledAction.TYPE.name(),
+        TransportChangePasswordAction.TYPE.name(),
         CreateApiKeyAction.NAME,
+        CloneApiKeyAction.NAME,
         GrantApiKeyAction.NAME,
         PutPrivilegesAction.NAME,
         DeleteUserAction.NAME,
@@ -317,62 +323,27 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "users",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "realms",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "roles",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "indices",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ACTIONS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "actions",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
 
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
@@ -383,7 +354,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
-    boolean includeRequestBody;
+    volatile boolean includeRequestBody;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -730,14 +701,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof PutRoleRequest) {
                     assert PutRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleRequest) msg).build();
+                } else if (msg instanceof BulkPutRolesRequest bulkPutRolesRequest) {
+                    assert ActionTypes.BULK_PUT_ROLES.name().equals(action);
+                    for (RoleDescriptor roleDescriptor : bulkPutRolesRequest.getRoles()) {
+                        securityChangeLogEntryBuilder(requestId).withRequestBody(roleDescriptor.getName(), roleDescriptor).build();
+                    }
                 } else if (msg instanceof PutRoleMappingRequest) {
                     assert PutRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutRoleMappingRequest) msg).build();
                 } else if (msg instanceof SetEnabledRequest) {
-                    assert SetEnabledAction.NAME.equals(action);
+                    assert TransportSetEnabledAction.TYPE.name().equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((SetEnabledRequest) msg).build();
                 } else if (msg instanceof ChangePasswordRequest) {
-                    assert ChangePasswordAction.NAME.equals(action);
+                    assert TransportChangePasswordAction.TYPE.name().equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((ChangePasswordRequest) msg).build();
                 } else if (msg instanceof CreateApiKeyRequest) {
                     assert CreateApiKeyAction.NAME.equals(action);
@@ -745,6 +721,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
+                } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
+                    assert CloneApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(cloneApiKeyRequest).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
                     assert PutPrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
@@ -754,6 +733,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeleteRoleRequest) {
                     assert DeleteRoleAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleRequest) msg).build();
+                } else if (msg instanceof BulkDeleteRolesRequest bulkDeleteRolesRequest) {
+                    assert ActionTypes.BULK_DELETE_ROLES.name().equals(action);
+                    for (String roleName : bulkDeleteRolesRequest.getRoleNames()) {
+                        securityChangeLogEntryBuilder(requestId).withDeleteRole(roleName).build();
+                    }
                 } else if (msg instanceof DeleteRoleMappingRequest) {
                     assert DeleteRoleMappingAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteRoleMappingRequest) msg).build();
@@ -811,13 +795,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuditLevel eventType,
         Authentication authentication,
         String action,
-        String index,
+        String[] indices,
         String requestName,
         InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
-        final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getEffectiveSubject().getUser();
         if (user instanceof InternalUser && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
@@ -830,7 +813,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
-                        Optional.ofNullable(indices),
+                        Optional.of(indices),
                         Optional.of(action)
                     )
                 ) == false) {
@@ -1096,6 +1079,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // not implemented yet
     }
 
+    public boolean includeRequestBody() {
+        return includeRequestBody;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1160,15 +1147,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(PutRoleRequest putRoleRequest) throws IOException {
+            return withRequestBody(putRoleRequest.name(), putRoleRequest.roleDescriptor());
+        }
+
+        LogEntryBuilder withRequestBody(String roleName, RoleDescriptor roleDescriptor) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_role");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .startObject("role")
-                .field("name", putRoleRequest.name())
+                .field("name", roleName)
                 // the "role_descriptor" nested structure, where the "name" is left out, is closer to the event structure
                 // for creating API Keys
                 .field("role_descriptor");
-            withRoleDescriptor(builder, putRoleRequest.roleDescriptor());
+            withRoleDescriptor(builder, roleDescriptor);
             builder.endObject() // role
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
@@ -1256,6 +1247,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, cloneApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1276,7 +1277,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        private void withRequestBody(XContentBuilder builder, AbstractCreateApiKeyRequest abstractCreateApiKeyRequest) throws IOException {
+        private static void withRequestBody(XContentBuilder builder, AbstractCreateApiKeyRequest abstractCreateApiKeyRequest)
+            throws IOException {
             TimeValue expiration = abstractCreateApiKeyRequest.getExpiration();
             builder.startObject("apikey")
                 .field("id", abstractCreateApiKeyRequest.getId())
@@ -1294,21 +1296,43 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject(); // apikey
         }
 
-        private void withRequestBody(final XContentBuilder builder, final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest)
-            throws IOException {
+        private static void withRequestBody(XContentBuilder builder, CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            TimeValue expiration = cloneApiKeyRequest.getExpiration();
+            builder.startObject("apikey")
+                .field("id", cloneApiKeyRequest.getId())
+                .field("name", cloneApiKeyRequest.getName())
+                .field("type", "rest")
+                .field("expiration", expiration != null ? expiration.toString() : null);
+            try (ApiKeyCredentials source = cloneApiKeyRequest.getSourceApiKey()) {
+                if (source != null) {
+                    builder.startObject("source").field("id", source.getId()).endObject();
+                }
+            } catch (IllegalArgumentException e) {
+                // omit source when credential cannot be parsed
+            }
+            if (cloneApiKeyRequest.getMetadata() != null) {
+                builder.field("metadata", cloneApiKeyRequest.getMetadata());
+            }
+            builder.endObject();
+        }
+
+        private static void withRequestBody(
+            final XContentBuilder builder,
+            final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest
+        ) throws IOException {
             builder.startObject("apikey").field("id", baseSingleUpdateApiKeyRequest.getId());
             withBaseUpdateApiKeyFields(builder, baseSingleUpdateApiKeyRequest);
             builder.endObject();
         }
 
-        private void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
+        private static void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
             throws IOException {
             builder.startObject("apikeys").stringListField("ids", bulkUpdateApiKeyRequest.getIds());
             withBaseUpdateApiKeyFields(builder, bulkUpdateApiKeyRequest);
             builder.endObject();
         }
 
-        private void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
+        private static void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
             throws IOException {
             builder.field("type", baseUpdateApiKeyRequest.getType().value());
             if (baseUpdateApiKeyRequest.getRoleDescriptors() != null) {
@@ -1323,9 +1347,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 // because it replaces any metadata previously associated with the API key
                 builder.field("metadata", baseUpdateApiKeyRequest.getMetadata());
             }
+            builder.field(
+                "expiration",
+                baseUpdateApiKeyRequest.getExpiration() != null ? baseUpdateApiKeyRequest.getExpiration().toString() : null
+            );
         }
 
-        private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+        private static void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
             builder.startObject().array(RoleDescriptor.Fields.CLUSTER.getPreferredName(), roleDescriptor.getClusterPrivileges());
             if (roleDescriptor.getConditionalClusterPrivileges() != null && roleDescriptor.getConditionalClusterPrivileges().length > 0) {
                 // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}
@@ -1343,7 +1371,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 withIndicesPrivileges(builder, indicesPrivileges);
             }
             builder.endArray();
-            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges) does a good job
+            // the toXContent method of the {@code RoleDescriptor.ApplicationResourcePrivileges} does a good job
             builder.xContentList(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), roleDescriptor.getApplicationPrivileges());
             builder.array(RoleDescriptor.Fields.RUN_AS.getPreferredName(), roleDescriptor.getRunAs());
             if (roleDescriptor.getMetadata() != null && false == roleDescriptor.getMetadata().isEmpty()) {
@@ -1394,15 +1422,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(DeleteRoleRequest deleteRoleRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_role");
-            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                .startObject("role")
-                .field("name", deleteRoleRequest.name())
-                .endObject() // role
-                .endObject();
-            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
-            return this;
+            return withDeleteRole(deleteRoleRequest.name());
         }
 
         LogEntryBuilder withRequestBody(DeleteRoleMappingRequest deleteRoleMappingRequest) throws IOException {
@@ -1525,6 +1545,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withDeleteRole(String roleName) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_role");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("role")
+                .field("name", roleName)
+                .endObject() // role
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         static void withGrant(XContentBuilder builder, Grant grant) throws IOException {
             builder.startObject("grant").field("type", grant.getType());
             if (grant.getUsername() != null) {
@@ -1642,6 +1674,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+            assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
@@ -1902,7 +1935,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private static Predicate<AuditEventMetaInfo> buildIgnorePredicate(Map<String, EventFilterPolicy> policyMap) {
-            return policyMap.values().stream().map(EventFilterPolicy::ignorePredicate).reduce(x -> false, (x, y) -> x.or(y));
+            return policyMap.values().stream().map(EventFilterPolicy::ignorePredicate).reduce(Predicates.never(), Predicate::or);
         }
 
         @Override

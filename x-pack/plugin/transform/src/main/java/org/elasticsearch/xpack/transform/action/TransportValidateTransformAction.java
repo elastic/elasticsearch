@@ -11,17 +11,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -29,23 +33,23 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
-
     private final Client client;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportValidateTransformAction(
@@ -55,9 +59,10 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
-        IngestService ingestService
+        IngestService ingestService,
+        TransformServices transformServices
     ) {
-        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -73,6 +78,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
     }
 
     @Override
@@ -97,8 +103,10 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
-        final TransformConfig config = request.getConfig();
-        final Function function = FunctionFactory.create(config);
+        var config = request.getConfig();
+        var function = FunctionFactory.create(config);
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
@@ -114,7 +122,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             return;
         }
 
-        // <5> Final listener
+        // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             listener.onResponse(new Response(deducedMappings));
         },
@@ -123,28 +131,42 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             )
         );
 
-        // <4> Deduce destination index mappings
+        // <5> Deduce destination index mappings
         ActionListener<Boolean> validateQueryListener = ActionListener.wrap(validateQueryResponse -> {
             if (request.isDeferValidation()) {
-                deduceMappingsListener.onResponse(null);
+                deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(client, config.getHeaders(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
-        // <3> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
+        // <4> Validate transform query
+        ActionListener<Boolean> validateConfigListener = validateQueryListener.delegateFailureAndWrap((l, ignored) -> {
             if (request.isDeferValidation()) {
-                validateQueryListener.onResponse(true);
+                l.onResponse(true);
             } else {
-                function.validateQuery(client, config.getHeaders(), config.getSource(), request.timeout(), validateQueryListener);
+                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), l);
             }
-        }, listener::onFailure);
+        });
+
+        // <3> Validate Project Routing is not set when CPS is not supported
+        ActionListener<Boolean> validateProjectRoutingListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+            if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
+                l.onResponse(true);
+            } else {
+                l.onFailure(
+                    new ValidationException().addValidationError(
+                        "Cross-project calls are not supported, but project_routing was requested: "
+                            + config.getSource().getProjectRouting()
+                    )
+                );
+            }
+        });
 
         // <2> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(validateSourceDestResponse -> {
-            function.validateConfig(validateConfigListener);
-        }, listener::onFailure);
+        ActionListener<Boolean> validateSourceDestListener = validateProjectRoutingListener.delegateFailureAndWrap(
+            (l, ignored) -> function.validateConfig(l)
+        );
 
         // <1> Validate source and destination indices
         sourceDestValidator.validate(

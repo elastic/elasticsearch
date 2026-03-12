@@ -30,7 +30,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/upgrade";
 
     private UpgradeJobModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -71,6 +71,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         }
 
         public Request(String jobId, String snapshotId, TimeValue timeValue, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID);
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID);
             this.timeout = timeValue == null ? DEFAULT_TIMEOUT : timeValue;
@@ -170,9 +171,16 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.completed = in.readBoolean();
             this.node = in.readOptionalString();
+        }
+
+        public boolean isCompleted() {
+            return completed;
+        }
+
+        public String getNode() {
+            return node;
         }
 
         @Override

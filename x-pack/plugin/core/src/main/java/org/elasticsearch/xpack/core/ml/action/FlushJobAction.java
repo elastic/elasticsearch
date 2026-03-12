@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +30,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
-        super(NAME, FlushJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -79,9 +78,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
             waitForNormalization = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
-                refreshRequired = in.readBoolean();
-            }
+            refreshRequired = in.readBoolean();
         }
 
         @Override
@@ -93,9 +90,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
             out.writeBoolean(waitForNormalization);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
-                out.writeBoolean(refreshRequired);
-            }
+            out.writeBoolean(refreshRequired);
         }
 
         public Request(String jobId) {
@@ -255,7 +250,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                     FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
                     lastFinalizedBucketEnd.toEpochMilli()

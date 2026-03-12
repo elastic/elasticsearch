@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.boxplot;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -59,6 +60,9 @@ public class BoxplotAggregationBuilderTests extends AbstractXContentSerializingT
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder(aggregationName).field(randomAlphaOfLength(10));
         if (randomBoolean()) {
             aggregationBuilder.compression(randomDoubleBetween(0, 100, true));
+        }
+        if (randomBoolean()) {
+            aggregationBuilder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
         }
         return aggregationBuilder;
     }

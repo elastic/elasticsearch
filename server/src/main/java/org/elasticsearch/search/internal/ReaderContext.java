@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -35,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * can be guarded by a reference count and fail if it's been closed by an external event.
  */
 public class ReaderContext implements Releasable {
+    private static final long CONTEXT_RELOCATION_GRACE_TIME = 1000;
     private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;
@@ -52,7 +55,9 @@ public class ReaderContext implements Releasable {
     private final long startTimeInNano = System.nanoTime();
 
     private Map<String, Object> context;
+    private boolean isRelocating = false;
 
+    @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
         IndexService indexService,
@@ -114,6 +119,10 @@ public class ReaderContext implements Releasable {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
+    public long keepAlive() {
+        return keepAlive.longValue();
+    }
+
     /**
      * Returns a releasable to indicate that the caller has stopped using this reader.
      * The time to live of the reader after usage can be extended using the provided
@@ -123,7 +132,7 @@ public class ReaderContext implements Releasable {
         refCounted.incRef();
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
-            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
             refCounted.decRef();
         });
     }
@@ -132,8 +141,31 @@ public class ReaderContext implements Releasable {
         if (refCounted.refCount() > 1) {
             return false; // being used by markAsUsed
         }
+        if (isRelocating()) {
+            // Only for PIT contexts that are relocating away. We don't want to close immediately to
+            // prevent running searches from failing. Refcounting via #markAsUsed protects against this
+            // while search phases are running but also need to protect against closing too soon during
+            // phase transitions. The grace period is long enough to allow for search phase transitions
+            // of running searches before they complete.
+            return nowInMillis() - lastAccessTime.get() > CONTEXT_RELOCATION_GRACE_TIME;
+        }
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
+    }
+
+    public boolean isRelocating() {
+        return isRelocating;
+    }
+
+    /**
+     * Indicate that this context is in the process of relocating.
+     * We check this to prevent new search requests from using this context,
+     * while running searches can still use it. Also this marks the context for cleanup
+     * in one of the next {@link  SearchService} Reaper runs.
+     */
+    public void relocate() {
+        this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
+        isRelocating = true;
     }
 
     // BWC

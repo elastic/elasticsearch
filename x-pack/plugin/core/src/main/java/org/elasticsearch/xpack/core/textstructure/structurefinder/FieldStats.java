@@ -123,7 +123,7 @@ public class FieldStats implements ToXContentObject, Writeable {
         medianValue = in.readOptionalDouble();
         earliestTimestamp = in.readOptionalString();
         latestTimestamp = in.readOptionalString();
-        topHits = in.readList(StreamInput::readMap);
+        topHits = in.readCollectionAsList(StreamInput::readGenericMap);
     }
 
     @Override

@@ -30,9 +30,6 @@ public class TextExpansionConfigUpdateTests extends AbstractNlpConfigUpdateTestC
     }
 
     public static TextExpansionConfigUpdate mutateForVersion(TextExpansionConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
-            return new TextExpansionConfigUpdate(instance.getResultsField(), null);
-        }
         return instance;
     }
 

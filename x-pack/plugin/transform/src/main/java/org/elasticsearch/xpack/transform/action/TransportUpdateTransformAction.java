@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -21,17 +22,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
@@ -40,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -49,6 +55,7 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -63,6 +70,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final TransformAuditor auditor;
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -73,7 +81,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             UpdateTransformAction.NAME,
@@ -82,25 +91,34 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.settings = settings;
         this.client = client;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        if (TransformMetadata.upgradeMode(clusterState)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot update any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
 
         final DiscoveryNodes nodes = clusterState.nodes();
 
@@ -113,7 +131,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
             return;
@@ -142,18 +160,23 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     false, // dryRun
                     true, // checkAccess
                     request.getTimeout(),
+                    destIndexSettings,
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();
                         AuthorizationState authState = updateResult.getAuthState();
                         auditor.info(updatedConfig.getId(), "Updated transform.");
-                        logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
+                        logger.info("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
+
+                        auditProjectRoutingChanges(originalConfig, updatedConfig);
 
                         checkTransformConfigAndLogWarnings(updatedConfig);
 
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
-                        if (updateChangesSettings || updateChangesHeaders) {
+                        boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
+                        boolean updateFrequency = update.changesFrequency(originalConfig);
+                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex || updateFrequency) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
@@ -219,6 +242,32 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         );
     }
 
+    private void auditProjectRoutingChanges(TransformConfig originalConfig, TransformConfig updatedConfig) {
+        if (Objects.equals(originalConfig.getSource().getProjectRouting(), updatedConfig.getSource().getProjectRouting()) == false) {
+            var originalProjectRouting = originalConfig.getSource().getProjectRouting();
+            var updatedProjectRouting = updatedConfig.getSource().getProjectRouting();
+
+            if (originalProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing has been set to [%s].", updatedProjectRouting));
+                logger.info("[{}] project_routing has been set to [{}].", updatedConfig.getId(), updatedProjectRouting);
+            } else if (updatedProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing [%s] has been removed.", originalProjectRouting));
+                logger.info("[{}] project_routing [{}] has been removed.", updatedConfig.getId(), originalProjectRouting);
+            } else {
+                auditor.info(
+                    updatedConfig.getId(),
+                    format("project_routing updated from [%s] to [%s].", originalProjectRouting, updatedProjectRouting)
+                );
+                logger.info(
+                    "[{}] project_routing updated from [{}] to [{}].",
+                    updatedConfig.getId(),
+                    originalProjectRouting,
+                    updatedProjectRouting
+                );
+            }
+        }
+    }
+
     private void checkTransformConfigAndLogWarnings(TransformConfig config) {
         final Function function = FunctionFactory.create(config);
         List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
@@ -238,6 +287,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     ) {
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
+        transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
+        transformTask.applyNewFrequency(request.getConfig());
         listener.onResponse(new Response(request.getConfig()));
     }
 

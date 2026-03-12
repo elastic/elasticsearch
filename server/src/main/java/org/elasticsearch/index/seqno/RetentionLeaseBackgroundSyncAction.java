@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -21,17 +20,13 @@ import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,8 +37,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.seqno.RetentionLeaseSyncAction.getExceptionLogLevel;
 
 /**
  * Replication action responsible for background syncing retention leases to replicas. This action is deliberately a replication action so
@@ -84,7 +81,10 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.BypassCircuitBreaker
         );
     }
 
@@ -94,14 +94,9 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
-            final Request request = new Request(shardId, retentionLeases);
-            try (var ignored = threadContext.newTraceContext()) {
-                sendRetentionLeaseSyncAction(shardId, primaryAllocationId, primaryTerm, request);
-            }
+            sendRetentionLeaseSyncAction(shardId, primaryAllocationId, primaryTerm, new Request(shardId, retentionLeases));
         }
     }
 
@@ -120,6 +115,11 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 }
 
                 @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(ReplicationResponse response) {
                     task.setPhase("finished");
                     taskManager.unregister(task);
@@ -129,20 +129,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 public void handleException(TransportException e) {
                     task.setPhase("finished");
                     taskManager.unregister(task);
-                    if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                        // node shutting down
-                        return;
-                    }
-                    if (ExceptionsHelper.unwrap(
-                        e,
-                        IndexNotFoundException.class,
-                        AlreadyClosedException.class,
-                        IndexShardClosedException.class
-                    ) != null) {
-                        // the index was deleted or the shard is closed
-                        return;
-                    }
-                    getLogger().warn(() -> format("%s retention lease background sync failed", shardId), e);
+                    LOGGER.log(getExceptionLogLevel(e), () -> format("%s retention lease background sync failed", shardId), e);
                 }
             }
         );

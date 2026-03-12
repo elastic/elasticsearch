@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -37,6 +37,8 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.script.MockScriptPlugin.NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -97,36 +99,39 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 preference = randomRealisticUnicodeOfLengthBetween(1, 10);
             }
             int innerIters = scaledRandomIntBetween(2, 5);
-            SearchHit[] hits = null;
+            final SearchHit[][] hits = new SearchHit[1][];
             for (int i = 0; i < innerIters; i++) {
-                SearchResponse searchResponse = client().prepareSearch()
-                    .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
-                    .setPreference(preference)
-                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
-                    .get();
-                assertThat(
-                    "Failures " + Arrays.toString(searchResponse.getShardFailures()),
-                    searchResponse.getShardFailures().length,
-                    CoreMatchers.equalTo(0)
-                );
-                final int hitCount = searchResponse.getHits().getHits().length;
-                final SearchHit[] currentHits = searchResponse.getHits().getHits();
-                ArrayUtil.timSort(currentHits, (o1, o2) -> {
-                    // for tie-breaking we have to resort here since if the score is
-                    // identical we rely on collection order which might change.
-                    int cmp = Float.compare(o1.getScore(), o2.getScore());
-                    return cmp == 0 ? o1.getId().compareTo(o2.getId()) : cmp;
-                });
-                if (i == 0) {
-                    assertThat(hits, nullValue());
-                    hits = currentHits;
-                } else {
-                    assertThat(hits.length, equalTo(searchResponse.getHits().getHits().length));
-                    for (int j = 0; j < hitCount; j++) {
-                        assertThat("" + j, currentHits[j].getScore(), equalTo(hits[j].getScore()));
-                        assertThat("" + j, currentHits[j].getId(), equalTo(hits[j].getId()));
+                final int finalI = i;
+                assertResponse(
+                    prepareSearch().setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+                        .setPreference(preference)
+                        .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo"))),
+                    response -> {
+                        assertThat(
+                            "Failures " + Arrays.toString(response.getShardFailures()),
+                            response.getShardFailures().length,
+                            CoreMatchers.equalTo(0)
+                        );
+                        final int hitCount = response.getHits().getHits().length;
+                        final SearchHit[] currentHits = response.getHits().asUnpooled().getHits();
+                        ArrayUtil.timSort(currentHits, (o1, o2) -> {
+                            // for tie-breaking we have to resort here since if the score is
+                            // identical we rely on collection order which might change.
+                            int cmp = Float.compare(o1.getScore(), o2.getScore());
+                            return cmp == 0 ? o1.getId().compareTo(o2.getId()) : cmp;
+                        });
+                        if (finalI == 0) {
+                            assertThat(hits[0], nullValue());
+                            hits[0] = currentHits;
+                        } else {
+                            assertThat(hits[0].length, equalTo(response.getHits().getHits().length));
+                            for (int j = 0; j < hitCount; j++) {
+                                assertThat("" + j, currentHits[j].getScore(), equalTo(hits[0][j].getScore()));
+                                assertThat("" + j, currentHits[j].getId(), equalTo(hits[0][j].getId()));
+                            }
+                        }
                     }
-                }
+                );
 
                 // randomly change some docs to get them in different segments
                 int numDocsToChange = randomIntBetween(20, 50);
@@ -153,8 +158,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 // we add 1 to the index field to make sure that the scripts below never compute log(0)
                 .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
                 .get();
@@ -166,83 +170,88 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         // Test for accessing _score
         Script script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score))", params);
-        SearchResponse resp = client().prepareSearch("test")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
                 functionScoreQuery(
                     matchQuery("body", "foo"),
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
                 )
-            )
-            .get();
-        assertNoFailures(resp);
-        SearchHit firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
+            ),
+            response -> {
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getScore(), greaterThan(1f));
+            }
+        );
 
         // Test for accessing _score.intValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.intValue()))", params);
-        resp = client().prepareSearch("test")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
                 functionScoreQuery(
                     matchQuery("body", "foo"),
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
                 )
-            )
-            .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
+            ),
+            response -> {
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getScore(), greaterThan(1f));
+            }
+        );
 
         // Test for accessing _score.longValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.longValue()))", params);
-        resp = client().prepareSearch("test")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
                 functionScoreQuery(
                     matchQuery("body", "foo"),
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
                 )
-            )
-            .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
+            ),
+            response -> {
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getScore(), greaterThan(1f));
+            }
+        );
 
         // Test for accessing _score.floatValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.floatValue()))", params);
-        resp = client().prepareSearch("test")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
                 functionScoreQuery(
                     matchQuery("body", "foo"),
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
                 )
-            )
-            .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
+            ),
+            response -> {
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getScore(), greaterThan(1f));
+            }
+        );
 
         // Test for accessing _score.doubleValue()
         script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.doubleValue()))", params);
-        resp = client().prepareSearch("test")
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
                 functionScoreQuery(
                     matchQuery("body", "foo"),
                     new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(fieldValueFactorFunction("index").factor(2)),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)) }
                 )
-            )
-            .get();
-        assertNoFailures(resp);
-        firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getScore(), greaterThan(1f));
+            ),
+            response -> {
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getScore(), greaterThan(1f));
+            }
+        );
     }
 
     public void testSeedReportedInExplain() throws Exception {
@@ -254,29 +263,33 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         int seed = 12345678;
 
-        SearchResponse resp = client().prepareSearch("test")
-            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField(SeqNoFieldMapper.NAME)))
-            .setExplain(true)
-            .get();
-        assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits().value);
-        SearchHit firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField(SeqNoFieldMapper.NAME)))
+                .setExplain(true),
+            response -> {
+                assertNoFailures(response);
+                assertEquals(1, response.getHits().getTotalHits().value());
+                SearchHit firstHit = response.getHits().getAt(0);
+                assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
+            }
+        );
     }
 
     public void testNoDocs() throws Exception {
         createIndex("test");
         ensureGreen();
 
-        SearchResponse resp = client().prepareSearch("test")
-            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
-            .get();
-        assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(
+                functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME))
+            ),
+            response -> assertEquals(0, response.getHits().getTotalHits().value())
+        );
 
-        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction())).get();
-        assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction())),
+            response -> assertEquals(0, response.getHits().getTotalHits().value())
+        );
     }
 
     public void testScoreRange() throws Exception {
@@ -292,15 +305,14 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; ++i) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
-                .setSize(docCount)
-                .get();
-
-            assertNoFailures(searchResponse);
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertThat(hit.getScore(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
-            }
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(functionScoreQuery(matchAllQuery(), randomFunction())).setSize(docCount),
+                response -> {
+                    for (SearchHit hit : response.getHits().getHits()) {
+                        assertThat(hit.getScore(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
+                    }
+                }
+            );
         }
     }
 
@@ -314,29 +326,23 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         flushAndRefresh();
 
         assertNoFailures(
-            client().prepareSearch()
-                .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            prepareSearch().setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
-                .get()
         );
 
         assertNoFailures(
-            client().prepareSearch()
-                .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            prepareSearch().setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
-                .get()
         );
 
         assertNoFailures(
-            client().prepareSearch()
-                .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            prepareSearch().setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(
                     functionScoreQuery(
                         matchAllQuery(),
                         randomFunction().seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)
                     )
                 )
-                .get()
         );
     }
 
@@ -357,11 +363,10 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         for (int i = 0; i < count; i++) {
 
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
-                .get();
-
-            matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
+            assertResponse(
+                prepareSearch().setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder())),
+                response -> matrix[Integer.valueOf(response.getHits().getAt(0).getId())]++
+            );
         }
 
         int filled = 0;

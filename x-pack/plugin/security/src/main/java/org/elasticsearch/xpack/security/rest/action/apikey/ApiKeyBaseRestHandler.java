@@ -20,11 +20,8 @@ abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings) == false) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings) == false) {
             return new FeatureNotEnabledException(FeatureNotEnabledException.Feature.API_KEY_SERVICE, "api keys are not enabled");
         } else {
             return null;

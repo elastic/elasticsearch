@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -42,15 +40,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
 
     public static final String NAME = "categorize_text";
-
-    // In 8.3 the algorithm used by this aggregation was completely changed.
-    // Prior to 8.3 the Drain algorithm was used. From 8.3 the same algorithm
-    // we use in our C++ categorization code was used. As a result of this
-    // the aggregation will not perform well in mixed version clusters where
-    // some nodes are pre-8.3 and others are newer, so we throw an error in
-    // this situation. The aggregation was experimental at the time this change
-    // was made, so this is acceptable.
-    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersion.V_8_3_0;
 
     static final ParseField FIELD_NAME = new ParseField("field");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
@@ -81,10 +70,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         PARSER.declareLong(CategorizeTextAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
         PARSER.declareLong(CategorizeTextAggregationBuilder::shardMinDocCount, TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
         PARSER.declareInt(CategorizeTextAggregationBuilder::size, REQUIRED_SIZE_FIELD_NAME);
-    }
-
-    public static CategorizeTextAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CategorizeTextAggregationBuilder(aggregationName), null);
     }
 
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
@@ -121,15 +106,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
-                "["
-                    + NAME
-                    + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
-            );
-        }
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         this.fieldName = in.readString();
         this.similarityThreshold = in.readVInt();
@@ -277,15 +253,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
-                "["
-                    + NAME
-                    + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
-            );
-        }
         bucketCountThresholds.writeTo(out);
         out.writeString(fieldName);
         out.writeVInt(similarityThreshold);
@@ -341,10 +308,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // This isn't strictly true, as the categorize_text aggregation has existed since 7.16.
-        // However, the implementation completely changed in 8.3, so it's best that if the
-        // coordinating node is on 8.3 or above then it should refuse to use this aggregation
-        // until the older nodes are upgraded.
-        return ALGORITHM_CHANGED_VERSION;
+        return TransportVersion.minimumCompatible();
     }
 }

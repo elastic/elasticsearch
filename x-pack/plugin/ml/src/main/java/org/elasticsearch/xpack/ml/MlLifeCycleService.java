@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -28,6 +31,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class MlLifeCycleService {
 
@@ -103,12 +108,42 @@ public class MlLifeCycleService {
             return true;
         }
 
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        // TODO: currently only considering anomaly detection jobs - could extend in the future
+        logger.debug(() -> format("Checking shutdown safety for node id [%s]", nodeId));
+
+        boolean nodeHasRunningDeployments = nodeHasRunningDeployments(nodeId, state);
+
+        logger.debug(() -> format("Node id [%s] has running deployments: %s", nodeId, nodeHasRunningDeployments));
+
+        PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
         return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
-            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty()
+            && nodeHasRunningDeployments == false;
+    }
+
+    private static boolean nodeHasRunningDeployments(String nodeId, ClusterState state) {
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(state);
+
+        return metadata.allAssignments().values().stream().anyMatch(assignment -> {
+            if (assignment.isRoutedToNode(nodeId)) {
+                RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
+                logger.debug(
+                    () -> format(
+                        "Assignment deployment id [%s] is routed to shutting down nodeId %s state: %s",
+                        assignment.getDeploymentId(),
+                        nodeId,
+                        routingInfo.getState()
+                    )
+                );
+
+                // A routing could exist in the stopped state if the deployment has successfully drained any remaining requests
+                // If a route is starting, started, or stopping then the node is not ready to shut down yet
+                return routingInfo.getState().isNoneOf(RoutingState.STOPPED, RoutingState.FAILED);
+            }
+
+            return false;
+        });
     }
 
     /**

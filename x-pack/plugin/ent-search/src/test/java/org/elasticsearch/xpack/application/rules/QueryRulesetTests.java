@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class QueryRulesetTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            QueryRuleset testInstance = SearchApplicationTestUtils.randomQueryRuleset();
+            QueryRuleset testInstance = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
         }
@@ -55,7 +55,7 @@ public class QueryRulesetTests extends ESTestCase {
                 {
                   "rule_id": "my_query_rule1",
                   "type": "pinned",
-                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "foo"} ],
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "values": ["foo", "bar"]} ],
                   "actions": {
                     "ids": ["id1", "id2"]
                   }
@@ -63,7 +63,7 @@ public class QueryRulesetTests extends ESTestCase {
                 {
                   "rule_id": "my_query_rule2",
                   "type": "pinned",
-                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "bar"} ],
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "values": ["baz"]} ],
                   "actions": {
                     "ids": ["id3", "id4"]
                   }
@@ -89,7 +89,7 @@ public class QueryRulesetTests extends ESTestCase {
                 {
                   "rule_id": "my_query_rule1",
                   "type": "pinned",
-                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "foo"} ],
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "values": ["foo", "bar"]} ],
                   "actions": {
                     "ids": ["id1", "id2"]
                   }
@@ -97,7 +97,7 @@ public class QueryRulesetTests extends ESTestCase {
                 {
                   "rule_id": "my_query_rule2",
                   "type": "pinned",
-                  "criteria": [ {"type": "exact", "metadata": "query_string", "value": "bar"} ],
+                  "criteria": [ {"type": "exact", "metadata": "query_string", "values": ["baz"]} ],
                   "actions": {
                     "ids": ["id3", "id4"]
                   }

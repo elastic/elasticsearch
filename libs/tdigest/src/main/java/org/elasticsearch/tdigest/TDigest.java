@@ -21,8 +21,10 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.Collection;
-import java.util.List;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Locale;
 
 /**
@@ -36,31 +38,57 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest {
+public abstract class TDigest implements TDigestReadView, Releasable, Accountable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
 
     /**
-     * Creates an {@link MergingDigest}.  This is generally the best known implementation right now.
+     * Creates an {@link MergingDigest}.  This is the fastest implementation for large sample populations, with constant memory
+     * allocation while delivering relating accuracy close to 1%.
      *
      * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(double compression) {
-        return new MergingDigest(compression);
+    public static MergingDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        return MergingDigest.create(arrays, compression);
     }
 
     /**
-     * Creates an AVLTreeDigest.  AVLTreeDigest is nearly the best known implementation right now.
+     * Creates an {@link AVLTreeDigest}.  This is the most accurate implementation, delivering relative accuracy close to 0.01% for large
+     * sample populations. Still, its construction takes 2x-10x longer than {@link MergingDigest}, while its memory footprint increases
+     * (slowly) with the sample population size.
      *
      * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(double compression) {
-        return new AVLTreeDigest(compression);
+    public static AVLTreeDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        return AVLTreeDigest.create(arrays, compression);
+    }
+
+    /**
+     * Creates a {@link SortingDigest}.  SortingDigest is the most accurate and an extremely fast implementation but stores all samples
+     * internally so it uses much more memory than the rest, for sample populations of 1000 or higher.
+     *
+     * @return the SortingDigest
+     */
+    public static SortingDigest createSortingDigest(TDigestArrays arrays) {
+        return SortingDigest.create(arrays);
+    }
+
+    /**
+     * Creates a {@link HybridDigest}.  HybridDigest uses a SortingDigest for small sample populations, then switches to a MergingDigest,
+     * thus combining the best of both implementations:  fastest overall, small footprint and perfect accuracy for small populations,
+     * constant memory footprint and acceptable accuracy for larger ones.
+     *
+     * @param compression The compression parameter.  100 is a common value for normal uses.  1000 is extremely large.
+     *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
+     * @return the HybridDigest
+     */
+    public static HybridDigest createHybridDigest(TDigestArrays arrays, double compression) {
+        return HybridDigest.create(arrays, compression);
     }
 
     /**
@@ -69,7 +97,7 @@ public abstract class TDigest {
      * @param x The value to add.
      * @param w The weight of this point.
      */
-    public abstract void add(double x, int w);
+    public abstract void add(double x, long w);
 
     /**
      * Add a single sample to this TDigest.
@@ -80,13 +108,11 @@ public abstract class TDigest {
         add(x, 1);
     }
 
-    final void checkValue(double x) {
+    static void checkValue(double x) {
         if (Double.isNaN(x) || Double.isInfinite(x)) {
             throw new IllegalArgumentException("Invalid value: " + x);
         }
     }
-
-    public abstract void add(List<? extends TDigest> others);
 
     /**
      * Re-examines a t-digest to determine whether some centroids are redundant.  If your data are
@@ -98,13 +124,6 @@ public abstract class TDigest {
      * This is a destructive operation that is not thread-safe.
      */
     public abstract void compress();
-
-    /**
-     * Returns the number of points that have been added to this TDigest.
-     *
-     * @return The sum of the weights on all centroids.
-     */
-    public abstract long size();
 
     /**
      * Returns the fraction of all points added which are &le; x. Points
@@ -124,14 +143,6 @@ public abstract class TDigest {
      * @return The smallest value x such that cdf(x) &ge; q
      */
     public abstract double quantile(double q);
-
-    /**
-     * A {@link Collection} that lets you go through the centroids in ascending order by mean.  Centroids
-     * returned will not be re-used, but may or may not share storage with this TDigest.
-     *
-     * @return The centroids in the form of a Collection.
-     */
-    public abstract Collection<Centroid> centroids();
 
     /**
      * Returns the current compression factor.
@@ -155,13 +166,17 @@ public abstract class TDigest {
     }
 
     /**
-     * Add all of the centroids of another TDigest to this one.
+     * Add all of the centroids of another digest to this one.
      *
-     * @param other The other TDigest
+     * @param other The other digest
      */
-    public abstract void add(TDigest other);
+    public abstract void add(TDigestReadView other);
 
-    public abstract int centroidCount();
+    /**
+     * Prepare internal structure for loading the requested number of samples.
+     * @param size number of samples to be loaded
+     */
+    public void reserve(long size) {}
 
     public double getMin() {
         return min;
@@ -169,13 +184,5 @@ public abstract class TDigest {
 
     public double getMax() {
         return max;
-    }
-
-    /**
-     * Override the min and max values for testing purposes
-     */
-    void setMinMax(double min, double max) {
-        this.min = min;
-        this.max = max;
     }
 }

@@ -7,44 +7,50 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventAction.Response> {
-
-    public static final PostAnalyticsEventAction INSTANCE = new PostAnalyticsEventAction();
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
+public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
-    private PostAnalyticsEventAction() {
-        super(NAME, Response::readFromStreamInput);
-    }
+    private PostAnalyticsEventAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements AnalyticsEvent.Context {
+    public static class Request extends LegacyActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 
@@ -90,7 +96,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
-            this.headers = in.readMap(StreamInput::readStringList);
+            this.headers = in.readMap(StreamInput::readStringCollectionAsList);
             this.clientAddress = in.readOptionalString();
         }
 
@@ -140,6 +146,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return debug;
         }
 
+        Map<String, List<String>> headers() {
+            return Collections.unmodifiableMap(headers);
+        }
+
         private String header(String header) {
             final List<String> values = headers.get(header);
             if (values != null && values.isEmpty() == false) {
@@ -183,7 +193,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             out.writeLong(eventTime);
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
+            out.writeMap(headers, StreamOutput::writeStringCollection);
             out.writeOptionalString(clientAddress);
         }
 
@@ -196,7 +206,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
                 && debug == that.debug
                 && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
-                && Objects.equals(xContentType, that.xContentType)
+                && Objects.equals(xContentType.canonical(), that.xContentType.canonical())
                 && Objects.equals(payload, that.payload)
                 && Objects.equals(headers, that.headers)
                 && Objects.equals(clientAddress, that.clientAddress);
@@ -204,7 +214,36 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
+            return Objects.hash(
+                eventCollectionName,
+                eventType,
+                debug,
+                eventTime,
+                xContentType.canonical(),
+                payload,
+                headers,
+                clientAddress
+            );
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("event_collection_name", eventCollectionName);
+            builder.field("debug", debug);
+            builder.field("event_time", eventTime);
+            builder.field("event_type", eventType);
+            builder.field("x_content_type", xContentType);
+            builder.field("payload", payload);
+            builder.field("headers", headers);
+            builder.field("client_address", clientAddress);
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -282,8 +321,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
-        public static Response ACCEPTED = new Response(true);
+    public static class Response extends ActionResponse implements ToXContentObject {
+        public static final Response ACCEPTED = new Response(true);
 
         public static Response readFromStreamInput(StreamInput in) throws IOException {
             boolean accepted = in.readBoolean();
@@ -346,9 +385,18 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         }
 
-        @Override
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
+        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
+            "post_analytics_event_response",
+            false,
+            (params) -> new Response((boolean) params[0])
+        );
+
+        static {
+            PARSER.declareBoolean(constructorArg(), Response.RESULT_FIELD);
+        }
+
+        public static Response parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 

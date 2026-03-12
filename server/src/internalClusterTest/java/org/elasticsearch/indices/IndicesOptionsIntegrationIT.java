@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
@@ -23,9 +24,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -46,6 +45,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -248,12 +248,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("test1");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath()))
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "dummy-repo"
+        ).setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         verify(snapshot("snap2", "test1", "test2"), true);
         verify(restore("snap1", "test1", "test2"), true);
@@ -286,7 +287,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -309,7 +310,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
-        client().prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index
         indices = new String[] { "foo*" };
@@ -337,7 +338,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -365,12 +366,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("foobar");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath()))
-            .get();
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "dummy-repo"
+        ).setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-        client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", "snap1").setWaitForCompletion(true).get();
 
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);
@@ -395,41 +397,24 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
-        client().prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse response = client().prepareSearch("test2")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(matchAllQuery())
-            .execute()
-            .actionGet();
-        assertHitCount(response, 0L);
-
-        response = client().prepareSearch("test2", "test3")
-            .setQuery(matchAllQuery())
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .execute()
-            .actionGet();
-        assertHitCount(response, 0L);
-
+        prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(
+            0L,
+            prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()),
+            prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen())
+        );
         // you should still be able to run empty searches without things blowing up
-        response = client().prepareSearch()
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(matchAllQuery())
-            .execute()
-            .actionGet();
-        assertHitCount(response, 1L);
+        assertHitCount(prepareSearch().setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 1L);
     }
 
     public void testAllMissingStrict() throws Exception {
         createIndex("test1");
-        expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("test2").setQuery(matchAllQuery()).execute().actionGet());
+        expectThrows(IndexNotFoundException.class, prepareSearch("test2").setQuery(matchAllQuery()));
 
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().prepareSearch("test2", "test3").setQuery(matchAllQuery()).execute().actionGet()
-        );
+        expectThrows(IndexNotFoundException.class, prepareSearch("test2", "test3").setQuery(matchAllQuery()));
 
         // you should still be able to run empty searches without things blowing up
-        client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+        prepareSearch().setQuery(matchAllQuery()).get().decRef();
     }
 
     // For now don't handle closed indices
@@ -511,25 +496,35 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testPutAlias() throws Exception {
         createIndex("foobar");
-        verify(indicesAdmin().prepareAliases().addAlias("foobar", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foobar", "foobar_alias"), false);
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
 
     }
 
     public void testPutAliasWildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
 
-        verify(indicesAdmin().prepareAliases().addAlias("foo*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foo*", "foobar_alias"), false);
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertTrue(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
-        verify(indicesAdmin().prepareAliases().addAlias("*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("*", "foobar_alias"), false);
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
     }
 
@@ -542,26 +537,26 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         }
 
         verify(indicesAdmin().preparePutMapping("foo").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
         verify(indicesAdmin().preparePutMapping("b*").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(indicesAdmin().preparePutMapping("_all").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(indicesAdmin().preparePutMapping().setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
 
         verify(indicesAdmin().preparePutMapping("c*").setSource("field", "type=text"), true);
 
         assertAcked(indicesAdmin().prepareClose("barbaz").get());
         verify(indicesAdmin().preparePutMapping("barbaz").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
     }
 
     public static final class TestPlugin extends Plugin {
@@ -600,12 +595,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesAdmin().prepareUpdateSettings("bar*").setSettings(Settings.builder().put("a", "b")), false);
         verify(indicesAdmin().prepareUpdateSettings("_all").setSettings(Settings.builder().put("c", "d")), false);
 
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("foo").get();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "foo").get();
         assertThat(settingsResponse.getSetting("foo", "index.a"), equalTo("b"));
-        settingsResponse = indicesAdmin().prepareGetSettings("bar*").get();
+        settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "bar*").get();
         assertThat(settingsResponse.getSetting("bar", "index.a"), equalTo("b"));
         assertThat(settingsResponse.getSetting("barbaz", "index.a"), equalTo("b"));
-        settingsResponse = indicesAdmin().prepareGetSettings("_all").get();
+        settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "_all").get();
         assertThat(settingsResponse.getSetting("foo", "index.c"), equalTo("d"));
         assertThat(settingsResponse.getSetting("foobar", "index.c"), equalTo("d"));
         assertThat(settingsResponse.getSetting("bar", "index.c"), equalTo("d"));
@@ -615,13 +610,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         try {
             verify(indicesAdmin().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), startsWith("Can't update non dynamic settings [[index.e]] for open indices [[barbaz"));
+            assertThat(e.getMessage(), startsWith("Can't update non dynamic setting(s) [[index.e]] for open indices [[barbaz"));
         }
         verify(indicesAdmin().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }
 
     static SearchRequestBuilder search(String... indices) {
-        return client().prepareSearch(indices).setQuery(matchAllQuery());
+        return prepareSearch(indices).setQuery(matchAllQuery());
     }
 
     static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
@@ -629,7 +624,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         if (options != null) {
             multiSearchRequestBuilder.setIndicesOptions(options);
         }
-        return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
+        return multiSearchRequestBuilder.add(prepareSearch(indices).setQuery(matchAllQuery()));
     }
 
     static ClearIndicesCacheRequestBuilder clearCache(String... indices) {
@@ -661,7 +656,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetAliasesRequestBuilder getAliases(String... indices) {
-        return indicesAdmin().prepareGetAliases("dummy").addIndices(indices);
+        return indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "dummy").setIndices(indices);
     }
 
     static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
@@ -669,19 +664,21 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetMappingsRequestBuilder getMapping(String... indices) {
-        return indicesAdmin().prepareGetMappings(indices);
+        return indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, indices);
     }
 
     static GetSettingsRequestBuilder getSettings(String... indices) {
-        return indicesAdmin().prepareGetSettings(indices);
+        return indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indices);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
-        return clusterAdmin().prepareCreateSnapshot("dummy-repo", name).setWaitForCompletion(true).setIndices(indices);
+        return clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", name)
+            .setWaitForCompletion(true)
+            .setIndices(indices);
     }
 
     private static RestoreSnapshotRequestBuilder restore(String name, String... indices) {
-        return clusterAdmin().prepareRestoreSnapshot("dummy-repo", name)
+        return clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "dummy-repo", name)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1-copy-" + name)
             .setWaitForCompletion(true)
@@ -695,25 +692,27 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                assertResponse(multiSearchRequestBuilder, multiSearchResponse -> {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                });
             } else {
                 try {
-                    requestBuilder.get();
+                    requestBuilder.get().decRef();
                     fail("IndexNotFoundException or IndexClosedException was expected");
                 } catch (IndexNotFoundException | IndexClosedException e) {}
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
-                assertHitCount(searchRequestBuilder.get(), expectedCount);
+                assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+                assertResponse(multiSearchRequestBuilder, response -> {
+                    assertThat(response.getResponses().length, equalTo(1));
+                    assertThat(response.getResponses()[0].getResponse(), notNullValue());
+                });
             } else {
-                requestBuilder.get();
+                requestBuilder.get().decRef();
             }
         }
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
 import java.io.IOException;
@@ -48,7 +47,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
 
-        assertUserProfileFeatures(false);
+        assertUserProfileFeatures();
         checkRemoteIndicesXPackUsage();
         assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
@@ -79,7 +78,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             apiKeyCredentials2 = tuple.v1();
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
-            assertUserProfileFeatures(true);
+            assertUserProfileFeatures();
             checkRemoteIndicesXPackUsage();
             assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
@@ -95,7 +94,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index41/_search", false == keyRoleHasDlsFls);
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
-            assertUserProfileFeatures(false);
+            assertUserProfileFeatures();
             checkRemoteIndicesXPackUsage();
             assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
@@ -140,16 +139,13 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void checkRemoteIndicesXPackUsage() throws IOException {
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return;
-        }
         final var putRoleRequest = new Request("PUT", "/_security/role/role1");
         putRoleRequest.setJsonEntity("""
             {
               "remote_indices": [
                 {
                   "names": ["index-*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote"]
                 }
               ]
@@ -478,7 +474,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         }
     }
 
-    private void assertUserProfileFeatures(boolean clusterHasTrialLicense) throws IOException {
+    private void assertUserProfileFeatures() throws IOException {
         final RestClient client = client();
         final RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())));
@@ -529,18 +525,12 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         enableProfileRequest.setOptions(requestOptions);
         assertOK(client.performRequest(enableProfileRequest));
 
-        // Suggest profiles
+        // Suggest profiles - available on basic and above
         final Request suggestProfilesRequest = new Request("GET", "_security/profile/_suggest");
         suggestProfilesRequest.setOptions(requestOptions);
-        if (clusterHasTrialLicense) {
-            assertOK(client.performRequest(suggestProfilesRequest));
-        } else {
-            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(suggestProfilesRequest));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
-        }
+        assertOK(client.performRequest(suggestProfilesRequest));
 
-        // Profile hasPrivileges
+        // Profile hasPrivileges - available on basic and above
         final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
         hasPrivilegesRequest.setOptions(requestOptions);
         hasPrivilegesRequest.setJsonEntity(Strings.format("""
@@ -562,20 +552,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                 ]
               }
             }""", uid));
-        if (clusterHasTrialLicense) {
-            assertOK(client.performRequest(hasPrivilegesRequest));
-        } else {
-            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(hasPrivilegesRequest));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
-        }
+        assertOK(client.performRequest(hasPrivilegesRequest));
     }
 
     private void assertFailToCreateAndUpdateCrossClusterApiKeys() {
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return;
-        }
-
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -599,10 +579,6 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertSuccessToCreateAndUpdateCrossClusterApiKeys() throws IOException {
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return;
-        }
-
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {

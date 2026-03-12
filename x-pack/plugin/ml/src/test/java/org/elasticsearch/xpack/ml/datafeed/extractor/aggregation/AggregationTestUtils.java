@@ -9,19 +9,18 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.Avg;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,25 +35,20 @@ public final class AggregationTestUtils {
 
     private AggregationTestUtils() {}
 
-    static Histogram.Bucket createHistogramBucket(long timestamp, long docCount, List<Aggregation> subAggregations) {
-        Histogram.Bucket bucket = mock(Histogram.Bucket.class);
-        when(bucket.getKey()).thenReturn(timestamp);
-        when(bucket.getDocCount()).thenReturn(docCount);
-        Aggregations aggs = createAggs(subAggregations);
-        when(bucket.getAggregations()).thenReturn(aggs);
-        return bucket;
+    static InternalHistogram.Bucket createHistogramBucket(long timestamp, long docCount, List<InternalAggregation> subAggregations) {
+        return new InternalHistogram.Bucket(timestamp, docCount, DocValueFormat.RAW, createAggs(subAggregations));
     }
 
-    static CompositeAggregation.Bucket createCompositeBucket(
+    static InternalComposite.InternalBucket createCompositeBucket(
         long timestamp,
         String dateValueSource,
         long docCount,
-        List<Aggregation> subAggregations,
+        List<InternalAggregation> subAggregations,
         List<Tuple<String, String>> termValues
     ) {
-        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
         when(bucket.getDocCount()).thenReturn(docCount);
-        Aggregations aggs = createAggs(subAggregations);
+        InternalAggregations aggs = createAggs(subAggregations);
         when(bucket.getAggregations()).thenReturn(aggs);
         Map<String, Object> bucketKey = new HashMap<>();
         bucketKey.put(dateValueSource, timestamp);
@@ -65,34 +59,34 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
-    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
-        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
+    static InternalSingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<InternalAggregation> subAggregations) {
+        InternalSingleBucketAggregation singleBucketAggregation = mock(InternalSingleBucketAggregation.class);
         when(singleBucketAggregation.getName()).thenReturn(name);
         when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
         when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
         return singleBucketAggregation;
     }
 
-    static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {
+    static InternalHistogram.Bucket createHistogramBucket(long timestamp, long docCount) {
         return createHistogramBucket(timestamp, docCount, Collections.emptyList());
     }
 
-    static Aggregations createAggs(List<Aggregation> aggsList) {
-        return new Aggregations(aggsList);
+    static InternalAggregations createAggs(List<InternalAggregation> aggsList) {
+        return InternalAggregations.from(aggsList);
     }
 
     @SuppressWarnings("unchecked")
-    static Histogram createHistogramAggregation(String name, List<Histogram.Bucket> histogramBuckets) {
-        Histogram histogram = mock(Histogram.class);
-        when((List<Histogram.Bucket>) histogram.getBuckets()).thenReturn(histogramBuckets);
+    static InternalHistogram createHistogramAggregation(String name, List<InternalHistogram.Bucket> histogramBuckets) {
+        InternalHistogram histogram = mock(InternalHistogram.class);
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
         when(histogram.getName()).thenReturn(name);
         return histogram;
     }
 
     @SuppressWarnings("unchecked")
-    static CompositeAggregation createCompositeAggregation(String name, List<CompositeAggregation.Bucket> buckets) {
-        CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
-        when((List<CompositeAggregation.Bucket>) compositeAggregation.getBuckets()).thenReturn(buckets);
+    static InternalComposite createCompositeAggregation(String name, List<InternalComposite.InternalBucket> buckets) {
+        InternalComposite compositeAggregation = mock(InternalComposite.class);
+        when(compositeAggregation.getBuckets()).thenReturn(buckets);
         when(compositeAggregation.getName()).thenReturn(name);
         return compositeAggregation;
 
@@ -102,16 +96,16 @@ public final class AggregationTestUtils {
         return new Max(name, value, DocValueFormat.RAW, null);
     }
 
-    static Avg createAvg(String name, double value) {
-        Avg avg = mock(Avg.class);
+    static InternalAvg createAvg(String name, double value) {
+        InternalAvg avg = mock(InternalAvg.class);
         when(avg.getName()).thenReturn(name);
         when(avg.value()).thenReturn(value);
         when(avg.getValue()).thenReturn(value);
         return avg;
     }
 
-    static GeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {
-        GeoCentroid centroid = mock(GeoCentroid.class);
+    static InternalGeoCentroid createGeoCentroid(String name, long count, double lat, double lon) {
+        InternalGeoCentroid centroid = mock(InternalGeoCentroid.class);
         when(centroid.count()).thenReturn(count);
         when(centroid.getName()).thenReturn(name);
         GeoPoint point = count > 0 ? new GeoPoint(lat, lon) : null;
@@ -119,23 +113,23 @@ public final class AggregationTestUtils {
         return centroid;
     }
 
-    static NumericMetricsAggregation.SingleValue createSingleValue(String name, double value) {
-        NumericMetricsAggregation.SingleValue singleValue = mock(NumericMetricsAggregation.SingleValue.class);
+    static InternalNumericMetricsAggregation.SingleValue createSingleValue(String name, double value) {
+        InternalNumericMetricsAggregation.SingleValue singleValue = mock(InternalNumericMetricsAggregation.SingleValue.class);
         when(singleValue.getName()).thenReturn(name);
         when(singleValue.value()).thenReturn(value);
         return singleValue;
     }
 
     @SuppressWarnings("unchecked")
-    static Terms createTerms(String name, Term... terms) {
-        Terms termsAgg = mock(Terms.class);
+    static StringTerms createTerms(String name, Term... terms) {
+        StringTerms termsAgg = mock(StringTerms.class);
         when(termsAgg.getName()).thenReturn(name);
-        List<Terms.Bucket> buckets = new ArrayList<>();
+        List<StringTerms.Bucket> buckets = new ArrayList<>();
         for (Term term : terms) {
             StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
             when(bucket.getKey()).thenReturn(term.key);
             when(bucket.getDocCount()).thenReturn(term.count);
-            List<Aggregation> numericAggs = new ArrayList<>();
+            List<InternalAggregation> numericAggs = new ArrayList<>();
             if (term.hasBuckekAggs()) {
                 when(bucket.getAggregations()).thenReturn(createAggs(term.bucketAggs));
             } else {
@@ -143,24 +137,22 @@ public final class AggregationTestUtils {
                     numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
                 }
                 if (numericAggs.isEmpty() == false) {
-                    Aggregations aggs = createAggs(numericAggs);
+                    InternalAggregations aggs = createAggs(numericAggs);
                     when(bucket.getAggregations()).thenReturn(aggs);
                 }
             }
             buckets.add(bucket);
         }
-        when((List<Terms.Bucket>) termsAgg.getBuckets()).thenReturn(buckets);
+        when(termsAgg.getBuckets()).thenReturn(buckets);
         return termsAgg;
     }
 
-    static Percentiles createPercentiles(String name, double... values) {
-        Percentiles percentiles = mock(Percentiles.class);
+    static InternalTDigestPercentiles createPercentiles(String name, double... values) {
+        InternalTDigestPercentiles percentiles = mock(InternalTDigestPercentiles.class);
         when(percentiles.getName()).thenReturn(name);
         List<Percentile> percentileList = new ArrayList<>();
         for (double value : values) {
-            Percentile percentile = mock(Percentile.class);
-            when(percentile.getValue()).thenReturn(value);
-            percentileList.add(percentile);
+            percentileList.add(new Percentile(0.0, value));
         }
         when(percentiles.iterator()).thenReturn(percentileList.iterator());
         return percentiles;
@@ -170,7 +162,7 @@ public final class AggregationTestUtils {
         String key;
         long count;
         Map<String, Double> values;
-        List<Aggregation> bucketAggs;
+        List<InternalAggregation> bucketAggs;
 
         Term(String key, long count) {
             this(key, count, Collections.emptyMap());
@@ -186,7 +178,7 @@ public final class AggregationTestUtils {
             this.values = values;
         }
 
-        Term(String key, long count, List<Aggregation> bucketAggs) {
+        Term(String key, long count, List<InternalAggregation> bucketAggs) {
             this(key, count);
             this.bucketAggs = bucketAggs;
         }

@@ -3,16 +3,10 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
                    type: ip
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
 ---
 "IP range":
@@ -142,8 +136,8 @@ setup:
 
 ---
 "IP Range avg_bucket":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: Fixed in 7.8.0
   - do:
       bulk:

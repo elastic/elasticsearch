@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -238,6 +238,71 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);
         assertAtLeast.accept(modelPartial, AllocationStatus.State.STARTED);
         assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRequiredMemoryEstimation() throws IOException {
+        String modelWithMetadata = "model_with_metadata";
+        createPassThroughModel(modelWithMetadata, randomLongBetween(0, 10000000), randomLongBetween(0, 10000000));
+        putVocabulary(List.of("once", "twice"), modelWithMetadata);
+        putModelDefinition(modelWithMetadata);
+        String modelNoMetadata = "model_no_metadata";
+        createPassThroughModel(modelNoMetadata);
+        putVocabulary(List.of("once", "twice"), modelNoMetadata);
+        putModelDefinition(modelNoMetadata);
+
+        CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
+            startDeployment(modelId, state);
+            Response response = getTrainedModelStats(modelId);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(responseMap.toString(), statusState, is(not(nullValue())));
+            assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            assertThat(XContentMapValues.extractValue("inference_stats", stats.get(0)), is(not(nullValue())));
+            Integer numberOfAllocations = (Integer) XContentMapValues.extractValue("deployment_stats.number_of_allocations", stats.get(0));
+            assertThat(numberOfAllocations, greaterThanOrEqualTo(0));
+
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+
+            Response trainedModelConfigResponse = getTrainedModelConfigs(modelId);
+            List<Map<String, Object>> configs = (List<Map<String, Object>>) entityAsMap(trainedModelConfigResponse).get(
+                "trained_model_configs"
+            );
+            assertThat(configs, hasSize(1));
+            Map<String, Object> metadata = (Map<String, Object>) configs.get(0).get("metadata");
+            Integer canonicalRequiredMemory = (int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE);
+            if (metadata != null) {
+                // test required memory estimation for a model with metadata memory requirements
+                assertThat(metadata, is(not(nullValue())));
+                assertThat(metadata.containsKey("per_deployment_memory_bytes"), is(true));
+                long perDeploymentMemoryBytes = ((Number) metadata.get("per_deployment_memory_bytes")).longValue();
+                assertThat(metadata.containsKey("per_allocation_memory_bytes"), is(true));
+                long perAllocationMemoryBytes = ((Number) metadata.get("per_allocation_memory_bytes")).longValue();
+                Integer expectedRequiredMemory = Math.max(
+                    canonicalRequiredMemory,
+                    (int) (perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + RAW_MODEL_SIZE)
+                );
+                assertThat(requiredNativeMemory, equalTo(expectedRequiredMemory));
+            } else {
+                // test required memory estimation for a model without metadata memory requirements
+                assertThat(requiredNativeMemory, equalTo(canonicalRequiredMemory));
+            }
+
+            stopDeployment(modelId);
+        };
+
+        assertAtLeast.accept(modelWithMetadata, AllocationStatus.State.STARTING);
+        assertAtLeast.accept(modelNoMetadata, AllocationStatus.State.STARTING);
     }
 
     @SuppressWarnings("unchecked")
@@ -496,15 +561,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
             }
         }
-        {
-            // the deprecated deployment/_infer endpoint does not support multiple docs
-            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-            request.setJsonEntity(String.format(Locale.ROOT, """
-                {  "docs": [%s] }
-                """, docsBuilder));
-            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
-        }
     }
 
     public void testGetPytorchModelWithDefinition() throws IOException {
@@ -570,7 +626,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             )
         );
 
-        client().performRequest(putPipeline("my_pipeline", """
+        putPipeline("my_pipeline", """
             {"processors": [
                   {
                     "inference": {
@@ -578,7 +634,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                     }
                   }
                 ]
-            }"""));
+            }""");
 
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
         request.setJsonEntity("""
@@ -652,7 +708,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", Strings.format("""
+        putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -661,7 +717,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
                 }
               ]
-            }""", modelId)));
+            }""", modelId));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -672,7 +728,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             )
         );
 
-        stopDeployment(modelId, true);
+        stopDeployment(modelId, true, false);
     }
 
     public void testStopWithModelAliasUsedDeploymentByIngestProcessor() throws IOException {
@@ -684,7 +740,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         startDeployment(modelId);
         client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
 
-        client().performRequest(putPipeline("my_pipeline", Strings.format("""
+        putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -693,7 +749,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
                 }
               ]
-            }""", modelAlias)));
+            }""", modelAlias));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -704,7 +760,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                     + " by ingest processors; use force to stop the deployment"
             )
         );
-        stopDeployment(modelId, true);
+        stopDeployment(modelId, true, false);
     }
 
     public void testInferenceProcessorWithModelAlias() throws IOException {
@@ -900,6 +956,34 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
     }
 
+    public void testStartDeployment_ModelTooBig() throws IOException {
+        String modelId = "test_start_deployment_too_big_model";
+        // Create a model with memory requirements that exceed available node native memory
+        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(100).getBytes();
+        long perAllocationMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        createPassThroughModel(modelId, perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
     @SuppressWarnings("unchecked")
     public void testStartDeployment_GivenNoProcessorsLeft_AndLazyStartEnabled() throws Exception {
         // We start 2 models. The first needs so many allocations it won't possibly
@@ -1054,6 +1138,44 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
             assertAllocationCount(modelId, 1);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeploymentThreadsIncludedInUsage() throws IOException {
+        String modelId = "deployment_threads_in_usage";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("GET", "/_xpack/usage");
+        var usage = entityAsMap(client().performRequest(request).getEntity());
+
+        var ml = (Map<String, Object>) usage.get("ml");
+        assertNotNull(usage.toString(), ml);
+        var inference = (Map<String, Object>) ml.get("inference");
+        var deployments = (Map<String, Object>) inference.get("deployments");
+        var deploymentStats = (List<Map<String, Object>>) deployments.get("stats_by_model");
+        for (var stat : deploymentStats) {
+            assertThat(stat.toString(), (Integer) stat.get("num_threads"), greaterThanOrEqualTo(1));
+            assertThat(stat.toString(), (Integer) stat.get("num_allocations"), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testInferEmptyInput() throws IOException {
+        String modelId = "empty_input";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity("""
+            {  "docs": [] }
+            """);
+
+        var inferenceResponse = client().performRequest(request);
+        assertThat(EntityUtils.toString(inferenceResponse.getEntity()), equalTo("{\"inference_results\":[]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {

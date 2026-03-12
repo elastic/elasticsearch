@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -21,11 +22,17 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -34,8 +41,10 @@ import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -51,7 +60,10 @@ public abstract class TransportBroadcastReplicationAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
-    private final String executor;
+    private final Executor executor;
+    private final ProjectResolver projectResolver;
+
+    protected record ShardRecord(ShardId shardId, SplitShardCountSummary splitSummary) {}
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -62,19 +74,21 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        String executor
+        Executor executor,
+        ProjectResolver projectResolver
     ) {
-        super(name, transportService, actionFilters, requestReader);
+        super(name, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
+        executor.execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
     }
 
     private CheckedConsumer<ActionListener<Response>, Exception> createAsyncAction(Task task, Request request) {
@@ -89,19 +103,24 @@ public abstract class TransportBroadcastReplicationAction<
                 assert totalShardCopyCount == 0 && successShardCopyCount == 0 && allFailures.isEmpty() : "shouldn't call this twice";
 
                 final ClusterState clusterState = clusterService.state();
-                final List<ShardId> shards = shards(request, clusterState);
-                final Map<String, IndexMetadata> indexMetadataByName = clusterState.getMetadata().indices();
+                final ProjectState projectState = projectResolver.getProjectState(clusterState);
+                final ProjectMetadata project = projectState.metadata();
+                final List<ShardRecord> shards = shards(request, projectState);
+                final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
-                    for (final ShardId shardId : shards) {
+                    shards.forEach(shardRecord -> {
+                        ShardId shardId = shardRecord.shardId();
+                        SplitShardCountSummary shardCountSummary = shardRecord.splitSummary();
                         // NB This sends O(#shards) requests in a tight loop; TODO add some throttling here?
                         shardExecute(
                             task,
                             request,
                             shardId,
+                            shardCountSummary,
                             ActionListener.releaseAfter(new ReplicationResponseActionListener(shardId, indexMetadataByName), refs.acquire())
                         );
-                    }
+                    });
                 }
             }
 
@@ -165,9 +184,15 @@ public abstract class TransportBroadcastReplicationAction<
         };
     }
 
-    protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
+    protected void shardExecute(
+        Task task,
+        Request request,
+        ShardId shardId,
+        SplitShardCountSummary shardCountSummary,
+        ActionListener<ShardResponse> shardActionListener
+    ) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        ShardRequest shardRequest = newShardRequest(request, shardId);
+        ShardRequest shardRequest = newShardRequest(request, shardId, shardCountSummary);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
     }
@@ -175,23 +200,29 @@ public abstract class TransportBroadcastReplicationAction<
     /**
      * @return all shard ids the request should run on
      */
-    protected List<ShardId> shards(Request request, ClusterState clusterState) {
+    protected List<ShardRecord> shards(Request request, ProjectState projectState) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+
+        List<ShardRecord> shards = new ArrayList<>();
+
+        OperationRouting operationRouting = clusterService.operationRouting();
+        ProjectMetadata project = projectState.metadata();
+
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project, request);
         for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
-            if (indexMetadata != null) {
-                final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    shardIds.add(indexRoutingTable.shard(i).shardId());
-                }
+            Iterator<IndexShardRoutingTable> iterator = operationRouting.allWritableShards(projectState, index);
+            IndexMetadata indexMetadata = project.index(index);
+
+            while (iterator.hasNext()) {
+                ShardId shardId = iterator.next().shardId();
+                SplitShardCountSummary splitSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                shards.add(new ShardRecord(shardId, splitSummary));
             }
         }
-        return shardIds;
+        return shards;
     }
 
-    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
+    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId, SplitShardCountSummary shardCountSummary);
 
     protected abstract Response newResponse(
         int successfulShards,

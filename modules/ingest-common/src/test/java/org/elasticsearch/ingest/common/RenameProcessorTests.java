@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -13,7 +14,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.script.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ public class RenameProcessorTests extends ESTestCase {
         do {
             newFieldName = RandomDocumentPicks.randomFieldName(random());
         } while (RandomDocumentPicks.canAddField(newFieldName, ingestDocument) == false || newFieldName.equals(fieldName));
-        Processor processor = createRenameProcessor(fieldName, newFieldName, false);
+        Processor processor = createRenameProcessor(fieldName, newFieldName, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(newFieldName, Object.class), equalTo(fieldValue));
     }
@@ -54,7 +54,7 @@ public class RenameProcessorTests extends ESTestCase {
         document.put("one", one);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        Processor processor = createRenameProcessor("list.0", "item", false);
+        Processor processor = createRenameProcessor("list.0", "item", false, false);
         processor.execute(ingestDocument);
         Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
         assertThat(actualObject, instanceOf(List.class));
@@ -67,7 +67,7 @@ public class RenameProcessorTests extends ESTestCase {
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
-        processor = createRenameProcessor("list.0", "list.3", false);
+        processor = createRenameProcessor("list.0", "list.3", false, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -82,7 +82,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), false);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), false, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -95,11 +95,11 @@ public class RenameProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), true);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), true, false);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
 
-        Processor processor1 = createRenameProcessor("", RandomDocumentPicks.randomFieldName(random()), true);
+        Processor processor1 = createRenameProcessor("", RandomDocumentPicks.randomFieldName(random()), true, false);
         processor1.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -110,6 +110,7 @@ public class RenameProcessorTests extends ESTestCase {
         Processor processor = createRenameProcessor(
             RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument),
             fieldName,
+            false,
             false
         );
         try {
@@ -123,9 +124,9 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameExistingFieldNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setFieldValue(fieldName, null);
+        ingestDocument.setFieldValue(fieldName, (Object) null);
         String newFieldName = randomValueOtherThanMany(ingestDocument::hasField, () -> RandomDocumentPicks.randomFieldName(random()));
-        Processor processor = createRenameProcessor(fieldName, newFieldName, false);
+        Processor processor = createRenameProcessor(fieldName, newFieldName, false, false);
         processor.execute(ingestDocument);
         if (newFieldName.startsWith(fieldName + '.')) {
             assertThat(ingestDocument.getFieldValue(fieldName, Object.class), instanceOf(Map.class));
@@ -138,42 +139,40 @@ public class RenameProcessorTests extends ESTestCase {
 
     public void testRenameAtomicOperationSetFails() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("list", List.of("item"));
+        metadata.put("_index", "foobar");
 
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
-            metadata,
-            Map.of("new_field", new Metadata.FieldProperty<>(Object.class, true, true, (k, v) -> {
-                if (v != null) {
-                    throw new UnsupportedOperationException();
-                }
-            }), "list", new Metadata.FieldProperty<>(Object.class, true, true, null))
-        );
-        Processor processor = createRenameProcessor("list", "new_field", false);
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execute should have failed");
-        } catch (UnsupportedOperationException e) {
-            // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
-        }
-    }
-
-    public void testRenameAtomicOperationRemoveFails() throws Exception {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("list", List.of("item"));
-
-        IngestDocument ingestDocument = TestIngestDocument.ofMetadataWithValidator(
-            metadata,
-            Map.of("list", new Metadata.FieldProperty<>(Object.class, false, true, null))
-        );
-        Processor processor = createRenameProcessor("list", "new_field", false);
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(metadata);
+        Processor processor = createRenameProcessor("_index", "_version_type", false, false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (IllegalArgumentException e) {
             // the set failed, the old field has not been removed
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "_version_type must be a null or one of [internal, external, external_gte] "
+                        + "but was [foobar] with type [java.lang.String]"
+                )
+            );
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(true));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version_type"), equalTo(false));
+        }
+    }
+
+    public void testRenameAtomicOperationRemoveFails() throws Exception {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("foo", "bar");
+
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(metadata);
+        Processor processor = createRenameProcessor("_version", "new_field", false, false);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch (IllegalArgumentException e) {
+            // the remove failed, the old field has not been removed
+            assertThat(e.getMessage(), equalTo("_version cannot be removed"));
+            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }
@@ -182,30 +181,41 @@ public class RenameProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("foo", "bar");
         IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
-        Processor processor1 = createRenameProcessor("foo", "foo.bar", false);
+        Processor processor1 = createRenameProcessor("foo", "foo.bar", false, false);
         processor1.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Map.of("bar", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
 
-        Processor processor2 = createRenameProcessor("foo.bar", "foo.bar.baz", false);
+        Processor processor2 = createRenameProcessor("foo.bar", "foo.bar.baz", false, false);
         processor2.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Map.of("bar", Map.of("baz", "bar"))));
         assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Map.of("baz", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
 
-        // for fun lets try to restore it (which don't allow today)
-        Processor processor3 = createRenameProcessor("foo.bar.baz", "foo", false);
+        // try to restore it (will fail, not allowed without the override flag)
+        Processor processor3 = createRenameProcessor("foo.bar.baz", "foo", false, false);
         Exception e = expectThrows(IllegalArgumentException.class, () -> processor3.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [foo] already exists"));
     }
 
-    private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing) {
+    public void testRenameOverride() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        source.put("event.original", "existing_message");
+        source.put("message", "new_message");
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
+        Processor processor1 = createRenameProcessor("message", "event.original", false, true);
+        processor1.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("event.original", String.class), equalTo("new_message"));
+    }
+
+    private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {
         return new RenameProcessor(
             randomAlphaOfLength(10),
             null,
             new TestTemplateService.MockTemplateScript.Factory(field),
             new TestTemplateService.MockTemplateScript.Factory(targetField),
-            ignoreMissing
+            ignoreMissing,
+            overrideEnabled
         );
     }
 }

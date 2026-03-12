@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -32,13 +34,14 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionNoRetries() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -63,13 +66,14 @@ public class RetryableActionTests extends ESTestCase {
         int expectedRetryCount = randomIntBetween(1, 8);
         final AtomicInteger remainingFailedCount = new AtomicInteger(expectedRetryCount);
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -110,13 +114,14 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(randomFrom(1, 10, randomIntBetween(100, 2000))),
             TimeValue.timeValueSeconds(1),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -157,13 +162,14 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testTimeoutOfZeroMeansNoRetry() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(0),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -186,13 +192,14 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testFailedBecauseNotRetryable() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -215,13 +222,14 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionCancelled() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -252,14 +260,15 @@ public class RetryableActionTests extends ESTestCase {
     }
 
     public void testMaxDelayBound() {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(50),
             TimeValue.timeValueSeconds(1),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override

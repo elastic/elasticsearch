@@ -59,7 +59,7 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_2_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

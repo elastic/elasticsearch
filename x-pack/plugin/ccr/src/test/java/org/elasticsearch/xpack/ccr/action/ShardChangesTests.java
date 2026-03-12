@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,9 +50,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(Settings.builder().put("index.number_of_shards", 1)).get();
 
-        client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -65,19 +66,19 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(response.getOperations().length, equalTo(3));
         Translog.Index operation = (Translog.Index) response.getOperations()[0];
         assertThat(operation.seqNo(), equalTo(0L));
-        assertThat(operation.id(), equalTo("1"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("1"));
 
         operation = (Translog.Index) response.getOperations()[1];
         assertThat(operation.seqNo(), equalTo(1L));
-        assertThat(operation.id(), equalTo("2"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("2"));
 
         operation = (Translog.Index) response.getOperations()[2];
         assertThat(operation.seqNo(), equalTo(2L));
-        assertThat(operation.id(), equalTo("3"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("3"));
 
-        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
 
         shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -90,21 +91,19 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(response.getOperations().length, equalTo(3));
         operation = (Translog.Index) response.getOperations()[0];
         assertThat(operation.seqNo(), equalTo(3L));
-        assertThat(operation.id(), equalTo("3"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("3"));
 
         operation = (Translog.Index) response.getOperations()[1];
         assertThat(operation.seqNo(), equalTo(4L));
-        assertThat(operation.id(), equalTo("4"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("4"));
 
         operation = (Translog.Index) response.getOperations()[2];
         assertThat(operation.seqNo(), equalTo(5L));
-        assertThat(operation.id(), equalTo("5"));
+        assertThat(Uid.decodeId(operation.uid()), equalTo("5"));
     }
 
     public void testMissingOperations() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("index")
+        indicesAdmin().prepareCreate("index")
             .setSettings(
                 indexSettings(1, 0).put("index.soft_deletes.retention.operations", 0)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
@@ -112,7 +111,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .get();
 
         for (int i = 0; i < 32; i++) {
-            client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
@@ -135,13 +134,10 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
-        client().admin()
-            .indices()
-            .execute(
-                RetentionLeaseActions.Add.INSTANCE,
-                new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
-            )
-            .get();
+        indicesAdmin().execute(
+            RetentionLeaseActions.ADD,
+            new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
+        ).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);

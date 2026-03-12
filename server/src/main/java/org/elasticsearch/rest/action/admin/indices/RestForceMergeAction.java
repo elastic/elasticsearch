@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -11,15 +12,17 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -30,6 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL) // we might block this completely.
 public class RestForceMergeAction extends BaseRestHandler {
 
     @Override
@@ -62,9 +66,9 @@ public class RestForceMergeAction extends BaseRestHandler {
             if (validationException != null) {
                 throw validationException;
             }
-            final var responseFuture = new ListenableActionFuture<ForceMergeResponse>();
-            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseFuture);
-            responseFuture.addListener(new LoggingTaskListener<>(task));
+            final var responseListener = new SubscribableListener<BroadcastResponse>();
+            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseListener);
+            responseListener.addListener(new LoggingTaskListener<>(task));
             return sendTask(client.getLocalNodeId(), task);
         }
     }

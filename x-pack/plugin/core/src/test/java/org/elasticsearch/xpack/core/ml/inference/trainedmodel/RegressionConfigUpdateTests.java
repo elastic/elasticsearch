@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -53,19 +53,18 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
     public void testApply() {
         RegressionConfig originalConfig = randomRegressionConfig();
 
-        assertThat(originalConfig, equalTo(RegressionConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(RegressionConfigUpdate.EMPTY_PARAMS)));
 
         assertThat(
             new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
-            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig))
+            equalTo(originalConfig.apply(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build()))
         );
         assertThat(
             new RegressionConfig.Builder().setNumTopFeatureImportanceValues(1).setResultsField("foo").build(),
             equalTo(
-                new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
-                    .setResultsField("foo")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(1).setResultsField("foo").build()
+                )
             )
         );
     }

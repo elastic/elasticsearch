@@ -3,7 +3,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.JarApiComparisonTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 
@@ -17,11 +16,11 @@ dependencies {
   newJar project(":libs:${project.name}")
 }
 
-BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
+buildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
   && it != VersionProperties.elasticsearchVersion
 }) { bwcVersion, baseName ->
 
-  BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+  BwcVersions.UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
 
   configurations {
     "oldJar${baseName}" {
@@ -33,12 +32,12 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
     if (unreleasedVersion) {
       // For unreleased snapshot versions, build them from source
       "oldJar${baseName}"(files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name))))
-    } else if(bwcVersion.onOrAfter('8.7.0') && project.name.endsWith("elasticsearch-logging")==false) {
+    } else if(bwcVersion.onOrAfter('8.7.0') && project.name.endsWith("logging")==false) {
       //there was a package rename in 8.7.0, except for es-logging
-      "oldJar${baseName}"("org.elasticsearch.plugin:${project.name}:${bwcVersion}")
+      "oldJar${baseName}"("org.elasticsearch.plugin:elasticsearch-${project.name}:${bwcVersion}")
     } else {
       // For released versions, download it
-      "oldJar${baseName}"("org.elasticsearch:${project.name}:${bwcVersion}")
+      "oldJar${baseName}"("org.elasticsearch:elasticsearch-${project.name}:${bwcVersion}")
     }
   }
 

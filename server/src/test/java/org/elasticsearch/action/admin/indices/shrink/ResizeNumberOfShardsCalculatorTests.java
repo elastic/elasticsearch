@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +22,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testShrink() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.ShrinkShardsCalculator shrinkShardsCalculator =
@@ -49,7 +50,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testCloneInputs() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.CloneShardsCalculator cloneShardsCalculator =
@@ -67,7 +68,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testSplitInputs() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, randomIntBetween(2, 5), randomIntBetween(0, 5)))
+            .settings(indexSettings(IndexVersion.current(), randomIntBetween(2, 5), randomIntBetween(0, 5)))
             .build();
 
         ResizeNumberOfShardsCalculator.SplitShardsCalculator splitShardsCalculator =

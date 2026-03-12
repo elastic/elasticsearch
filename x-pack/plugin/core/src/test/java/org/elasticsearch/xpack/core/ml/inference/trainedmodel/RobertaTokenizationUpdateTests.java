@@ -67,9 +67,6 @@ public class RobertaTokenizationUpdateTests extends AbstractBWCWireSerialization
 
     @Override
     protected RobertaTokenizationUpdate mutateInstanceForVersion(RobertaTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
-            return new RobertaTokenizationUpdate(instance.getTruncate(), null);
-        }
 
         return instance;
     }

@@ -15,6 +15,6 @@ public class ActivateProfileAction extends ActionType<ActivateProfileResponse> {
     public static final ActivateProfileAction INSTANCE = new ActivateProfileAction();
 
     public ActivateProfileAction() {
-        super(NAME, ActivateProfileResponse::new);
+        super(NAME);
     }
 }

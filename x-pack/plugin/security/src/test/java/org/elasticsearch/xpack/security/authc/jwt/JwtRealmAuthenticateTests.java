@@ -15,6 +15,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +57,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 0), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -62,6 +66,26 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
         final int jwtAuthcCount = randomIntBetween(2, 3);
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
+    }
+
+    public void testJwtCache() throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false, false);
+        JwtRealm realm = jwtIssuerAndRealms.get(0).realm();
+        realm.expireAll();
+        assertThat(realm.getJwtCache().count(), is(0));
+        final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        for (int i = 1; i <= randomIntBetween(2, 10); i++) {
+            User user = randomUser(jwtIssuerAndRealm.issuer());
+            doMultipleAuthcAuthzAndVerifySuccess(
+                jwtIssuerAndRealm.realm(),
+                user,
+                randomJwt(jwtIssuerAndRealm, user),
+                clientSecret,
+                randomIntBetween(2, 10)
+            );
+            assertThat(realm.getJwtCache().count(), is(i));
+        }
     }
 
     /**
@@ -77,7 +101,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -102,7 +127,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
@@ -244,6 +270,72 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
     }
 
+    public void testJwkUpdatesByReloadWithFile() throws Exception {
+        doTestJwkUpdatesByReload(false);
+    }
+
+    public void testJwkUpdatesByReloadWithWebServer() throws Exception {
+        doTestJwkUpdatesByReload(true);
+    }
+
+    private void doTestJwkUpdatesByReload(boolean httpsServer) throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
+            1, // realmsRange
+            1, // authzRange
+            1, // algsRange
+            1, // audiencesRange
+            1, // usersRange
+            1, // rolesRange
+            0, // jwtCacheSizeRange (disabled cache)
+            httpsServer, // createHttpsServer,
+            true
+        );
+        JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+
+        User user = randomUser(jwtIssuerAndRealm.issuer());
+        SecureString jwtJwks = randomJwt(jwtIssuerAndRealm, user);
+        SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks, clientSecret, 1);
+
+        List<JwtIssuer.AlgJwkPair> jwtIssuerJwks = jwtIssuerAndRealm.issuer().algAndJwksAll;
+
+        // clear all PKC JWK sets
+        configureJwkSets(jwtIssuerAndRealm, Collections.emptyList());
+        awaitAuthenticationFailure(jwtIssuerAndRealm, jwtJwks, clientSecret);
+
+        // restore PKC JWK sets
+        configureJwkSets(jwtIssuerAndRealm, jwtIssuerJwks);
+        awaitAuthenticationSuccess(jwtIssuerAndRealm, user, jwtJwks, clientSecret);
+    }
+
+    private void configureJwkSets(JwtIssuerAndRealm jwtIssuerAndRealm, List<JwtIssuer.AlgJwkPair> algAndJwks) throws Exception {
+        jwtIssuerAndRealm.issuer().setJwks(algAndJwks, false);
+        printJwtIssuer(jwtIssuerAndRealm.issuer());
+        copyIssuerJwksToRealmConfig(jwtIssuerAndRealm);
+    }
+
+    private void awaitAuthenticationFailure(JwtIssuerAndRealm jwtIssAndRealm, SecureString jwtJwks, SecureString clientSecret) {
+        assertTrue(waitUntil(() -> {
+            try {
+                verifyAuthenticateFailureHelper(jwtIssAndRealm, jwtJwks, clientSecret);
+                return true;
+            } catch (Exception | AssertionError e) {
+                return false;
+            }
+        }, 5, TimeUnit.SECONDS));
+    }
+
+    private void awaitAuthenticationSuccess(JwtIssuerAndRealm jwtIssAndRealm, User user, SecureString jwtJwks, SecureString clientSecret) {
+        assertTrue(waitUntil(() -> {
+            try {
+                doMultipleAuthcAuthzAndVerifySuccess(jwtIssAndRealm.realm(), user, jwtJwks, clientSecret, 1);
+                return true;
+            } catch (AssertionError e) {
+                return false;
+            }
+        }, 5, TimeUnit.SECONDS));
+    }
+
     /**
      * Test with authz realms.
      * @throws Exception Unexpected test failure
@@ -257,7 +349,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // usersRange
             randomIntBetween(0, 3), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(true));
@@ -298,10 +391,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testPkcJwkSetUrlNotFound() throws Exception {
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
-        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, createHttpsServer);
+        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, createHttpsServer, false);
         assertThat(jwtIssuer.httpsServer, notNullValue());
         try {
-            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, 0, 0, false);
             final String configKey = RealmSettings.getFullSettingKey(jwtRealmSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
             final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid"); // right host, wrong path
             jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
@@ -329,7 +422,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             randomIntBetween(1, 1), // usersRange
             randomIntBetween(1, 1), // rolesRange
             randomIntBetween(0, 1), // jwtCacheSizeRange
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -346,7 +440,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Do one more direct SUCCESS scenario by checking token() and authenticate() directly before moving on to FAILURE scenarios.
             final ThreadContext requestThreadContext = createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm().token(requestThreadContext);
-            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
             jwtIssuerAndRealm.realm().authenticate(token, plainActionFuture);
             assertThat(plainActionFuture.get(), notNullValue());
             assertThat(plainActionFuture.get().isAuthenticated(), is(true));
@@ -360,13 +454,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Empty JWT string
         final ThreadContext tc2 = createThreadContext("", clientSecret);
-        final Exception e2 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc2));
-        assertThat(e2.getMessage(), equalTo("JWT bearer token must be non-empty"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc2), nullValue());
 
         // Non-empty whitespace JWT string
-        final ThreadContext tc3 = createThreadContext("", clientSecret);
-        final Exception e3 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc3));
-        assertThat(e3.getMessage(), equalTo("JWT bearer token must be non-empty"));
+        final ThreadContext tc3 = createThreadContext("  ", clientSecret);
+        assertThat(jwtIssuerAndRealm.realm().token(tc3), nullValue());
 
         // Blank client secret
         final ThreadContext tc4 = createThreadContext(jwt, "");
@@ -380,8 +472,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // JWT parse exception
         final ThreadContext tc6 = createThreadContext("Head.Body.Sig", clientSecret);
-        final Exception e6 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc6));
-        assertThat(e6.getMessage(), equalTo("Failed to parse JWT bearer token"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc6), nullValue());
 
         // Parse JWT into three parts, for rejecting testing of tampered JWT contents
         final SignedJWT parsedJwt = SignedJWT.parse(jwt.toString());
@@ -392,7 +483,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of unsigned JWT
             final SecureString unsignedJwt = new SecureString(new PlainJWT(validClaimsSet).serialize().toCharArray());
             final ThreadContext tc = createThreadContext(unsignedJwt, clientSecret);
-            expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc));
+            assertThat(jwtIssuerAndRealm.realm().token(tc), nullValue());
         }
 
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
@@ -469,7 +560,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testSameIssuerTwoRealmsDifferentClientSecrets() throws Exception {
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
-        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, false);
+        final JwtIssuer jwtIssuer = createJwtIssuer(0, 12, 1, 1, 1, false, false);
         printJwtIssuer(jwtIssuer);
         jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
@@ -529,5 +620,84 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
         final int jwtAuthcCount = randomIntBetween(2, 3);
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
+    }
+
+    public void testConcurrentPutAndInvalidateCacheWorks() throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
+            randomIntBetween(1, 1), // realmsRange
+            randomIntBetween(0, 0), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 1), // audiencesRange
+            randomIntBetween(1, 1), // usersRange
+            randomIntBetween(1, 1), // rolesRange
+            randomIntBetween(1, 1), // jwtCacheSizeRange set to 1 for constant eviction that is necessary to trigger the locking when put
+            false, // createHttpsServer
+            false // jwkSetReloadEnabled
+        );
+
+        final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
+        final SecureString jwt = randomJwt(jwtIssuerAndRealm, user);
+        final SignedJWT parsedJwt = SignedJWT.parse(jwt.toString());
+        final JWTClaimsSet validClaimsSet = parsedJwt.getJWTClaimsSet();
+
+        final int processors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
+        final Thread[] threads = new Thread[numberOfThreads];
+        final CountDownLatch threadsCountDown = new CountDownLatch(numberOfThreads);
+        final CountDownLatch racingCountDown = new CountDownLatch(1);
+        final CountDownLatch completionCountDown = new CountDownLatch(numberOfThreads);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            if (randomBoolean()) {
+                threads[i] = new Thread(() -> {
+                    threadsCountDown.countDown();
+                    try {
+                        if (racingCountDown.await(10, TimeUnit.SECONDS)) {
+                            jwtIssuerAndRealm.realm().expireAll();
+                            completionCountDown.countDown();
+                        } else {
+                            throw new AssertionError("racing is not ready within the given time period");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } else {
+                threads[i] = new Thread(() -> {
+                    final BytesArray jwtCacheKey = new BytesArray(randomAlphaOfLength(10));
+                    final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+                    threadsCountDown.countDown();
+                    try {
+                        if (racingCountDown.await(10, TimeUnit.SECONDS)) {
+                            for (int j = 0; j < 10; j++) {
+                                jwtIssuerAndRealm.realm().processValidatedJwt("token-principal", jwtCacheKey, validClaimsSet, future);
+                                assertThat(future.actionGet().getValue().principal(), equalTo(user.principal()));
+                            }
+                            completionCountDown.countDown();
+                        } else {
+                            throw new AssertionError("Racing is not ready within the given time period");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            threads[i].start();
+        }
+
+        if (threadsCountDown.await(10, TimeUnit.SECONDS)) {
+            racingCountDown.countDown();
+        } else {
+            throw new AssertionError("Threads are not ready within the given time period");
+        }
+
+        if (false == completionCountDown.await(30, TimeUnit.SECONDS)) {
+            throw new AssertionError("Test is not completed in time, check whether threads had deadlock");
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 }

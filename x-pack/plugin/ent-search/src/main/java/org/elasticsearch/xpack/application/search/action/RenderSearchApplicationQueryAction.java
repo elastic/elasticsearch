@@ -19,26 +19,27 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchApplicationQueryAction.Response> {
+public class RenderSearchApplicationQueryAction {
 
-    public static final RenderSearchApplicationQueryAction INSTANCE = new RenderSearchApplicationQueryAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/render_query";
+    public static final ActionType<RenderSearchApplicationQueryAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public RenderSearchApplicationQueryAction() {
-        super(NAME, RenderSearchApplicationQueryAction.Response::new);
-    }
+    private RenderSearchApplicationQueryAction() {/* no instances */}
 
     public static class Response extends ActionResponse implements ToXContentObject, NamedWriteable {
 
         private final SearchSourceBuilder searchSourceBuilder;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.searchSourceBuilder = new SearchSourceBuilder(in);
         }
 
-        public Response(String name, SearchSourceBuilder searchSourceBuilder) {
+        public Response(SearchSourceBuilder searchSourceBuilder) {
             this.searchSourceBuilder = searchSourceBuilder;
+        }
+
+        SearchSourceBuilder searchSourceBuilder() {
+            return searchSourceBuilder;
         }
 
         @Override

@@ -1,25 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -30,15 +37,19 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -57,9 +68,16 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
+    private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    @After
+    public void clearNotPreferredNodes() {
+        NOT_PREFERRED_NODES.clear();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class, NotPreferredPlugin.class);
     }
 
     /**
@@ -90,7 +108,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(100, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
         if (randomBoolean()) {
@@ -98,7 +116,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(0, 80)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(0, 80)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
@@ -108,24 +126,16 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
-        MockTransportService transportServiceOnPrimary = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportServiceOnPrimary = MockTransportService.getInstance(nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
-                try {
-                    blockRecovery.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                safeAwait(blockRecovery);
             }
             connection.sendRequest(requestId, action, request, options);
         });
         internalCluster().startDataOnlyNode();
-        recoveryStarted.await();
+        safeAwait(recoveryStarted);
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // AllocationService only calls GatewayAllocator if there are unassigned shards
         assertAcked(indicesAdmin().prepareCreate("dummy-index").setWaitForActiveShards(0));
@@ -161,7 +171,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(10, 100)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
@@ -169,15 +179,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(10, 100)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
-        MockTransportService transportServiceOnPrimary = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportServiceOnPrimary = MockTransportService.getInstance(nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
@@ -196,7 +203,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(50, 200)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(50, 200)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
         assertBusy(() -> {
@@ -214,7 +221,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
-        clusterAdmin().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
@@ -247,14 +254,14 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
         indexRandom(
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(0, 80)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(0, 80)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             indicesAdmin().prepareForceMerge(indexName).get();
@@ -293,7 +300,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
@@ -305,7 +312,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
@@ -316,7 +323,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 randomBoolean(),
                 false,
                 randomBoolean(),
-                IntStream.range(0, between(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
 
@@ -350,23 +357,16 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
         String brokenNode = internalCluster().startDataOnlyNode();
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportService = MockTransportService.getInstance(nodeWithPrimary);
         CountDownLatch newNodeStarted = new CountDownLatch(1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                 if (brokenNode.equals(connection.getNode().getName())) {
-                    try {
-                        newNodeStarted.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(newNodeStarted);
                     throw new CircuitBreakingException("not enough memory for indexing", 100, 50, CircuitBreaker.Durability.TRANSIENT);
                 }
             }
@@ -403,7 +403,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(1, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
+            IntStream.range(0, randomIntBetween(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).toList()
         );
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
@@ -426,6 +426,72 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
+    }
+
+    /**
+     * Verify that when a node with a shard copy returns NOT_PREFERRED from allocation deciders,
+     * the replica is still allocated there and can perform a no-op recovery.
+     */
+    public void testNoopRecoveryOnNotPreferredNode() throws Exception {
+        String indexName = randomIdentifier();
+        String nodeWithPrimary = internalCluster().startNode();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(
+                    indexSettings(1, 1).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
+                        .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1ms")
+                )
+        );
+        String nodeWithReplica = internalCluster().startDataOnlyNode();
+        Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), indexName, between(100, 500));
+        indicesAdmin().prepareFlush(indexName).get();
+        if (randomBoolean()) {
+            indexRandom(false, indexName, between(0, 80));
+        }
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+
+        // Disable allocation, then stop the replica so the shard becomes unassigned without immediately reallocating
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+        );
+        internalCluster().stopNode(nodeWithReplica);
+
+        // Start a node with the old replica's data and mark it as NOT_PREFERRED
+        nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
+        String replicaNodeId = getNodeId(nodeWithReplica);
+        NOT_PREFERRED_NODES.add(replicaNodeId);
+        if (randomBoolean()) {
+            // Sometimes start another node, which will have no state and also be NOT_PREFERRED
+            String surplusNode = internalCluster().startDataOnlyNode();
+            NOT_PREFERRED_NODES.add(getNodeId(surplusNode));
+        }
+
+        // Re-enable allocation — the replica should be allocated to the NOT_PREFERRED node via noop recovery
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
+        assertNoOpRecoveries(indexName);
+    }
+
+    public static class NotPreferredPlugin extends Plugin implements ClusterPlugin {
+
+        @Override
+        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+            return List.of(new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    if (NOT_PREFERRED_NODES.contains(node.nodeId())) {
+                        return Decision.NOT_PREFERRED;
+                    }
+                    return Decision.YES;
+                }
+            });
+        }
     }
 
     public static void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
@@ -458,7 +524,9 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
-                assertThat(recovery.getTranslog().totalLocal(), equalTo(recovery.getTranslog().totalOperations()));
+                var translog = recovery.getTranslog();
+                logger.info("Verifying recovery translog state: {} for index: {}", translog, indexName);
+                assertThat(translog.totalLocal(), equalTo(translog.totalOperations()));
             }
         }
     }

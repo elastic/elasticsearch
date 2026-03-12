@@ -58,7 +58,8 @@ public class ApiKeyBaseRestHandlerTests extends ESTestCase {
         final var fakeRestRequest = new FakeRestRequest();
         final var fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), requiredSettingsEnabled ? 0 : 1);
 
-        try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
             assertFalse(consumerCalled.get());
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 

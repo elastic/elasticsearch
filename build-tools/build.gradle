@@ -1,10 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+}
 
 plugins {
     id 'java-gradle-plugin'
@@ -21,8 +28,22 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = versions.get("minimumRuntimeJava")
-sourceCompatibility = versions.get("minimumRuntimeJava")
+
+java {
+  targetCompatibility = versions.get("minimumRuntimeJava")
+  sourceCompatibility = versions.get("minimumRuntimeJava")
+}
+
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+tasks.named("pluginUnderTestMetadata").configure {
+  getPluginClasspath().from(sourceSets.testFixtures.runtimeClasspath)
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -40,6 +61,10 @@ gradlePlugin {
         stableEsPlugin {
           id = 'elasticsearch.stable-esplugin'
           implementationClass = 'org.elasticsearch.gradle.plugin.StablePluginBuildPlugin'
+        }
+        testBuildInfo {
+          id = 'elasticsearch.test-build-info'
+          implementationClass = 'org.elasticsearch.gradle.test.TestBuildInfoPlugin'
         }
         javaRestTest {
             id = 'elasticsearch.java-rest-test'
@@ -77,13 +102,6 @@ tasks.named("processResources").configure {
     from(generateVersionProperties)
     into('META-INF') {
         from configurations.reaper
-    }
-}
-
-sourceSets {
-    integTest {
-        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-        runtimeClasspath += output + compileClasspath
     }
 }
 
@@ -125,7 +143,9 @@ dependencies {
     implementation buildLibs.asm
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
+    implementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
 
+    testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit
@@ -155,9 +175,14 @@ dependencies {
 
 }
 
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
+}
+
 tasks.named('test').configure {
     useJUnitPlatform()
 }
+
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

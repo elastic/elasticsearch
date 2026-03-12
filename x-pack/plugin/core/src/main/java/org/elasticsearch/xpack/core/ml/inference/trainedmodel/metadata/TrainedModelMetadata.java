@@ -86,9 +86,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
 
     public TrainedModelMetadata(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.totalFeatureImportances = in.readList(TotalFeatureImportance::new);
+        this.totalFeatureImportances = in.readCollectionAsList(TotalFeatureImportance::new);
         this.featureImportanceBaselines = in.readOptionalWriteable(FeatureImportanceBaseline::new);
-        this.hyperparameters = in.readList(Hyperparameters::new);
+        this.hyperparameters = in.readCollectionAsList(Hyperparameters::new);
     }
 
     public TrainedModelMetadata(
@@ -142,9 +142,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeList(totalFeatureImportances);
+        out.writeCollection(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
-        out.writeList(hyperparameters);
+        out.writeCollection(hyperparameters);
     }
 
     @Override

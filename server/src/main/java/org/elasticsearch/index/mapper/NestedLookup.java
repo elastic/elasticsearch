@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -43,6 +45,12 @@ public interface NestedLookup {
     String getNestedParent(String path);
 
     /**
+     * Given a nested object path, returns a list of paths of its
+     * immediate children
+     */
+    List<String> getImmediateChildMappers(String path);
+
+    /**
      * A NestedLookup for a mapping with no nested mappers
      */
     NestedLookup EMPTY = new NestedLookup() {
@@ -60,6 +68,11 @@ public interface NestedLookup {
         public String getNestedParent(String path) {
             return null;
         }
+
+        @Override
+        public List<String> getImmediateChildMappers(String path) {
+            return List.of();
+        }
     };
 
     /**
@@ -70,20 +83,21 @@ public interface NestedLookup {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;
         }
-        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).toList();
+        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::fullPath)).toList();
         Map<String, Query> parentFilters = new HashMap<>();
         Map<String, NestedObjectMapper> mappersByName = new HashMap<>();
         NestedObjectMapper previous = null;
         for (NestedObjectMapper mapper : mappers) {
-            mappersByName.put(mapper.name(), mapper);
+            mappersByName.put(mapper.fullPath(), mapper);
             if (previous != null) {
-                if (mapper.name().startsWith(previous.name() + ".")) {
-                    parentFilters.put(previous.name(), previous.nestedTypeFilter());
+                if (mapper.fullPath().startsWith(previous.fullPath() + ".")) {
+                    parentFilters.put(previous.fullPath(), previous.nestedTypeFilter());
                 }
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
+        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::fullPath).toList();
+
         return new NestedLookup() {
 
             @Override
@@ -98,6 +112,9 @@ public interface NestedLookup {
 
             @Override
             public String getNestedParent(String path) {
+                if (path.contains(".") == false) {
+                    return null;
+                }
                 String parent = null;
                 for (String parentPath : nestedPathNames) {
                     if (path.startsWith(parentPath + ".")) {
@@ -107,6 +124,33 @@ public interface NestedLookup {
                     }
                 }
                 return parent;
+            }
+
+            @Override
+            public List<String> getImmediateChildMappers(String path) {
+                String prefix = "".equals(path) ? "" : path + ".";
+                List<String> childMappers = new ArrayList<>();
+                int parentPos = Collections.binarySearch(nestedPathNames, path);
+                if (parentPos < -1 || parentPos >= nestedPathNames.size() - 1) {
+                    return List.of();
+                }
+                int i = parentPos + 1;
+                String lastChild = nestedPathNames.get(i);
+                if (lastChild.startsWith(prefix)) {
+                    childMappers.add(lastChild);
+                }
+                i++;
+                while (i < nestedPathNames.size() && nestedPathNames.get(i).startsWith(prefix)) {
+                    if (nestedPathNames.get(i).startsWith(lastChild + ".")) {
+                        // child of child, skip
+                        i++;
+                        continue;
+                    }
+                    lastChild = nestedPathNames.get(i);
+                    childMappers.add(lastChild);
+                    i++;
+                }
+                return childMappers;
             }
         };
     }

@@ -11,7 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +33,13 @@ public class TransportSuggestProfilesAction extends HandledTransportAction<Sugge
         ProfileService profileService,
         ClusterService clusterService
     ) {
-        super(SuggestProfilesAction.NAME, transportService, actionFilters, SuggestProfilesRequest::new);
+        super(
+            SuggestProfilesAction.NAME,
+            transportService,
+            actionFilters,
+            SuggestProfilesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.profileService = profileService;
         this.clusterService = clusterService;
     }

@@ -7,16 +7,10 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.ingest.DeletePipelineAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -42,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_FEATURE_FAMILY;
 import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
 import static org.elasticsearch.xpack.ml.integration.ModelInferenceActionIT.buildTrainedModelConfigBuilder;
@@ -59,13 +54,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
-        for (String pipeline : createdPipelines) {
-            try {
-                client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
-            } catch (Exception ex) {
-                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
-            }
-        }
+        IngestPipelineTestUtils.deletePipelinesIgnoringExceptions(client(), createdPipelines);
         // Some of the tests have async side effects. We need to wait for these to complete before continuing
         // the cleanup, otherwise unexpected indices may get created during the cleanup process.
         BaseMlIntegTestCase.waitForPendingTasks(client());
@@ -169,7 +158,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             assertThat(lastUsage.toInstant(), lessThan(recentUsage.toInstant()));
         });
 
-        client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipelineId)).actionGet();
+        deletePipeline(pipelineId);
         createdPipelines.remove(pipelineId);
 
         // Make sure that feature usage keeps the last usage once the model is removed
@@ -209,8 +198,8 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         return response.getResponse().results();
     }
 
-    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray(Strings.format("""
+    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) {
+        putJsonPipeline(pipelineId, format("""
             {
                 "processors": [
                   {
@@ -221,7 +210,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
                     }
                   }
                 ]
-              }""", modelId)), XContentType.JSON)).actionGet();
+              }""", modelId));
     }
 
 }

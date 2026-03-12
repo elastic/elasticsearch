@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -97,8 +97,13 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String[] labels, String hypothesisTemplate) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do zero-shot classification on more than one text input at a time");
             }
@@ -129,7 +134,11 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
             NlpTask.ResultProcessor {
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.NER);
+            }
+
             if (pyTorchResult.getInferenceResult().length < 1) {
                 throw new ElasticsearchStatusException("Zero shot classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }
@@ -138,7 +147,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
             if (pyTorchResult.getInferenceResult()[0].length != labels.length) {
                 throw new ElasticsearchStatusException(
                     "Expected exactly [{}] values in zero shot classification result; got [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     labels.length,
                     pyTorchResult.getInferenceResult().length
                 );
@@ -151,7 +160,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                     if (vals.length != 3) {
                         throw new ElasticsearchStatusException(
                             "Expected exactly [{}] values in inner zero shot classification result; got [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.CONFLICT,
                             3,
                             vals.length
                         );
@@ -168,7 +177,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                     if (vals.length != 3) {
                         throw new ElasticsearchStatusException(
                             "Expected exactly [{}] values in inner zero shot classification result; got [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.CONFLICT,
                             3,
                             vals.length
                         );

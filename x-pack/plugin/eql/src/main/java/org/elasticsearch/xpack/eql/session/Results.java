@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
@@ -23,18 +24,28 @@ public class Results {
     private final boolean timedOut;
     private final TimeValue tookTime;
     private final Type type;
+    private ShardSearchFailure[] shardFailures;
 
     public static Results fromPayload(Payload payload) {
         List<?> values = payload.values();
-        return new Results(new TotalHits(values.size(), Relation.EQUAL_TO), payload.timeTook(), false, values, payload.resultType());
+        payload.shardFailures();
+        return new Results(
+            new TotalHits(values.size(), Relation.EQUAL_TO),
+            payload.timeTook(),
+            false,
+            values,
+            payload.resultType(),
+            payload.shardFailures()
+        );
     }
 
-    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
+    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type, ShardSearchFailure[] shardFailures) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
         this.timedOut = timedOut;
         this.results = results;
         this.type = type;
+        this.shardFailures = shardFailures;
     }
 
     public TotalHits totalHits() {
@@ -49,6 +60,10 @@ public class Results {
     @SuppressWarnings("unchecked")
     public List<Sequence> sequences() {
         return (type == Type.SEQUENCE || type == Type.SAMPLE) ? (List<Sequence>) results : null;
+    }
+
+    public ShardSearchFailure[] shardFailures() {
+        return shardFailures;
     }
 
     public TimeValue tookTime() {

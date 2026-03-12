@@ -15,10 +15,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +45,8 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             (String) args[0],
             (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
             TimeValue.parseTimeValue((String) args[2], null, "expiration"),
-            (Map<String, Object>) args[3]
+            (Map<String, Object>) args[3],
+            (CertificateIdentity) args[4]
         )
     );
 
@@ -51,6 +55,12 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(constructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p) -> new CertificateIdentity(p.text()),
+            new ParseField("certificate_identity"),
+            ObjectParser.ValueType.STRING
+        );
     }
 
     /**
@@ -75,6 +85,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
+        createCrossClusterApiKeyRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createCrossClusterApiKeyRequest,
@@ -83,11 +94,8 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());

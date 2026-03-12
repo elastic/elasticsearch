@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -14,10 +15,9 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SamplingContextTests extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     private static SamplingContext randomContext() {
-        return new SamplingContext(randomDoubleBetween(1e-6, 0.1, false), randomInt());
+        return new SamplingContext(randomDoubleBetween(1e-6, 0.1, false), randomInt(), randomBoolean() ? null : randomInt());
     }
 
     public void testScaling() {
@@ -41,7 +41,7 @@ public class SamplingContextTests extends ESTestCase {
     }
 
     public void testNoScaling() {
-        SamplingContext samplingContext = new SamplingContext(1.0, randomInt());
+        SamplingContext samplingContext = new SamplingContext(1.0, randomInt(), randomBoolean() ? null : randomInt());
         long randomLong = randomLong();
         double randomDouble = randomDouble();
         assertThat(randomLong, equalTo(samplingContext.scaleDown(randomLong)));

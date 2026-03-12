@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.core.Strings;
@@ -154,13 +155,15 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
     }
 
     public void testDisplayName() throws Exception {
-        assertServiceArgs(Map.of("DisplayName", Strings.format("\"Elasticsearch %s (elasticsearch-service-x64)\"", Version.CURRENT)));
+        assertServiceArgs(
+            Map.of("DisplayName", Strings.format("\"Elasticsearch %s (elasticsearch-service-x64)\"", Build.current().version()))
+        );
         envVars.put("SERVICE_DISPLAY_NAME", "my service name");
         assertServiceArgs(Map.of("DisplayName", "\"my service name\""));
     }
 
     public void testDescription() throws Exception {
-        String defaultDescription = Strings.format("\"Elasticsearch %s Windows Service - https://elastic.co\"", Version.CURRENT);
+        String defaultDescription = Strings.format("\"Elasticsearch %s Windows Service - https://elastic.co\"", Build.current().version());
         assertServiceArgs(Map.of("Description", defaultDescription));
         envVars.put("SERVICE_DESCRIPTION", "my description");
         assertServiceArgs(Map.of("Description", "\"my description\""));

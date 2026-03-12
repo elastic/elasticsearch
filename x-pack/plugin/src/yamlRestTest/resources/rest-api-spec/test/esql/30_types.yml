@@ -1,0 +1,1209 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "more field loading added in 8.12+"
+      test_runner_features: allowed_warnings_regex
+
+---
+constant_keyword:
+  - skip:
+      features: warnings
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: wow such constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      indices.create:
+        index:  test_2
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+                value: a different constant
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "blue" }
+
+  - do:
+      indices.create:
+        index:  test_3
+        body:
+          mappings:
+            properties:
+              kind:
+                type: keyword
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"not a constant", "color": "pink" }
+          - { "index": { } }
+          - { "kind": "still no constant", "color": "pink" }
+
+  - do:
+      indices.create:
+        index:  text_test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: text
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: text_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kind":"a text field", "color": "green" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: color }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: red }
+  - match: { values.0.1: wow such constant }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval l=length(kind) | keep l'
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 17}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | dissect kind "%{one} %{two} %{three}" | keep one, two, three, kind'
+  - match: {columns.0.name: one}
+  - match: {columns.0.type: keyword}
+  - match: {columns.1.name: two }
+  - match: {columns.1.type: keyword }
+  - match: {columns.2.name: three }
+  - match: {columns.2.type: keyword }
+  - match: {columns.3.name: kind }
+  - match: {columns.3.type: keyword }
+
+  - length: {values: 1}
+  - match: {values.0.0: wow}
+  - match: {values.0.1: such}
+  - match: {values.0.2: constant}
+  - match: {values.0.3: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats x = max(kind)'
+  - match: {columns.0.name: x}
+  - match: {columns.0.type: keyword}
+
+  - length: {values: 1}
+  - match: {values.0.0: wow such constant}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,test_2 | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,test_2 | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "wow such constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind == "not a constant" | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: pink}
+  - match: {values.0.1: "not a constant"}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind >=  "a" | keep color, kind | sort color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 4}
+  - match: {values.0.0: blue}
+  - match: {values.0.1: "a different constant"}
+  - match: {values.1.0: pink}
+  - match: {values.1.1: "not a constant"}
+  - match: {values.2.0: pink}
+  - match: {values.2.1: "still no constant"}
+  - match: {values.3.0: red}
+  - match: {values.3.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test* | where kind >=  "o" | keep color, kind | sort color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: pink}
+  - match: {values.0.1: "still no constant"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "a text field" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string == "wow such constant" | eval kind = kind::string | keep color, kind'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 1}
+  - match: {values.0.0: red}
+  - match: {values.0.1: "wow such constant"}
+
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test,text_test | where kind::string >= "a" | eval kind = kind::string | keep color, kind | sort color'
+  - match: {columns.0.name: color}
+  - match: {columns.0.type: keyword}
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: {values: 2}
+  - match: {values.0.0: green}
+  - match: {values.0.1: "a text field"}
+  - match: {values.1.0: red}
+  - match: {values.1.1: "wow such constant"}
+
+
+---
+constant_keyword with null value:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 1'
+  - match: { columns.0.name: color }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: red }
+  - match: { values.0.1: null }
+
+---
+multivalued keyword:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": ["jack", "of", "diamonds"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: [diamonds, jack, of]}
+
+---
+keyword no doc_values:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: keyword
+                doc_values: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": ["jack", "of", "diamonds"] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: [jack, of, diamonds]}
+
+---
+wildcard:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: wildcard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: keyword}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval l=length(card) | keep l'
+  - match: {columns.0.name: l}
+  - match: {columns.0.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 16}
+
+---
+numbers:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              i:
+                type: integer
+              l:
+                type: long
+              d:
+                type: double
+              mv_i:
+                type: integer
+              mv_l:
+                type: long
+              mv_d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { i: 123, l: -1234567891011121131, d: 1.234567891234568, mv_i: [123456, -123456], mv_l: [1234567891011121131, -1234567891011121131], mv_d: [1.234567891234568, -1.234567891234568] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: i}
+  - match: {columns.1.type: integer}
+  - match: {columns.2.name: l}
+  - match: {columns.2.type: long}
+  - match: {columns.3.name: mv_d}
+  - match: {columns.3.type: double}
+  - match: {columns.4.name: mv_i}
+  - match: {columns.4.type: integer}
+  - match: {columns.5.name: mv_l}
+  - match: {columns.5.type: long}
+  - length: {values: 1}
+  - match: {values.0.0: 1.234567891234568}
+  - match: {values.0.1: 123}
+  - match: {values.0.2: -1234567891011121131}
+  - match: {values.0.3: [-1.234567891234568, 1.234567891234568]}
+  - match: {values.0.4: [-123456, 123456]}
+  - match: {values.0.5: [-1234567891011121131, 1234567891011121131]}
+
+---
+small_numbers:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              b:
+                type: byte
+              s:
+                type: short
+              hf:
+                type: half_float
+              f:
+                type: float
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { b: 1, s: 1245, hf: 12.01, f: 112.0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: b}
+  - match: {columns.0.type: integer}
+  - match: {columns.1.name: f}
+  - match: {columns.1.type: double}
+  - match: {columns.2.name: hf}
+  - match: {columns.2.type: double}
+  - match: {columns.3.name: s}
+  - match: {columns.3.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: 112.0}
+  - match: {values.0.2: 12.0078125}
+  - match: {values.0.3: 1245}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | keep sum_d, sum_i'
+  - match: {columns.0.name: sum_d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: sum_i}
+  - match: {columns.1.type: integer}
+  - length: {values: 1}
+  - match: {values.0.0: 1370.0078125}
+  - match: {values.0.1: 1246}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval r_f = round(f), r_hf = round(hf) | keep r_f, r_hf'
+  - match: {columns.0.name: r_f}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: r_hf}
+  - match: {columns.1.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 112.0}
+  - match: {values.0.1: 12.0}
+
+---
+scaled_float:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              f:
+                type: scaled_float
+                scaling_factor: 100
+              d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { f: 112.01, d: 1.0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: f}
+  - match: {columns.1.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 1.0}
+  - match: {values.0.1: 112.01}
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval sum = d + f | keep sum'
+  - match: {columns.0.name: sum}
+  - match: {columns.0.type: double}
+  - length: {values: 1}
+  - match: {values.0.0: 113.01}
+
+---
+multivalued boolean:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              booleans:
+                type: boolean
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "booleans": [ true, false, false, false ] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: booleans }
+  - match: { columns.0.type: boolean }
+  - length: { values: 1 }
+  - match: { values.0.0: [ false, false, false, true ] }
+
+---
+ip:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "127.0.0.1", "keyword": "127.0.0.2" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: ip }
+  - match: { columns.0.type: ip }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: "127.0.0.1" }
+  - match: { values.0.1: "127.0.0.2" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
+  - match: {columns.0.name: IP }
+  - match: {columns.0.type: ip }
+  - length: {values: 1 }
+  - match: {values.0.0: "127.0.0.1" }
+
+---
+alias:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                type: alias
+                path: foo
+              level1:
+                properties:
+                  level2:
+                    type: long
+              level2_alias:
+                type: alias
+                path: level1.level2
+              some_long:
+                type: long
+              some_long_alias:
+                type: alias
+                path: some_long
+              some_long_alias2:
+                type: alias
+                path: some_long
+              some_date:
+                type: date
+              some_date_alias:
+                type: alias
+                path: some_date
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "foo": "abc", "level1": {"level2": 10}, "some_long": 12, "some_date": "2015-01-01T12:00:00.000Z" }
+          - { "index": { } }
+          - { "foo": "def", "level1": {"level2": 50}, "some_long": 15, "some_date": "2015-01-01T12:00:00.000Z" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - match: { columns.4.name: some_long }
+  - match: { columns.4.type: long }
+  - match: { columns.5.name: some_long_alias }
+  - match: { columns.5.type: long }
+  - match: { columns.6.name: some_long_alias2 }
+  - match: { columns.6.type: long }
+  - match: { columns.7.name: some_date }
+  - match: { columns.7.type: date }
+  - match: { columns.8.name: some_date_alias }
+  - match: { columns.8.type: date }
+  - length: { values: 2 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+  - match: { values.0.4: 12 }
+  - match: { values.0.5: 12 }
+  - match: { values.0.6: 12 }
+  - match: { values.0.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.0.8: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.0: def }
+  - match: { values.1.1: def }
+  - match: { values.1.2: 50 }
+  - match: { values.1.3: 50 }
+  - match: { values.1.4: 15 }
+  - match: { values.1.5: 15 }
+  - match: { values.1.6: 15 }
+  - match: { values.1.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.8: 2015-01-01T12:00:00.000Z }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where bar == "abc" | keep foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 10 | keep foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 20'
+  - length: { values: 0 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats x = max(level2_alias)'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 50 }
+
+---
+version:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              version:
+                type: version
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "version": [ "1.2.3", "4.5.6-SNOOPY" ] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: version }
+  - match: { columns.0.type: version }
+  - length: { values: 1 }
+  - match: { values.0.0: [ "1.2.3", "4.5.6-SNOOPY" ] }
+
+---
+id:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "_source is available in 8.13+"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "kw": "keyword1" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test metadata _id | keep _id, kw'
+  - match: { columns.0.name: _id }
+  - match: { columns.0.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0:  "id-1"  }
+  - match: { values.0.1:  "keyword1"  }
+
+---
+unsigned_long:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              number:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "number": [ "1", "9223372036854775808", "0", "18446744073709551615" ] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: number }
+  - match: { columns.0.type: unsigned_long }
+  - length: { values: 1 }
+  - match: { values.0.0: [ 0, 1, 9223372036854775808, 18446744073709551615 ] }
+
+---
+_source:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "_source is available in 8.13+"
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match:
+      values.0.0:
+        wow: 1
+        such: _source
+        "you'd": never
+        expect: [amazing, source]
+
+---
+_source keep all:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "_source is available in 8.13+"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            dynamic: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _source | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match:
+      values.0.0:
+        wow: 1
+        such: _source
+        "you'd": never
+        expect: [amazing, source]
+
+---
+_source disabled:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "_source is available in 8.13+"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match: { values.0.0: null }
+
+---
+text:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              card:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LIMIT 1'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: text}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+---
+synthetic _source text stored:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              card:
+                type: text
+                store: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LIMIT 1'
+  - match: {columns.0.name: card}
+  - match: {columns.0.type: text}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+---
+synthetic _source text with parent keyword:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              card:
+                type: keyword
+                fields:
+                  text:
+                    type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "card": "jack of diamonds" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | KEEP card.text | LIMIT 1'
+  - match: {columns.0.name: card.text}
+  - match: {columns.0.type: text}
+  - length: {values: 1}
+  - match: {values.0.0: jack of diamonds}
+
+---
+geo_point:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "geo_point precision changed in 8.13.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(1 -1)" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: geo_point }
+  - length: { values: 1 }
+  - match: { values.0.0: "POINT (1.0 -1.0)" }
+
+---
+cartesian_point:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "cartesian_point precision changed in 8.13.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(4321 -1234)" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: cartesian_point }
+  - length: { values: 1 }
+  - match: { values.0.0: "POINT (4321.0 -1234.0)" }

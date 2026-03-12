@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -23,12 +22,14 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -182,16 +183,16 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "task_id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         TaskManager taskManager = mock(TaskManager.class);
 
@@ -217,8 +218,8 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
 
         InOrder inOrder = inOrder(client, runnable);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+        inOrder.verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         inOrder.verify(runnable).run();
         inOrder.verifyNoMoreInteractions();
 
@@ -243,10 +244,16 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
-        testPersistProgress(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
+        var hits = new SearchHits(
+            new SearchHit[] { SearchResponseUtils.searchHitFromMap(Map.of("_index", ".ml-state-dummy")) },
+            null,
+            0.0f
         );
+        try {
+            testPersistProgress(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     public void testSetFailed() throws IOException {
@@ -278,16 +285,16 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "job-id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
             123,
@@ -311,12 +318,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         verify(analyticsManager).isNodeShuttingDown();
         verify(client, atLeastOnce()).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(client, atLeastOnce()).projectResolver();
 
         if (nodeShuttingDown == false) {
             // Verify progress was persisted
             ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-            verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
-            verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+            verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+            verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
 
             IndexRequest indexRequest = indexRequestCaptor.getValue();
             assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
@@ -333,18 +341,20 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
                 assertThat(parsedProgress.get().get(0), equalTo(new PhaseProgress("reindexing", 100)));
             }
 
-            verify(client).execute(
-                same(UpdatePersistentTaskStatusAction.INSTANCE),
-                eq(
-                    new UpdatePersistentTaskStatusAction.Request(
-                        "task-id",
-                        42,
-                        new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception")
-                    )
-                ),
-                any()
+            ArgumentCaptor<UpdatePersistentTaskStatusAction.Request> captor = ArgumentCaptor.forClass(
+                UpdatePersistentTaskStatusAction.Request.class
             );
+
+            verify(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), captor.capture(), any());
+
+            UpdatePersistentTaskStatusAction.Request request = captor.getValue();
+            assertThat(request.getTaskId(), equalTo("task-id"));
+            DataFrameAnalyticsTaskState state = (DataFrameAnalyticsTaskState) request.getState();
+            assertThat(state.getState(), equalTo(DataFrameAnalyticsState.FAILED));
+            assertThat(state.getAllocationId(), equalTo(42L));
+            assertThat(state.getReason(), equalTo("some exception"));
         }
+
         verifyNoMoreInteractions(client, analyticsManager, auditor, taskManager);
     }
 

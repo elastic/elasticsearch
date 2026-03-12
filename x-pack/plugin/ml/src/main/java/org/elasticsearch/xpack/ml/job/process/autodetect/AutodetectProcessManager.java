@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -36,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -81,6 +84,7 @@ import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
@@ -411,6 +415,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
                         Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = getStatistics(jobTask);
                         DataCounts dataCounts = stats.isPresent() ? stats.get().v1() : new DataCounts(job.getId());
                         ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
+                        logger.debug(
+                            "[{}] Fetching scheduled events for calendar update, time range: [{}]",
+                            jobTask.getJobId(),
+                            job.earliestValidTimestamp(dataCounts)
+                        );
                         jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
                     }
 
@@ -574,7 +583,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 client,
                 clusterState,
                 masterNodeTimeout,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -586,7 +596,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     client,
                     clusterState,
                     masterNodeTimeout,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );
@@ -998,17 +1009,21 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
+        // retry state update to ensure that cluster state stays consistent
+        new UpdateStateRetryableAction(
+            logger,
+            threadPool,
+            jobTask,
             jobTaskState,
             ActionListener.wrap(
                 persistentTask -> logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId()),
                 e -> logSetJobStateFailure(state, jobTask.getJobId(), e)
             )
-        );
+        ).run();
     }
 
-    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+    private static void logSetJobStateFailure(JobState state, String jobId, Exception e) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {
@@ -1017,8 +1032,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(persistentTask -> {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
+        // retry state update to ensure that cluster state stays consistent
+        new UpdateStateRetryableAction(logger, threadPool, jobTask, jobTaskState, ActionListener.wrap(persistentTask -> {
             try {
                 handler.accept(null);
             } catch (IOException e1) {
@@ -1030,7 +1046,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             } catch (IOException e1) {
                 logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
             }
-        }));
+        })).run();
     }
 
     public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {
@@ -1059,4 +1075,69 @@ public class AutodetectProcessManager implements ClusterStateListener {
         resetInProgress = MlMetadata.getMlMetadata(event.state()).isResetMode();
     }
 
+    /**
+     * Finds the memory used by open autodetect processes on the current node.
+     * @return Memory used by open autodetect processes on the current node.
+     */
+    public ByteSizeValue getOpenProcessMemoryUsage() {
+        long memoryUsedBytes = 0;
+        for (ProcessContext processContext : processByAllocation.values()) {
+            if (processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+                ModelSizeStats modelSizeStats = processContext.getAutodetectCommunicator().getModelSizeStats();
+                ModelSizeStats.AssignmentMemoryBasis basis = modelSizeStats.getAssignmentMemoryBasis();
+                memoryUsedBytes += switch (basis != null ? basis : ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT) {
+                    case MODEL_MEMORY_LIMIT -> Optional.ofNullable(modelSizeStats.getModelBytesMemoryLimit()).orElse(0L);
+                    case CURRENT_MODEL_BYTES -> modelSizeStats.getModelBytes();
+                    case PEAK_MODEL_BYTES -> Optional.ofNullable(modelSizeStats.getPeakModelBytes()).orElse(modelSizeStats.getModelBytes());
+                };
+                memoryUsedBytes += Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            }
+        }
+        return ByteSizeValue.ofBytes(memoryUsedBytes);
+    }
+
+    private static class UpdateStateRetryableAction extends RetryableAction<PersistentTasksCustomMetadata.PersistentTask<?>> {
+
+        private static final int MIN_RETRY_SLEEP_MILLIS = 500;
+        private final JobTask jobTask;
+        private final JobTaskState jobTaskState;
+
+        /**
+         * @param logger        The logger (use AutodetectProcessManager.logger)
+         * @param threadPool    The ThreadPool to schedule retries on
+         * @param jobTask       The JobTask whose state we’re updating
+         * @param jobTaskState  The new state to persist
+         */
+        UpdateStateRetryableAction(
+            Logger logger,
+            ThreadPool threadPool,
+            JobTask jobTask,
+            JobTaskState jobTaskState,
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> delegateListener
+        ) {
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+                delegateListener,
+                // executor for retries
+                threadPool.generic()
+            );
+            this.jobTask = Objects.requireNonNull(jobTask);
+            this.jobTaskState = Objects.requireNonNull(jobTaskState);
+        }
+
+        @Override
+        public void tryAction(ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+            // this will call back either onResponse(...) or onFailure(...)
+            jobTask.updatePersistentTaskState(jobTaskState, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            // retry everything *except* when the task truly no longer exists
+            return (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) == false;
+        }
+    }
 }

@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -28,7 +28,8 @@ public class TransportSqlStatsAction extends TransportNodesAction<
     SqlStatsRequest,
     SqlStatsResponse,
     SqlStatsRequest.NodeStatsRequest,
-    SqlStatsResponse.NodeStatsResponse> {
+    SqlStatsResponse.NodeStatsResponse,
+    Void> {
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
@@ -43,14 +44,11 @@ public class TransportSqlStatsAction extends TransportNodesAction<
     ) {
         super(
             SqlStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            SqlStatsRequest::new,
             SqlStatsRequest.NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            SqlStatsResponse.NodeStatsResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.planExecutor = planExecutor;
     }

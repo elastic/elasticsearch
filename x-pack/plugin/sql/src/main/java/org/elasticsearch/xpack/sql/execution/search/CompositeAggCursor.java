@@ -41,6 +41,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
 
 /**
  * Cursor for composite aggregation (GROUP BY).
@@ -80,7 +81,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(BucketExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(BucketExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
     }
@@ -91,7 +92,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
     }
@@ -135,7 +136,7 @@ public class CompositeAggCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, indices);
+        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, false, indices);
 
         client.search(request, new DelegatingActionListener<>(listener) {
             @Override
@@ -180,6 +181,8 @@ public class CompositeAggCursor implements Cursor {
         // retry
         if (couldProducePartialPages && shouldRetryDueToEmptyPage(response)) {
             updateCompositeAfterKey(response, source);
+            // Refresh the PIT ID with the new value returned in the response
+            refreshPointInTime(response, source);
             retry.run();
             return;
         }
@@ -195,6 +198,8 @@ public class CompositeAggCursor implements Cursor {
         if (rowSet.remainingData() == 0) {
             closePointInTime(client, response.pointInTimeId(), listener.map(r -> Page.last(rowSet)));
         } else {
+            // Refresh the PIT ID with the new value returned in the response
+            refreshPointInTime(response, source);
             listener.onResponse(new Page(rowSet, makeCursor.apply(source, rowSet)));
         }
     }

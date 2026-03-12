@@ -283,7 +283,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 httpGet.abort();
                 Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
                 try {
-                    future.get();
+                    future.get(5, TimeUnit.SECONDS);
                     fail("expected cancellation exception");
                 } catch (CancellationException e) {
                     // expected
@@ -298,7 +298,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 assertTrue(httpGet.isAborted());
                 try {
                     assertTrue(future.isDone());
-                    future.get();
+                    future.get(5, TimeUnit.SECONDS);
                 } catch (CancellationException e) {
                     // expected sometimes - if the future was cancelled before executing successfully
                 }
@@ -308,7 +308,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 assertFalse(httpGet.isAborted());
                 Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
                 assertFalse(httpGet.isAborted());
-                assertEquals(200, future.get().getStatusLine().getStatusCode());
+                assertEquals(200, future.get(5, TimeUnit.SECONDS).getStatusLine().getStatusCode());
                 assertFalse(future.isCancelled());
             }
         }

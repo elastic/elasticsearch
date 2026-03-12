@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -75,7 +78,10 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
+@FixForMultiProject(
+    description = "Once/if this becomes project-aware, it must consider project blocks when using ClusterBlocks.hasGlobalBlockWithLevel"
+)
+public final class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
@@ -391,7 +397,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         boolean shouldSetUpWatcher = state.get() == State.RUNNING && clusterStateChange == false;
         if (canUseWatcher()) {
             if (shouldSetUpWatcher) {
-                final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
+                @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+                final IndexRoutingTable watches = clusterState.routingTable(ProjectId.DEFAULT).index(Watch.INDEX);
                 final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
 
                 // we cannot do anything with watches until the index is allocated, so we wait until it's ready
@@ -430,7 +437,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     ) {
         if (canUseWatcher()) {
             if (state.get() != State.TERMINATED) {
-                final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
+                @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+                final IndexRoutingTable watches = clusterState.routingTable(ProjectId.DEFAULT).index(Watch.INDEX);
                 final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
 
                 // we cannot do anything with watches until the index is allocated, so we wait until it's ready
@@ -467,8 +475,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-    private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
+    private static boolean hasTemplate(final ClusterState clusterState, final String templateName) {
+        @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+        final var project = clusterState.metadata().getProject(ProjectId.DEFAULT);
+        final IndexTemplateMetadata template = project.templates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }
@@ -480,7 +490,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param minimumVersion The minimum version required to be a "valid" version
      * @return {@code true} if the version exists and it's &gt;= to the minimum version. {@code false} otherwise.
      */
-    private boolean hasValidVersion(final Object version, final long minimumVersion) {
+    private static boolean hasValidVersion(final Object version, final long minimumVersion) {
         return version instanceof Number && ((Number) version).intValue() >= minimumVersion;
     }
 
@@ -595,6 +605,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void onCleanUpIndices(TimeValue retention) {
+        if (stateInitialized.get() == false) {
+            // ^ this is once the cluster state is recovered. Don't try to interact with the cluster service until that happens
+            logger.debug("exporter not yet initialized");
+            return;
+        }
         ClusterState clusterState = clusterService.state();
         if (clusterService.localNode() == null
             || clusterState == null
@@ -624,7 +639,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
             Set<String> indices = new HashSet<>();
-            for (var index : clusterState.getMetadata().indices().entrySet()) {
+            @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+            final var project = clusterState.metadata().getProject(ProjectId.DEFAULT);
+            for (var index : project.indices().entrySet()) {
                 String indexName = index.getKey();
 
                 if (Regex.simpleMatch(indexPatterns, indexName)) {

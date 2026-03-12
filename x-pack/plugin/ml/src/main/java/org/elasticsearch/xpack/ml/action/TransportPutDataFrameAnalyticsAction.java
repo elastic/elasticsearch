@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -17,12 +16,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -76,6 +78,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
     private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(
@@ -88,7 +91,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataFrameAnalyticsConfigProvider configProvider,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             PutDataFrameAnalyticsAction.NAME,
@@ -97,9 +101,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             PutDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.configProvider = configProvider;
@@ -118,11 +121,12 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutDataFrameAnalyticsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -135,18 +139,13 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
 
         final DataFrameAnalyticsConfig config = request.getConfig();
 
-        ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
-            aBoolean -> putValidatedConfig(config, request.masterNodeTimeout(), listener),
-            listener::onFailure
-        );
-
         sourceDestValidator.validate(
             clusterService.state(),
             config.getSource().getIndex(),
             config.getDest().getIndex(),
             null,
             SourceDestValidations.ALL_VALIDATIONS,
-            sourceDestValidationListener
+            listener.delegateFailureAndWrap((l, aBoolean) -> putValidatedConfig(config, request.masterNodeTimeout(), l))
         );
     }
 
@@ -157,7 +156,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     ) {
         DataFrameAnalyticsConfig preparedForPutConfig = new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimitSupplier.get())
             .setCreateTime(Instant.now())
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .build();
 
         if (securityContext != null) {
@@ -190,22 +189,20 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 }
                 privRequest.indexPrivileges(indicesPrivileges);
 
-                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
-                    listener::onFailure
+                client.execute(
+                    HasPrivilegesAction.INSTANCE,
+                    privRequest,
+                    listener.delegateFailureAndWrap(
+                        (l, r) -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener)
+                    )
                 );
-
-                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
             });
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         }
     }
@@ -222,10 +219,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -253,18 +247,22 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
-        ActionListener<DataFrameAnalyticsConfig> auditingListener = ActionListener.wrap(finalConfig -> {
+        ActionListener<DataFrameAnalyticsConfig> auditingListener = listener.delegateFailureAndWrap((delegate, finalConfig) -> {
             auditor.info(
                 finalConfig.getId(),
                 Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, finalConfig.getAnalysis().getWriteableName())
             );
-            listener.onResponse(finalConfig);
-        }, listener::onFailure);
+            delegate.onResponse(finalConfig);
+        });
+
+        final var deleterTimeout = masterNodeTimeout.millis() < 0 ? TimeValue.MAX_VALUE : masterNodeTimeout;
+        // NB a negative masterNodeTimeout means never to time out, but recording dataframe analytics configs does not support infinite
+        // timeouts so we just use a very long timeout here instead
 
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
+            configProvider.put(config, headers, deleterTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -273,7 +271,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, auditingListener), listener::onFailure)
+            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, deleterTimeout, l)),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 

@@ -1,53 +1,60 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class BytesArrayTests extends AbstractBytesReferenceTestCase {
 
     @Override
-    protected BytesReference newBytesReference(int length) throws IOException {
+    protected BytesReference newBytesReference(int length) {
         return newBytesReference(length, randomInt(length));
     }
 
     @Override
-    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) {
         return newBytesReference(length, 0);
     }
 
-    private BytesReference newBytesReference(int length, int offset) throws IOException {
-        // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
-        final BytesStreamOutput out = new BytesStreamOutput(length + offset);
-        for (int i = 0; i < length + offset; i++) {
-            out.writeByte((byte) random().nextInt(1 << 8));
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        return new BytesArray(content);
+    }
+
+    private BytesReference newBytesReference(int length, int offset) {
+        // randomly add some bytes at the end of the bytes reference
+        int tail = randomBoolean() ? 0 : randomIntBetween(0, length + offset);
+        final byte[] out = new byte[length + offset + tail];
+        for (int i = 0; i < length + offset + tail; i++) {
+            out[i] = (byte) random().nextInt(1 << 8);
         }
-        assertEquals(length + offset, out.size());
-        BytesArray ref = new BytesArray(out.bytes().toBytesRef().bytes, offset, length);
+        BytesArray ref = new BytesArray(out, offset, length);
         assertEquals(length, ref.length());
         assertTrue(ref instanceof BytesArray);
         assertThat(ref.length(), Matchers.equalTo(length));
         return ref;
     }
 
-    public void testArray() throws IOException {
+    public void testArray() {
         int[] sizes = { 0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5)) };
 
         for (int i = 0; i < sizes.length; i++) {
             BytesArray pbr = (BytesArray) newBytesReference(sizes[i]);
             byte[] array = pbr.array();
             assertNotNull(array);
-            assertEquals(sizes[i], array.length - pbr.arrayOffset());
+            assertEquals(sizes[i], pbr.length());
+            assertThat(pbr.array().length, greaterThanOrEqualTo(pbr.arrayOffset() + pbr.length()));
             assertSame(array, pbr.array());
         }
     }
@@ -100,4 +107,5 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getDoubleLE(9));
         assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
     }
+
 }

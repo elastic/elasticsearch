@@ -16,6 +16,6 @@ public class MountSearchableSnapshotAction extends ActionType<RestoreSnapshotRes
     public static final String NAME = "cluster:admin/snapshot/mount";
 
     private MountSearchableSnapshotAction() {
-        super(NAME, RestoreSnapshotResponse::new);
+        super(NAME);
     }
 }

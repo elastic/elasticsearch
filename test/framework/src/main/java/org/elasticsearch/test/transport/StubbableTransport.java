@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -139,11 +141,6 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public TransportVersion getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public void setMessageListener(TransportMessageListener listener) {
         delegate.setMessageListener(listener);
     }
@@ -173,9 +170,7 @@ public class StubbableTransport implements Transport {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener = listener.delegateFailure(
-            (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection))
-        );
+        ActionListener<Connection> wrappedListener = listener.safeMap(WrappedConnection::new);
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);
@@ -270,11 +265,6 @@ public class StubbableTransport implements Transport {
         }
 
         @Override
-        public Version getVersion() {
-            return connection.getVersion();
-        }
-
-        @Override
         public TransportVersion getTransportVersion() {
             return connection.getTransportVersion();
         }
@@ -355,7 +345,7 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler));
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler), circuitBreaker);
     }
 }

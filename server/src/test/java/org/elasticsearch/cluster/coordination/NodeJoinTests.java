@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,22 +22,26 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -147,7 +152,8 @@ public class NodeJoinTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, Set.of()),
+            MeterRegistry.NOOP
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
@@ -187,14 +193,14 @@ public class NodeJoinTests extends ESTestCase {
                         requestId,
                         new TransportService.HandshakeResponse(
                             destination.getVersion(),
-                            Build.CURRENT.hash(),
+                            Build.current().hash(),
                             destination,
                             initialState.getClusterName()
                         )
                     );
                 } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
                     || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                        handleResponse(requestId, new TransportResponse.Empty());
+                        handleResponse(requestId, ActionResponse.Empty.INSTANCE);
                     } else {
                         super.onSendRequest(requestId, action, request, destination);
                     }
@@ -209,8 +215,16 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        String nodeName = "test_node";
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+        ClusterService clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, Set.of())
+        );
         coordinator = new Coordinator(
-            "test_node",
+            nodeName,
             Settings.EMPTY,
             clusterSettings,
             transportService,
@@ -229,7 +243,10 @@ public class NodeJoinTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new Reconfigurator(Settings.EMPTY, clusterSettings),
             LeaderHeartbeatService.NO_OP,
-            StatefulPreVoteCollector::new
+            StatefulPreVoteCollector::new,
+            CompatibilityVersionsUtils.staticCurrent(),
+            new FeatureService(List.of()),
+            clusterService
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -305,7 +322,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinWithHigherTermElectsLeader() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
+        CompatibilityVersions version1 = CompatibilityVersionsUtils.staticRandom();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -317,7 +334,7 @@ public class NodeJoinTests extends ESTestCase {
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         Future<Void> fut = joinNodeAsync(
-            new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node1, version1, Set.of(), newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
@@ -330,7 +347,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinWithHigherTermButBetterStateGetsRejected() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
+        CompatibilityVersions version1 = CompatibilityVersionsUtils.staticRandom();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -344,7 +361,13 @@ public class NodeJoinTests extends ESTestCase {
         expectThrows(
             CoordinationStateRejectedException.class,
             () -> joinNodeAndRun(
-                new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion)))
+                new JoinRequest(
+                    node1,
+                    version1,
+                    Set.of(),
+                    newTerm,
+                    Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))
+                )
             )
         );
         assertFalse(isLocalNodeElectedMaster());
@@ -366,7 +389,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))
             )
@@ -389,7 +413,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node0,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -399,7 +424,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
             )
@@ -423,7 +449,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node0,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -431,7 +458,7 @@ public class NodeJoinTests extends ESTestCase {
         assertTrue(isLocalNodeElectedMaster());
 
         long newerTerm = newTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, TransportVersion.current(), newerTerm, Optional.empty()));
+        joinNodeAndRun(new JoinRequest(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), newerTerm, Optional.empty()));
         assertThat(coordinator.getCurrentTerm(), greaterThanOrEqualTo(newerTerm));
         assertTrue(isLocalNodeElectedMaster());
     }
@@ -452,7 +479,8 @@ public class NodeJoinTests extends ESTestCase {
         Future<Void> futNode0 = joinNodeAsync(
             new JoinRequest(
                 node0,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
             )
@@ -463,7 +491,8 @@ public class NodeJoinTests extends ESTestCase {
         Future<Void> futNode1 = joinNodeAsync(
             new JoinRequest(
                 node1,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
             )
@@ -474,7 +503,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node2,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newTerm,
                 Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))
             )
@@ -503,7 +533,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 node1,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 newerTerm,
                 Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))
             )
@@ -537,7 +568,8 @@ public class NodeJoinTests extends ESTestCase {
         joinNodeAndRun(
             new JoinRequest(
                 knownJoiningNode,
-                TransportVersion.current(),
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
                 initialTerm,
                 Optional.of(new Join(knownJoiningNode, initialNode, newerTerm, initialTerm, initialVersion))
             )
@@ -612,7 +644,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinFollowerFails() throws Exception {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
+        CompatibilityVersions version1 = CompatibilityVersionsUtils.staticRandom();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -626,7 +658,7 @@ public class NodeJoinTests extends ESTestCase {
         assertThat(
             expectThrows(
                 CoordinationStateRejectedException.class,
-                () -> joinNodeAndRun(new JoinRequest(node1, version1, newTerm, Optional.empty()))
+                () -> joinNodeAndRun(new JoinRequest(node1, version1, Set.of(), newTerm, Optional.empty()))
             ).getMessage(),
             containsString("join target is a follower")
         );
@@ -636,7 +668,7 @@ public class NodeJoinTests extends ESTestCase {
     public void testBecomeFollowerFailsPendingJoin() throws Exception {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version0 = TransportVersionUtils.randomVersion();
+        CompatibilityVersions version0 = CompatibilityVersionsUtils.staticRandom();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -646,7 +678,7 @@ public class NodeJoinTests extends ESTestCase {
         );
         long newTerm = initialTerm + randomLongBetween(1, 10);
         Future<Void> fut = joinNodeAsync(
-            new JoinRequest(node0, version0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node0, version0, Set.of(), newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(fut.isDone());
@@ -696,7 +728,8 @@ public class NodeJoinTests extends ESTestCase {
             .map(
                 node -> new JoinRequest(
                     node,
-                    TransportVersion.current(),
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 )
@@ -713,7 +746,8 @@ public class NodeJoinTests extends ESTestCase {
                 // a correct request
                 return new JoinRequest(
                     node,
-                    TransportVersion.current(),
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 );
@@ -721,7 +755,8 @@ public class NodeJoinTests extends ESTestCase {
                 // term too low
                 return new JoinRequest(
                     node,
-                    TransportVersion.current(),
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
                     newTerm,
                     Optional.of(new Join(node, localNode, randomLongBetween(0, initialTerm), initialTerm, initialVersion))
                 );
@@ -729,7 +764,8 @@ public class NodeJoinTests extends ESTestCase {
                 // better state
                 return new JoinRequest(
                     node,
-                    TransportVersion.current(),
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
                 );
@@ -752,14 +788,14 @@ public class NodeJoinTests extends ESTestCase {
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             joinNode(joinRequest);
-        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+        }, "TEST-process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).toList();
+        }, "TEST-process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

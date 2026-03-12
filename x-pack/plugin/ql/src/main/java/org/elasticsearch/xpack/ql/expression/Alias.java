@@ -56,8 +56,12 @@ public class Alias extends NamedExpression {
         return NodeInfo.create(this, Alias::new, name(), qualifier, child, id(), synthetic());
     }
 
+    public Alias replaceChild(Expression child) {
+        return new Alias(source(), name(), qualifier, child, id(), synthetic());
+    }
+
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
+    public Alias replaceChildren(List<Expression> newChildren) {
         return new Alias(source(), name(), qualifier, newChildren.get(0), id(), synthetic());
     }
 
@@ -101,5 +105,12 @@ public class Alias extends NamedExpression {
     @Override
     public String nodeString() {
         return child.nodeString() + " AS " + name();
+    }
+
+    /**
+     * If the given expression is an alias, return its child - otherwise return as is.
+     */
+    public static Expression unwrap(Expression e) {
+        return e instanceof Alias as ? as.child() : e;
     }
 }

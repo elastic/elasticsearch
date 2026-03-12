@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -23,12 +26,7 @@ import java.util.stream.Stream;
  */
 public class CancellableTasksTracker<T> {
 
-    private final T[] empty;
-
-    public CancellableTasksTracker(T[] empty) {
-        assert empty.length == 0;
-        this.empty = empty;
-    }
+    public CancellableTasksTracker() {}
 
     private final Map<Long, T> byTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final Map<TaskId, Map<Long, T[]>> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -52,6 +50,7 @@ public class CancellableTasksTracker<T> {
     /**
      * Add an item for the given task. Should only be called once for each task, and {@code item} must be unique per task too.
      */
+    @SuppressWarnings("unchecked")
     public void put(Task task, long requestId, T item) {
         final long taskId = task.getId();
         if (task.getParentTaskId().isSet()) {
@@ -62,11 +61,12 @@ public class CancellableTasksTracker<T> {
 
                 oldRequestIdMap.compute(requestId, (requestIdKey, oldValue) -> {
                     if (oldValue == null) {
-                        oldValue = empty;
+                        final T[] newValue = (T[]) Array.newInstance(item.getClass(), 1);
+                        newValue[0] = item;
+                        return newValue;
+                    } else {
+                        return ArrayUtils.append(oldValue, item);
                     }
-                    final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
-                    newValue[oldValue.length] = item;
-                    return newValue;
                 });
 
                 return oldRequestIdMap;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -51,19 +52,29 @@ public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends
     LocalClusterSpecBuilder<T> node(int index, Consumer<? super LocalNodeSpecBuilder> config);
 
     /**
-     * Register a user using the default test role.
+     * Register a user using the default test role, as an operator
      */
     LocalClusterSpecBuilder<T> user(String username, String password);
 
     /**
      * Register a user using the given role.
+     * @param operator If true, configure the user as an operator.
+     *                 <em>Note</em>: This does <strong>not</strong> automatically enable operator privileges on the cluster
      */
-    LocalClusterSpecBuilder<T> user(String username, String password, String role);
+    LocalClusterSpecBuilder<T> user(String username, String password, String role, boolean operator);
 
     /**
      * Register a roles file with cluster via the supplied {@link Resource}.
      */
     LocalClusterSpecBuilder<T> rolesFile(Resource rolesFile);
+
+    /**
+     * Configure whether this cluster should be shared across test suites (classes). If set to {@code true} then the cluster will not be
+     * shut down or recreated before the next test suite begins execution. This setting is {@code false} by default.
+     *
+     * @param isShared whether the cluster should be shared
+     */
+    LocalClusterSpecBuilder<T> shared(Boolean isShared);
 
     T build();
 }

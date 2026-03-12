@@ -34,6 +34,7 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
         NAME,
         CartesianBoundsAggregationBuilder::new
     );
+
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
     }
@@ -99,12 +100,7 @@ public class CartesianBoundsAggregationBuilder extends ValuesSourceAggregationBu
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_6_0;
+        return TransportVersion.minimumCompatible();
     }
 }

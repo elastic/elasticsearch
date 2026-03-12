@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.nativeaccess.NativeAccessUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -34,11 +36,14 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class UberModuleClassLoaderTests extends ESTestCase {
+
+    private static final String MODULE_NAME = "synthetic";
+    private static Set<URLClassLoader> loaders = new HashSet<>();
 
     /**
      * Test the loadClass method, which is the real entrypoint for users of the classloader
@@ -54,7 +59,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 assertThat(c, notNullValue());
                 Object instance = c.getConstructor().newInstance();
                 assertThat(instance.toString(), equalTo("MyClass"));
-                assertThat(c.getModule().getName(), equalTo("synthetic"));
+                assertThat(c.getModule().getName(), equalTo(MODULE_NAME));
             }
 
             {
@@ -84,9 +89,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         {
             try (UberModuleClassLoader loader = getLoader(jar)) {
-                Class<?> c = loader.findClass("synthetic", "p.MyClass");
+                Class<?> c = loader.findClass(MODULE_NAME, "p.MyClass");
                 assertThat(c, notNullValue());
-                c = loader.findClass("synthetic", "p.DoesNotExist");
+                c = loader.findClass(MODULE_NAME, "p.DoesNotExist");
                 assertThat(c, nullValue());
                 c = loader.findClass("does-not-exist", "p.MyClass");
                 assertThat(c, nullValue());
@@ -123,9 +128,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             }
 
             {
-                URL location = loader.findResource("synthetic", "p/MyClass.class");
+                URL location = loader.findResource(MODULE_NAME, "p/MyClass.class");
                 assertThat(location, notNullValue());
-                location = loader.findResource("synthetic", "p/DoesNotExist.class");
+                location = loader.findResource(MODULE_NAME, "p/DoesNotExist.class");
                 assertThat(location, nullValue());
                 location = loader.findResource("does-not-exist", "p/MyClass.class");
                 assertThat(location, nullValue());
@@ -158,7 +163,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, MODULE_NAME, Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
@@ -194,7 +199,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, MODULE_NAME, Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
@@ -306,9 +311,10 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
                 ModuleLayer.boot(),
-                "synthetic",
+                MODULE_NAME,
                 Set.of(toUrl(jar)),
-                Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
+                Set.of("java.sql", "java.sql.rowset"), // if present, java.sql.rowset requires java.sql transitively
+                Set.of()
             )
         ) {
             Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");
@@ -398,6 +404,37 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         }
     }
 
+    public void testNativeAccessIsEnabled() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-jar.jar");
+        createMinimalJar(jar, "p.MyClass");
+
+        try (
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(
+                UberModuleClassLoaderTests.class.getClassLoader(),
+                ModuleLayer.boot(),
+                MODULE_NAME,
+                Set.of(UberModuleClassLoaderTests.pathToUrlUnchecked(jar)),
+                Set.of(),
+                Set.of(MODULE_NAME)
+            )
+        ) {
+            {
+                Class<?> c = loader.loadClass("p.MyClass");
+                assertThat(c, notNullValue());
+                Object instance = c.getConstructor().newInstance();
+                assertThat(instance.toString(), equalTo("MyClass"));
+                assertThat(c.getModule().getName(), equalTo(MODULE_NAME));
+                assertThat(NativeAccessUtil.isNativeAccessEnabled(c.getModule()), is(true));
+            }
+
+            {
+                ClassNotFoundException e = expectThrows(ClassNotFoundException.class, () -> loader.loadClass("p.DoesNotExist"));
+                assertThat(e.getMessage(), equalTo("p.DoesNotExist"));
+            }
+        }
+    }
+
     private static void createServiceTestSingleJar(Path jar, boolean modularize, boolean addMetaInfService) throws IOException {
         String serviceInterface = """
             package p;
@@ -425,12 +462,12 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             package p;
 
             import java.util.ServiceLoader;
-            import java.util.random.RandomGenerator;
+            import java.nio.file.spi.FileSystemProvider;
 
             public class ServiceCaller {
                 public static String demo() {
                     // check no error if we load a service from the jdk
-                    ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+                    ServiceLoader<FileSystemProvider> fileSystemLoader = ServiceLoader.load(FileSystemProvider.class);
 
                     ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
                     return loader.findFirst().get().getTestString();
@@ -466,50 +503,115 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91609")
     public void testServiceLoadingWithOptionalDependencies() throws Exception {
-        assumeFalse("Tests frequently fail on Windows", Constants.WINDOWS);
         try (UberModuleClassLoader loader = getServiceTestLoader(true)) {
 
+            // check module descriptor
+            ModuleDescriptor synthetic = loader.getLayer().findModule(MODULE_NAME).orElseThrow().getDescriptor();
+
+            assertThat(
+                synthetic.uses(),
+                equalTo(
+                    Set.of("p.required.LetterService", "p.optional.AnimalService", "q.jar.one.NumberService", "q.jar.two.FooBarService")
+                )
+            );
+            // the descriptor model uses a list ordering that we don't guarantee, so we convert the provider list to maps and sets
+            Map<String, Set<String>> serviceProviders = synthetic.provides()
+                .stream()
+                .collect(Collectors.toMap(ModuleDescriptor.Provides::service, provides -> new HashSet<>(provides.providers())));
+            assertThat(
+                serviceProviders,
+                equalTo(
+                    Map.of(
+                        "p.required.LetterService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        // optional dependencies found and added
+                        "p.optional.AnimalService",
+                        Set.of("q.jar.one.JarOneOptionalProvider", "q.jar.two.JarTwoOptionalProvider"),
+                        "q.jar.one.NumberService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.two.FooBarService",
+                        Set.of("q.jar.two.JarTwoProvider")
+                    )
+                )
+            );
+
+            // Now let's make sure the module system lets us load available services
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
             Object instance = serviceCallerClass.getConstructor().newInstance();
 
             var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
             assertThat(requiredParent.invoke(instance), equalTo("AB"));
             var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
-            assertThat(optionalParent.invoke(instance), equalTo("catdog"));
+            assertThat(optionalParent.invoke(instance), equalTo("catdog")); // our service provider worked
             var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
             assertThat(modular.invoke(instance), equalTo("12"));
             var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
             assertThat(nonModular.invoke(instance), equalTo("foo"));
+        } finally {
+            for (URLClassLoader loader : loaders) {
+                loader.close();
+            }
+            loaders = new HashSet<>();
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91609")
     public void testServiceLoadingWithoutOptionalDependencies() throws Exception {
-        assumeFalse("Tests frequently fail on Windows", Constants.WINDOWS);
         try (UberModuleClassLoader loader = getServiceTestLoader(false)) {
 
+            // check module descriptor
+            ModuleDescriptor synthetic = loader.getLayer().findModule(MODULE_NAME).orElseThrow().getDescriptor();
+            assertThat(synthetic.uses(), equalTo(Set.of("p.required.LetterService", "q.jar.one.NumberService", "q.jar.two.FooBarService")));
+            // the descriptor model uses a list ordering that we don't guarantee, so we convert the provider list to maps and sets
+            Map<String, Set<String>> serviceProviders = synthetic.provides()
+                .stream()
+                .collect(Collectors.toMap(ModuleDescriptor.Provides::service, provides -> new HashSet<>(provides.providers())));
+            assertThat(
+                serviceProviders,
+                equalTo(
+                    Map.of(
+                        "p.required.LetterService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.one.NumberService",
+                        Set.of("q.jar.one.JarOneProvider", "q.jar.two.JarTwoProvider"),
+                        "q.jar.two.FooBarService",
+                        Set.of("q.jar.two.JarTwoProvider")
+                    )
+                )
+            );
+
+            // Now let's make sure the module system lets us load available services
             Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
             Object instance = serviceCallerClass.getConstructor().newInstance();
 
             var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
             assertThat(requiredParent.invoke(instance), equalTo("AB"));
             var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
+            // service not found at runtime, so we don't try to load the provider
             assertThat(optionalParent.invoke(instance), equalTo("Optional AnimalService dependency not present at runtime."));
             var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
             assertThat(modular.invoke(instance), equalTo("12"));
             var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
             assertThat(nonModular.invoke(instance), equalTo("foo"));
+        } finally {
+            for (URLClassLoader loader : loaders) {
+                loader.close();
+            }
+            loaders = new HashSet<>();
         }
     }
 
-    /**
-     * We need to create a test scenario that covers four service loading situations:
+    /*
+     * A class in our ubermodule may use SPI to load a service. Our test scenario needs to work out the following four
+     * conditions:
+     *
      * 1. Service defined in package exported in parent layer.
      * 2. Service defined in a compile-time dependency, optionally present at runtime.
      * 3. Service defined in modular jar in uberjar
      * 4. Service defined in non-modular jar in uberjar
+     *
+     * In all these cases, our ubermodule should declare that it uses each service *available at runtime*, and that
+     * it provides these services with the correct providers.
      *
      * We create a jar for each scenario, plus "service caller" jar with a demo class, then
      * create an UberModuleClassLoader for the relevant jars.
@@ -525,11 +627,18 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             .configuration()
             .resolve(parentModuleFinder, ModuleFinder.of(), moduleNames);
 
-        ModuleLayer parentLayer = ModuleLayer.defineModulesWithOneLoader(
-            parentLayerConfiguration,
-            List.of(ModuleLayer.boot()),
-            UberModuleClassLoaderTests.class.getClassLoader()
-        ).layer();
+        URLClassLoader parentLoader = new URLClassLoader(new URL[] { pathToUrlUnchecked(parentJar) });
+        loaders.add(parentLoader);
+        URLClassLoader optionalLoader = new URLClassLoader(new URL[] { pathToUrlUnchecked(optionalJar) }, parentLoader);
+        loaders.add(optionalLoader);
+        ModuleLayer parentLayer = ModuleLayer.defineModules(parentLayerConfiguration, List.of(ModuleLayer.boot()), (String moduleName) -> {
+            if (moduleName.equals("p.required")) {
+                return parentLoader;
+            } else if (includeOptionalDeps && moduleName.equals("p.optional")) {
+                return optionalLoader;
+            }
+            return null;
+        }).layer();
 
         // jars for the ubermodule
         Path modularJar = createModularizedJarForBundle(libDir);
@@ -538,10 +647,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         Set<Path> jarPaths = new HashSet<>(Set.of(modularJar, nonModularJar, serviceCallerJar));
         return UberModuleClassLoader.getInstance(
-            parentLayer.findLoader("p.required"),
+            parentLayer.findLoader(includeOptionalDeps ? "p.optional" : "p.required"),
             parentLayer,
-            "synthetic",
+            MODULE_NAME,
             jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet()),
+            Set.of(),
             Set.of()
         );
     }
@@ -805,7 +915,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     private static UberModuleClassLoader getLoader(List<Path> jars) {
         return UberModuleClassLoader.getInstance(
             UberModuleClassLoaderTests.class.getClassLoader(),
-            "synthetic",
+            MODULE_NAME,
             jars.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet())
         );
     }

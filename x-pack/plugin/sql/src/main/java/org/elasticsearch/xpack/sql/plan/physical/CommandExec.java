@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ActionListener.wrap;
-
 public class CommandExec extends LeafExec {
 
     private final Command command;
@@ -39,7 +37,7 @@ public class CommandExec extends LeafExec {
 
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
-        command.execute(session, wrap(listener::onResponse, listener::onFailure));
+        command.execute(session, listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
     }
 
     @Override

@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 
 public interface MachineLearningExtension {
 
     default void configure(Settings settings) {}
 
-    boolean useIlm();
-
     boolean includeNodeInfo();
 
-    boolean isAnomalyDetectionEnabled();
+    default boolean disableInferenceProcessCache() {
+        return false;
+    }
 
-    boolean isDataFrameAnalyticsEnabled();
+    String[] getAnalyticsDestIndexAllowedSettings();
 
-    boolean isNlpEnabled();
+    AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings);
 }

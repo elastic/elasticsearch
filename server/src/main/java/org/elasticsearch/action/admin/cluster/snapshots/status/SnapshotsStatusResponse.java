@@ -1,29 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Snapshot status response
@@ -33,8 +31,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     private final List<SnapshotStatus> snapshots;
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
-        super(in);
-        snapshots = in.readImmutableList(SnapshotStatus::new);
+        snapshots = in.readCollectionAsImmutableList(SnapshotStatus::new);
     }
 
     SnapshotsStatusResponse(List<SnapshotStatus> snapshots) {
@@ -52,24 +49,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshots);
-    }
-
-    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshots_status_response",
-        true,
-        (Object[] parsedObjects) -> {
-            @SuppressWarnings("unchecked")
-            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
-            return new SnapshotsStatusResponse(snapshots);
-        }
-    );
-    static {
-        PARSER.declareObjectArray(constructorArg(), SnapshotStatus.PARSER, new ParseField("snapshots"));
-    }
-
-    public static SnapshotsStatusResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        out.writeCollection(snapshots);
     }
 
     @Override
@@ -92,5 +72,10 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
             Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray().endObject())
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(this), true, true);
     }
 }

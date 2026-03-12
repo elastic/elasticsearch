@@ -13,9 +13,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,24 +24,30 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
+public class PutAnalyticsCollectionAction {
 
-    public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/put";
+    public static final ActionType<PutAnalyticsCollectionAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutAnalyticsCollectionAction() {
-        super(NAME, PutAnalyticsCollectionAction.Response::new);
-    }
+    private PutAnalyticsCollectionAction() {/* no instances */}
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String name;
+
+        public static final ParseField NAME_FIELD = new ParseField("name");
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
         }
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, String name) {
+            super(masterNodeTimeout);
             this.name = name;
         }
 
@@ -77,9 +84,17 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         public int hashCode() {
             return Objects.hash(name);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.endObject();
+            return builder;
+        }
     }
 
-    public static class Response extends AcknowledgedResponse implements StatusToXContentObject {
+    public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
         public static final ParseField COLLECTION_NAME_FIELD = new ParseField("name");
 
@@ -93,11 +108,6 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         public Response(boolean acknowledged, String name) {
             super(acknowledged);
             this.name = name;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.CREATED;
         }
 
         public String getName() {
@@ -127,5 +137,6 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
         }
+
     }
 }

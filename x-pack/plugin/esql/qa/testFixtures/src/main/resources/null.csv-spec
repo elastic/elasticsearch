@@ -1,0 +1,586 @@
+isNull
+from employees
+| where gender is null
+| sort first_name
+| keep first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Berni             |null
+Cristinel         |null
+Duangkaew         |null
+;
+
+notIsNull
+from employees
+| where gender is not null
+| sort first_name
+| keep first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Alejandro         |F
+Amabile           |M
+Anneke            |F
+;
+
+isNullForDocs
+// tag::is-null[]
+FROM employees
+| WHERE birth_date IS NULL
+// end::is-null[]
+| KEEP first_name, last_name
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::is-null-result[]
+first_name:keyword|last_name:keyword   
+Basil             |Tramer         
+Florian           |Syrotiuk       
+Lucien            |Rosenbaum
+// end::is-null-result[]
+;
+
+isNotNullForDocs
+// tag::is-not-null[]
+FROM employees
+| WHERE is_rehired IS NOT NULL
+| STATS COUNT(emp_no)
+// end::is-not-null[]
+;
+
+// tag::is-not-null-result[]
+COUNT(emp_no):long 
+84
+// end::is-not-null-result[]
+;
+
+coalesceSimple#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::coalesce[]
+ROW a=null, b="b"
+| EVAL COALESCE(a, b)
+// end::coalesce[]
+;
+
+// tag::coalesce-result[]
+a:null | b:keyword | COALESCE(a, b):keyword
+  null |         b | b
+// end::coalesce-result[]
+;
+
+coalesce
+FROM employees
+| EVAL first_name = COALESCE(first_name, "X")
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 10;
+
+emp_no:integer | first_name:keyword
+         10047 | Zvonko
+         10081 | Zhongwei
+         10026 | Yongqiao
+         10043 | Yishay
+         10050 | Yinghua
+         10087 | Xinglin
+         10030 | X
+         10031 | X
+         10032 | X
+         10033 | X
+;
+
+coalesceOnce
+ROW a=1 | EVAL a = COALESCE(a);
+
+a:integer
+        1
+;
+
+coalesceBackwards
+FROM employees
+| EVAL first_name = COALESCE("X", first_name)
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 10;
+
+emp_no:integer | first_name:keyword
+         10001 | X
+         10002 | X
+         10003 | X
+         10004 | X
+         10005 | X
+         10006 | X
+         10007 | X
+         10008 | X
+         10009 | X
+         10010 | X
+;
+
+coalesceEndsInNull
+# ending in null is sill because it'll noop but it shouldn't break things.
+FROM employees
+| EVAL first_name = COALESCE(first_name, last_name, null)
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 3;
+
+emp_no:integer | first_name:keyword
+         10047 | Zvonko
+         10081 | Zhongwei
+         10026 | Yongqiao
+;
+
+coalesceFolding
+FROM employees
+| EVAL foo=COALESCE(true, false, null)
+| SORT emp_no ASC
+| KEEP emp_no, first_name, foo
+| limit 3;
+
+emp_no:integer | first_name:keyword | foo:boolean
+         10001 | Georgi             | true
+         10002 | Bezalel            | true
+         10003 | Parto              | true
+;
+
+coalesceMixedNumeric
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, 0), y = coalesce(height, 0), z = coalesce(languages::double, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, x, height, y, z
+;
+
+emp_no:integer | languages:integer | x:long | height:double | y:double | z:double
+         10018 | 2                 | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                 | 1      | 2.06          | 2.06     | 1.0
+         10020 | null              | 0      | 1.41          | 1.41     | 0.0
+         10021 | null              | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericWithNull
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, null, 0), y = coalesce(null, height, 0),  z = coalesce(languages::double, null, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages.long, x, height, y, z
+;
+
+emp_no:integer | languages.long:long | x:long | height:double | y:double | z:double
+         10018 | 2                   | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                   | 1      | 2.06          | 2.06     | 1.0
+         10020 | null                | 0      | 1.41          | 1.41     | 0.0
+         10021 | null                | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericFields
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(height, languages.long, 0), y = coalesce(height, null, languages, 0),
+z = coalesce(languages::double, null, salary, height, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, height, x, y, z, salary
+;
+
+emp_no:integer | languages:integer | height:double | x:double | y:double | z:double | salary:integer
+         10018 | 2                 | 1.97          | 1.97     | 1.97     | 2.0      | 56760
+         10019 | 1                 | 2.06          | 2.06     | 2.06     | 1.0      | 73717
+         10020 | null              | 1.41          | 1.41     | 1.41     | 40031.0  | 40031
+         10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
+;
+
+whereNull
+FROM employees
+| WHERE NULL and emp_no <= 10021
+| SORT first_name, last_name
+| EVAL fullname = CONCAT(first_name, " ", last_name)
+| KEEP fullname, job_positions, salary, salary_change
+| limit 5
+;
+
+fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
+;
+
+inConvertedNull
+required_capability: filter_in_converted_null
+FROM employees
+| WHERE emp_no in (10021, 10022, null::int)
+| KEEP emp_no, first_name, last_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword   
+10021          | Ramzi              | Erde
+10022          | Shahaf             | Famili
+;
+
+###############################################
+# Null comparison tests
+###############################################
+
+# Field compared with null returns empty result
+compareFieldWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no == null | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+;
+
+
+# ROW with null compared to string value
+rowNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "foo" | WHERE x == y | KEEP x, y
+;
+
+x:null | y:keyword
+;
+
+
+# null == integer evaluates to null
+rowNullEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null != integer evaluates to null
+rowNullNotEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x != y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null > integer evaluates to null
+rowNullGreaterThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x > y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null < integer evaluates to null
+rowNullLessThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x < y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null >= integer evaluates to null
+rowNullGreaterThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x >= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null <= integer evaluates to null
+rowNullLessThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x <= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Two nulls comparison evaluates to null
+rowTwoNullsComparison
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Value compared with null (null on right side)
+rowValueCompareWithNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with keyword
+rowNullCompareWithKeyword
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "test" | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with datetime
+rowNullCompareWithDatetime
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = now() | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+###############################################
+# Complex null comparison tests (derived null)
+###############################################
+
+# null derived from arithmetic: null + 1 produces null, then compared with integer
+rowDerivedNullFromAdditionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | EVAL t = x + 1 > z | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from multiplication: null * 2 compared with integer
+rowDerivedNullFromMultiplicationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 2 | EVAL t = x * 2 == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# chained null propagation: null + 1 - 2 compared with value
+rowChainedNullPropagationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 5 | EVAL t = (x + 1 - 2) >= y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from function: to_integer(null) compared with value
+rowDerivedNullFromFunctionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW y = 10 | EVAL t = to_integer(null) < y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# WHERE filters out all rows when derived null is used in condition
+rowDerivedNullInWhereClause
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | WHERE x + 1 > z | KEEP x, y, z
+;
+
+x:null | y:integer | z:integer
+;
+
+
+# null propagation through nested arithmetic on both sides
+rowDerivedNullBothSidesCompare
+required_capability: fix_null_comparison_type_check
+
+ROW a = null, b = null | EVAL t = (a + 1) == (b + 2) | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# non-null side produces value, null side propagates null
+rowDerivedNullOneSideCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 3 | EVAL left_val = x + 10, right_val = y * 2, t = left_val > right_val | KEEP left_val, right_val, t
+;
+
+left_val:integer    | right_val:integer | t:boolean
+null                | 6                 | null
+;
+
+
+# null from division by zero is different, but null literal through arithmetic should propagate
+rowDerivedNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "hello" | EVAL t = concat(x, " world") == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+###############################################
+# Null in IN expression tests
+###############################################
+
+# integer value IN list containing null — value matches, result is true
+rowIntegerInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (1, null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# integer value IN list containing only null — no match, result is null
+rowIntegerInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1 | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# integer value IN list with null — value does not match non-null entries, result is null
+rowIntegerInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = 5 | EVAL result = x IN (1, 2, null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list of integers — result is null
+rowNullInIntegerList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (1, 2, 3) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list containing null — result is null (null == null is null, not true)
+rowNullInNullList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# keyword value IN list containing null — value matches
+rowKeywordInWithNullMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("foo", null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+# keyword value IN list with null — no match
+rowKeywordInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+
+ROW x = "foo" | EVAL result = x IN ("bar", null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# field IN list with null — matching rows returned
+fieldInWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, 10002, null) | SORT emp_no | KEEP emp_no | LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+;
+
+
+# field IN list with only null — no rows match
+fieldInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (null) | KEEP emp_no | LIMIT 1
+;
+
+emp_no:integer
+;
+
+
+# WHERE with IN containing null filters correctly
+fieldInWithNullWhereFilter
+required_capability: fix_null_comparison_type_check
+
+FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT emp_no | KEEP emp_no, first_name | LIMIT 1
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;

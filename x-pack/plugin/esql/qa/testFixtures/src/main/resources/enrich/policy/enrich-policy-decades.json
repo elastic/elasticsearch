@@ -1,0 +1,10 @@
+{
+  "range": {
+    "indices": "decades",
+    "match_field": "date_range",
+    "enrich_fields": [
+      "decade",
+      "description"
+    ]
+  }
+}

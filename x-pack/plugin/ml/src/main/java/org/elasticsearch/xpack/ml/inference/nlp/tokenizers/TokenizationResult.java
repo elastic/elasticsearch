@@ -48,7 +48,7 @@ public abstract class TokenizationResult {
         return tokens.stream().collect(Collectors.groupingBy(Tokens::sequenceId));
     }
 
-    List<Tokens> getTokens() {
+    public List<Tokens> getTokens() {
         return tokens;
     }
 

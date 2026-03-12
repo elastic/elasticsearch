@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
@@ -30,17 +31,7 @@ public class GroupedActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicReference<Collection<Integer>> resRef = new AtomicReference<>();
-        ActionListener<Collection<Integer>> result = new ActionListener<Collection<Integer>>() {
-            @Override
-            public void onResponse(Collection<Integer> integers) {
-                resRef.set(integers);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Collection<Integer>> result = ActionTestUtils.assertNoFailureListener(resRef::set);
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         GroupedActionListener<Integer> listener = new GroupedActionListener<>(groupSize, result);
@@ -49,11 +40,7 @@ public class GroupedActionListenerTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 int c;
                 while ((c = count.incrementAndGet()) <= groupSize) {
                     listener.onResponse(c - 1);

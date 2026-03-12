@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.TestFeatureService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.is;
@@ -26,11 +27,19 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
-        final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final String version = randomAlphaOfLength(10);
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            Set.of(version),
+            TestFeatureService.ALL_FEATURES,
+            Set.of("os")
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -38,11 +47,6 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             ) {
                 headersRef.set(headers);
                 return null;
-            }
-
-            @Override
-            public Version esVersion() {
-                return version;
             }
         };
         final Map<String, String> headers = new HashMap<>();
@@ -53,7 +57,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         context.stash().stashValue("c", "bar1");
 
         assertNull(headersRef.get());
-        context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         assertNotNull(headersRef.get());
         assertNotEquals(headers, headersRef.get());
 
@@ -62,11 +66,19 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     }
 
     public void testStashHeadersOnException() throws IOException {
-        final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final String version = randomAlphaOfLength(10);
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            Set.of(version),
+            TestFeatureService.ALL_FEATURES,
+            Set.of("os")
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
+                String method,
                 Map<String, String> params,
                 HttpEntity entity,
                 Map<String, String> headers,
@@ -74,17 +86,12 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             ) {
                 throw new RuntimeException("boom!");
             }
-
-            @Override
-            public Version esVersion() {
-                return version;
-            }
         };
         final Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "application/json");
         headers.put("Authorization", "Basic password==");
         try {
-            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+            context.callApi("test", null, Collections.emptyMap(), Collections.emptyList(), headers, NodeSelector.ANY);
         } catch (Exception e) {
             // do nothing...behavior we are testing is the finally block of the production code
         }

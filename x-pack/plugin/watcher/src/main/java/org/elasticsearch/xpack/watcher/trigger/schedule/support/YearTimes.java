@@ -24,7 +24,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-public class YearTimes implements Times {
+public final class YearTimes implements Times {
 
     public static final EnumSet<Month> DEFAULT_MONTHS = EnumSet.of(Month.JANUARY);
     public static final int[] DEFAULT_DAYS = new int[] { 1 };
@@ -206,7 +206,7 @@ public class YearTimes implements Times {
 
     public static class Builder {
 
-        private final Set<Month> months = new HashSet<>();
+        private final Set<Month> months = EnumSet.noneOf(Month.class);
         private final Set<Integer> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 

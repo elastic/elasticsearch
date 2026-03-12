@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,6 +24,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
+import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -31,27 +34,29 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.lucene.search.AutomatonQueries.caseInsensitivePrefix;
-import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-/** Base class for {@link MappedFieldType} implementations that use the same
+/**
+ * Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
  * that partial matching queries such as prefix, wildcard and fuzzy queries
- * can be implemented. */
+ * can be implemented.
+ *
+ * <p>Circuit breaker accounting for automaton-based queries (prefix, wildcard, regexp, range)
+ * is performed here, at the point each individual Lucene query is created, rather than solely
+ * in {@link SearchExecutionContext#toQuery} after the full query tree is assembled. This is
+ * intentional: compound queries such as a {@code bool} with many wildcard clauses build each
+ * clause sequentially, so by the time the complete tree is available for a post-hoc walk every
+ * automaton has already been allocated. Accounting per-clause lets the circuit breaker trip as
+ * soon as cumulative memory crosses the threshold, preventing the remaining clauses from being
+ * constructed and avoiding a potential OOM.
+ */
 public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+    public StringFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, textSearchInfo, meta);
     }
 
     @Override
@@ -70,13 +75,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            fuzziness.asDistance(BytesRefs.toString(value)),
-            prefixLength,
-            maxExpansions,
-            transpositions
-        );
+        return rewriteMethod == null
+            ? new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions
+            )
+            : new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions,
+                rewriteMethod
+            );
     }
 
     @Override
@@ -91,18 +105,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         Term prefix = new Term(name(), indexedValueForSearch(value));
+        AutomatonQuery query;
         if (caseInsensitive) {
-            return method == null
-                ? new AutomatonQuery(prefix, caseInsensitivePrefix(prefix.text()), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new AutomatonQuery(
-                    prefix,
-                    caseInsensitivePrefix(prefix.text()),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    method
-                );
+            query = method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
+        } else {
+            query = method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
         }
-        return method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "prefix:" + name());
+        return query;
     }
 
     public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer) {
@@ -166,18 +176,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }
+        AutomatonQuery query;
         if (caseInsensitive) {
-            return method == null
-                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE))
-                : new AutomatonQuery(
-                    term,
-                    toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    method
-                );
+            query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
+        } else {
+            query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
-        return method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "wildcard:" + name());
+        return query;
     }
 
     @Override
@@ -195,7 +201,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return method == null
+        AutomatonQuery query = method == null
             ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
             : new RegexpQuery(
                 new Term(name(), indexedValueForSearch(value)),
@@ -205,6 +211,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 maxDeterminizedStates,
                 method
             );
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + name());
+        return query;
     }
 
     @Override
@@ -223,12 +231,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new TermRangeQuery(
+        AutomatonQuery query = new TermRangeQuery(
             name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower,
             includeUpper
         );
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
+        return query;
     }
 }

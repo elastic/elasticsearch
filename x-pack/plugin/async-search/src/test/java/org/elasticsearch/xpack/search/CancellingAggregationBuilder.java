@@ -106,6 +106,6 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersion.zero();
     }
 }

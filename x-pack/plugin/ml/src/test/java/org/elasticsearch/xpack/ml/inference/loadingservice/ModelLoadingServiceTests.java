@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
@@ -38,15 +39,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -65,11 +67,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -414,7 +418,35 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForSearch(modelId, future);
+            modelLoadingService.getModelForAggregation(modelId, future);
+            assertThat(future.get(), is(not(nullValue())));
+        }
+
+        assertTrue(modelLoadingService.isModelCached(modelId));
+
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(modelId), eq(false), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
+    }
+
+    public void testGetModelForLearningToRank() throws Exception {
+        String modelId = "test-get-model-for-ltr";
+        withTrainedModel(modelId, 1L, LearningToRankConfig.EMPTY_PARAMS);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class)
+        );
+
+        for (int i = 0; i < 3; i++) {
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
+            modelLoadingService.getModelForLearningToRank(modelId, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -470,6 +502,52 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1));
 
         assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(5L)));
+    }
+
+    public void testExpiredModelsAreEvictedBeforeLoading() throws Exception {
+        String smallModel1 = "small-model-1";
+        String smallModel2 = "small-model-2";
+        String justSmallEnoughModel = "just-small-enough-model";
+        long cbBytes = 13;
+        withTrainedModel(smallModel1, cbBytes / 2);
+        withTrainedModel(smallModel1, cbBytes / 2);
+        long justSmallEnoughModelBytes = cbBytes - 1;
+        withTrainedModel(justSmallEnoughModel, justSmallEnoughModelBytes);
+        CircuitBreaker circuitBreaker = new CustomCircuitBreaker(cbBytes);
+
+        // Create cache with a low TTL value so models can be evicted quickly
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class),
+            TimeValue.timeValueMillis(200)
+        );
+
+        // These 2 models will be loaded as the circuit breaker has enough free memory
+        modelLoadingService.clusterChanged(ingestChangedEvent(smallModel1, smallModel2));
+
+        assertBusy(() -> {
+            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
+            assertThat(circuitBreaker.getTrippedCount(), equalTo(0L));
+        }, 2, TimeUnit.SECONDS);
+
+        AtomicBoolean modelLoaded = new AtomicBoolean(false);
+
+        // This model can only be loaded if the first 2 are evicted from the cache
+        // and space freed in the circuit breaker.
+        modelLoadingService.addModelLoadedListener(justSmallEnoughModel, ActionListener.wrap(r -> {
+            modelLoaded.set(true);
+            assertThat(circuitBreaker.getUsed(), equalTo(justSmallEnoughModelBytes));
+        }, ESTestCase::fail));
+        modelLoadingService.clusterChanged(ingestChangedEvent(justSmallEnoughModel));
+
+        assertBusy(() -> assertTrue(modelLoaded.get()), 2, TimeUnit.SECONDS);
     }
 
     public void testReferenceCounting() throws Exception {
@@ -656,13 +734,17 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertThat(modelLoadingService.getModelId("loaded_model_again"), equalTo(model1));
     }
 
-    @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) {
+        withTrainedModel(modelId, size, ClassificationConfig.EMPTY_PARAMS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void withTrainedModel(String modelId, long size, InferenceConfig inferenceConfig) {
         InferenceDefinition definition = mock(InferenceDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
-        when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
+        when(trainedModelConfig.getInferenceConfig()).thenReturn(inferenceConfig);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
         when(trainedModelConfig.getModelSize()).thenReturn(size);
         doAnswer(invocationOnMock -> {
@@ -728,14 +810,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (ingestToo) {
             set.add(IngestMetadata.TYPE);
         }
-        when(event.changedCustomMetadataSet()).thenReturn(set);
+        when(event.changedCustomProjectMetadataSet()).thenReturn(set);
         when(event.state()).thenReturn(withModelReferencesAndAliasChange(isIngestNode, modelId, modelIdAndAliases));
         return event;
     }
 
     private static ClusterChangedEvent ingestChangedEvent(boolean isIngestNode, String... modelId) throws IOException {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
+        when(event.changedCustomProjectMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
         when(event.state()).thenReturn(buildClusterStateWithModelReferences(isIngestNode, modelId));
         return event;
     }

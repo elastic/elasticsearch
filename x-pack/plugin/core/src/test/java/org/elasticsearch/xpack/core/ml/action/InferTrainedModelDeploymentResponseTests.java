@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
 import org.junit.Before;
 
 import java.util.List;
@@ -49,10 +49,10 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
     protected InferTrainedModelDeploymentAction.Response createTestInstance() {
         return new InferTrainedModelDeploymentAction.Response(
             List.of(
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults()
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults()
             )
         );
     }
@@ -67,9 +67,6 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
         InferTrainedModelDeploymentAction.Response instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersion.V_8_6_1)) {
-            return new InferTrainedModelDeploymentAction.Response(instance.getResults().subList(0, 1));
-        }
 
         return instance;
     }

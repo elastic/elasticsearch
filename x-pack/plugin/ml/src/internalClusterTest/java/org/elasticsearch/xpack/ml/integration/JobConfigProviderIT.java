@@ -11,7 +11,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -100,7 +99,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
             assertNull(exceptionHolder.get());
         }
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<DocWriteResponse> indexResponseHolder = new AtomicReference<>();
 
         // Create job
         Job job = createJob("existing-job", null).build(new Date());
@@ -120,7 +119,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
     public void testOverwriteNotAllowed() throws InterruptedException {
         final String jobId = "same-id";
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<DocWriteResponse> indexResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         // Create job
@@ -141,7 +140,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
     public void testCrud() throws InterruptedException {
         final String jobId = "crud-job";
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<DocWriteResponse> indexResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         // Create job
@@ -203,7 +202,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
     public void testUpdateWithAValidationError() throws Exception {
         final String jobId = "bad-update-job";
 
-        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+        AtomicReference<DocWriteResponse> indexResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         // Create job
@@ -233,7 +232,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         // Create job
         Job newJob = createJob(jobId, null).build(new Date());
-        this.<IndexResponse>blockingCall(actionListener -> jobConfigProvider.putJob(newJob, actionListener));
+        this.<DocWriteResponse>blockingCall(actionListener -> jobConfigProvider.putJob(newJob, actionListener));
 
         JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setDescription("This job has been updated").build();
 
@@ -664,7 +663,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
     private Job putJob(Job.Builder job) throws Exception {
         Job builtJob = job.build(new Date());
-        this.<IndexResponse>blockingCall(actionListener -> jobConfigProvider.putJob(builtJob, actionListener));
+        this.<DocWriteResponse>blockingCall(actionListener -> jobConfigProvider.putJob(builtJob, actionListener));
         return builtJob;
     }
 }

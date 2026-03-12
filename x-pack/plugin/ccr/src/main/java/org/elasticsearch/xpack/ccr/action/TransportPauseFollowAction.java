@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +40,6 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         final ActionFilters actionFilters,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService
     ) {
         super(
@@ -50,8 +49,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             PauseFollowAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;
     }
@@ -63,7 +61,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
+        final IndexMetadata followerIMD = state.metadata().getProject().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
             return;
@@ -72,7 +70,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
             return;
         }
-        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;
@@ -97,7 +95,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
         final ResponseHandler responseHandler = new ResponseHandler(shardFollowTaskIds.size(), listener);
         for (String taskId : shardFollowTaskIds) {
             final int taskSlot = i++;
-            persistentTasksService.sendRemoveRequest(taskId, responseHandler.getActionListener(taskSlot));
+            persistentTasksService.sendRemoveRequest(taskId, request.masterNodeTimeout(), responseHandler.getActionListener(taskSlot));
         }
     }
 

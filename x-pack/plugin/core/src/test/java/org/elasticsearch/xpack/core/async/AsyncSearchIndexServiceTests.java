@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -112,6 +111,24 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         public TestAsyncResponse convertToFailure(Exception exc) {
             return new TestAsyncResponse(test, expirationTimeMillis, exc.getMessage());
         }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
     }
 
     @Before
@@ -142,7 +159,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
 
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
@@ -264,7 +281,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         {
             circuitBreaker.adjustLimit(randomIntBetween(1, 64)); // small limit
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             CircuitBreakingException e = expectThrows(CircuitBreakingException.class, createFuture::actionGet);
             assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
@@ -273,7 +290,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         {
             circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // large enough
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
@@ -337,15 +354,18 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
             TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
-            PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture1 = new PlainActionFuture<>();
             indexService.createResponse(executionId1.getDocId(), Map.of(), initialResponse, createFuture1);
             createFuture1.actionGet();
 
             // setting very small limit for the max size of async search response
             int limit = randomIntBetween(1, 125);
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
             String expectedErrMsg = "Can't store an async search response larger than ["
                 + limit
                 + "] bytes. "
@@ -369,16 +389,19 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 Long.toString(randomNonNegativeLong()),
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
             indexService.createResponse(executionId2.getDocId(), Map.of(), initialResponse2, createFuture);
             IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
             assertEquals(expectedErrMsg, e2.getMessage());
         } finally {
             // restoring limit
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }
     }
 

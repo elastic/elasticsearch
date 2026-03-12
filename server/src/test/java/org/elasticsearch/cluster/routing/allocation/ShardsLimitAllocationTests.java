@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -31,7 +30,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsLimitAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(ShardsLimitAllocationTests.class);
 
     public void testIndexLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(
@@ -44,7 +42,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder("test")
                     .settings(
-                        indexSettings(Version.CURRENT, 4, 1).put(
+                        indexSettings(IndexVersion.current(), 4, 1).put(
                             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
                             2
                         )
@@ -53,7 +51,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -89,10 +87,12 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 4, 0))).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 4, 0)))
+            .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -140,17 +140,17 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
         logger.info("Building initial routing table");
 
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 5, 0))).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 5, 0)))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -165,12 +165,12 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         logger.info("add another index with 5 shards");
         metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder("test1").settings(indexSettings(Version.CURRENT, 5, 0)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), 5, 0)))
             .build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(metadata.index("test1")).build();
+        ).addAsNew(metadata.getProject().index("test1")).build();
 
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
 
@@ -192,9 +192,9 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         metadata = Metadata.builder(clusterState.metadata())
             .put(
-                IndexMetadata.builder(clusterState.metadata().index("test"))
+                IndexMetadata.builder(clusterState.metadata().getProject().index("test"))
                     .settings(
-                        indexSettings(Version.CURRENT, 5, 0).put(
+                        indexSettings(IndexVersion.current(), 5, 0).put(
                             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
                             3
                         )

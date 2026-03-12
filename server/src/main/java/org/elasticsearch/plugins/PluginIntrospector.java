@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -111,7 +112,7 @@ final class PluginIntrospector {
 
     // finds the subset of given methods that are overridden by the given class
     // returns a map of method name to interface name the method was declared in
-    private Map<String, String> findOverriddenMethods(final Class<?> pluginClass, Map<Class<?>, List<MethodType>> methodsMap) {
+    private static Map<String, String> findOverriddenMethods(final Class<?> pluginClass, Map<Class<?>, List<MethodType>> methodsMap) {
         assert Plugin.class.isAssignableFrom(pluginClass);
         List<Class<?>> clazzes = Stream.concat(Stream.of(Plugin.class), interfaceClasses(pluginClass, methodsMap::containsKey)).toList();
         if (clazzes.isEmpty()) {

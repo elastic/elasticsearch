@@ -196,7 +196,17 @@ public class EmailTemplate implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(from, replyTo, priority, to, cc, bcc, subject, textBody, htmlBody);
+        return Objects.hash(
+            from,
+            Arrays.hashCode(replyTo),
+            priority,
+            Arrays.hashCode(to),
+            Arrays.hashCode(cc),
+            Arrays.hashCode(bcc),
+            subject,
+            textBody,
+            htmlBody
+        );
     }
 
     @Override

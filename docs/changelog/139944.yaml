@@ -1,0 +1,5 @@
+pr: 139944
+summary: Make quantization level of indexed vectors for 'bbq_disk' configurable
+area: Vector Search
+type: enhancement
+issues: []

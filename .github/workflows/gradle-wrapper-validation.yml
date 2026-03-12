@@ -7,7 +7,8 @@ permissions:
 jobs:
   validation:
     name: "Validation"
+    if: github.repository == 'elastic/elasticsearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: gradle/wrapper-validation-action@v1
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@ac638b010cf58a27ee6c972d7336334ccaf61c96 # Release v4.4.1

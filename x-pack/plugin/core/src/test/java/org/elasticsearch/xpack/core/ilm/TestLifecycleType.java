@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TestLifecycleType implements LifecycleType {
     public static final TestLifecycleType INSTANCE = new TestLifecycleType();
@@ -41,50 +40,8 @@ public class TestLifecycleType implements LifecycleType {
     }
 
     @Override
-    public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        List<String> orderedPhaseNames = getOrderedPhases(phases).stream().map(Phase::getName).collect(Collectors.toList());
-        int index = orderedPhaseNames.indexOf(currentPhaseName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else if (index == orderedPhaseNames.size() - 1) {
-            return null;
-        } else {
-            return orderedPhaseNames.get(index + 1);
-        }
-    }
-
-    @Override
-    public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        List<String> orderedPhaseNames = getOrderedPhases(phases).stream().map(Phase::getName).collect(Collectors.toList());
-        int index = orderedPhaseNames.indexOf(currentPhaseName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else if (index == 0) {
-            return null;
-        } else {
-            return orderedPhaseNames.get(index - 1);
-        }
-    }
-
-    @Override
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         return new ArrayList<>(phase.getActions().values());
     }
 
-    @Override
-    public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames = getOrderedActions(phase).stream()
-            .map(LifecycleAction::getWriteableName)
-            .collect(Collectors.toList());
-        int index = orderedActionNames.indexOf(currentActionName);
-        if (index < 0) {
-            throw new IllegalArgumentException(
-                "[" + currentActionName + "] is not a valid action for phase [" + phase.getName() + "] in lifecycle type [" + TYPE + "]"
-            );
-        } else if (index == orderedActionNames.size() - 1) {
-            return null;
-        } else {
-            return orderedActionNames.get(index + 1);
-        }
-    }
 }

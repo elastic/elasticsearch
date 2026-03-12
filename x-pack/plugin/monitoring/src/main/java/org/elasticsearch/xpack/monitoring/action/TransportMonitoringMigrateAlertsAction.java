@@ -20,11 +20,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -62,8 +61,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             MonitoringMigrateAlertsAction.NAME,
@@ -72,9 +70,8 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             MonitoringMigrateAlertsRequest::new,
-            indexNameExpressionResolver,
             MonitoringMigrateAlertsResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
         this.migrationCoordinator = migrationCoordinator;
@@ -98,7 +95,11 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin()
                 .cluster()
-                .prepareUpdateSettings()
+                .prepareUpdateSettings(
+                    request.masterNodeTimeout(),
+                    /* TODO expose separate ack timeout? use masterNodeTimeout() for now */
+                    request.masterNodeTimeout()
+                )
                 .setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));
         } catch (Exception e) {
@@ -112,10 +113,9 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         ActionListener<MonitoringMigrateAlertsResponse> delegate
     ) {
         // Send failures to the final listener directly, and on success, fork to management thread and execute best effort alert removal
-        return ActionListener.wrap(
-            (response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                .execute(ActionRunnable.wrap(delegate, (listener) -> afterSettingUpdate(listener, response))),
-            delegate::onFailure
+        return delegate.delegateFailure(
+            (l, response) -> threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                .execute(ActionRunnable.wrap(l, (listener) -> afterSettingUpdate(listener, response)))
         );
     }
 
@@ -177,7 +177,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param remaining The counter used to determine if any other operations are in flight
      * @param results A thread-safe collection to hold results
      */
-    private ActionListener<ExporterResourceStatus> resultCollector(
+    private static ActionListener<ExporterResourceStatus> resultCollector(
         final Exporter.Config exporterConfig,
         final ActionListener<MonitoringMigrateAlertsResponse> listener,
         final AtomicInteger remaining,
@@ -224,7 +224,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                 }
             }
 
-            private Exception compileReason(ExporterResourceStatus status) {
+            private static Exception compileReason(ExporterResourceStatus status) {
                 // The reason for unsuccessful setup could be multiple exceptions: one or more watches
                 // may fail to be removed for any reason.
                 List<Exception> exceptions = status.getExceptions();
@@ -247,7 +247,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param exporter The exporter to migrate
      * @param listener Notified of success or failure
      */
-    private void deleteAlertsFromOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
+    private static void deleteAlertsFromOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
         assert exporter.isOpen();
         try {
             exporter.removeAlerts(status -> {

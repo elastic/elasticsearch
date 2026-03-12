@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,28 +70,24 @@ public class MultiFieldTests extends MapperServiceTestCase {
 
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertTrue(mapperService.fieldType("name").isIndexed());
         assertTrue(mapperService.fieldType("name").isSearchable());
         assertTrue(mapperService.fieldType("name").isStored());
         assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertTrue(mapperService.fieldType("name.indexed").isIndexed());
         assertTrue(mapperService.fieldType("name.indexed").isSearchable());
         assertFalse(mapperService.fieldType("name.indexed").isStored());
         assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertFalse(mapperService.fieldType("name.not_indexed").isIndexed());
         assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
         assertTrue(mapperService.fieldType("name.not_indexed").isStored());
         assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertTrue(mapperService.fieldType("name.test1").isIndexed());
         assertTrue(mapperService.fieldType("name.test1").isSearchable());
         assertTrue(mapperService.fieldType("name.test1").isStored());
         assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
@@ -99,7 +97,6 @@ public class MultiFieldTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertTrue(mapperService.fieldType("object1.multi1.string").isIndexed());
         assertTrue(mapperService.fieldType("object1.multi1.string").isSearchable());
         assertNotNull(mapperService.fieldType("object1.multi1.string").getTextSearchInfo());
         assertFalse(mapperService.fieldType("object1.multi1.string").getTextSearchInfo().isTokenized());
@@ -208,6 +205,24 @@ public class MultiFieldTests extends MapperServiceTestCase {
             exception.getMessage(),
             equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'")
         );
+    }
+
+    public void testSourcePathFields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("subfield1").field("type", "text").endObject();
+            b.startObject("subfield2").field("type", "text").endObject();
+            b.endObject();
+        }));
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        assertThat(mapper, instanceOf(FieldMapper.class));
+        final Set<String> fieldsUsingSourcePath = new HashSet<>();
+        ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
+        assertThat(fieldsUsingSourcePath, equalTo(Set.of("field.subfield1", "field.subfield2")));
+
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield1"), equalTo(Set.of("field")));
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield2"), equalTo(Set.of("field")));
     }
 
     public void testUnknownLegacyFieldsUnderKnownRootField() throws Exception {

@@ -20,6 +20,8 @@ public class BertJapaneseTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("bert_ja");
 
+    public static final String MASK_TOKEN = "[MASK]";
+
     public static ConstructingObjectParser<BertJapaneseTokenization, Void> createJpParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<BertJapaneseTokenization, Void> parser = new ConstructingObjectParser<>(
             "bert_japanese_tokenization",
@@ -57,8 +59,18 @@ public class BertJapaneseTokenization extends Tokenization {
         super(in);
     }
 
+    @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new BertJapaneseTokenization(this.doLowerCase, this.withSpecialTokens, updatedMaxSeqLength, Truncate.NONE, updatedSpan);
+    }
+
     XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

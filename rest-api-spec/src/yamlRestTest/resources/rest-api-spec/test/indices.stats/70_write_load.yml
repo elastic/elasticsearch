@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: Indices write load stats were introduced in 8.6
 ---
 "Write load average is tracked at shard level":

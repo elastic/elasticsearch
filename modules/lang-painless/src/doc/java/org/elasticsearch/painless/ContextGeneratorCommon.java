@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -34,15 +35,21 @@ import java.util.stream.Collectors;
 
 public class ContextGeneratorCommon {
     @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
+    @SuppressWarnings("unchecked")
     public static List<PainlessContextInfo> getContextInfos() throws IOException {
         URLConnection getContextNames = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context")
             .openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextNames.getInputStream());
-        parser.nextToken();
-        parser.nextToken();
-        @SuppressWarnings("unchecked")
-        List<String> contextNames = (List<String>) (Object) parser.list();
-        parser.close();
+        List<String> contextNames;
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                getContextNames.getInputStream()
+            )
+        ) {
+            parser.nextToken();
+            parser.nextToken();
+            contextNames = (List<String>) (Object) parser.list();
+        }
         ((HttpURLConnection) getContextNames).disconnect();
 
         List<PainlessContextInfo> contextInfos = new ArrayList<>();
@@ -51,9 +58,10 @@ public class ContextGeneratorCommon {
             URLConnection getContextInfo = new URL(
                 "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName
             ).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextInfo.getInputStream());
-            contextInfos.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection) getContextInfo).disconnect();
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextInfo.getInputStream())) {
+                contextInfos.add(PainlessContextInfo.fromXContent(parser));
+                ((HttpURLConnection) getContextInfo).disconnect();
+            }
         }
 
         contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
@@ -93,22 +101,26 @@ public class ContextGeneratorCommon {
     }
 
     public static List<PainlessContextClassInfo> sortClassInfos(Collection<PainlessContextClassInfo> unsortedClassInfos) {
-
         List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
-        classInfos.removeIf(
-            v -> "void".equals(v.getName())
-                || "boolean".equals(v.getName())
-                || "byte".equals(v.getName())
-                || "short".equals(v.getName())
-                || "char".equals(v.getName())
-                || "int".equals(v.getName())
-                || "long".equals(v.getName())
-                || "float".equals(v.getName())
-                || "double".equals(v.getName())
-                || "org.elasticsearch.painless.lookup.def".equals(v.getName())
-                || isInternalClass(v.getName())
-        );
+        classInfos.removeIf(ContextGeneratorCommon::isExcludedClassInfo);
+        return sortFilteredClassInfos(classInfos);
+    }
 
+    static boolean isExcludedClassInfo(PainlessContextClassInfo v) {
+        return "void".equals(v.getName())
+            || "boolean".equals(v.getName())
+            || "byte".equals(v.getName())
+            || "short".equals(v.getName())
+            || "char".equals(v.getName())
+            || "int".equals(v.getName())
+            || "long".equals(v.getName())
+            || "float".equals(v.getName())
+            || "double".equals(v.getName())
+            || "org.elasticsearch.painless.lookup.def".equals(v.getName())
+            || isInternalClass(v.getName());
+    }
+
+    static List<PainlessContextClassInfo> sortFilteredClassInfos(List<PainlessContextClassInfo> classInfos) {
         classInfos.sort((c1, c2) -> {
             String n1 = c1.getName();
             String n2 = c2.getName();
@@ -210,7 +222,7 @@ public class ContextGeneratorCommon {
             }
         }
 
-        private <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
+        private static <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
             Map<T, Integer> infoCounts = new HashMap<>();
             for (PainlessContextInfo contextInfo : painlessContexts) {
                 for (T info : getter.apply(contextInfo)) {

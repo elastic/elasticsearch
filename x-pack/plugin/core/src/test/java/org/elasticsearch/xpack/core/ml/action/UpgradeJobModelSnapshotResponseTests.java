@@ -29,11 +29,6 @@ public class UpgradeJobModelSnapshotResponseTests extends AbstractXContentSerial
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Response doParseInstance(XContentParser parser) {
         return Response.parseRequest(parser);
     }

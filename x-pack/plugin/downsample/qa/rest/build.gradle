@@ -1,0 +1,62 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+dependencies {
+  testImplementation project(':test:test-clusters')
+  yamlRestTestImplementation project(xpackModule('rollup'))
+
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:ingest-common')
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities'
+  }
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+if (buildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
+  task.skipTest("downsample/10_basic/Downsample a downsampled index", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample histogram as label", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample-with-security/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
+  task.skipTest("downsample-with-security/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
+})

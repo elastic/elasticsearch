@@ -67,9 +67,13 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         public String name() {
             return name;
         }
+
+        public Rule<?, TreeType>[] rules() {
+            return rules;
+        }
     }
 
-    private final Iterable<Batch<TreeType>> batches = batches();
+    private Iterable<Batch<TreeType>> batches = null;
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
@@ -138,6 +142,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         long totalDuration = 0;
 
         Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
+        if (batches == null) {
+            batches = batches();
+        }
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
@@ -164,7 +171,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (tf.hasChanged()) {
                         hasChanged = true;
                         if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                            log.trace("Rule {} applied with changes\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
                         }
                     } else {
                         if (log.isTraceEnabled()) {

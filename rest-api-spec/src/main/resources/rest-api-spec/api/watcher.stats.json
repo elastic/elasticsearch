@@ -1,57 +1,59 @@
 {
-  "watcher.stats":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
-      "description":"Retrieves the current Watcher metrics."
+  "watcher.stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-stats",
+      "description": "Get Watcher statistics"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/stats",
-          "methods":[
+          "path": "/_watcher/stats",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_watcher/stats/{metric}",
-          "methods":[
+          "path": "/_watcher/stats/{metric}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "metric":{
-              "type":"list",
-              "options":[
+          "parts": {
+            "metric": {
+              "type": "list",
+              "options": [
                 "_all",
                 "queued_watches",
                 "current_watches",
                 "pending_watches"
               ],
-              "description":"Controls what additional stat metrics should be include in the response"
+              "description": "Controls what additional stat metrics should be include in the response"
             }
           }
         }
       ]
     },
-    "params":{
-      "metric":{
-        "type":"list",
-        "options":[
+    "params": {
+      "metric": {
+        "type": "list",
+        "options": [
           "_all",
           "queued_watches",
           "current_watches",
           "pending_watches"
         ],
-        "description":"Controls what additional stat metrics should be include in the response"
+        "description": "Controls what additional stat metrics should be include in the response"
       },
-      "emit_stacktraces":{
-        "type":"boolean",
-        "description":"Emits stack traces of currently running watches",
-        "required":false
+      "emit_stacktraces": {
+        "type": "boolean",
+        "default": false,
+        "description": "Emits stack traces of currently running watches"
       }
     }
   }

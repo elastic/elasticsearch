@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
@@ -18,7 +18,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -219,20 +218,6 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
         assertThat(SortValue.from(new BytesRef(r)), equalTo(SortValue.from(new BytesRef(r))));
         assertThat(SortValue.from(new BytesRef(r)), lessThan(SortValue.from(new BytesRef(r + "with_suffix"))));
         assertThat(SortValue.from(new BytesRef(r)), greaterThan(SortValue.from(new BytesRef(new byte[] {}))));
-    }
-
-    public void testSerializeBytesToOldVersion() {
-        SortValue value = SortValue.from(new BytesRef("can't send me!"));
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_7_0_0,
-            TransportVersion.V_7_10_1
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(value, version));
-        assertThat(
-            e.getMessage(),
-            equalTo("transport versions before [7110099] can't handle non-numeric sort values, attempted to send to [" + version + "]")
-        );
     }
 
     public String toXContent(SortValue sortValue, DocValueFormat format) {

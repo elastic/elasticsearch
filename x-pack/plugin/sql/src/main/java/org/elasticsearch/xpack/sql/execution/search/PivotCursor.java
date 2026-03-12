@@ -44,7 +44,7 @@ public class PivotCursor extends CompositeAggCursor {
 
     public PivotCursor(StreamInput in) throws IOException {
         super(in);
-        previousKey = in.readBoolean() ? in.readMap() : null;
+        previousKey = in.readBoolean() ? in.readGenericMap() : null;
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation.logging;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -17,7 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,23 +27,19 @@ import java.util.List;
 import java.util.Objects;
 
 /**
-    Resets deprecation indexing rate limiting cache on each node.
+ * Resets deprecation indexing rate limiting cache on each node.
  */
 public class DeprecationCacheResetAction extends ActionType<DeprecationCacheResetAction.Response> {
     public static final DeprecationCacheResetAction INSTANCE = new DeprecationCacheResetAction();
     public static final String NAME = "cluster:admin/deprecation/cache/reset";
 
     private DeprecationCacheResetAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -70,28 +67,19 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
         }
     }
 
-    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
+    public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable {
         public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
-        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+        protected List<NodeResponse> readNodesFrom(StreamInput in) {
+            return TransportAction.localOnly();
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) {
+            TransportAction.localOnly();
         }
 
         @Override
@@ -108,12 +96,12 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodeRequest(Request request) {}
+        public NodeRequest() {}
     }
 
     public static class NodeResponse extends BaseNodeResponse {

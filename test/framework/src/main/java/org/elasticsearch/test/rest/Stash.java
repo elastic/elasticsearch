@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -58,22 +58,35 @@ public class Stash implements ToXContentFragment {
 
     /**
      * Tells whether a particular key needs to be looked up in the stash based on its name.
-     * Returns true if the string representation of the key starts with "$", false otherwise
+     * Returns true if the string representation of the key either starts with {@code $} or contains a {@code ${...}} reference.
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
     public boolean containsStashedValue(Object key) {
-        if (key == null || false == key instanceof CharSequence) {
+        if (false == key instanceof CharSequence) {
             return false;
         }
         String stashKey = key.toString();
-        if (false == Strings.hasLength(stashKey)) {
-            return false;
-        }
         if (stashKey.startsWith("$")) {
             return true;
         }
         return EXTENDED_KEY.matcher(stashKey).find();
+    }
+
+    /**
+     * Tells whether a particular key represents exactly a stashed value reference.
+     * Returns true if the string representation of the key either starts with {@code $} or consists only of a {@code ${...}} reference.
+     * Unlike {@link #containsStashedValue}, returns false if the key contains an a {@code ${...}} reference within a longer string.
+     */
+    public boolean isStashedValue(Object key) {
+        if (false == key instanceof CharSequence) {
+            return false;
+        }
+        String stashKey = key.toString();
+        if (stashKey.startsWith("$")) {
+            return true;
+        }
+        return EXTENDED_KEY.matcher(stashKey).matches();
     }
 
     /**
@@ -91,7 +104,7 @@ public class Stash implements ToXContentFragment {
          * modern versions of java the uncontended synchronization is very,
          * very cheap so that should not be a problem.
          */
-        StringBuffer result = new StringBuffer(key.length());
+        StringBuilder result = new StringBuilder(key.length());
         if (false == matcher.find()) {
             throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
         }
@@ -188,7 +201,7 @@ public class Stash implements ToXContentFragment {
             }
         }
         String builtPath = Matcher.quoteReplacement(pathBuilder.toString());
-        StringBuffer newKey = new StringBuffer(key.length());
+        StringBuilder newKey = new StringBuilder(key.length());
         do {
             matcher.appendReplacement(newKey, builtPath);
         } while (matcher.find());

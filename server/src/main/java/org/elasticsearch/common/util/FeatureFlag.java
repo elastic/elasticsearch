@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -36,7 +37,7 @@ import java.util.function.Function;
  */
 public class FeatureFlag {
 
-    private final Logger logger = LogManager.getLogger(FeatureFlag.class);
+    private static final Logger logger = LogManager.getLogger(FeatureFlag.class);
 
     private final String name;
     private final boolean enabled;
@@ -44,7 +45,7 @@ public class FeatureFlag {
     private static final Function<String, String> GET_SYSTEM_PROPERTY = System::getProperty;
 
     public FeatureFlag(String name) {
-        this(name, "enabled", Build.CURRENT, GET_SYSTEM_PROPERTY);
+        this(name, "enabled", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**
@@ -56,7 +57,7 @@ public class FeatureFlag {
      */
     @Deprecated
     public static FeatureFlag legacyRegisteredFlag(String name) {
-        return new FeatureFlag(name, "registered", Build.CURRENT, GET_SYSTEM_PROPERTY);
+        return new FeatureFlag(name, "registered", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**

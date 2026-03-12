@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
 
@@ -38,7 +39,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
@@ -74,7 +74,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+                assumeTrue(
+                    "Older versions could not always reliably determine if we were in a mixed cluster state",
+                    Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)
+                );
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -83,7 +87,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 testSnapshotUpgradeFailsOnMixedCluster();
             }
             case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
+                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -111,7 +115,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
         Exception ex = expectThrows(Exception.class, () -> upgradeJobSnapshot(JOB_ID, (String) snapshot.get("snapshot_id"), true));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
+        assertThat(ex.getMessage(), containsString("Cannot upgrade job"));
     }
 
     @SuppressWarnings("unchecked")
@@ -122,8 +126,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
         List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getSnapshotsResponse).get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
+        assertTrue(
+            "Expected " + snapshotConfigVersion + " not greater than " + MlConfigVersion.CURRENT,
+            snapshotConfigVersion.onOrBefore(MlConfigVersion.CURRENT)
+        );
 
         Map<String, Object> snapshotToUpgrade = snapshots.stream()
             .filter(s -> s.get("snapshot_id").equals(currentSnapshotId) == false)
@@ -151,7 +158,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<Map<String, Object>> upgradedSnapshot = (List<Map<String, Object>>) entityAsMap(getModelSnapshots(JOB_ID, snapshotToUpgradeId))
             .get("model_snapshots");
-        assertThat(upgradedSnapshot, hasSize(1));
+        assertThat(upgradedSnapshot.toString(), upgradedSnapshot, hasSize(1));
         assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
@@ -231,8 +238,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
         var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
+        assertTrue(
+            "Expected " + snapshotConfigVersion + " not greater than " + MlConfigVersion.CURRENT,
+            snapshotConfigVersion.onOrBefore(MlConfigVersion.CURRENT)
+        );
     }
 
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
@@ -267,7 +277,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return client().performRequest(request);
     }
 
-    private static List<String> generateData(
+    static List<String> generateData(
         long timestamp,
         TimeValue bucketSpan,
         int bucketCount,
@@ -332,7 +342,23 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected void flushJob(String jobId) throws IOException {
-        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush"));
+        // Flush job is deprecated, so a deprecation warning is possible (depending on the old version)
+        RequestOptions flushOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                // No warning is OK - it means we hit an old node where flush is not deprecated
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            return warnings.get(0)
+                .equals(
+                    "Forcing any buffered data to be processed is deprecated, "
+                        + "in a future major version it will be compulsory to use a datafeed"
+                ) == false;
+        }).build();
+        Request flushRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush");
+        flushRequest.setOptions(flushOptions);
+        client().performRequest(flushRequest);
     }
 
     private void closeJob(String jobId) throws IOException {

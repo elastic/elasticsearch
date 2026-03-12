@@ -1,29 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -63,9 +70,21 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
     }
 
+    public void testCheckAllDecidersBeforeReturningNotPreferred() {
+        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
+        var expectedDecision = switch (debugMode) {
+            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
+            case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
+            case ON -> collectToMultiDecision(allDecisions);
+        };
+
+        verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
+    }
+
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED, Decision.THROTTLE));
         var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
@@ -75,6 +94,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,
@@ -90,13 +110,14 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,
                 Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
-        var expectedDecision = collectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);
+        var expectedDecision = filterAndCollectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);
 
         verifyDecidersCall(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS, allDecisions, allDecisions.size(), expectedDecision);
     }
@@ -105,6 +126,9 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         return shuffledList(randomList(1, 25, others));
     }
 
+    /**
+     * Generate a list of decisions that include the 'mandatory' decision as well as a random number of decision types supplied by 'others'.
+     */
     private static List<Decision> generateDecisions(Decision mandatory, Supplier<Decision> others) {
         var decisions = new ArrayList<Decision>();
         decisions.add(mandatory);
@@ -113,10 +137,13 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
-        return collectToMultiDecision(decisions, ignored -> true);
+        return filterAndCollectToMultiDecision(decisions, Predicates.always());
     }
 
-    private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
+    /**
+     * Filters the 'decisions' list to only decisions matching 'filter'. Returns a Decision.Multi encompassing the resulting decisions.
+     */
+    private static Decision.Multi filterAndCollectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
         return decisions.stream().filter(filter).collect(Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> {
             throw new AssertionError("should not be called");
         }));
@@ -128,10 +155,15 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         int expectedAllocationDecidersCalls,
         Decision expectedDecision
     ) {
-        IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        IndexMetadata index = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         ShardId shardId = new ShardId(index.getIndex(), 0);
+        final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(index)
+            .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(index, false).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(index, false)).build())
+            .routingTable(GlobalRoutingTable.builder().put(projectId, projectRoutingTable).build())
             .build();
 
         ShardRouting startedShard = TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED);
@@ -255,66 +287,4 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class TestAllocationDecider extends AllocationDecider {
-
-        private final Supplier<Decision> decision;
-
-        private TestAllocationDecider(Supplier<Decision> decision) {
-            this.decision = decision;
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocateReplicaWhenThereIsRetentionLease(
-            ShardRouting shardRouting,
-            RoutingNode node,
-            RoutingAllocation allocation
-        ) {
-            return decision.get();
-        }
-    }
 }

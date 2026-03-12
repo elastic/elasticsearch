@@ -9,27 +9,26 @@ package org.elasticsearch.xpack.security.action.oidc;
 import com.nimbusds.jwt.JWT;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,7 +69,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -92,6 +91,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     private List<BulkRequest> bulkRequests;
     private Client client;
     private TransportOpenIdConnectLogoutAction action;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() throws Exception {
@@ -105,6 +105,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             .put("path.home", createTempDir())
             .build();
         final ThreadContext threadContext = new ThreadContext(settings);
+        final var defaultContext = threadContext.newStoredContext();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuthenticationTestHelper.builder()
@@ -118,22 +119,22 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
-            IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
+            IndexRequestBuilder builder = new IndexRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
         }).when(client).prepareIndex(nullable(String.class));
         doAnswer(invocationOnMock -> {
-            UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
+            UpdateRequestBuilder builder = new UpdateRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareUpdate(nullable(String.class), anyString());
         doAnswer(invocationOnMock -> {
-            BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
+            BulkRequestBuilder builder = new BulkRequestBuilder(client);
             return builder;
         }).when(client).prepareBulk();
         doAnswer(invocationOnMock -> {
@@ -153,7 +154,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")
@@ -165,21 +166,29 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterService clusterService;
+        try (var ignored = threadContext.newStoredContext()) {
+            defaultContext.restore();
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        }
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
+
+        bytesRefRecycler = new MockBytesRefRecycler();
 
         tokenService = new TokenService(
             settings,
@@ -189,7 +198,8 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             new SecurityContext(settings, threadContext),
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
 
         final TransportService transportService = new TransportService(
@@ -227,11 +237,10 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, authentication, tokenMetadata, false, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, tokenMetadata, false, null, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(accessToken);
@@ -258,6 +267,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     @After
     public void cleanup() {
         oidcRealm.close();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     @SuppressWarnings("unchecked")

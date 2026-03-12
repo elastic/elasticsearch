@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xcontent.ToXContent;
@@ -90,14 +90,20 @@ public class JobDataCountsPersister {
                 true,
                 () -> true,
                 retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage),
-                ActionListener.wrap(r -> ongoingPersists.remove(jobId).countDown(), e -> {
-                    ongoingPersists.remove(jobId).countDown();
+                ActionListener.wrap(r -> {
+                    latch.countDown();
+                    ongoingPersists.remove(jobId);
+                }, e -> {
+                    latch.countDown();
+                    ongoingPersists.remove(jobId);
                     logger.error(() -> "[" + jobId + "] Failed persisting data_counts stats", e);
                     auditor.error(jobId, "Failed persisting data_counts stats: " + e.getMessage());
                 })
             );
         } catch (IOException e) {
             // An exception caught here basically means toXContent() failed, which should never happen
+            latch.countDown();
+            ongoingPersists.remove(jobId);
             logger.error(() -> "[" + jobId + "] Failed writing data_counts stats", e);
             return false;
         }
@@ -124,13 +130,7 @@ public class JobDataCountsPersister {
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                IndexAction.INSTANCE,
-                request,
-                listener.delegateFailure((l, r) -> l.onResponse(true))
-            );
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, request, listener.safeMap(r -> true));
         } catch (IOException ioe) {
             String msg = "[" + jobId + "] Failed writing data_counts stats";
             logger.error(msg, ioe);

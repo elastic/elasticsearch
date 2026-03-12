@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -15,6 +16,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
@@ -22,12 +24,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -43,13 +46,12 @@ import java.util.List;
 
 public class ShardSplittingQueryTests extends ESTestCase {
     public void testSplitOnID() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -69,13 +71,12 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnRouting() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -94,13 +95,12 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnIdOrRouting() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -121,13 +121,12 @@ public class ShardSplittingQueryTests extends ESTestCase {
     }
 
     public void testSplitOnRoutingPartitioned() throws IOException {
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         Directory dir = newFSDirectory(createTempDir());
         final int numDocs = randomIntBetween(50, 100);
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        RandomIndexWriter writer = createIndexWriter(dir);
         int numShards = randomIntBetween(2, 10);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .routingPartitionSize(randomIntBetween(1, 10))
@@ -148,14 +147,14 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
     void assertSplit(Directory dir, IndexMetadata metadata, int targetShardId, boolean hasNested) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             searcher.setQueryCache(null);
             final Weight splitWeight = searcher.createWeight(
                 searcher.rewrite(new ShardSplittingQuery(metadata, targetShardId, hasNested)),
                 ScoreMode.COMPLETE_NO_SCORES,
                 1f
             );
-            final List<LeafReaderContext> leaves = reader.leaves();
+            final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);
                 DocIdSetIterator iterator = scorer.iterator();
@@ -174,6 +173,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     int doc;
                     int numActual = 0;
                     int lastDoc = 0;
+                    StoredFields storedFields = reader.storedFields();
                     while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                         lastDoc = doc;
                         while (shard_id.nextDoc() < doc) {
@@ -183,7 +183,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         }
                         assertEquals(shard_id.docID(), doc);
                         long shardID = shard_id.nextValue();
-                        BytesRef id = reader.document(doc).getBinaryValue("_id");
+                        BytesRef id = storedFields.document(doc).getBinaryValue("_id");
                         String actualId = Uid.decodeId(id.bytes, id.offset, id.length);
                         assertNotEquals(ctx.reader() + " docID: " + doc + " actualID: " + actualId, shardID, targetShardId);
                     }
@@ -229,11 +229,19 @@ public class ShardSplittingQueryTests extends ESTestCase {
         if (routing != null) {
             topLevel.add(new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES));
         }
-        SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(topLevel);
+        SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES).addFields(topLevel);
         return topLevel;
     }
 
     private int shardId(IndexRouting indexRouting, int id, @Nullable String routing) {
         return indexRouting.getShard(Integer.toString(id), routing);
+    }
+
+    private static RandomIndexWriter createIndexWriter(Directory dir) throws IOException {
+        return new RandomIndexWriter(
+            random(),
+            dir,
+            LuceneTestCase.newIndexWriterConfig().setMergePolicy(LuceneTestCase.newMergePolicy(random(), false))
+        );
     }
 }

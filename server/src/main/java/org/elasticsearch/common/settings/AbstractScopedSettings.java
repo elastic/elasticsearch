@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -13,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -29,10 +32,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
@@ -51,23 +52,14 @@ public abstract class AbstractScopedSettings {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
     private Settings lastSettingsApplied;
 
-    protected AbstractScopedSettings(
-        final Settings settings,
-        final Set<Setting<?>> settingsSet,
-        final Set<SettingUpgrader<?>> settingUpgraders,
-        final Setting.Property scope
-    ) {
+    @SuppressWarnings("this-escape")
+    protected AbstractScopedSettings(final Settings settings, final Set<Setting<?>> settingsSet, final Setting.Property scope) {
         this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
-
-        this.settingUpgraders = Collections.unmodifiableMap(
-            settingUpgraders.stream().collect(Collectors.toMap(SettingUpgrader::getSetting, Function.identity()))
-        );
 
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
@@ -115,7 +107,6 @@ public abstract class AbstractScopedSettings {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
-        settingUpgraders = Map.copyOf(other.settingUpgraders);
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -316,14 +307,18 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
-     * notified if at least one of the settings change.
+     * Adds an affix settings consumer and validator that accepts the settings for a group of settings. The consumer and
+     * the validator are only notified if at least one of the settings change.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(
+        List<Setting.AffixSetting<?>> settings,
+        BiConsumer<String, Settings> consumer,
+        BiConsumer<String, Settings> validator
+    ) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
@@ -341,8 +336,8 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
-                    affixUpdaterA.apply(current, previous);
+                    SettingUpdater affixUpdater = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
+                    affixUpdater.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
@@ -350,7 +345,9 @@ public abstract class AbstractScopedSettings {
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
-                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                    var subset = current.filter(concreteSettings::contains);
+                    validator.accept(namespace, subset);
+                    namespaceToSettings.put(namespace, subset);
                 }
                 return namespaceToSettings;
             }
@@ -362,6 +359,17 @@ public abstract class AbstractScopedSettings {
                 }
             }
         });
+    }
+
+    /**
+     * Adds an affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        addAffixGroupUpdateConsumer(settings, consumer, (a, b) -> {});
     }
 
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
@@ -444,7 +452,11 @@ public abstract class AbstractScopedSettings {
         assert setting.getProperties().contains(Setting.Property.Dynamic)
             || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
         assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
-        consumer.accept(setting.get(settings));
+
+        // this mimics the combined settings of last applied and node settings, without building a new settings object
+        Settings settingsWithValue = setting.exists(lastSettingsApplied) ? lastSettingsApplied : settings;
+
+        consumer.accept(setting.get(settingsWithValue));
         addSettingsUpdateConsumer(setting, consumer);
     }
 
@@ -550,29 +562,40 @@ public abstract class AbstractScopedSettings {
     void validate(final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
         Setting<?> setting = getRaw(key);
         if (setting == null) {
-            LevenshteinDistance ld = new LevenshteinDistance();
-            List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
-            for (String k : this.keySettings.keySet()) {
-                float distance = ld.getDistance(key, k);
-                if (distance > 0.7f) {
-                    scoredKeys.add(new Tuple<>(distance, k));
-                }
-            }
-            CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
-            String msgPrefix = "unknown setting";
             SecureSettings secureSettings = settings.getSecureSettings();
-            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
-                msgPrefix = "unknown secure setting";
+            String msgPrefix = (secureSettings != null && secureSettings.getSettingNames().contains(key))
+                ? "unknown secure setting"
+                : "unknown setting";
+            if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] was archived after upgrading, and must be removed. See [%s] for details.",
+                        msgPrefix,
+                        key,
+                        ReferenceDocs.ARCHIVED_SETTINGS
+                    )
+                );
             }
-            String msg = msgPrefix + " [" + key + "]";
-            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).toList();
+            List<String> keys = findSimilarKeys(key);
             if (keys.isEmpty() == false) {
-                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] did you mean %s?",
+                        msgPrefix,
+                        key,
+                        (keys.size() == 1 ? "[" + keys.getFirst() + "]" : "any of " + keys)
+                    )
+                );
             } else {
-                msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed "
-                    + "settings";
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "%s [%s] please check that any required plugins are installed,"
+                            + " or check the breaking changes documentation for removed settings",
+                        msgPrefix,
+                        key
+                    )
+                );
             }
-            throw new IllegalArgumentException(msg);
         } else {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
@@ -610,10 +633,32 @@ public abstract class AbstractScopedSettings {
                     );
                 }
             }
+
+            if (setting instanceof SecureSetting && settings.hasValue(key)) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + key
+                        + "] is a secure setting"
+                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+                );
+            }
         }
         if (validateValue) {
             setting.get(settings);
         }
+    }
+
+    private List<String> findSimilarKeys(String key) {
+        LevenshteinDistance ld = new LevenshteinDistance();
+        List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+        for (String k : this.keySettings.keySet()) {
+            float distance = ld.getDistance(key, k);
+            if (distance > 0.7f) {
+                scoredKeys.add(new Tuple<>(distance, k));
+            }
+        }
+        CollectionUtil.timSort(scoredKeys, (a, b) -> b.v1().compareTo(a.v1()));
+        return scoredKeys.stream().map((a) -> a.v2()).toList();
     }
 
     /**
@@ -880,42 +925,6 @@ public abstract class AbstractScopedSettings {
             }
         }
         return null;
-    }
-
-    /**
-     * Upgrade all settings eligible for upgrade in the specified settings instance.
-     *
-     * @param settings the settings instance that might contain settings to be upgraded
-     * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
-     */
-    public Settings upgradeSettings(final Settings settings) {
-        final Settings.Builder builder = Settings.builder();
-        boolean changed = false; // track if any settings were upgraded
-        for (final String key : settings.keySet()) {
-            final Setting<?> setting = getRaw(key);
-            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
-            if (upgrader == null) {
-                // the setting does not have an upgrader, copy the setting
-                builder.copy(key, settings);
-            } else {
-                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
-                changed = true;
-                // noinspection ConstantConditions
-                if (setting.getConcreteSetting(key).isListSetting()) {
-                    final List<String> value = settings.getAsList(key);
-                    final String upgradedKey = upgrader.getKey(key);
-                    final List<String> upgradedValue = upgrader.getListValue(value);
-                    builder.putList(upgradedKey, upgradedValue);
-                } else {
-                    final String value = settings.get(key);
-                    final String upgradedKey = upgrader.getKey(key);
-                    final String upgradedValue = upgrader.getValue(value);
-                    builder.put(upgradedKey, upgradedValue);
-                }
-            }
-        }
-        // we only return a new instance if there was an upgrade
-        return changed ? builder.build() : settings;
     }
 
     /**

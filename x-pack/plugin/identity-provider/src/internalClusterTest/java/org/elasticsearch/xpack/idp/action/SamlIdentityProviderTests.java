@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
@@ -51,12 +51,16 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -274,17 +278,21 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
             """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
-        Response initResponse = getRestClient().performRequest(initRequest);
-        ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
-        assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
-        final String body = initResponseObject.evaluate("saml_response").toString();
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(initRequest));
+        Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+        ObjectPath initResponseObject = ObjectPath.createFromResponse(response);
+        assertThat(initResponseObject.evaluate("status"), equalTo(403));
+        final String baseSamlResponseObjectPath = "error.saml_initiate_single_sign_on_response.";
+        assertThat(initResponseObject.evaluate(baseSamlResponseObjectPath + "post_url").toString(), equalTo(acsUrl));
+        final String body = initResponseObject.evaluate(baseSamlResponseObjectPath + "saml_response").toString();
         assertThat(body, containsString("<saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/>"));
         assertThat(body, containsString("InResponseTo=\"" + expectedInResponeTo + "\""));
-        Map<String, String> sp = initResponseObject.evaluate("service_provider");
+        Map<String, String> sp = initResponseObject.evaluate(baseSamlResponseObjectPath + "service_provider");
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
         assertThat(
-            initResponseObject.evaluate("error"),
+            initResponseObject.evaluate(baseSamlResponseObjectPath + "error"),
             equalTo("User [" + SAMPLE_USER_NAME + "] is not permitted to access service [" + entityId + "]")
         );
     }
@@ -405,10 +413,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
         );
         spFields.put("privileges", Map.of("resource", entityId, "roles", Set.of("sso:(\\w+)")));
-        Request request = new Request(
-            "PUT",
-            "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()
-        );
+        Request request = new Request("PUT", "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(spFields);
@@ -437,7 +442,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerApplicationPrivileges(Map<String, Set<String>> privileges) throws IOException {
-        Request request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        Request request = new Request("PUT", "/_security/privilege?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -482,12 +487,35 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private String getApiKeyFromCredentials(String username, SecureString password) {
+        final boolean applyRoleLimits = randomBoolean();
+
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(username, password))
         );
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
+        final CreateApiKeyRequestBuilder apiKeyBuilder = new CreateApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .get();
+            .setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE, NONE));
+        if (applyRoleLimits) {
+            // We just limit the API Key to have "*" for everything.
+            // That's not actually a useful limit, but it verifies that (wildcard) limits don't cause any problems
+            final RoleDescriptor apiKeyRole = new RoleDescriptor(
+                "api-key-" + username,
+                new String[] { "ALL" },
+                null,
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                    RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .application(randomBoolean() ? "elastic-cloud" : "*")
+                        .privileges(randomBoolean() ? "*" : "/@/") // `/@/` is a Lucene regexp to match all
+                        .resources("*")
+                        .build() },
+                null,
+                null,
+                Map.of(),
+                Map.of()
+            );
+            apiKeyBuilder.setRoleDescriptors(List.of(apiKeyRole));
+        }
+        final CreateApiKeyResponse response = apiKeyBuilder.get();
         assertNotNull(response);
         return Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
     }

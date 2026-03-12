@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -37,7 +38,15 @@ public class SecondaryAuthenticator {
      */
     public static final String SECONDARY_AUTH_HEADER_NAME = "es-secondary-authorization";
 
-    private final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
+    /**
+     * Header name for secondary client authentication credentials.
+     * Used by authenticators that require additional [@code X-Client-Authentication} header along with the Authorization header.
+     */
+    public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
+
+    private static final String X_CLIENT_AUTHENTICATION = "X-Client-Authentication";
+
+    private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
     private final AuthenticationService authenticationService;
     private final AuditTrailService auditTrailService;
@@ -88,20 +97,16 @@ public class SecondaryAuthenticator {
         // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
         // auth is provided, so in that case we do no want to set anything in the context
         authenticate(
-            authListener -> authenticationService.authenticate(
-                request.getHttpRequest(),
-                false,
-                authListener.delegateFailure((l, authentication) -> {
-                    auditTrailService.get().authenticationSuccess(request);
-                    l.onResponse(authentication);
-                })
-            ),
-            ActionListener.wrap(secondaryAuthentication -> {
+            authListener -> authenticationService.authenticate(request.getHttpRequest(), false, authListener.map(authentication -> {
+                auditTrailService.get().authenticationSuccess(request);
+                return authentication;
+            })),
+            listener.delegateFailureAndWrap((l, secondaryAuthentication) -> {
                 if (secondaryAuthentication != null) {
                     secondaryAuthentication.writeToContext(threadContext);
                 }
-                listener.onResponse(secondaryAuthentication);
-            }, listener::onFailure)
+                l.onResponse(secondaryAuthentication);
+            })
         );
     }
 
@@ -113,6 +118,8 @@ public class SecondaryAuthenticator {
             listener.onResponse(null);
             return;
         }
+
+        final Map<String, String> additionalHeaders = mapAdditionalSecondaryAuthHeaders(threadContext);
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
         final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
@@ -137,7 +144,34 @@ public class SecondaryAuthenticator {
                 UsernamePasswordToken.BASIC_AUTH_HEADER
             );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+
+            if (false == additionalHeaders.isEmpty()) {
+                threadContext.putHeader(additionalHeaders);
+            }
+
             authenticate.accept(authenticationListener);
         }
+    }
+
+    /**
+     * Extracts additional secondary authentication headers from the thread context.
+     * These headers are mapped from their secondary header names to the actual header names
+     * expected by authenticators.
+     *
+     * @param threadContext the thread context to extract headers from
+     * @return a map of header names to values for additional secondary auth headers, empty if none found
+     */
+    private Map<String, String> mapAdditionalSecondaryAuthHeaders(ThreadContext threadContext) {
+        final String secondaryXClientAuthHeader = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
+        if (Strings.hasText(secondaryXClientAuthHeader)) {
+            logger.trace(
+                "found additional secondary [{}] header, placing it in the [{}] header",
+                SECONDARY_X_CLIENT_AUTH_HEADER_NAME,
+                X_CLIENT_AUTHENTICATION
+            );
+            return Map.of(X_CLIENT_AUTHENTICATION, secondaryXClientAuthHeader);
+        }
+
+        return Map.of();
     }
 }

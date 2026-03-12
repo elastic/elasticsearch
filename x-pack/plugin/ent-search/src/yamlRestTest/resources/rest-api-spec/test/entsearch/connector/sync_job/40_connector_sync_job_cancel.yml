@@ -1,0 +1,67 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+"Cancel a pending Connector Sync Job - transition to canceled directly":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-cancel }
+
+  - do:
+      connector.sync_job_cancel:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+  - match: { result: updated }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+  - set: { cancelation_requested_at: cancelation_requested_at }
+
+  - match: { status: "canceled"}
+  - match: { completed_at: $cancelation_requested_at }
+  - match: { canceled_at: $cancelation_requested_at }
+
+---
+"Cancel a canceled Connector Sync Job - invalid state transition from canceled to canceling":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-cancel }
+
+  - do:
+      connector.sync_job_cancel:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+  - do:
+      catch: bad_request
+      connector.sync_job_cancel:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+---
+"Cancel a Connector Sync Job - Connector Sync Job does not exist":
+  - do:
+      connector.sync_job_check_in:
+        connector_sync_job_id: test-nonexistent-connector-sync-job-id
+      catch: missing

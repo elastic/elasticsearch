@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
@@ -35,6 +36,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
 
     public void testSerializationForNodeIdOrNodeName() throws IOException {
         AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(
+            TEST_REQUEST_TIMEOUT,
             new String[] { "nodeId1", "nodeId2" },
             Strings.EMPTY_ARRAY,
             TimeValue.ZERO
@@ -49,7 +51,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(deserialized.getNodeNames(), equalTo(originalRequest.getNodeNames()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
 
-        originalRequest = new AddVotingConfigExclusionsRequest("nodeName1", "nodeName2");
+        originalRequest = new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "nodeName1", "nodeName2");
         deserialized = copyWriteable(originalRequest, writableRegistry(), AddVotingConfigExclusionsRequest::new);
 
         assertThat(deserialized.getNodeIds(), equalTo(originalRequest.getNodeIds()));
@@ -80,17 +82,26 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .build();
 
         assertThat(
-            new AddVotingConfigExclusionsRequest("local", "other1", "other2").resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "local", "other1", "other2").resolveVotingConfigExclusions(
+                clusterState
+            ),
             containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion)
         );
-        assertThat(new AddVotingConfigExclusionsRequest("local").resolveVotingConfigExclusions(clusterState), contains(localNodeExclusion));
         assertThat(
-            new AddVotingConfigExclusionsRequest("other1", "other2").resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "local").resolveVotingConfigExclusions(clusterState),
+            contains(localNodeExclusion)
+        );
+        assertThat(
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1", "other2").resolveVotingConfigExclusions(clusterState),
             containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
         );
         assertThat(
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "other1", "other2" }, TimeValue.ZERO)
-                .resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                Strings.EMPTY_ARRAY,
+                new String[] { "other1", "other2" },
+                TimeValue.ZERO
+            ).resolveVotingConfigExclusions(clusterState),
             containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
         );
     }
@@ -99,7 +110,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.ZERO)
+                () -> new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.ZERO)
             ).getMessage(),
             equalTo(NODE_IDENTIFIERS_INCORRECTLY_SET_MSG)
         );
@@ -109,7 +120,12 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new AddVotingConfigExclusionsRequest(new String[] { "nodeId" }, new String[] { "nodeName" }, TimeValue.ZERO)
+                () -> new AddVotingConfigExclusionsRequest(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { "nodeId" },
+                    new String[] { "nodeName" },
+                    TimeValue.ZERO
+                )
             ).getMessage(),
             equalTo(NODE_IDENTIFIERS_INCORRECTLY_SET_MSG)
         );
@@ -143,14 +159,22 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .build();
 
         assertThat(
-            new AddVotingConfigExclusionsRequest(new String[] { "nodeId1", "nodeId2" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
-                .resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "nodeId1", "nodeId2" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.ZERO
+            ).resolveVotingConfigExclusions(clusterState),
             containsInAnyOrder(node1Exclusion, node2Exclusion)
         );
 
         assertThat(
-            new AddVotingConfigExclusionsRequest(new String[] { "nodeId1", "unresolvableNodeId" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
-                .resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "nodeId1", "unresolvableNodeId" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.ZERO
+            ).resolveVotingConfigExclusions(clusterState),
             containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion)
         );
     }
@@ -183,12 +207,16 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .build();
 
         assertThat(
-            new AddVotingConfigExclusionsRequest("nodeName1", "nodeName2").resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "nodeName1", "nodeName2").resolveVotingConfigExclusions(
+                clusterState
+            ),
             containsInAnyOrder(node1Exclusion, node2Exclusion)
         );
 
         assertThat(
-            new AddVotingConfigExclusionsRequest("nodeName1", "unresolvableNodeName").resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "nodeName1", "unresolvableNodeName").resolveVotingConfigExclusions(
+                clusterState
+            ),
             containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion)
         );
     }
@@ -208,7 +236,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .nodes(new Builder().add(node1).add(node2).localNodeId(node1.getId()))
             .build();
 
-        final var request = new AddVotingConfigExclusionsRequest("ambiguous-name");
+        final var request = new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "ambiguous-name");
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> request.resolveVotingConfigExclusions(clusterState)).getMessage(),
             allOf(
@@ -248,8 +276,12 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .build();
 
         assertThat(
-            new AddVotingConfigExclusionsRequest(new String[] { "nodeId1", "nodeId2" }, Strings.EMPTY_ARRAY, TimeValue.ZERO)
-                .resolveVotingConfigExclusions(clusterState),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "nodeId1", "nodeId2" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.ZERO
+            ).resolveVotingConfigExclusions(clusterState),
             contains(node2Exclusion)
         );
     }
@@ -278,13 +310,17 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         final ClusterState clusterState = builder.build();
 
         assertThat(
-            new AddVotingConfigExclusionsRequest("local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "local").resolveVotingConfigExclusionsAndCheckMaximum(
+                clusterState,
+                2,
+                "setting.name"
+            ),
             contains(localNodeExclusion)
         );
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new AddVotingConfigExclusionsRequest("local").resolveVotingConfigExclusionsAndCheckMaximum(
+                () -> new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "local").resolveVotingConfigExclusionsAndCheckMaximum(
                     clusterState,
                     1,
                     "setting.name"

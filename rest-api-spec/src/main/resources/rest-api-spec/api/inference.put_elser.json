@@ -1,0 +1,56 @@
+{
+  "inference.put_elser": {
+    "deprecated": {
+      "version": "8.16.0",
+      "description": "The elser service is deprecated. Use the Elasticsearch inference integration instead, with model_id included in the service_settings."
+    },
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-elser",
+      "description": "Create an ELSER inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{elser_inference_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "task_type": {
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding"
+              ]
+            },
+            "elser_inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
+    }
+  }
+}

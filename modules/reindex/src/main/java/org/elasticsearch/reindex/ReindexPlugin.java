@@ -1,108 +1,117 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-
-public class ReindexPlugin extends Plugin implements ActionPlugin {
+public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
 
+    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
+
+    // N.B. We declare these in the reindex module, so that we can check whether the features are available on the cluster here - but we
+    // register them via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
+    // (The enrich plugin depends on this module, and registering features leads to either duplicate feature or JAR hell errors.)
+    // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
+    public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
+    public static final NodeFeature REINDEX_PIT_SEARCH_FEATURE = new NodeFeature("reindex_pit_search");
+
+    /**
+     * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
+     */
+    public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+
+    /**
+     * Guards the development work to change reindexing to use point in time (PIT) searching
+     */
+    public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
+
+    public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
+        return DiscoveryNode.isStateless(environment.settings())
+            ? new StatelessReindexRelocationNodePicker()
+            : new StatefulReindexRelocationNodePicker();
+    }
+
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
-            new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
-            new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-            new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class)
+            new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(ResumeReindexAction.INSTANCE, TransportResumeReindexAction.class),
+            new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+            new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+            new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return singletonList(
-            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new)
+        return List.of(
+            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestReindexAction(),
-            new RestUpdateByQueryAction(),
-            new RestDeleteByQueryAction(),
-            new RestRethrottleAction(nodesInCluster)
+            new RestReindexAction(clusterSupportsFeature, restHandlersServices.crossProjectModeDecider()),
+            new RestUpdateByQueryAction(clusterSupportsFeature),
+            new RestDeleteByQueryAction(clusterSupportsFeature),
+            new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
+            new RestReindexRethrottleAction(nodesInCluster, settings)
         );
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        return Collections.singletonList(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
+    public Collection<?> createComponents(PluginServices services) {
+        return List.of(
+            new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
+            new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
+            new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
+            new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
+        );
     }
 
     @Override
@@ -112,4 +121,5 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }
+
 }

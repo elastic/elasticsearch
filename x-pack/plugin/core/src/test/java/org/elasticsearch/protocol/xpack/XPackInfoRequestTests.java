@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest.Category;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -22,16 +21,6 @@ public class XPackInfoRequestTests extends ESTestCase {
 
     public void testSerializeToCurrentVersion() throws Exception {
         assertSerialization(TransportVersion.current());
-    }
-
-    public void testSerializeUsing7xVersion() throws Exception {
-        assertSerialization(
-            TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.V_7_8_1,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_0_0)
-            )
-        );
     }
 
     private void assertSerialization(TransportVersion version) throws java.io.IOException {

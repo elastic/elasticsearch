@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
@@ -43,7 +44,7 @@ public class RestoreClusterStateListener {
         ActionListener<RestoreSnapshotResponse> listener,
         ThreadContext threadContext
     ) {
-        final String uuid = response.getUuid();
+        final String uuid = response.uuid();
         final DiscoveryNode localNode = clusterService.localNode();
         ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreListener(listener, localNode) {
             @Override
@@ -66,7 +67,7 @@ public class RestoreClusterStateListener {
                 ClusterStateObserver.waitForState(clusterService, threadContext, new RestoreListener(listener, localNode) {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        logger.debug("restore of [{}] completed", response.getSnapshot().getSnapshotId());
+                        logger.debug("restore of [{}] completed", response.snapshot().getSnapshotId());
                         listener.onResponse(new RestoreSnapshotResponse(restoreInfo));
                     }
                 }, clusterState -> restoreInProgress(clusterState, uuid) == null, null, logger);

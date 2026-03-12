@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.analysis;
 
@@ -95,7 +96,8 @@ public interface IndexAnalyzers extends Closeable {
     /**
      * Reload any analyzers that have reloadable components
      */
-    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings) throws IOException {
+    default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings, String resource, boolean preview)
+        throws IOException {
         return List.of();
     }
 
@@ -135,26 +137,30 @@ public interface IndexAnalyzers extends Closeable {
             }
 
             @Override
-            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings) throws IOException {
+            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings, String resource, boolean preview)
+                throws IOException {
 
                 List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
                     .stream()
-                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer)
+                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
                     .toList();
+
                 if (reloadableAnalyzers.isEmpty()) {
                     return List.of();
                 }
 
-                final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
-                final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
-                final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
-                final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+                if (preview == false) {
+                    final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+                    final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+                    final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+                    final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
 
-                for (NamedAnalyzer analyzer : reloadableAnalyzers) {
-                    String name = analyzer.name();
-                    Settings analyzerSettings = settings.get(name);
-                    ReloadableCustomAnalyzer reloadableAnalyzer = (ReloadableCustomAnalyzer) analyzer.analyzer();
-                    reloadableAnalyzer.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                    for (NamedAnalyzer analyzer : reloadableAnalyzers) {
+                        String name = analyzer.name();
+                        Settings analyzerSettings = settings.get(name);
+                        ReloadableCustomAnalyzer reloadableAnalyzer = (ReloadableCustomAnalyzer) analyzer.analyzer();
+                        reloadableAnalyzer.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                    }
                 }
 
                 return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();

@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "version script field support was added in 8.1.0"
 
   - do:

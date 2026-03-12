@@ -68,7 +68,7 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_11_0;
+        return TransportVersion.zero();
     }
 
     @Override

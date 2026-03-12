@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Locale;
@@ -35,4 +36,8 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
         }
     }
 
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_TOKEN_SSL;
+    }
 }

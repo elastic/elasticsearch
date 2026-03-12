@@ -1,0 +1,54 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for logs-apm.error-* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      # log.*
+      log.level:
+        type: keyword
+      # error.*
+      error.custom:
+        type: object
+        dynamic: false
+      error.exception.attributes:
+        type: object
+        dynamic: false
+      error.exception.stacktrace:
+        type: object
+        dynamic: false
+      error.log.stacktrace:
+        type: object
+        dynamic: false
+      error.grouping_name:
+        type: keyword
+        script: |
+          def logMessage = params['_source'].error?.log?.message;
+          if (logMessage != null && logMessage != "") {
+            emit(logMessage);
+            return;
+          }
+          def exception = params['_source'].error?.exception;
+          if (exception != null && exception.isEmpty() == false) {
+            def exceptionMessage = exception instanceof Map ? exception?.message : exception[0]?.message;
+            if (exceptionMessage instanceof List) {
+              exceptionMessage = exceptionMessage[0]
+            }
+            if (exceptionMessage != null && exceptionMessage != "") {
+              emit(exceptionMessage);
+            }
+          }
+
+      # http.*
+      http.request.headers:
+        type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false

@@ -36,7 +36,10 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.Util;
 import java.io.IOException;
 import java.io.PrintStream;
 
-/** Iterates through terms in this field. */
+/**
+ * This is a copy of the class with same name shipped with Lucene, which is though package protected hence not accessible.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
+ */
 final class SegmentTermsEnum extends BaseTermsEnum {
 
     // Lazy init:

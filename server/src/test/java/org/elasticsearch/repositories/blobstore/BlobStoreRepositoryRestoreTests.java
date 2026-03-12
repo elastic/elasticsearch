@@ -1,30 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
@@ -34,21 +29,19 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -84,7 +77,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             assertDocCount(shard, numDocs);
 
             // snapshot the shard
-            final Repository repository = createRepository();
+            @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
+            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
             snapshotShard(shard, snapshot, repository);
 
@@ -136,7 +130,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -162,7 +156,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             assertDocCount(shard, numDocs);
 
             // snapshot the shard
-            final Repository repository = createRepository();
+            @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
+            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
             final ShardGeneration shardGen = snapshotShard(shard, snapshot, repository);
             assertNotNull(shardGen);
@@ -170,16 +165,20 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 repository.getMetadata().name(),
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
-            final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<RepositoryData, Exception>get(
-                f -> repository.finalizeSnapshot(
+            final var snapshotShardGenerations = new UpdatedShardGenerations(
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                ShardGenerations.EMPTY
+            );
+            final RepositoryData ignoredRepositoryData = safeAwait(
+                listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        shardGenerations,
+                        false,
+                        snapshotShardGenerations,
                         RepositoryData.EMPTY_REPO_GEN,
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                         new SnapshotInfo(
                             snapshot,
-                            shardGenerations.indices().stream().map(IndexId::getName).toList(),
+                            snapshotShardGenerations.liveIndices().indices().stream().map(IndexId::getName).toList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             null,
@@ -191,9 +190,9 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
-                        f,
-                        info -> {}
+                        IndexVersion.current(),
+                        listener,
+                        () -> {}
                     )
                 )
             );
@@ -205,47 +204,11 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
             }
         }
-    }
-
-    /** Create a {@link Repository} with a random name **/
-    private Repository createRepository() {
-        Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
-        final FsRepository repository = new FsRepository(
-            repositoryMetadata,
-            createEnvironment(),
-            xContentRegistry(),
-            clusterService,
-            MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-        };
-        clusterService.addStateApplier(event -> repository.updateState(event.state()));
-        // Apply state once to initialize repo properly like RepositoriesService would
-        repository.updateState(clusterService.state());
-        repository.start();
-        return repository;
-    }
-
-    /** Create a {@link Environment} with random path.home and path.repo **/
-    private Environment createEnvironment() {
-        Path home = createTempDir();
-        return TestEnvironment.newEnvironment(
-            Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
-                .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
-                .build()
-        );
     }
 }

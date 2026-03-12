@@ -101,7 +101,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray(frequentItemSets);
-            out.writeMap(profilingInfo, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeMap(profilingInfo, StreamOutput::writeGenericValue);
         }
 
         @Override
@@ -240,7 +240,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     /**
      * rewrites items that use ordinals to their real values
      */
-    private ImmutableTransactionStore rewriteOrdinalItems(
+    private static ImmutableTransactionStore rewriteOrdinalItems(
         ImmutableTransactionStore transactionStore,
         List<OrdinalLookupFunction> ordinalLookups
     ) throws IOException {
@@ -272,6 +272,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             }
 
             // swap items
+            transactionStore.getTransactions().incRef();
             ImmutableTransactionStore rewrittenStore = new ImmutableTransactionStore(
                 transactionStore.getBigArrays(),
                 rewrittenItems,
@@ -282,8 +283,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 transactionStore.getTotalTransactionCount(),
                 transactionStore.getFilteredTransactionCount()
             );
-
-            rewrittenItems = items;
+            rewrittenItems = null; // passed to rewrittenStore
             return rewrittenStore;
         } finally {
             Releasables.close(rewrittenItems);

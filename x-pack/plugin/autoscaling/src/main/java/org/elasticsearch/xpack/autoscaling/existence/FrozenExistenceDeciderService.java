@@ -47,8 +47,9 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
         List<String> indicesNeedingFrozen = context.state()
             .metadata()
+            .getProject()
             .stream()
-            .filter(this::needsTier)
+            .filter(FrozenExistenceDeciderService::isFrozenPhase)
             .map(imd -> imd.getIndex().getName())
             .limit(10)
             .collect(Collectors.toList());
@@ -61,10 +62,6 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
 
         return new AutoscalingDeciderResult(builder.build(), new FrozenExistenceReason(indicesNeedingFrozen));
-    }
-
-    boolean needsTier(IndexMetadata idxMeta) {
-        return isFrozenPhase(idxMeta);
     }
 
     @Override
@@ -85,7 +82,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
 
         public FrozenExistenceReason(StreamInput in) throws IOException {
-            this.indices = in.readStringList();
+            this.indices = in.readStringCollectionAsList();
         }
 
         @Override

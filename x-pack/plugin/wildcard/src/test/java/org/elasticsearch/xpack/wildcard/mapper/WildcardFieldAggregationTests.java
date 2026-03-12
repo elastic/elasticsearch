@@ -37,9 +37,9 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.CURRENT);
+        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldMapper = builder.build(MapperBuilderContext.root(false));
+        wildcardFieldMapper = builder.build(MapperBuilderContext.root(false, false));
 
         wildcardFieldType = wildcardFieldMapper.fieldType();
     }
@@ -54,7 +54,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     }
 
     private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
-        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.name());
+        IndexableField field = parseDoc.getByKey(wildcardFieldMapper.fullPath());
         if (field != null) {
             doc.add(field);
         }

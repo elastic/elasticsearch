@@ -63,20 +63,20 @@ import java.util.stream.Collectors;
  *     }
  *   }
  * }
-
+ *
  * Note: If the minimum version of the cluster is not after 8.7.0 then the response will look like this:
  * {
  *   "available": false,
  *   "enabled": true
  * }
  */
-public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
+public class HealthApiFeatureSetUsage extends XPackFeatureUsage {
 
     private final Map<String, Object> usageStats;
 
     public HealthApiFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        usageStats = in.readMap();
+        usageStats = in.readGenericMap();
     }
 
     public HealthApiFeatureSetUsage(boolean available, boolean enabled, @Nullable Counters stats) {
@@ -121,7 +121,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public Map<String, Object> stats() {

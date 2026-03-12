@@ -1,0 +1,34 @@
+# Examples that were published in a blog post
+
+2023-08-08.full-blown-query
+required_capability: enrich_load
+
+  FROM employees
+| WHERE still_hired == true
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
+| STATS avg_salary = AVG(salary) BY languages
+| EVAL avg_salary = ROUND(avg_salary)
+| EVAL lang_code = TO_STRING(languages)
+| ENRICH languages_policy ON lang_code WITH lang = language_name
+| WHERE lang IS NOT NULL
+| KEEP avg_salary, lang
+| SORT avg_salary ASC
+| LIMIT 3
+;
+
+avg_salary:d | lang:k
+43760.0  | Spanish
+48644.0  | French
+48832.0  | German
+;
+
+2023-08-08.multiple-agg
+
+  FROM employees
+| STATS c = COUNT(emp_no) BY languages
+| STATS largest_group = MAX(c)
+;
+
+largest_group:l
+21
+;

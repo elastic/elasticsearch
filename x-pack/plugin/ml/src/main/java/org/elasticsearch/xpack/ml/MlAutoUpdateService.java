@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -24,13 +24,13 @@ public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
 
     public interface UpdateAction {
-        boolean isMinNodeVersionSupported(Version minNodeVersion);
+        boolean isMinTransportVersionSupported(TransportVersion minTransportVersion);
 
         boolean isAbleToRun(ClusterState latestState);
 
         String getName();
 
-        void runUpdate();
+        void runUpdate(ClusterState latestState);
     }
 
     private final List<UpdateAction> updateActions;
@@ -47,27 +47,33 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
         if (event.localNodeMaster() == false) {
             return;
         }
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
 
-        Version minNodeVersion = event.state().getNodes().getMinNodeVersion();
+        if (completedUpdates.size() == updateActions.size()) {
+            return; // all work complete
+        }
+
+        final var latestState = event.state();
+        TransportVersion minTransportVersion = latestState.getMinTransportVersion();
         final List<UpdateAction> toRun = updateActions.stream()
-            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
+            .filter(action -> action.isMinTransportVersionSupported(minTransportVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
-            .filter(action -> action.isAbleToRun(event.state()))
+            .filter(action -> action.isAbleToRun(latestState))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .toList();
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> toRun.forEach(this::runUpdate));
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            .execute(() -> toRun.forEach((action) -> this.runUpdate(action, latestState)));
     }
 
-    private void runUpdate(UpdateAction action) {
+    private void runUpdate(UpdateAction action, ClusterState latestState) {
         try {
             logger.debug(() -> "[" + action.getName() + "] starting executing update action");
-            action.runUpdate();
+            action.runUpdate(latestState);
             this.completedUpdates.add(action.getName());
             logger.debug(() -> "[" + action.getName() + "] succeeded executing update action");
         } catch (Exception ex) {

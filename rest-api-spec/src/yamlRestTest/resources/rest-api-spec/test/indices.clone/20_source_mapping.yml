@@ -1,7 +1,7 @@
 ---
 "Clone index ignores target template mapping":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: ["gte_v7.4.0"]
       reason: index cloning was added in 7.4.0
   # create index
   - do:

@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verify;
 /**
  * Tests {@link NodeFailureListener}.
  */
-public class NodeFailureListenerTests extends ESTestCase {
+public final class NodeFailureListenerTests extends ESTestCase {
 
     private final Sniffer sniffer = mock(Sniffer.class);
     private final HttpResource resource = new MockHttpResource(getTestName(), false);

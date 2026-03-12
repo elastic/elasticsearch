@@ -156,6 +156,6 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersion.zero();
     }
 }

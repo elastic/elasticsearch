@@ -19,7 +19,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerConfigUpdate> {
 
@@ -35,9 +34,6 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
     }
 
     public static NerConfigUpdate mutateForVersion(NerConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
-            return new NerConfigUpdate(instance.getResultsField(), null);
-        }
         return instance;
     }
 
@@ -60,7 +56,7 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
     public void testApply() {
         NerConfig originalConfig = NerConfigTests.createRandom();
 
-        assertThat(originalConfig, sameInstance(new NerConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new NerConfigUpdate.Builder().build())));
 
         assertThat(
             new NerConfig(
@@ -69,7 +65,7 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
                 originalConfig.getClassificationLabels(),
                 "ml-results"
             ),
-            equalTo(new NerConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new NerConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
@@ -82,9 +78,11 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new NerConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new NerConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }

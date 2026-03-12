@@ -31,8 +31,8 @@ public class InnerAggregate extends AggregateFunction {
         super(source, outer.field(), outer.parameters());
         this.inner = inner;
         this.outer = outer;
-        Check.isTrue(inner instanceof EnclosedAgg, "Inner function is not marked as Enclosed");
-        Check.isTrue(outer instanceof Expression, "CompoundAggregate is not an Expression");
+        Check.isTrueInternal(inner instanceof EnclosedAgg, "Inner function is not marked as Enclosed");
+        Check.isTrueInternal(outer instanceof Expression, "CompoundAggregate is not an Expression");
         this.innerName = ((EnclosedAgg) inner).innerName();
         this.innerKey = innerKey;
     }
@@ -49,6 +49,12 @@ public class InnerAggregate extends AggregateFunction {
          * that I can see right now so lets just go with it and hope for the best.
          * Maybe someone will make this make sense one day! */
         throw new UnsupportedOperationException("can't be rewritten");
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        // we can't replace children (see above), so we can't canonicalize either.
+        return this;
     }
 
     public AggregateFunction inner() {

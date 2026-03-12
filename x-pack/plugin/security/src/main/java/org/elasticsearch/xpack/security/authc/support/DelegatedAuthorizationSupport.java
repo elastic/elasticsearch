@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.DelegatedAutho
 public class DelegatedAuthorizationSupport {
 
     private final RealmUserLookup lookup;
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(DelegatedAuthorizationSupport.class);
     private final XPackLicenseState licenseState;
 
     /**
@@ -74,7 +74,6 @@ public class DelegatedAuthorizationSupport {
         final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
         checkForRealmChains(resolvedLookupRealms, settings);
         this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
-        this.logger = LogManager.getLogger(getClass());
         this.licenseState = licenseState;
     }
 
@@ -133,7 +132,7 @@ public class DelegatedAuthorizationSupport {
         lookup.lookup(username, userListener);
     }
 
-    private List<Realm> resolveRealms(Iterable<? extends Realm> allRealms, List<String> lookupRealms) {
+    private static List<Realm> resolveRealms(Iterable<? extends Realm> allRealms, List<String> lookupRealms) {
         final List<Realm> result = new ArrayList<>(lookupRealms.size());
         for (String name : lookupRealms) {
             result.add(findRealm(name, allRealms));
@@ -150,7 +149,7 @@ public class DelegatedAuthorizationSupport {
      *                        also configured to delegate their authorization.
      * @throws IllegalArgumentException if a chain is detected
      */
-    private void checkForRealmChains(Iterable<Realm> delegatedRealms, Settings globalSettings) {
+    private static void checkForRealmChains(Iterable<Realm> delegatedRealms, Settings globalSettings) {
         for (Realm realm : delegatedRealms) {
             Setting<List<String>> realmAuthzSetting = AUTHZ_REALMS.apply(realm.type()).getConcreteSettingForNamespace(realm.name());
             if (realmAuthzSetting.exists(globalSettings)) {
@@ -165,7 +164,7 @@ public class DelegatedAuthorizationSupport {
         }
     }
 
-    private Realm findRealm(String name, Iterable<? extends Realm> allRealms) {
+    private static Realm findRealm(String name, Iterable<? extends Realm> allRealms) {
         for (Realm realm : allRealms) {
             if (name.equals(realm.name())) {
                 return realm;

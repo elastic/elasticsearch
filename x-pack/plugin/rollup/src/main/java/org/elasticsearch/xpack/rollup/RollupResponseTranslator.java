@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.nio.charset.StandardCharsets;
@@ -74,10 +73,10 @@ public class RollupResponseTranslator {
      * on the translation conventions
      */
     public static SearchResponse translateResponse(
-        MultiSearchResponse.Item[] rolledMsearch,
+        MultiSearchResponse mSearchResponse,
         AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
-
+        var rolledMsearch = mSearchResponse.getResponses();
         assert rolledMsearch.length > 0;
         List<SearchResponse> responses = new ArrayList<>();
         for (MultiSearchResponse.Item item : rolledMsearch) {
@@ -200,13 +199,13 @@ public class RollupResponseTranslator {
      * so that the final product looks like a regular aggregation response, allowing it to be
      * reduced/merged into the response from the un-rolled index
      *
-     * @param msearchResponses The responses from the msearch, where the first response is the live-index response
+     * @param mSearchResponse The response from the msearch, where the first response is the live-index response
      */
     public static SearchResponse combineResponses(
-        MultiSearchResponse.Item[] msearchResponses,
+        MultiSearchResponse mSearchResponse,
         AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
-
+        var msearchResponses = mSearchResponse.getResponses();
         assert msearchResponses.length >= 2;
 
         boolean first = true;
@@ -243,6 +242,7 @@ public class RollupResponseTranslator {
 
         // If we only have a live index left, just return it directly. We know it can't be an error already
         if (rolledResponses.isEmpty() && liveResponse != null) {
+            liveResponse.mustIncRef();
             return liveResponse;
         } else if (rolledResponses.isEmpty()) {
             throw new ResourceNotFoundException("No indices (live or rollup) found during rollup search");
@@ -257,9 +257,7 @@ public class RollupResponseTranslator {
         AggregationReduceContext.Builder reduceContextBuilder
     ) {
 
-        final InternalAggregations liveAggs = liveResponse != null
-            ? (InternalAggregations) liveResponse.getAggregations()
-            : InternalAggregations.EMPTY;
+        final InternalAggregations liveAggs = liveResponse != null ? liveResponse.getAggregations() : InternalAggregations.EMPTY;
 
         int missingRollupAggs = rolledResponses.stream().mapToInt(searchResponse -> {
             if (searchResponse == null
@@ -340,20 +338,15 @@ public class RollupResponseTranslator {
             isTerminatedEarly = isTerminatedEarly && liveResponse.isTerminatedEarly();
             numReducePhases += liveResponse.getNumReducePhases();
         }
-
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(
+        // Shard failures are ignored atm, so returning an empty array is fine
+        return new SearchResponse(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
-            null,
             isTimedOut,
             isTerminatedEarly,
-            numReducePhases
-        );
-
-        // Shard failures are ignored atm, so returning an empty array is fine
-        return new SearchResponse(
-            combinedInternal,
+            null,
+            numReducePhases,
             null,
             totalShards,
             sucessfulShards,
@@ -388,10 +381,10 @@ public class RollupResponseTranslator {
             //
             long count = -1;
             if (agg instanceof InternalMultiBucketAggregation == false) {
-                count = getAggCount(agg, rolled.getAsMap());
+                count = getAggCount(agg, rolled);
             }
 
-            return unrollAgg((InternalAggregation) agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
+            return unrollAgg(agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
         }).collect(Collectors.toList());
     }
 
@@ -451,20 +444,14 @@ public class RollupResponseTranslator {
                 long key = ((InternalDateHistogram) rolled).getKey(bucket).longValue();
                 DocValueFormat formatter = ((InternalDateHistogram.Bucket) bucket).getFormatter();
                 assert bucketCount >= 0;
-                return new InternalDateHistogram.Bucket(
-                    key,
-                    bucketCount,
-                    ((InternalDateHistogram.Bucket) bucket).getKeyed(),
-                    formatter,
-                    subAggs
-                );
+                return new InternalDateHistogram.Bucket(key, bucketCount, formatter, subAggs);
             });
         } else if (rolled instanceof InternalHistogram) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
                 long key = ((InternalHistogram) rolled).getKey(bucket).longValue();
                 DocValueFormat formatter = ((InternalHistogram.Bucket) bucket).getFormatter();
                 assert bucketCount >= 0;
-                return new InternalHistogram.Bucket(key, bucketCount, ((InternalHistogram.Bucket) bucket).getKeyed(), formatter, subAggs);
+                return new InternalHistogram.Bucket(key, bucketCount, formatter, subAggs);
             });
         } else if (rolled instanceof StringTerms) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
@@ -529,7 +516,7 @@ public class RollupResponseTranslator {
             .map(bucket -> {
 
                 // Grab the value from the count agg (if it exists), which represents this bucket's doc_count
-                long bucketCount = getAggCount(source, bucket.getAggregations().getAsMap());
+                long bucketCount = getAggCount(source, bucket.getAggregations());
 
                 // Don't generate buckets if the doc count is zero
                 if (bucketCount == 0) {
@@ -573,7 +560,7 @@ public class RollupResponseTranslator {
                 .filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false)
                 .map(subAgg -> {
 
-                    long count = getAggCount(subAgg, bucket.getAggregations().asMap());
+                    long count = getAggCount(subAgg, bucket.getAggregations());
 
                     InternalAggregation originalSubAgg = null;
                     if (original != null && original.getAggregations() != null) {
@@ -585,7 +572,7 @@ public class RollupResponseTranslator {
                         currentSubAgg = currentTree.getAggregations().get(subAgg.getName());
                     }
 
-                    return unrollAgg((InternalAggregation) subAgg, originalSubAgg, currentSubAgg, count);
+                    return unrollAgg(subAgg, originalSubAgg, currentSubAgg, count);
                 })
                 .collect(Collectors.toList())
         );
@@ -624,7 +611,7 @@ public class RollupResponseTranslator {
         }
     }
 
-    private static long getAggCount(Aggregation agg, Map<String, Aggregation> aggMap) {
+    private static long getAggCount(Aggregation agg, InternalAggregations aggregations) {
         String countPath = null;
 
         if (agg.getType().equals(DateHistogramAggregationBuilder.NAME)
@@ -637,10 +624,10 @@ public class RollupResponseTranslator {
             countPath = RollupField.formatCountAggName(agg.getName().replace("." + RollupField.VALUE, ""));
         }
 
-        if (countPath != null && aggMap.get(countPath) != null) {
+        if (countPath != null && aggregations.get(countPath) != null) {
             // we always set the count fields to Sum aggs, so this is safe
-            assert aggMap.get(countPath) instanceof Sum;
-            return (long) ((Sum) aggMap.get(countPath)).value();
+            assert aggregations.get(countPath) instanceof Sum;
+            return (long) ((Sum) aggregations.get(countPath)).value();
         }
 
         return -1;

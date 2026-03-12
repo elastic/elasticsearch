@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -25,6 +27,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.time.ZoneId;
@@ -34,30 +37,36 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
+    protected final boolean isParsedFromSource;
 
-    AbstractScriptFieldType(
+    protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isParsedFromSource
     ) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(name, IndexType.NONE, false, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
+        this.isParsedFromSource = isParsedFromSource;
     }
 
     @Override
@@ -68,6 +77,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override
@@ -188,7 +202,64 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+        if (isParsedFromSource) {
+            String include = name();
+            var copy = searchLookup.optimizedSourceProvider(new SourceFilter(new String[] { include }, new String[0]));
+            return factory.apply(copy);
+        } else {
+            return factory.apply(searchLookup);
+        }
+    }
+
+    protected final FallbackSyntheticSourceBlockLoader numericFallbackSyntheticSourceBlockLoader(
+        BlockLoaderContext blContext,
+        NumberFieldMapper.NumberType numberType,
+        BiFunction<BlockLoader.BlockFactory, Integer, BlockLoader.Builder> builderSupplier,
+        BiConsumer<List<Number>, BlockLoader.Builder> writeToBlock
+    ) {
+        return fallbackSyntheticSourceBlockLoader(
+            blContext,
+            builderSupplier,
+            () -> new NumberFieldMapper.NumberType.NumberFallbackSyntheticSourceReader(numberType, null, true) {
+                @Override
+                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
+                    writeToBlock.accept(values, blockBuilder);
+                }
+            }
+        );
+    }
+
+    /**
+     * Returns synthetic source fallback block loader if source mode is synthetic, runtime field is source only and field is only mapped
+     * as a runtime field.
+     */
+    protected final FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(
+        BlockLoaderContext blContext,
+        BiFunction<BlockLoader.BlockFactory, Integer, BlockLoader.Builder> builderSupplier,
+        Supplier<FallbackSyntheticSourceBlockLoader.Reader<?>> readerSupplier
+    ) {
+        var indexSettings = blContext.indexSettings();
+        // A runtime and normal field can share the same name.
+        // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
+        // We could optimize this, but at this stage feels like a rare scenario.
+        if (isParsedFromSource
+            && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
+            && blContext.lookup().onlyMappedAsRuntimeField(name())) {
+            var reader = readerSupplier.get();
+
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return builderSupplier.apply(factory, expectedCount);
+                }
+            };
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -207,7 +278,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
             "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
+                + "must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                 + "and without the [script] parameter. ["
                 + name()
@@ -217,11 +288,19 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // To know whether script field types have value we would need to run the script,
+        // this because script fields do not have footprint in Lucene. Since running the
+        // script would be too expensive for _field_caps we consider them as always non-empty.
+        return true;
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
+    protected abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
         private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
@@ -235,18 +314,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         ).setSerializerCheck((id, ic, v) -> ic);
 
         private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.onScriptError,
+            m -> m.builderParams.onScriptError(),
             script
         );
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        protected abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        protected abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
@@ -278,7 +357,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            return createRuntimeField(scriptFactory, IndexVersion.CURRENT);
+            return createRuntimeField(scriptFactory, IndexVersion.current());
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, IndexVersion indexVersion) {
@@ -286,7 +365,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(
+        protected abstract AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
@@ -294,7 +373,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             OnScriptError onScriptError
         );
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,

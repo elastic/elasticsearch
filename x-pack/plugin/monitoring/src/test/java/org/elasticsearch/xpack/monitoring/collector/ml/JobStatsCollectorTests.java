@@ -144,7 +144,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -181,7 +181,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 

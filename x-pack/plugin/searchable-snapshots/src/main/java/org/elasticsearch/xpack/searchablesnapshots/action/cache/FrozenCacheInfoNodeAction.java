@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,10 +30,10 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
     public static final FrozenCacheInfoNodeAction INSTANCE = new FrozenCacheInfoNodeAction();
 
     private FrozenCacheInfoNodeAction() {
-        super(NAME, FrozenCacheInfoResponse::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public Request() {}
 
@@ -52,7 +53,7 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             response = new FrozenCacheInfoResponse(SHARED_CACHE_SIZE_SETTING.get(settings).isNonZeroSize());
         }
 

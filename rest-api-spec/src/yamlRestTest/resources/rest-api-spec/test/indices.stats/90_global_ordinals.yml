@@ -54,8 +54,8 @@ setup:
 
 ---
 "global_ordinals - blank":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "global_ordinals introduced in 8.8.0"
 
   - do:
@@ -69,8 +69,8 @@ setup:
 
 ---
 "global_ordinals - fields":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "global_ordinals introduced in 8.8.0"
 
   - do:
@@ -124,8 +124,8 @@ setup:
 
 ---
 "global_ordinals - fields and metrics":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "global_ordinals introduced in 8.8.0"
 
   - do:
@@ -163,8 +163,8 @@ setup:
 
 ---
 "global_ordinals - fielddata_fields":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "global_ordinals introduced in 8.8.0"
 
   - do:

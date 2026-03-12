@@ -116,7 +116,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             return join(j);
         }
 
-        private PhysicalPlan join(Join join) {
+        private static PhysicalPlan join(Join join) {
             // TODO: pick up on nested/parent-child docs
             // 2. Hash?
             // 3. Cartesian

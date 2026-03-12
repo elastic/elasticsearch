@@ -1,12 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
+
+
+import spock.lang.Unroll
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -14,7 +18,6 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.api.GradleException
-import spock.lang.Unroll
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,6 +39,11 @@ class SymbolicLinkPreservingTarFuncTest extends AbstractGradleFuncTest {
         final Path linkToRealFolder = archiveSourceRoot.resolve("link-to-real-folder");
         Files.createSymbolicLink(linkToRealFolder, Paths.get("./real-folder"));
 
+        final Path realFolder2 = testProjectDir.getRoot().toPath().resolve("real-folder2")
+        final Path realFolderSub = realFolder2.resolve("sub")
+        Files.createDirectory(realFolder2);
+        Files.createDirectory(realFolderSub);
+
         buildFile << """
 import org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar
 
@@ -56,6 +64,16 @@ tasks.register("buildBZip2Tar", SymbolicLinkPreservingTar) { SymbolicLinkPreserv
   tar.compression = Compression.BZIP2
   tar.preserveFileTimestamps = ${preserverTimestamp}
   from fileTree("archiveRoot")
+
+  into('config') {
+    dirPermissions {
+        unix(0750)
+    }
+    filePermissions {
+        unix(0660)
+    }
+    from "real-folder2"
+  }
 }
 """
         when:
@@ -104,8 +122,10 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
         preserverTimestamp << [true, false]
     }
 
-    private boolean assertTar(final File archive, final Function<? super FileInputStream, ? extends InputStream> wrapper, boolean preserveFileTimestamps)
-            throws IOException {
+    private boolean assertTar(final File archive,
+                              final Function<? super FileInputStream, ? extends InputStream> wrapper,
+                              boolean preserveFileTimestamps)
+        throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(archive)))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
@@ -125,6 +145,12 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
                     assert entry.isSymbolicLink()
                     assert normalized(entry.getLinkName()) == "./file"
                     linkToFileEntry = true
+                } else if (entry.getName().equals("config/")) {
+                    assert entry.isDirectory()
+                    assert entry.getMode() == 16877
+                } else if (entry.getName().equals("config/sub/")) {
+                    assert entry.isDirectory()
+                    assert entry.getMode() == 16872
                 } else if (entry.getName().equals("link-in-folder/")) {
                     assert entry.isDirectory()
                     linkInFolderEntry = true

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -20,22 +22,31 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCase {
@@ -43,13 +54,15 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static final String USER = "test_user";
     protected static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
     protected static final String REMOTE_SEARCH_USER = "remote_search_user";
+    protected static final String MANAGE_USER = "manage_user";
     protected static final String REMOTE_METRIC_USER = "remote_metric_user";
     protected static final String REMOTE_TRANSFORM_USER = "remote_transform_user";
     protected static final String REMOTE_SEARCH_ROLE = "remote_search";
     protected static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
+    static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
-        .feature(FeatureFlag.NEW_RCS_MODE)
+        .keystorePassword(KEYSTORE_PASSWORD)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")
@@ -71,6 +84,8 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         .configFile("remote-cluster-client.key", Resource.fromClasspath("ssl/remote-cluster-client.key"))
         .configFile("remote-cluster-client.crt", Resource.fromClasspath("ssl/remote-cluster-client.crt"))
         .configFile("remote-cluster-client-ca.crt", Resource.fromClasspath("ssl/remote-cluster-client-ca.crt"))
+        .configFile("signing.crt", Resource.fromClasspath("signing/signing.crt"))
+        .module("reindex") // Needed for the role metadata migration
         .user(USER, PASS.toString());
 
     protected static ElasticsearchCluster fulfillingCluster;
@@ -94,7 +109,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
         RestClientBuilder builder = RestClient.builder(httpHost);
         try {
-            configureClient(builder, Settings.EMPTY);
+            doConfigureClient(builder, Settings.EMPTY);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -108,6 +123,24 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             IOUtils.close(fulfillingClusterClient);
         } finally {
             fulfillingClusterClient = null;
+        }
+    }
+
+    protected static String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "grant_type":"password",
+                  "username":"%s",
+                  "password":"%s"
+                }
+                """, username, password));
+            final Map<String, Object> responseBody = entityAsMap(adminClient().performRequest(request));
+            return "Bearer " + responseBody.get("access_token");
+        } else {
+            return basicAuthHeaderValue(username, password);
         }
     }
 
@@ -171,23 +204,86 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         boolean isProxyMode,
         boolean skipUnavailable
     ) throws Exception {
+        putFulfillingClusterSettings();
+
         // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
+        putQueryClusterSettings(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode, skipUnavailable);
+
+        // Ensure remote cluster is connected
+        checkRemoteConnection(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode);
+    }
+
+    protected void configureRemoteClusterCredentials(String clusterAlias, String credentials, MutableSettingsProvider keystoreSettings)
+        throws IOException {
+        keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    protected void removeRemoteClusterCredentials(String clusterAlias, MutableSettingsProvider keystoreSettings) throws IOException {
+        keystoreSettings.remove("cluster.remote." + clusterAlias + ".credentials");
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void reloadSecureSettings() throws IOException {
+        final Request request = new Request("POST", "/_nodes/reload_secure_settings");
+        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        final Response reloadResponse = adminClient().performRequest(request);
+        assertOK(reloadResponse);
+        final Map<String, Object> map = entityAsMap(reloadResponse);
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes, is(not(anEmptyMap())));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
+    }
+
+    protected void putFulfillingClusterSettings() throws IOException {
+        if (getFulfillingClusterNodeFeatures().contains(SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE.id())) {
+            final var request = newXContentRequest(HttpMethod.PUT, "/_cluster/settings", (builder, params) -> {
+                builder.startObject("persistent");
+                Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing.crt").build().toXContent(builder, params);
+                return builder.endObject();
+            });
+            assertOK(performRequestAgainstFulfillingCluster(request));
+        }
+    }
+
+    protected void putQueryClusterSettings(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode,
+        boolean skipUnavailable
+    ) throws IOException {
         final Settings.Builder builder = Settings.builder();
         final String remoteClusterEndpoint = basicSecurity
             ? targetFulfillingCluster.getTransportEndpoint(0)
             : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
         if (isProxyMode) {
             builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
-                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".seeds");
         } else {
             builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
-                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".proxy_address");
         }
         builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
         updateClusterSettings(builder.build());
+    }
 
-        // Ensure remote cluster is connected
-        final int numberOfFcNodes = targetFulfillingCluster.getHttpAddresses().split(",").length;
+    protected void checkRemoteConnection(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode
+    ) throws Exception {
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
@@ -195,6 +291,13 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             final ObjectPath remoteInfoObjectPath = assertOKAndCreateObjectPath(remoteInfoResponse);
             assertThat(remoteInfoObjectPath.evaluate(clusterAlias + ".connected"), is(true));
             if (false == isProxyMode) {
+                int numberOfFcNodes = (int) Arrays.stream(targetFulfillingCluster.getRemoteClusterServerEndpoints().split(","))
+                    .filter(endpoint -> endpoint.length() > 0)
+                    .count();
+                if (numberOfFcNodes == 0) {
+                    // The cluster is an RCS 1.0 remote cluster
+                    numberOfFcNodes = targetFulfillingCluster.getTransportEndpoints().split(",").length;
+                }
                 assertThat(remoteInfoObjectPath.evaluate(clusterAlias + ".num_nodes_connected"), equalTo(numberOfFcNodes));
             }
             final String credentialsValue = remoteInfoObjectPath.evaluate(clusterAlias + ".cluster_credentials");
@@ -211,13 +314,29 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected static Response performRequestWithAdminUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         return targetFulfillingClusterClient.performRequest(request);
     }
 
-    // TODO centralize common usage of this across all tests
     protected static String randomEncodedApiKey() {
-        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder()
+            .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
+    }
+
+    protected Set<String> getFulfillingClusterNodeFeatures() throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
+        final Response response = performRequestAgainstFulfillingCluster(request);
+
+        var responseData = responseAsMap(response);
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            return nodesFeatures.stream().map(Map.class::cast).flatMap(nodeFeatureMap -> {
+                @SuppressWarnings("unchecked")
+                List<String> features = (List<String>) nodeFeatureMap.get("features");
+                return features.stream();
+            }).collect(Collectors.toSet());
+        }
+        return Set.of();
     }
 
     protected record TestClusterConfigProviders(LocalClusterConfigProvider server, LocalClusterConfigProvider client) {}

@@ -1,0 +1,228 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              stored_keyword:
+                type: keyword
+                store: true
+              keyword:
+                type: keyword
+              stored_value:
+                type: integer
+                store: true
+              value:
+                type: integer
+              ignored_keyword:
+                type: keyword
+                ignore_above: 3
+              ignored_value:
+                type: integer
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          stored_keyword: "stored_keyword_value"
+          keyword: "keyword_value"
+          stored_value: 10
+          value: 100
+          ignored_keyword: "foobar"
+          ignored_value: foobar
+
+---
+fetch stored fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ stored_keyword, stored_value, keyword, value ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.stored_keyword.0: "stored_keyword_value" }
+  - match: { hits.hits.0.fields.stored_value.0: 10 }
+  - match: { hits.hits.0.fields.keyword: null }
+  - match: { hits.hits.0.fields.value: null }
+
+---
+fetch fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ stored_keyword, stored_value, keyword, value ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.stored_keyword.0: "stored_keyword_value" }
+  - match: { hits.hits.0.fields.stored_value.0: 10 }
+  - match: { hits.hits.0.fields.keyword.0: "keyword_value" }
+  - match: { hits.hits.0.fields.value.0: 100 }
+
+---
+fetch fields and stored fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ keyword, stored_value ]
+          stored_fields: [ stored_keyword, value ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.stored_keyword.0: "stored_keyword_value" }
+  - match: { hits.hits.0.fields.stored_value.0: 10 }
+  - match: { hits.hits.0.fields.keyword.0: "keyword_value" }
+  - match: { hits.hits.0.fields.value: null }
+
+---
+fetch _ignored via stored_fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields._ignored: null }
+  - match: { hits.hits.0._ignored.0: "ignored_keyword" }
+  - match: { hits.hits.0._ignored.1: "ignored_value" }
+
+---
+fetch _ignored via fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ _ignored ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields._ignored.0: "ignored_keyword" }
+  - match: { hits.hits.0.fields._ignored.1: "ignored_value" }
+  - match: { hits.hits.0._ignored.0: "ignored_keyword" }
+  - match: { hits.hits.0._ignored.1: "ignored_value" }
+
+---
+fetch _seq_no via stored_fields:
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ _seq_no ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields._seq_no: null }
+  - match: { hits.hits.0._seq_no: null }
+
+---
+fetch _seq_no via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _seq_no ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_seq_no]: Cannot fetch values for internal field [_seq_no]." }
+
+---
+fetch _source via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _source ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_source]: Cannot fetch values for internal field [_source]." }
+
+---
+fetch _feature via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _feature ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_feature]: Cannot fetch values for internal field [_feature]." }
+
+---
+fetch _nested_path via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _nested_path ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_nested_path]: Cannot fetch values for internal field [_nested_path]." }
+
+---
+fetch _field_names via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _field_names ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_field_names]: Cannot fetch values for internal field [_field_names]." }
+
+---
+fetch fields with none stored_fields:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/107466"
+
+  - do:
+      catch: "bad_request"
+      search:
+        index: test
+        body:
+          stored_fields: _none_
+          fields: [ stored_keyword, keyword, stored_value, value, ignored_keyword, ignored_value, _ignored ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: action_request_validation_exception }

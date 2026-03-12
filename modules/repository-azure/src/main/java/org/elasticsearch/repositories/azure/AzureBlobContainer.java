@@ -1,23 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.storage.blob.models.BlobStorageException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -34,7 +33,7 @@ import java.util.Map;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    private final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
+    private static final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
     private final AzureBlobStore blobStore;
     private final String keyPath;
 
@@ -45,15 +44,16 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) throws IOException {
+    public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
-        return blobStore.blobExists(buildKey(blobName));
+        return blobStore.blobExists(purpose, buildKey(blobName));
     }
 
-    private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+    private InputStream openInputStream(OperationPurpose purpose, String blobName, long position, @Nullable Long length)
+        throws IOException {
         String blobKey = buildKey(blobName);
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
-        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(blobName) == false) {
+        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(purpose, blobName) == false) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout
@@ -62,27 +62,17 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // stream to it.
             throw new NoSuchFileException("Blob [" + blobKey + "] not found");
         }
-        try {
-            return blobStore.getInputStream(blobKey, position, length);
-        } catch (Exception e) {
-            Throwable rootCause = Throwables.getRootCause(e);
-            if (rootCause instanceof BlobStorageException blobStorageException) {
-                if (blobStorageException.getStatusCode() == 404) {
-                    throw new NoSuchFileException("Blob [" + blobKey + "] not found");
-                }
-            }
-            throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);
-        }
+        return new AzureRetryingInputStream(blobStore, purpose, blobKey, position, length);
     }
 
     @Override
-    public InputStream readBlob(String blobName) throws IOException {
-        return openInputStream(blobName, 0L, null);
+    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+        return openInputStream(purpose, blobName, 0L, null);
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        return openInputStream(blobName, position, length);
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        return openInputStream(purpose, blobName, position, length);
     }
 
     @Override
@@ -91,39 +81,68 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
         logger.trace("writeBlob({}, stream, {})", buildKey(blobName), blobSize);
-        blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+        blobStore.writeBlob(purpose, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, bytes, failIfAlreadyExists);
+    public boolean supportsConcurrentMultipartUploads() {
+        return true;
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        blobStore.writeBlobAtomic(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+        writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+        blobStore.writeBlob(purpose, buildKey(blobName), bytes, failIfAlreadyExists);
     }
 
     @Override
     public void writeMetadataBlob(
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
-        blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
+        blobStore.writeBlob(purpose, buildKey(blobName), failIfAlreadyExists, writer);
     }
 
     @Override
-    public DeleteResult delete() throws IOException {
-        return blobStore.deleteBlobDirectory(keyPath);
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
+        return blobStore.deleteBlobDirectory(purpose, keyPath);
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobs(new Iterator<>() {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobs(purpose, new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return blobNames.hasNext();
@@ -137,21 +156,21 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, @Nullable String prefix) throws IOException {
         logger.trace("listBlobsByPrefix({})", prefix);
-        return blobStore.listBlobsByPrefix(keyPath, prefix);
+        return blobStore.listBlobsByPrefix(purpose, keyPath, prefix);
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         logger.trace("listBlobs()");
-        return listBlobsByPrefix(null);
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children() throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         final BlobPath path = path();
-        return blobStore.children(path);
+        return blobStore.children(purpose, path);
     }
 
     protected String buildKey(String blobName) {
@@ -159,7 +178,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private boolean skipRegisterOperation(ActionListener<?> listener) {
-        return skipCas(listener) || skipIfNotPrimaryOnlyLocationMode(listener);
+        return skipIfNotPrimaryOnlyLocationMode(listener);
     }
 
     private boolean skipIfNotPrimaryOnlyLocationMode(ActionListener<?> listener) {
@@ -175,20 +194,28 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         if (skipRegisterOperation(listener)) return;
-        ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), keyPath, key));
+        ActionListener.completeWith(listener, () -> blobStore.getRegister(purpose, buildKey(key), keyPath, key));
     }
 
     @Override
     public void compareAndExchangeRegister(
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
         if (skipRegisterOperation(listener)) return;
-        ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), keyPath, key, expected, updated));
+        ActionListener.completeWith(
+            listener,
+            () -> blobStore.compareAndExchangeRegister(purpose, buildKey(key), keyPath, key, expected, updated)
+        );
     }
 
+    // visible for testing
+    AzureBlobStore getBlobStore() {
+        return blobStore;
+    }
 }

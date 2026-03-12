@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -65,6 +65,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
+    private static final long DATA_START_TIME = 1761955200000L;
+
     @After
     public void tearDownData() {
         cleanUp();
@@ -75,7 +77,32 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRevertModelSnapshot_DeleteInterveningResults() throws Exception {
+        // Create and run a unrelated job to chech it is not affected by reverting a different job
+        String jobId = "revert-snapshot-delete-intervening-unrelated-job";
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        long startTime = DATA_START_TIME - (bucketSpan.getMillis() * 2);
+        String data = String.join("", generateData(startTime, bucketSpan, 23, List.of("foo"), (bucketIndex, series) -> 10.0));
+
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
+        openJob(job.getId());
+        postData(job.getId(), data);
+        flushJob(job.getId(), true);
+        closeJob(job.getId());
+
+        String snapShotId = getJob(jobId).get(0).getModelSnapshotId();
+        assertThat(snapShotId, is(notNullValue()));
+        List<Bucket> buckets = getBuckets(jobId);
+        assertThat(buckets.size(), greaterThan(0));
+
+        // Run another job and revert to an previous snapshot
         testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job-delete-intervening-results", true);
+
+        // Check snapshot Id and buckets have not changed
+        assertThat(getJob(jobId).getFirst().getModelSnapshotId(), is(snapShotId));
+        List<Bucket> bucketsAfterRevert = getBuckets(jobId);
+        assertThat(bucketsAfterRevert.size(), is(buckets.size()));
+        assertThat(bucketsAfterRevert, is(buckets));
     }
 
     public void testRevertToEmptySnapshot() throws Exception {
@@ -126,13 +153,13 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     private void testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion(String jobId, boolean deleteInterveningResults) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        long startTime = 1491004800000L;
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
         postData(
             job.getId(),
-            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
+            generateData(DATA_START_TIME, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0)
+                .stream()
                 .collect(Collectors.joining())
         );
         flushJob(job.getId(), true);
@@ -156,7 +183,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         postData(
             job.getId(),
             generateData(
-                startTime + 10 * bucketSpan.getMillis(),
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
                 bucketSpan,
                 10,
                 Arrays.asList("foo", "bar"),
@@ -187,7 +214,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         ModelSnapshot revertSnapshot = modelSnapshots.get(1);
 
         // Check there are 2 annotations (one per model snapshot)
-        assertThatNumberOfAnnotationsIsEqualTo(2);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 2);
 
         // Add 3 new annotations...
         Instant lastResultTimestamp = revertSnapshot.getLatestResultTimeStamp().toInstant();
@@ -195,15 +222,12 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.plusSeconds(20), Event.MODEL_CHANGE)).actionGet();
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.minusSeconds(10), Event.MODEL_CHANGE)).actionGet();
         // ... and check there are 5 annotations in total now
-        assertThatNumberOfAnnotationsIsEqualTo(5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 5);
 
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
 
-        assertThat(
-            revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK)
-        );
+        revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults);
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
@@ -222,7 +246,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getQuantiles(job.getId()).getTimestamp(), equalTo(revertSnapshot.getLatestResultTimeStamp()));
 
         // Check annotations with event type from {delayed_data, model_change} have been removed if deleteInterveningResults flag is set
-        assertThatNumberOfAnnotationsIsEqualTo(deleteInterveningResults ? 3 : 5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, deleteInterveningResults ? 3 : 5);
 
         // Reverting should not have deleted any forecast docs
         assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
@@ -232,7 +256,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         postData(
             job.getId(),
             generateData(
-                startTime + 10 * bucketSpan.getMillis(),
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
                 bucketSpan,
                 10,
                 Arrays.asList("foo", "bar"),
@@ -292,22 +316,24 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         return data;
     }
 
-    private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state*")
-            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
-            .setSize(1)
-            .get();
-        SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(1L));
-        try {
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                hits.getAt(0).getSourceAsString()
-            );
-            return Quantiles.LENIENT_PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private Quantiles getQuantiles(String jobId) throws Exception {
+        SetOnce<Quantiles> quantilesSetOnce = new SetOnce<>();
+        assertCheckedResponse(
+            prepareSearch(".ml-state*").setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId))).setSize(1),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertThat(hits.getTotalHits().value(), equalTo(1L));
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        XContentParserConfiguration.EMPTY,
+                        hits.getAt(0).getSourceAsString()
+                    )
+                ) {
+                    quantilesSetOnce.set(Quantiles.LENIENT_PARSER.apply(parser, null));
+                }
+            }
+        );
+        return quantilesSetOnce.get();
     }
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {

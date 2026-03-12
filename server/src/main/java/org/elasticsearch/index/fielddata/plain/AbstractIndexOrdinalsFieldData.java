@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -17,6 +18,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -28,6 +30,7 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
@@ -80,11 +83,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -126,22 +125,34 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptFieldFactory);
+        return GlobalOrdinalsBuilder.build(
+            indexReader,
+            this,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            logger,
+            toScriptFieldFactory
+        );
     }
 
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
+    }
+
+    private static ElasticsearchException handleCacheLoadException(Exception e) {
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException ese) {
+            throw ese;
+        }
+        throw new ElasticsearchException(e);
     }
 
     /**

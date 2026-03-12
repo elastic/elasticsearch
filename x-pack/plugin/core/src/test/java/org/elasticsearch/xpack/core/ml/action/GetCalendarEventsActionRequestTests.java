@@ -48,11 +48,6 @@ public class GetCalendarEventsActionRequestTests extends AbstractXContentSeriali
         return GetCalendarEventsAction.Request.parseRequest(null, parser);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
     public void testValidate() {
         GetCalendarEventsAction.Request request = new GetCalendarEventsAction.Request("cal-name");
         request.setJobId("foo");

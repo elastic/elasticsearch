@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -15,11 +16,15 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
 
@@ -97,6 +102,51 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         assertTrue(r3.hasBeenRun);
     }
 
+    public void testExecutorShutsDownAfterCompletingWork() {
+        var executor = createProcessWorkerExecutorService(100);
+
+        var counter = new AtomicInteger();
+
+        var r1 = new RunOrderValidator(1, counter);
+        executor.executeWithPriority(r1, RequestPriority.NORMAL, 100L);
+        var r2 = new RunOrderValidator(2, counter);
+        executor.executeWithPriority(r2, RequestPriority.NORMAL, 101L);
+        var r3 = new RunOrderValidator(3, counter);
+        executor.executeWithPriority(r3, RequestPriority.NORMAL, 102L);
+
+        runExecutorAndAssertTermination(executor);
+
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
+
+        assertTrue(r1.hasBeenRun);
+        assertTrue(r2.hasBeenRun);
+        assertTrue(r3.hasBeenRun);
+    }
+
+    private void runExecutorAndAssertTermination(PriorityProcessWorkerExecutorService executor) {
+        Future<?> executorTermination = threadPool.generic().submit(() -> {
+            try {
+                executor.shutdown();
+                executor.awaitTermination(1, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                fail(Strings.format("Failed to gracefully shutdown executor: %s", e.getMessage()));
+            }
+        });
+
+        executor.start();
+
+        try {
+            executorTermination.get(1, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            fail(Strings.format("Executor finished before it was signaled to shutdown gracefully"));
+        }
+
+        assertTrue(executor.isShutdown());
+        assertTrue(executor.isTerminated());
+    }
+
     public void testOrderedRunnables_MixedPriorities() {
         var executor = createProcessWorkerExecutorService(100);
 
@@ -127,6 +177,49 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         for (var validator : validators) {
             assertTrue(validator.hasBeenRun);
         }
+    }
+
+    public void testNotifyQueueRunnables_notifiesAllQueuedRunnables() throws InterruptedException {
+        notifyQueueRunnables(false);
+    }
+
+    public void testNotifyQueueRunnables_notifiesAllQueuedRunnables_withError() throws InterruptedException {
+        notifyQueueRunnables(true);
+    }
+
+    private void notifyQueueRunnables(boolean withError) {
+        int queueSize = 10;
+        var executor = createProcessWorkerExecutorService(queueSize);
+
+        List<QueueDrainingRunnable> runnables = new ArrayList<>(queueSize);
+        // First fill the queue
+        for (int i = 0; i < queueSize; ++i) {
+            QueueDrainingRunnable runnable = new QueueDrainingRunnable();
+            runnables.add(runnable);
+            executor.executeWithPriority(runnable, RequestPriority.NORMAL, i);
+        }
+
+        assertThat(executor.queueSize(), is(queueSize));
+
+        // Set the executor to be stopped
+        if (withError) {
+            executor.shutdownNowWithError(new Exception());
+        } else {
+            executor.shutdownNow();
+        }
+
+        // Start the executor, which will cause notifyQueueRunnables() to be called immediately since the executor is already stopped
+        executor.start();
+
+        // Confirm that all the runnables were notified
+        for (QueueDrainingRunnable runnable : runnables) {
+            assertThat(runnable.initialized, is(true));
+            assertThat(runnable.hasBeenRun, is(false));
+            assertThat(runnable.hasBeenRejected, not(withError));
+            assertThat(runnable.hasBeenFailed, is(withError));
+        }
+
+        assertThat(executor.queueSize(), is(0));
     }
 
     private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService(int queueSize) {
@@ -194,6 +287,34 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         @Override
         public void init() {
             // do nothing
+        }
+    }
+
+    private static class QueueDrainingRunnable extends AbstractInitializableRunnable {
+
+        private boolean initialized = false;
+        private boolean hasBeenRun = false;
+        private boolean hasBeenRejected = false;
+        private boolean hasBeenFailed = false;
+
+        @Override
+        public void init() {
+            initialized = true;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            hasBeenRejected = true;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            hasBeenFailed = true;
+        }
+
+        @Override
+        protected void doRun() {
+            hasBeenRun = true;
         }
     }
 }

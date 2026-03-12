@@ -19,8 +19,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
@@ -55,50 +57,52 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
 
         var usageAction = new SpatialUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
-            null,
             mockClient()
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         Task task = new Task(1L, "_type", "_action", "_description", null, Collections.emptyMap());
-        usageAction.masterOperation(task, null, clusterService.state(), future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(task, null, clusterService.state(), future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(true));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(true));
     }
 
     public void testEnabled() throws Exception {
-        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
 
         SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
-            null,
             mockClient()
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, clusterService.state(), future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(mock(Task.class), null, clusterService.state(), future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertTrue(usage.enabled());
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
         assertTrue(serializedUsage.enabled());
     }
 

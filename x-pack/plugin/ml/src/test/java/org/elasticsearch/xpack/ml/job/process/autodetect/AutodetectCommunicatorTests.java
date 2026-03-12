@@ -206,7 +206,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         communicator.killProcess(awaitCompletion, finish);
         verify(resultProcessor).setProcessKilled();
         verify(process).kill(awaitCompletion);
-        verify(executorService).shutdown();
+        verify(executorService).shutdownNow();
         if (awaitCompletion) {
             verify(resultProcessor).awaitCompletion();
         } else {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.lookup;
@@ -163,18 +164,6 @@ public final class PainlessLookup {
         return lookupPainlessObject(targetClass, objectLookup);
     }
 
-    public List<PainlessMethod> lookupPainlessSubClassesMethod(String targetCanonicalClassName, String methodName, int methodArity) {
-        Objects.requireNonNull(targetCanonicalClassName);
-
-        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
-
-        if (targetClass == null) {
-            return null;
-        }
-
-        return lookupPainlessSubClassesMethod(targetClass, methodName, methodArity);
-    }
-
     public List<PainlessMethod> lookupPainlessSubClassesMethod(Class<?> targetClass, String methodName, int methodArity) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
@@ -216,18 +205,6 @@ public final class PainlessLookup {
         }
 
         return subMethods;
-    }
-
-    public PainlessField lookupPainlessField(String targetCanonicalClassName, boolean isStatic, String fieldName) {
-        Objects.requireNonNull(targetCanonicalClassName);
-
-        Class<?> targetClass = canonicalTypeNameToType(targetCanonicalClassName);
-
-        if (targetClass == null) {
-            return null;
-        }
-
-        return lookupPainlessField(targetClass, isStatic, fieldName);
     }
 
     public PainlessField lookupPainlessField(Class<?> targetClass, boolean isStatic, String fieldName) {
@@ -360,9 +337,8 @@ public final class PainlessLookup {
                         if (painlessObject != null) {
                             return painlessObject;
                         }
-
-                        targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                     }
+                    targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                 }
             }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -13,9 +14,8 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -28,7 +28,7 @@ import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
+import org.elasticsearch.snapshots.SystemResourceSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
     @Override
@@ -71,7 +70,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -85,7 +84,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -99,7 +98,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(INDEX_NAME + "-2").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(INDEX_NAME + "-2").get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(INDEX_NAME + "-2").size(), is(1));
@@ -117,7 +116,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -136,7 +135,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -144,7 +143,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+            .get();
         assertThat(response.indices().length, is(1));
         Settings settings = response.settings().get(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         assertThat(settings, notNullValue());
@@ -154,13 +155,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     public void testSystemIndicesAutoCreateRejectedWhenNotHidden() {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         request.settings(Settings.builder().put(SETTING_INDEX_HIDDEN, false).build());
-        ExecutionException exception = expectThrows(
-            ExecutionException.class,
-            () -> client().execute(AutoCreateAction.INSTANCE, request).get()
-        );
-
         assertThat(
-            exception.getCause().getMessage(),
+            expectThrows(IllegalStateException.class, client().execute(AutoCreateAction.INSTANCE, request)).getMessage(),
             containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
         );
     }
@@ -170,7 +166,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(List.of(indexName + "*"))
                 .addAlias(new Alias(indexName + "-legacy-alias"))
-                .get()
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -207,23 +202,25 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     }
 
     private String autoCreateSystemAliasViaComposableTemplate(String indexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(indexName + "*"),
-            new Template(
-                null,
-                null,
-                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
-            ),
-            Collections.emptyList(),
-            4L,
-            5L,
-            Collections.emptyMap()
-        );
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
+            .template(
+                new Template(
+                    null,
+                    null,
+                    Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
+                )
+            )
+            .componentTemplates(Collections.emptyList())
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.emptyMap())
+            .build();
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
-            ).get()
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+            )
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -245,9 +242,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
+            )
         );
     }
 
@@ -268,16 +265,16 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
+            )
         );
     }
 
     private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames, int aliasCount) throws InterruptedException,
         ExecutionException {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -302,7 +299,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return SystemIndicesSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
+            return SystemResourceSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
         }
 
         @Override

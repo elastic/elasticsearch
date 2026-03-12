@@ -152,7 +152,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         super.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public static ShardFollowTask fromXContent(XContentParser parser) {
@@ -197,6 +197,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 }

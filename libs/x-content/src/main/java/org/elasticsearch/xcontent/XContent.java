@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -24,7 +25,21 @@ public interface XContent {
      */
     XContentType type();
 
-    byte streamSeparator();
+    /**
+     * @return {@code true} if this {@link XContent} can be sent in bulk, delimited by the byte returned by {@link #bulkSeparator()}, or
+     * {@code false} if this {@link XContent} does not support a delimited bulk format (in which case {@link #bulkSeparator()} throws an
+     * exception.
+     * <p>
+     * In practice, this is {@code true} for content with canonical type {@link XContentType#JSON} or {@link XContentType#SMILE} and
+     * {@code false} for content with canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
+     */
+    boolean hasBulkSeparator();
+
+    /**
+     * @return a {@link byte} that separates items in a bulk request that uses this {@link XContent}.
+     * @throws RuntimeException if this {@link XContent} does not support a delimited bulk format. See {@link #hasBulkSeparator()}.
+     */
+    byte bulkSeparator();
 
     @Deprecated
     boolean detectContent(byte[] bytes, int offset, int length);

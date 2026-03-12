@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -50,19 +52,17 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
     public void testAddCreationDate() {
         long creationDate = randomNonNegativeLong();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .creationDate(creationDate)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetadata.builder(indexMetadata))
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(IndexMetadata.builder(indexMetadata)).build();
+        Metadata metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build()).put(project).build();
         Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build().projectState(project.id());
         InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
-        ClusterState newState = step.performAction(index, clusterState);
+        ProjectState newState = step.performAction(index, state);
         assertThat(getIndexLifecycleDate(index, newState), equalTo(creationDate));
     }
 
@@ -71,24 +71,22 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(creationDate);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .creationDate(creationDate)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetadata.builder(indexMetadata))
-            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(IndexMetadata.builder(indexMetadata)).build();
+        Metadata metadata = Metadata.builder().persistentSettings(settings(IndexVersion.current()).build()).put(project).build();
         Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build().projectState(project.id());
         InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
-        ClusterState newState = step.performAction(index, clusterState);
-        assertTrue(newState == clusterState);
+        ProjectState newState = step.performAction(index, state);
+        assertTrue(newState == state);
     }
 
-    private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return clusterState.getMetadata().index(index).getLifecycleExecutionState().lifecycleDate();
+    private long getIndexLifecycleDate(Index index, ProjectState projectState) {
+        return projectState.metadata().index(index).getLifecycleExecutionState().lifecycleDate();
     }
 }

@@ -60,8 +60,4 @@ public class GetInfluencersActionRequestTests extends AbstractXContentSerializin
         return Request::new;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

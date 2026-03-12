@@ -12,13 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
+public class SLMFeatureSetUsage extends XPackFeatureUsage {
     @Nullable
     private final SnapshotLifecycleStats slmStats;
 
@@ -40,7 +40,7 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersion.zero();
     }
 
     public SnapshotLifecycleStats getStats() {

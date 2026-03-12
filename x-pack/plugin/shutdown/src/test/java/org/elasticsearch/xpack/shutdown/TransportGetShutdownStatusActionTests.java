@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -36,17 +38,38 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAlloc
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,10 +77,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -142,6 +169,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -172,6 +200,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.RESTART);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.RESTART,
@@ -208,6 +237,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -219,6 +249,39 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
+    }
+
+    /**
+     * Ensures we check whether the task is cancelled during the computation
+     */
+    public void testCancelled() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 1, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        final var task = new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+        TaskCancelHelper.cancel(task, "test");
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> TransportGetShutdownStatusAction.shardMigrationStatus(
+                task,
+                state,
+                SHUTTING_DOWN_NODE_ID,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                true,
+                clusterInfoService,
+                snapshotsInfoService,
+                allocationService,
+                allocationDeciders
+            )
+        );
     }
 
     /**
@@ -253,6 +316,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -305,6 +369,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -341,6 +406,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -355,7 +421,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             status,
             SingleNodeShutdownMetadata.Status.STALLED,
             1,
-            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+            allOf(containsString(index.getName()), containsString("[2] [primary]"), containsString("cannot move"))
         );
     }
 
@@ -413,6 +479,51 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
     }
 
+    public void testStalledIfShardCopyOnAnotherNodeHasDifferentRole() {
+        Index index = new Index(randomIdentifier(), randomUUID());
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                new TestShardRouting.Builder(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.INDEX_ONLY
+                ).build()
+            )
+            .addShard(
+                new TestShardRouting.Builder(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, false, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.SEARCH_ONLY
+                ).build()
+            )
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[0] [replica]"))
+        );
+    }
+
     public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() {
         Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
@@ -431,6 +542,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -463,6 +575,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -499,6 +612,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(this.getTestName())
                                     .setNodeId(bogusNodeId)
+                                    .setNodeEphemeralId(bogusNodeId)
                                     .build()
                             )
                         )
@@ -507,37 +621,29 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                            .build()
                     )
             )
             .routingTable(routingTable.build())
             .build();
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             bogusNodeId,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -551,11 +657,293 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
     }
 
+    public void testExplainThrottled() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        // LIVE_NODE_ID can not accept the remaining shard as it is temporarily initializing 2 other shards
+        canAllocate.set((r, n, a) -> n.nodeId().equals(LIVE_NODE_ID) ? Decision.THROTTLE : Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+            1,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"), containsString("is waiting to be moved"))
+        );
+        var explain = status.getAllocationDecision();
+        assertThat(explain, notNullValue());
+        assertThat(explain.getAllocateDecision().isDecisionTaken(), is(false));
+        assertThat(explain.getMoveDecision().isDecisionTaken(), is(true));
+        assertThat(explain.getMoveDecision().getExplanation(), equalTo(Explanations.Move.THROTTLED));
+    }
+
+    public void testIlmShrinkingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
+            .setPhase(randomFrom("hot", "warm"))
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.RUNNING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingWithIlmStoppingIndexAvoidsStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPING, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
+    }
+
+    public void testIlmShrinkingButIlmStoppedDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ResizeIndexStep.SHRINK)
+            .build();
+        checkStalledShardWithIlmState(executionState, OperationMode.STOPPED, SingleNodeShutdownMetadata.Status.STALLED);
+    }
+
+    public void testIlmShrinkingButErroredDoesNotAvoidStall() {
+        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setAction(ShrinkAction.NAME)
+            .setStep(ErrorStep.NAME)
+            .build();
+        checkStalledShardWithIlmState(
+            executionState,
+            randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+            SingleNodeShutdownMetadata.Status.STALLED
+        );
+    }
+
+    public void testIlmInAnyOtherActionDoesNotAvoidStall() {
+        Set<String> allOtherIlmActions = new HashSet<>();
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_FROZEN_ACTIONS);
+        allOtherIlmActions.addAll(TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS);
+        allOtherIlmActions.remove(ShrinkAction.NAME);
+        for (String action : allOtherIlmActions) {
+            LifecycleExecutionState executionState = LifecycleExecutionState.builder().setAction(action).build();
+            checkStalledShardWithIlmState(
+                executionState,
+                randomFrom(OperationMode.STOPPING, OperationMode.RUNNING),
+                SingleNodeShutdownMetadata.Status.STALLED
+            );
+        }
+    }
+
+    public void testPersistentTasksStatusNodeNotInCluster() {
+        final var nodeSeen = randomBoolean();
+        final var autoReassignCount = randomIntBetween(0, 3);
+
+        final var testId = randomAlphaOfLength(8);
+        final List<PersistentTasksExecutor<?>> executors = new ArrayList<>();
+        final var tasksBuilder = ClusterPersistentTasksCustomMetadata.builder();
+
+        for (int i = 0; i < autoReassignCount; i++) {
+            final var taskName = "test-absent-auto-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, true));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(executors);
+
+        // SHUTTING_DOWN_NODE_ID is absent from discovery nodes.
+        final var baseState = createTestClusterState(
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            List.of(),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true
+        );
+        final ClusterState state = ClusterState.builder(baseState)
+            .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .build();
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, nodeSeen);
+
+        if (nodeSeen == false) {
+            assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.NOT_STARTED));
+            assertThat(status.getPersistentTasksRemaining(), equalTo(0));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(0));
+        } else {
+            final var expectedStatus = autoReassignCount == 0
+                ? SingleNodeShutdownMetadata.Status.COMPLETE
+                : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+            assertThat(status.getStatus(), equalTo(expectedStatus));
+            assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
+        }
+    }
+
+    public void testPersistentTasksStatusCounts() {
+        final var autoReassignCount = randomIntBetween(0, 5);
+        final var nonAutoReassignCount = randomIntBetween(0, 5);
+
+        final var testId = randomAlphaOfLength(8);
+        final List<PersistentTasksExecutor<?>> executors = new ArrayList<>();
+        final var tasksBuilder = ClusterPersistentTasksCustomMetadata.builder();
+
+        for (int i = 0; i < autoReassignCount; i++) {
+            final var taskName = "test-auto-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, true));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        for (int i = 0; i < nonAutoReassignCount; i++) {
+            final var taskName = "test-noop-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, false));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(executors);
+
+        final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
+        final ClusterState state;
+        if (autoReassignCount + nonAutoReassignCount > 0) {
+            state = ClusterState.builder(baseState)
+                .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+                .build();
+        } else {
+            state = baseState;
+        }
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, true);
+
+        final var expectedStatus = autoReassignCount == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        assertThat(status.getStatus(), equalTo(expectedStatus));
+        assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount + nonAutoReassignCount));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
+    }
+
+    public void testPersistentTasksStatusOnlyCountsShuttingDownNode() {
+        final var testId = randomAlphaOfLength(8);
+        final var autoTaskName = "task-auto-" + testId;
+        final var optOutTaskName = "task-opt-out-" + testId;
+
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(
+            List.of(new TestPersistentTasksExecutor(autoTaskName, true), new TestPersistentTasksExecutor(optOutTaskName, false))
+        );
+
+        final var tasks = ClusterPersistentTasksCustomMetadata.builder()
+            .addTask(
+                autoTaskName + "-1",
+                autoTaskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            )
+            .addTask(
+                optOutTaskName + "-1",
+                optOutTaskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            )
+            .addTask(optOutTaskName + "-2", optOutTaskName, null, new PersistentTasksCustomMetadata.Assignment(LIVE_NODE_ID, "assigned"))
+            .build();
+
+        final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
+        final var state = ClusterState.builder(baseState)
+            .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks))
+            .build();
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, true);
+
+        assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS));
+        assertThat(status.getPersistentTasksRemaining(), equalTo(2));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(1));
+    }
+
+    private void checkStalledShardWithIlmState(
+        LifecycleExecutionState executionState,
+        OperationMode operationMode,
+        SingleNodeShutdownMetadata.Status expectedStatus
+    ) {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = IndexMetadata.builder(generateIndexMetadata(index, 3, 0))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, executionState.asMap())
+            .build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        state = setIlmOperationMode(state, operationMode);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            expectedStatus,
+            1,
+            expectedStatus == SingleNodeShutdownMetadata.Status.STALLED
+                ? allOf(containsString(index.getName()), containsString("[2] [primary]"))
+                : nullValue()
+        );
+    }
+
     private IndexMetadata generateIndexMetadata(Index index, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             )
             .numberOfShards(numberOfShards)
@@ -591,26 +979,23 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                    .build()
             )
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                    OTHER_LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                    .build()
             );
         if (shuttingDownNodeAlreadyLeft == false) {
             discoveryNodesBuilder.add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    SHUTTING_DOWN_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                    .build()
             );
         }
 
@@ -628,6 +1013,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(this.getTestName())
                                     .setNodeId(SHUTTING_DOWN_NODE_ID)
+                                    .setNodeEphemeralId(SHUTTING_DOWN_NODE_ID)
                                     .build()
                             )
                         )
@@ -635,6 +1021,15 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             )
             .nodes(discoveryNodesBuilder)
             .routingTable(indexRoutingTable)
+            .build();
+    }
+
+    private ClusterState setIlmOperationMode(ClusterState state, OperationMode operationMode) {
+        return ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(operationMode, currentSLMMode(state)))
+            )
             .build();
     }
 
@@ -656,14 +1051,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     private ShardRouting makeUnassignedShard(Index index, int shardId, String nodeId, boolean primary) {
         var unsignedInfo = makeUnassignedInfo(nodeId);
 
-        return TestShardRouting.newShardRouting(
-            new ShardId(index, shardId),
-            null,
-            null,
-            primary,
-            ShardRoutingState.UNASSIGNED,
+        return shardRoutingBuilder(new ShardId(index, shardId), null, primary, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             unsignedInfo
-        );
+        ).build();
     }
 
     private ShutdownShardMigrationStatus getUnassignedShutdownStatus(Index index, IndexMetadata imd, ShardRouting... shards) {
@@ -690,6 +1080,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -699,5 +1090,27 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             allocationService,
             allocationDeciders
         );
+    }
+
+    private static class TestPersistentTasksExecutor extends PersistentTasksExecutor<PersistentTaskParams> {
+        private final boolean autoReassignOnShutdown;
+
+        TestPersistentTasksExecutor(String taskName, boolean autoReassignOnShutdown) {
+            super(taskName, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            this.autoReassignOnShutdown = autoReassignOnShutdown;
+        }
+
+        @Override
+        protected void nodeOperation(AllocatedPersistentTask task, PersistentTaskParams params, PersistentTaskState state) {}
+
+        @Override
+        public PersistentTasksExecutor.Scope scope() {
+            return Scope.CLUSTER;
+        }
+
+        @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return autoReassignOnShutdown;
+        }
     }
 }

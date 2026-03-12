@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -42,64 +42,102 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
-    // This represents when the data lifecycle was explicitly set to be null, meaning the user wants to remove the
-    // lifecycle.
-    public static final DataLifecycle NO_LIFECYCLE = new DataLifecycle() {
+    /**
+     * A template decorator allows modification of template during parsing.
+     */
+    public interface TemplateDecorator {
+        TemplateDecorator DEFAULT = new TemplateDecorator() {};
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params, RolloverConfiguration rolloverConfiguration)
-            throws IOException {
-            return builder.nullValue();
+        default Settings decorate(String template, @Nullable Settings settings) {
+            return settings;
+        };
+
+        default DataStreamLifecycle.Template decorate(String template, @Nullable DataStreamLifecycle.Template lifecycle) {
+            return lifecycle;
+        };
+    }
+
+    record NamedTemplateDecorator(String name, TemplateDecorator decorator) {
+        static NamedTemplateDecorator DEFAULT = new NamedTemplateDecorator(null, TemplateDecorator.DEFAULT);
+
+        public Settings decorate(Settings settings) {
+            return decorator.decorate(name, settings);
         }
-    };
+
+        public DataStreamLifecycle.Template decorate(DataStreamLifecycle.Template lifecycle) {
+            return decorator.decorate(name, lifecycle);
+        }
+    }
 
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
     private static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    private static final ParseField DATA_STREAM_OPTIONS = new ParseField("data_stream_options");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<Template, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template(
-            (Settings) a[0],
+        (a, d) -> new Template(
+            d.decorate((Settings) a[0]),
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
-            DataLifecycle.isEnabled() ? (DataLifecycle) a[3] : null
+            d.decorate((DataStreamLifecycle.Template) a[3]),
+            a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+        .enabled(false)
+        .buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
-        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return parseMappings(p); },
+            MAPPINGS,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
-            while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParser.Token token;
+            while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == null) {
+                    break;
+                }
                 AliasMetadata alias = AliasMetadata.Builder.fromXContent(p);
                 aliasMap.put(alias.alias(), alias);
             }
             return aliasMap;
         }, ALIASES);
-        // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
-        if (DataLifecycle.isEnabled()) {
-            PARSER.declareObjectOrNull(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataLifecycle.fromXContent(p),
-                NO_LIFECYCLE,
-                LIFECYCLE
-            );
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(p),
+            LIFECYCLE
+        );
+        PARSER.declareObjectOrNull(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ResettableValue.create(DataStreamOptions.Template.fromXContent(p)),
+            ResettableValue.reset(),
+            DATA_STREAM_OPTIONS
+        );
+    }
+
+    public static Template parse(XContentParser parser, String templateName, TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
+    }
+
+    public static CompressedXContent parseMappings(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new CompressedXContent(Base64.getDecoder().decode(parser.text()));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return new CompressedXContent(parser.binaryValue());
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
         }
     }
 
@@ -111,26 +149,42 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private final Map<String, AliasMetadata> aliases;
 
     @Nullable
-    private final DataLifecycle lifecycle;
+    private final DataStreamLifecycle.Template lifecycle;
+    private final ResettableValue<DataStreamOptions.Template> dataStreamOptions;
 
     public Template(
         @Nullable Settings settings,
         @Nullable CompressedXContent mappings,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle,
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions
     ) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
-        if (DataLifecycle.isEnabled()) {
-            this.lifecycle = lifecycle;
-        } else {
-            this.lifecycle = null;
-        }
+        assert lifecycle == null || lifecycle.toDataStreamLifecycle().targetsFailureStore() == false
+            : "Invalid lifecycle type for data lifecycle";
+        this.lifecycle = lifecycle;
+        assert dataStreamOptions != null : "Template does not accept null values, please use Resettable.undefined()";
+        this.dataStreamOptions = dataStreamOptions;
+    }
+
+    public Template(
+        @Nullable Settings settings,
+        @Nullable CompressedXContent mappings,
+        @Nullable Map<String, AliasMetadata> aliases,
+        @Nullable DataStreamLifecycle.Template lifecycle,
+        @Nullable DataStreamOptions.Template dataStreamOptions
+    ) {
+        this.settings = settings;
+        this.mappings = mappings;
+        this.aliases = aliases;
+        this.lifecycle = lifecycle;
+        this.dataStreamOptions = ResettableValue.create(dataStreamOptions);
     }
 
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
-        this(settings, mappings, aliases, null);
+        this(settings, mappings, aliases, null, ResettableValue.undefined());
     }
 
     public Template(StreamInput in) throws IOException {
@@ -149,16 +203,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
-            boolean isExplicitNull = in.readBoolean();
-            if (isExplicitNull) {
-                this.lifecycle = NO_LIFECYCLE;
-            } else {
-                this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
-            }
-        } else {
-            this.lifecycle = null;
-        }
+        this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
+        dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
     }
 
     @Nullable
@@ -177,8 +223,17 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     @Nullable
-    public DataLifecycle lifecycle() {
+    public DataStreamLifecycle.Template lifecycle() {
         return lifecycle;
+    }
+
+    @Nullable
+    public DataStreamOptions.Template dataStreamOptions() {
+        return dataStreamOptions.get();
+    }
+
+    public ResettableValue<DataStreamOptions.Template> resettableDataStreamOptions() {
+        return dataStreamOptions;
     }
 
     @Override
@@ -199,20 +254,15 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
+            out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
-            boolean isExplicitNull = lifecycle == NO_LIFECYCLE;
-            out.writeBoolean(isExplicitNull);
-            if (isExplicitNull == false) {
-                out.writeOptionalWriteable(lifecycle);
-            }
-        }
+        out.writeOptionalWriteable(lifecycle);
+        ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(settings, mappings, aliases, lifecycle);
+        return Objects.hash(settings, mappings, aliases, lifecycle, dataStreamOptions);
     }
 
     @Override
@@ -227,7 +277,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         return Objects.equals(settings, other.settings)
             && mappingsEquals(this.mappings, other.mappings)
             && Objects.equals(aliases, other.aliases)
-            && Objects.equals(lifecycle, other.lifecycle);
+            && Objects.equals(lifecycle, other.lifecycle)
+            && Objects.equals(dataStreamOptions, other.dataStreamOptions);
     }
 
     @Override
@@ -241,7 +292,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     /**
-     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle. Depending on the
+     * {@param params} set by {@link ResettableValue#hideResetValues(Params)} it may or may not display <code>null</code> when the value
+     * is to be reset.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
@@ -274,8 +327,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }
@@ -309,5 +363,78 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
         );
         return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(@Nullable Template template) {
+        return template == null ? new Builder() : new Builder(template);
+    }
+
+    public static class Builder {
+        private Settings settings = null;
+        private CompressedXContent mappings = null;
+        private Map<String, AliasMetadata> aliases = null;
+        private DataStreamLifecycle.Template lifecycle = null;
+        private ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
+
+        private Builder() {}
+
+        private Builder(Template template) {
+            settings = template.settings;
+            mappings = template.mappings;
+            aliases = template.aliases;
+            lifecycle = template.lifecycle;
+            dataStreamOptions = template.dataStreamOptions;
+        }
+
+        public Builder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public Builder settings(Settings.Builder settings) {
+            this.settings = settings.build();
+            return this;
+        }
+
+        public Builder mappings(CompressedXContent mappings) {
+            this.mappings = mappings;
+            return this;
+        }
+
+        public Builder aliases(Map<String, AliasMetadata> aliases) {
+            this.aliases = aliases;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle.Template lifecycle) {
+            this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle.Builder lifecycle) {
+            this.lifecycle = lifecycle.buildTemplate();
+            return this;
+        }
+
+        /**
+         * When the value passed is null it considers the value as undefined.
+         */
+        public Builder dataStreamOptions(@Nullable DataStreamOptions.Template dataStreamOptions) {
+            this.dataStreamOptions = ResettableValue.create(dataStreamOptions);
+            return this;
+        }
+
+        public Builder dataStreamOptions(ResettableValue<DataStreamOptions.Template> dataStreamOptions) {
+            this.dataStreamOptions = dataStreamOptions;
+            return this;
+        }
+
+        public Template build() {
+            return new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
+        }
     }
 }

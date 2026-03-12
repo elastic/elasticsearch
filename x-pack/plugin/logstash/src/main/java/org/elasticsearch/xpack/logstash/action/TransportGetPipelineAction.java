@@ -21,11 +21,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -57,7 +58,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
 
     @Inject
     public TransportGetPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new);
+        super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 
@@ -71,7 +72,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         final Set<Pattern> wildcardPipelinePatterns = request.ids()
             .stream()
             .filter(pipeline -> pipeline.contains(WILDCARD))
-            .map(this::toWildcardPipelineIdPattern)
+            .map(TransportGetPipelineAction::toWildcardPipelineIdPattern)
             .map(Pattern::compile)
             .collect(Collectors.toSet());
 
@@ -86,7 +87,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             )
             .setScroll(TimeValue.timeValueMinutes(1L))
             .execute(ActionListener.wrap(searchResponse -> {
-                final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value);
+                final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value());
                 final Map<String, BytesReference> pipelineSources = Maps.newMapWithExpectedSize(numHits);
                 final Consumer<SearchResponse> clearScroll = (response) -> {
                     if (response != null && response.getScrollId() != null) {
@@ -120,15 +121,15 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 new GetPipelineResponse(
                     Arrays.stream(mGetResponse.getResponses())
                         .filter(itemResponse -> itemResponse.isFailed() == false)
-                        .filter(itemResponse -> itemResponse.getResponse().isExists())
                         .map(MultiGetItemResponse::getResponse)
+                        .filter(GetResponse::isExists)
                         .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
                 )
             );
         }, e -> handleFailure(e, listener)));
     }
 
-    private void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {
+    private static void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         if (cause instanceof IndexNotFoundException) {
             listener.onResponse(new GetPipelineResponse(Map.of()));
@@ -147,14 +148,14 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         ActionListener<GetPipelineResponse> listener
     ) {
         int numberOfHitsSeenSoFar = numberOfHitsSeenPreviously + searchResponse.getHits().getHits().length;
-        if (numberOfHitsSeenSoFar > searchResponse.getHits().getTotalHits().value) {
+        if (numberOfHitsSeenSoFar > searchResponse.getHits().getTotalHits().value()) {
             clearScroll.accept(searchResponse);
             listener.onFailure(
                 new IllegalStateException(
                     "scrolling returned more hits ["
                         + numberOfHitsSeenSoFar
                         + "] than expected ["
-                        + searchResponse.getHits().getTotalHits().value
+                        + searchResponse.getHits().getTotalHits().value()
                         + "] so bailing out to prevent unbounded "
                         + "memory consumption."
                 )
@@ -178,30 +179,29 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             }
         }
 
-        if (numberOfHitsSeenSoFar == searchResponse.getHits().getTotalHits().value) {
+        if (numberOfHitsSeenSoFar == searchResponse.getHits().getTotalHits().value()) {
             clearScroll.accept(searchResponse);
             listener.onResponse(new GetPipelineResponse(pipelineSources));
         } else {
             client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(1L))
                 .execute(
-                    ActionListener.wrap(
-                        searchResponse1 -> handleFilteringSearchResponse(
+                    listener.delegateFailureAndWrap(
+                        (delegate, searchResponse1) -> handleFilteringSearchResponse(
                             searchResponse1,
                             pipelineSources,
                             explicitPipelineIds,
                             wildcardPipelinePatterns,
                             numberOfHitsSeenSoFar,
                             clearScroll,
-                            listener
-                        ),
-                        listener::onFailure
+                            delegate
+                        )
                     )
                 );
         }
     }
 
-    private void logFailures(MultiGetResponse multiGetResponse) {
+    private static void logFailures(MultiGetResponse multiGetResponse) {
         List<String> ids = Arrays.stream(multiGetResponse.getResponses())
             .filter(MultiGetItemResponse::isFailed)
             .filter(itemResponse -> itemResponse.getFailure() != null)
@@ -212,7 +212,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         }
     }
 
-    private String toWildcardPipelineIdPattern(String wildcardPipelineId) {
+    private static String toWildcardPipelineIdPattern(String wildcardPipelineId) {
         Matcher matcher = WILDCARD_PATTERN.matcher(wildcardPipelineId);
         StringBuilder stringBuilder = new StringBuilder();
         while (matcher.find()) {

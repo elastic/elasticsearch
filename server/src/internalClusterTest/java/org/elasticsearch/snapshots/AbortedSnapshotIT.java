@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -35,7 +36,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final var indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
         final var clusterService = indicesService.clusterService();
-        final var index = clusterService.state().metadata().index(indexName).getIndex();
+        final var index = clusterService.state().metadata().getProject().index(indexName).getIndex();
         final var store = indicesService.indexServiceSafe(index).getShard(0).store();
         assertTrue(store.hasReferences());
 
@@ -60,14 +61,13 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         snapshotExecutor.execute(new BlockingTask());
         safeAwait(barrier); // wait for snapshot thread to be blocked
 
-        clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-1").setWaitForCompletion(false).setPartial(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-1")
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .get();
         // resulting cluster state has been applied on all nodes, which means the first task for the SNAPSHOT pool is queued up
 
-        final var snapshot = clusterService.state()
-            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-            .forRepo(repoName)
-            .get(0)
-            .snapshot();
+        final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).get(0).snapshot();
         final var snapshotShardsService = internalCluster().getInstance(SnapshotShardsService.class, dataNode);
 
         // Run up to 3 snapshot tasks, which are (in order):
@@ -82,7 +82,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             final var shardStatuses = snapshotShardsService.currentSnapshotShards(snapshot);
             assertEquals(1, shardStatuses.size());
-            final var shardStatus = shardStatuses.get(new ShardId(index, 0)).asCopy();
+            final var shardStatus = shardStatuses.get(new ShardId(index, 0));
             logger.info("--> {}", shardStatus);
 
             if (i == 0) {
@@ -97,7 +97,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertTrue(store.hasReferences());
-        assertAcked(client().admin().indices().prepareDelete(indexName).get());
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         // this is the key assertion: we must release the store without needing any SNAPSHOT threads to make further progress
         assertBusy(() -> assertFalse(store.hasReferences()));
@@ -105,7 +105,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         stopBlocking.set(true);
         safeAwait(barrier); // release snapshot thread
 
-        assertBusy(() -> assertTrue(clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty()));
+        assertBusy(() -> assertTrue(SnapshotsInProgress.get(clusterService.state()).isEmpty()));
     }
 
 }

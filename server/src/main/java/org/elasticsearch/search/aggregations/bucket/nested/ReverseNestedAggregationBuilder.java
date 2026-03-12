@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
@@ -71,13 +72,6 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return this;
     }
 
-    /**
-     * Get the path to use for this nested aggregation.
-     */
-    public String path() {
-        return path;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;
@@ -88,6 +82,18 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
             throw new IllegalArgumentException("Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
+        }
+
+        if (path != null) {
+            NestedObjectMapper currentParent = context.nestedScope().getObjectMapper();
+            if (currentParent != null) {
+                String parentPath = currentParent.fullPath();
+                if (parentPath.equals(path) == false && parentPath.startsWith(path + ".") == false) {
+                    throw new IllegalArgumentException(
+                        "Reverse nested path [" + path + "] is not a parent of the current nested scope [" + parentPath + "]"
+                    );
+                }
+            }
         }
 
         NestedObjectMapper nestedMapper = null;
@@ -177,6 +183,6 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersion.zero();
     }
 }

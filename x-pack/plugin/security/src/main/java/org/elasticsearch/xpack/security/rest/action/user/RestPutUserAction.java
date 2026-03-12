@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a User to the security index
  */
-public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
+@ServerlessScope(Scope.INTERNAL)
+public class RestPutUserAction extends NativeUserBaseRestHandler implements RestRequestFilter {
 
     private final Hasher passwordHasher;
 
@@ -43,12 +44,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/user/{username}")
-                .replaces(POST, "/_xpack/security/user/{username}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_security/user/{username}").replaces(PUT, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/user/{username}"), new Route(PUT, "/_security/user/{username}"));
     }
 
     @Override

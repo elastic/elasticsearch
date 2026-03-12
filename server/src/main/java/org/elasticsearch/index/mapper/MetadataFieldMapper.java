@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,11 +34,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             throws MapperParsingException;
 
         /**
-         * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         *
-         * @param parserContext context that may be useful to build the field like analyzers
+         * Get a default {@link Builder} for this metadata field, using the given parser context.
+         * Returns null if this metadata field is not applicable for the current index.
          */
-        MetadataFieldMapper getDefault(MappingParserContext parserContext);
+        Builder getDefaultBuilder(MappingParserContext parserContext);
     }
 
     /**
@@ -83,21 +84,20 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return mapperParser.apply(parserContext);
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            MetadataFieldMapper mapper = mapperParser.apply(parserContext);
+            if (mapper == null) {
+                return null;
+            }
+            return new ConstantBuilder(mapper);
         }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
 
-        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
         final Function<MappingParserContext, Builder> builderFunction;
 
-        public ConfigurableTypeParser(
-            Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
-            Function<MappingParserContext, Builder> builderFunction
-        ) {
-            this.defaultMapperParser = defaultMapperParser;
+        public ConfigurableTypeParser(Function<MappingParserContext, Builder> builderFunction) {
             this.builderFunction = builderFunction;
         }
 
@@ -109,8 +109,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return defaultMapperParser.apply(parserContext);
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            return builderFunction.apply(parserContext);
         }
     }
 
@@ -120,7 +120,23 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             super(name);
         }
 
+        /**
+         * Returns true if any parameter on this builder was explicitly set (e.g. via parsing),
+         * even if the value matches the default.
+         */
         boolean isConfigured() {
+            for (Parameter<?> param : getParameters()) {
+                if (param.isSet()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Returns true if any parameter has a value that differs from its default.
+         */
+        private boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
@@ -148,8 +164,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 final Object propNode = entry.getValue();
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
-                    if (UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
-                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_6_0)) {
+                    IndexVersion indexVersionCreated = parserContext.indexVersionCreated();
+                    if (indexVersionCreated.before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                        && UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
+                        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_6_0)) {
                             // silently ignore type, and a few other parameters: sadly we've been doing this for a long time
                             deprecationLogger.warn(
                                 DeprecationCategory.API,
@@ -174,22 +192,50 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return null;    // by default, things can't be configured so we have no builder
+        return new ConstantBuilder(this);
+    }
+
+    /**
+     * A trivial builder for non-configurable metadata field mappers that have no parameters.
+     * Wraps a built mapper and returns it unchanged from {@link #build()}.
+     */
+    static final class ConstantBuilder extends Builder {
+        private final MetadataFieldMapper mapper;
+
+        ConstantBuilder(MetadataFieldMapper mapper) {
+            super(mapper.fullPath());
+            this.mapper = mapper;
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
+        }
+
+        @Override
+        public MetadataFieldMapper build() {
+            return mapper;
+        }
+
+        @Override
+        public String contentType() {
+            return mapper.typeName();
+        }
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
+        if (mergeBuilder.hasNonDefaultParameters() == false) {
             return builder;
         }
-        builder.startObject(simpleName());
-        getMergeBuilder().toXContent(builder, params);
+        builder.startObject(leafName());
+        mergeBuilder.toXContent(builder, params);
         return builder.endObject();
     }
 
@@ -197,7 +243,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),
-            "Field [" + name() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
+            "Field [" + fullPath() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
         );
     }
 
@@ -216,5 +262,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+    }
 }

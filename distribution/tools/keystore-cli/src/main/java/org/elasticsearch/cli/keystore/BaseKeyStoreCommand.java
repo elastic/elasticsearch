@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -38,14 +39,14 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
     @Override
     public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         try {
-            final Path configFile = env.configFile();
+            final Path configFile = env.configDir();
             keyStore = KeyStoreWrapper.load(configFile);
             if (keyStore == null) {
                 if (keyStoreMustExist) {
                     throw new UserException(
                         ExitCodes.DATA_ERROR,
                         "Elasticsearch keystore not found at ["
-                            + KeyStoreWrapper.keystorePath(env.configFile())
+                            + KeyStoreWrapper.keystorePath(env.configDir())
                             + "]. Use 'create' command to create one."
                     );
                 } else if (options.has(forceOption) == false) {

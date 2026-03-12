@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -39,10 +40,18 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.http.ConnectionClosedException;
+import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -50,28 +59,33 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.transport.netty4.AcceptChannelHandler;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -80,13 +94,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -97,21 +112,26 @@ import java.util.function.BiConsumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.netty4.Netty4TestUtils.randomClusterSettings;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
+public class Netty4HttpServerTransportTests extends ESTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
@@ -173,9 +193,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final int contentLength,
         final HttpResponseStatus expectedStatus
     ) throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
@@ -194,7 +214,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -243,10 +263,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 networkService,
                 threadPool,
                 xContentRegistry(),
-                new NullDispatcher(),
+                new AggregatingDispatcher(),
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -264,10 +284,10 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     networkService,
                     threadPool,
                     xContentRegistry(),
-                    new NullDispatcher(),
+                    new AggregatingDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
-                    Tracer.NOOP,
+                    TelemetryProvider.NOOP,
                     TLSConfig.noTLS(),
                     null,
                     randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -322,7 +342,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -332,14 +352,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
-                final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
+                final String url = "/" + new String(new byte[maxInitialLineLength], StandardCharsets.UTF_8);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
-                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        new String(response.content().array(), StandardCharsets.UTF_8),
                         containsString("you sent a bad request and you should feel bad")
                     );
                 } finally {
@@ -393,7 +413,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -499,7 +519,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -540,6 +560,73 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testChannelAcceptorCannotTamperThreadContext() throws Exception {
+        HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThreadContextNotTampered(threadContext);
+                channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
+                throw new AssertionError();
+            }
+        };
+        // there's only one netty worker thread that's reused across client requests
+        Settings settings = createBuilderWithPort().put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
+            .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
+            .build();
+        AtomicBoolean acceptChannel = new AtomicBoolean();
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                randomClusterSettings(),
+                new SharedGroupFactory(settings),
+                TelemetryProvider.NOOP,
+                TLSConfig.noTLS(),
+                new AcceptChannelHandler.AcceptPredicate() {
+                    @Override
+                    public void setBoundAddress(BoundTransportAddress boundHttpTransportAddress) {}
+
+                    @Override
+                    public boolean test(String profile, InetSocketAddress peerAddress) {
+                        assertThreadContextNotTampered(threadPool.getThreadContext());
+                        tamperThreadContext(threadPool.getThreadContext());
+                        return acceptChannel.get();
+                    }
+                },
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+            )
+        ) {
+            transport.start();
+            int nRetries = randomIntBetween(7, 9);
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                for (int i = 0; i < nRetries; i++) {
+                    acceptChannel.set(randomBoolean());
+                    var responses = client.get(randomFrom(transport.boundAddress().boundAddresses()).address(), "/test/url");
+                    try {
+                        if (acceptChannel.get()) {
+                            assertThat(responses, iterableWithSize(1));
+                            assertThat(responses.iterator().next().status(), equalTo(HttpResponseStatus.OK));
+                        } else {
+                            assertThat(responses, emptyIterable());
+                        }
+                    } finally {
+                        for (FullHttpResponse response : responses) {
+                            response.release();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testReadTimeout() throws Exception {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 
@@ -572,7 +659,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -589,8 +676,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
                     @Override
                     protected void initChannel(SocketChannel ch) {
-                        ch.pipeline().addLast(new ChannelHandlerAdapter() {
-                        });
+                        ch.pipeline().addLast(new ChannelHandlerAdapter() {});
 
                     }
                 })
@@ -612,9 +698,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 try {
                     channel.sendResponse(
-                        new RestResponse(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
+                        RestResponse.chunked(OK, ChunkedRestResponseBodyPart.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
-                        }), ToXContent.EMPTY_PARAMS, channel))
+                        }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
                 } catch (IOException e) {
                     throw new AssertionError(e);
@@ -638,7 +724,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),
                 null,
                 randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
@@ -764,9 +850,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1mb")
             .build();
         final String requestString = randomAlphaOfLength(2 * 1024 * 1024); // request size is twice the limit
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
             @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+            public void dispatchAggregatedRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 throw new AssertionError("Request dispatched but shouldn't");
             }
 
@@ -775,20 +861,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError("Request dispatched but shouldn't");
             }
         };
-        final HttpValidator httpValidator = (httpRequest, channel, validationListener) -> {
-            // assert that the validator sees the request unaltered
-            assertThat(httpRequest.uri(), is(uri));
-            if (randomBoolean()) {
-                validationListener.onResponse(null);
-            } else {
-                validationListener.onFailure(new ElasticsearchException("Boom"));
-            }
-        };
         try (
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 settings,
                 dispatcher,
-                httpValidator,
+                (r, c, l) -> l.onResponse(null),
                 (restRequest, threadContext) -> {
                     throw new AssertionError("Request dispatched but shouldn't");
                 }
@@ -824,7 +901,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
                 // assert content is dropped
-                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
+                assertThat(channel.request().getHttpRequest().body().asFull().bytes().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {
@@ -883,14 +960,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     public void testMultipleValidationsOnTheSameChannel() throws InterruptedException {
         // ensure that there is a single channel active
-        final Settings settings = createBuilderWithPort().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
+        final Settings settings = createBuilderWithPort().put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
         final Set<String> okURIs = ConcurrentHashMap.newKeySet();
         final Set<String> nokURIs = ConcurrentHashMap.newKeySet();
         final SetOnce<Channel> channelSetOnce = new SetOnce<>();
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                assertThat(okURIs.contains(request.uri()), is(true));
+                assertThat(request.uri(), in(okURIs));
                 // assert validated request is dispatched
                 okURIs.remove(request.uri());
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("dispatch OK")));
@@ -899,7 +976,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 // assert unvalidated request is NOT dispatched
-                assertThat(nokURIs.contains(channel.request().uri()), is(true));
+                assertThat(channel.request().uri(), in(nokURIs));
                 nokURIs.remove(channel.request().uri());
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
@@ -914,9 +991,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             assertThat(channelSetOnce.get(), is(channel));
             // some requests are validated while others are not
             if (httpPreRequest.uri().contains("X-Auth=OK")) {
-                validationListener.onResponse(null);
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, channel.eventLoop()).execute(() -> validationListener.onResponse(null));
             } else if (httpPreRequest.uri().contains("X-Auth=NOK")) {
-                validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, channel.eventLoop()).execute(
+                    () -> validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED))
+                );
             } else {
                 throw new AssertionError("Unrecognized URI");
             }
@@ -956,6 +1035,81 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testRespondAfterServiceCloseWithClientCancel() throws Exception {
+        runRespondAfterServiceCloseTest(true);
+    }
+
+    public void testRespondAfterServiceCloseWithServerCancel() throws Exception {
+        runRespondAfterServiceCloseTest(false);
+    }
+
+    private void runRespondAfterServiceCloseTest(boolean clientCancel) throws Exception {
+        final String url = "/" + randomIdentifier();
+        final CountDownLatch responseReleasedLatch = new CountDownLatch(1);
+        final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
+        final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
+
+        final HttpServerTransport.Dispatcher dispatcher = new AggregatingDispatcher() {
+            @Override
+            public void dispatchAggregatedRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertEquals(request.uri(), url);
+                final var response = RestResponse.chunked(
+                    OK,
+                    ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    responseReleasedLatch::countDown
+                );
+                transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));
+                handlingRequestLatch.countDown();
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                fail(cause, "--> Unexpected bad request [%s]", FakeRestRequest.requestToString(channel.request()));
+            }
+        };
+
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                clientCancel
+                    ? Settings.EMPTY
+                    : Settings.builder().put(SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(1)).build(),
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY),
+                TelemetryProvider.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+            )
+        ) {
+            transport.start();
+            final var address = randomFrom(transport.boundAddress().boundAddresses()).address();
+            try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
+                final var responseExceptionFuture = new PlainActionFuture<Exception>();
+                final var cancellable = client.performRequestAsync(
+                    new Request("GET", url),
+                    ActionTestUtils.wrapAsRestResponseListener(ActionTestUtils.assertNoSuccessListener(responseExceptionFuture::onResponse))
+                );
+                safeAwait(handlingRequestLatch);
+                if (clientCancel) {
+                    threadPool.generic().execute(cancellable::cancel);
+                }
+                transport.close();
+                transportClosedFuture.onResponse(null);
+                safeAwait(responseReleasedLatch);
+                final var responseException = safeGet(responseExceptionFuture);
+                if (clientCancel) {
+                    assertThat(responseException, instanceOf(CancellationException.class));
+                } else {
+                    assertThat(responseException, instanceOf(ConnectionClosedException.class));
+                }
+            }
+        }
+    }
+
     private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
         HttpServerTransport.Dispatcher dispatcher,
         HttpValidator httpValidator,
@@ -978,7 +1132,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             dispatcher,
             clusterSettings,
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
+            TelemetryProvider.NOOP,
             TLSConfig.noTLS(),
             null,
             httpValidator
@@ -1012,5 +1166,27 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
 
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
+    }
+
+    private static void tamperThreadContext(ThreadContext threadContext) {
+        boolean tampered = false;
+        if (randomBoolean()) {
+            threadContext.putHeader(randomAlphaOfLength(16), "tampered with request header");
+            tampered = true;
+        }
+        if (randomBoolean()) {
+            threadContext.putTransient(randomAlphaOfLength(16), "tampered with transient request header");
+            tampered = true;
+        }
+        if (randomBoolean() || tampered == false) {
+            threadContext.addResponseHeader(randomAlphaOfLength(8), "tampered with response header");
+        }
+    }
+
+    private static void assertThreadContextNotTampered(ThreadContext threadContext) {
+        if (false == threadContext.isDefaultContext()) {
+            throw new AssertionError("tampered thread context");
+        }
+        Transports.assertTransportThread();
     }
 }

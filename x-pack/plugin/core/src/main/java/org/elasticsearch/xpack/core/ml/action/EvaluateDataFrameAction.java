@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,10 +46,10 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";
 
     private EvaluateDataFrameAction() {
-        super(NAME, EvaluateDataFrameAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private static final ParseField INDEX = new ParseField("index");
         private static final ParseField QUERY = new ParseField("query");
@@ -188,13 +188,12 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private String evaluationName;
-        private List<EvaluationMetricResult> metrics;
+        private final String evaluationName;
+        private final List<EvaluationMetricResult> metrics;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.evaluationName = in.readString();
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
+            this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }
 
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
@@ -213,7 +212,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeNamedWriteableList(metrics);
+            out.writeNamedWriteableCollection(metrics);
         }
 
         @Override

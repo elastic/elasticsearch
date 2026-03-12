@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -22,7 +22,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -92,7 +92,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          *
          * @return true if this collection is done and there are no more changes to look for
          */
-        boolean collectChangesFromAggregations(Aggregations aggregations);
+        boolean collectChangesFromAggregations(InternalAggregations aggregations);
 
         /**
          * Return a composite value source builder if the collector requires it.
@@ -248,7 +248,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+        public boolean collectChangesFromAggregations(InternalAggregations aggregations) {
             return true;
         }
 
@@ -314,7 +314,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+        public boolean collectChangesFromAggregations(InternalAggregations aggregations) {
             return true;
         }
 
@@ -401,14 +401,14 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+        public boolean collectChangesFromAggregations(InternalAggregations aggregations) {
             final SingleValue lowerBoundResult = aggregations.get(minAggregationOutputName);
             final SingleValue upperBoundResult = aggregations.get(maxAggregationOutputName);
 
             if (lowerBoundResult != null && upperBoundResult != null) {
                 // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
                 lowerBound = rounding.round((long) lowerBoundResult.value());
-                upperBound = (long) upperBoundResult.value();
+                upperBound = rounding.nextRoundingValue((long) upperBoundResult.value());
 
                 return false;
             }
@@ -510,7 +510,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+        public boolean collectChangesFromAggregations(InternalAggregations aggregations) {
             final SingleValue lowerBoundResult = aggregations.get(minAggregationOutputName);
             final SingleValue upperBoundResult = aggregations.get(maxAggregationOutputName);
 
@@ -560,7 +560,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public int getMaxPageSize() {
             // this collector is limited by indices.query.bool.max_clause_count, default 1024
-            return BooleanQuery.getMaxClauseCount();
+            return IndexSearcher.getMaxClauseCount();
         }
 
         @Override
@@ -659,7 +659,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
-        public boolean collectChangesFromAggregations(Aggregations aggregations) {
+        public boolean collectChangesFromAggregations(InternalAggregations aggregations) {
             return true;
         }
 
@@ -743,7 +743,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
     @Override
     public Map<String, Object> processSearchResponse(final SearchResponse searchResponse) {
-        final Aggregations aggregations = searchResponse.getAggregations();
+        final InternalAggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
             return null;
         }

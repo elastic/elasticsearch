@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -11,6 +12,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -35,7 +37,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     private final List<String> filterNames;
 
     ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, ScriptService scriptService) {
-        super(name, settings);
+        super(name);
 
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
@@ -57,6 +59,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
@@ -71,7 +74,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     "ScriptedConditionTokenFilter [" + name() + "] refers to undefined token filter [" + filter + "]"
                 );
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+            tff = tff.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
             filters.add(tff);
             existingChain.add(tff);
         }

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.common.validation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -15,15 +14,21 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RedirectToLocalClusterRemoteClusterClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
@@ -37,6 +42,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -55,6 +61,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -63,7 +70,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_PIPELINE_MISSING_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SOURCE_MISSING_VALIDATION;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -79,6 +88,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private static final String ALIAS_READ_WRITE_DEST = "alias-read-write-dest";
     private static final String REMOTE_BASIC = "remote-basic";
     private static final String REMOTE_PLATINUM = "remote-platinum";
+    private static final ProjectId PROJECT_ID = ProjectId.fromId("not-default");
 
     private static final ClusterState CLUSTER_STATE;
 
@@ -93,6 +103,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         REMOTE_SOURCE_VALIDATION
     );
 
+    private TestThreadPool clientThreadPool;
     private Client clientWithBasicLicense;
     private Client clientWithExpiredBasicLicense;
     private Client clientWithPlatinumLicense;
@@ -103,7 +114,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(
         Settings.EMPTY,
-        Version.CURRENT,
+        VersionInformation.CURRENT,
         TransportVersion.current(),
         threadPool
     );
@@ -124,26 +135,24 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     static {
         IndexMetadata source1 = IndexMetadata.builder(SOURCE_1)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(SOURCE_1_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata source2 = IndexMetadata.builder(SOURCE_2)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata aliasedDest = IndexMetadata.builder(ALIASED_DEST)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
+
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.metadata(
-            Metadata.builder()
-                .put(IndexMetadata.builder(source1).build(), false)
-                .put(IndexMetadata.builder(source2).build(), false)
-                .put(IndexMetadata.builder(aliasedDest).build(), false)
+            Metadata.builder().put(ProjectMetadata.builder(PROJECT_ID).put(source1, false).put(source2, false).put(aliasedDest, false))
         );
         CLUSTER_STATE = state.build();
     }
@@ -152,15 +161,19 @@ public class SourceDestValidatorTests extends ESTestCase {
         private final String license;
         private final LicenseStatus licenseStatus;
 
-        MockClientLicenseCheck(String testName, String license, LicenseStatus licenseStatus) {
-            super(testName);
+        MockClientLicenseCheck(ThreadPool threadPool, String license, LicenseStatus licenseStatus) {
+            super(threadPool);
             this.license = license;
             this.licenseStatus = licenseStatus;
         }
 
         @Override
-        public Client getRemoteClusterClient(String clusterAlias) {
-            return this;
+        public RemoteClusterClient getRemoteClusterClient(
+            String clusterAlias,
+            Executor responseExecutor,
+            RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+        ) {
+            return new RedirectToLocalClusterRemoteClusterClient(this);
         }
 
         @SuppressWarnings("unchecked")
@@ -185,21 +198,20 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     @Before
     public void setupComponents() {
-        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.ACTIVE);
-        clientWithExpiredBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.EXPIRED);
+        clientThreadPool = createThreadPool();
+        clientWithBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.ACTIVE);
+        clientWithExpiredBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.EXPIRED);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.BASIC);
         platinumFeature = LicensedFeature.momentary(null, "platinum-feature", License.OperationMode.PLATINUM);
         remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(clientWithBasicLicense, feature);
-        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum", LicenseStatus.ACTIVE);
-        clientWithTrialLicense = new MockClientLicenseCheck(getTestName(), "trial", LicenseStatus.ACTIVE);
+        clientWithPlatinumLicense = new MockClientLicenseCheck(clientThreadPool, "platinum", LicenseStatus.ACTIVE);
+        clientWithTrialLicense = new MockClientLicenseCheck(clientThreadPool, "trial", LicenseStatus.ACTIVE);
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, PROJECT_ID.id());
     }
 
     @After
     public void closeComponents() throws Exception {
-        clientWithBasicLicense.close();
-        clientWithExpiredBasicLicense.close();
-        clientWithPlatinumLicense.close();
-        clientWithTrialLicense.close();
+        clientThreadPool.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -592,7 +604,8 @@ public class SourceDestValidatorTests extends ESTestCase {
             Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1))
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
-        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
+        var projectId = randomProjectIdOrDefault();
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId, nodeFeature -> true);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(
@@ -657,6 +670,51 @@ public class SourceDestValidatorTests extends ESTestCase {
             c -> { assertNull(c.getValidationException()); },
             null
         );
+    }
+
+    public void testRemoteSourceNotSupportedValidationWithLocalIndex() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertNull(c.getValidationException());
+        }, null);
+    }
+
+    public void testRemoteSourceNotSupportedValidationWithRemoteIndex() throws InterruptedException {
+        Context context = spy(
+            new SourceDestValidator.Context(
+                CLUSTER_STATE,
+                indexNameExpressionResolver,
+                remoteClusterService,
+                remoteClusterLicenseCheckerBasic,
+                ingestService,
+                new String[] { REMOTE_BASIC + ":" + SOURCE_1 },
+                "dest",
+                null,
+                "node_id",
+                "license"
+            )
+        );
+
+        assertValidationWithContext(listener -> REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION.validate(context, listener), c -> {
+            assertThat(
+                c.getValidationException().getMessage(),
+                containsString("remote source and cross-project indices are not supported")
+            );
+        }, null);
     }
 
     public void testRemoteSourcePlatinum() throws InterruptedException {
@@ -864,7 +922,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             } else if (e instanceof ValidationException) {
                 onException.accept((ValidationException) e);
             } else {
-                fail("got unexpected exception type: " + e);
+                fail(e, "got unexpected exception type: " + e);
             }
         }), latch);
 

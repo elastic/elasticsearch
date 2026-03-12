@@ -214,7 +214,7 @@
 "Test rolling up json object arrays":
   - do:
       ingest.put_pipeline:
-        id: "_id"
+        id: "pipeline-id"
         body:  >
           {
             "processors": [
@@ -237,7 +237,7 @@
       index:
         index: test
         id: "1"
-        pipeline: "_id"
+        pipeline: "pipeline-id"
         body: {
           values_flat : [],
           values: [

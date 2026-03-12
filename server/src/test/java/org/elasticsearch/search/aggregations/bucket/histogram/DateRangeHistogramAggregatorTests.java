@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -12,8 +13,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -51,7 +50,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             true
         );
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.DAY),
             writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
             histo -> {
@@ -76,7 +75,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             "2019-08-04T00:00:00.000Z",
             "2019-08-05T00:00:00.000Z" };
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.DAY),
             writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
             histo -> {
@@ -99,7 +98,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             true
         );
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.DAY).format("yyyy-MM-dd"),
             writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
             histo -> {
@@ -127,8 +126,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)));
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType)));
             }
         }
     }
@@ -160,7 +158,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         // Calendar interval case - three months, three bucketLong.MIN_VALUE;s
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.MONTH), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.MONTH), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(julyRange)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(augustRange)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(septemberRange)))));
@@ -207,7 +205,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         // Fixed interval case - 4 periods of 30 days
-        testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("30d")), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.fixedInterval(new DateHistogramInterval("30d")), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(julyRange)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(augustRange)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(septemberRange)))));
@@ -269,7 +267,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         // No offset, just to make sure the ranges line up as expected
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.HOUR), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -291,7 +289,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         });
 
         // 10 minute offset should shift all data into one bucket
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("10m"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("10m"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -349,7 +347,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         // No offset, just to make sure the ranges line up as expected
-        testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.fixedInterval(new DateHistogramInterval("1h")), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -371,7 +369,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         });
 
         // 10 minute offset should shift all data into one bucket
-        testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("10m"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("10m"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -437,7 +435,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             true
         );
 
-        testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("13m"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.fixedInterval(new DateHistogramInterval("1h")).offset("13m"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -468,7 +466,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             assertTrue(AggregationInspectionHelper.hasValue(histo));
         });
 
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("13m"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.HOUR).offset("13m"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -548,7 +546,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             true
         );
 
-        testCase(new MatchAllDocsQuery(), builder -> builder.fixedInterval(new DateHistogramInterval("1d")).offset("36h"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.fixedInterval(new DateHistogramInterval("1d")).offset("36h"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -579,7 +577,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             assertTrue(AggregationInspectionHelper.hasValue(histo));
         });
 
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY).offset("12h"), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.DAY).offset("12h"), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -642,7 +640,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         // Guard case, make sure the agg buckets as expected without min doc count
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.DAY), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -662,7 +660,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             assertTrue(AggregationInspectionHelper.hasValue(histo));
         });
 
-        testCase(new MatchAllDocsQuery(), builder -> builder.calendarInterval(DateHistogramInterval.DAY).minDocCount(2), writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder -> builder.calendarInterval(DateHistogramInterval.DAY).minDocCount(2), writer -> {
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
             writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
@@ -882,7 +880,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(
-            Queries.newMatchAllQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
             writer -> {
@@ -923,7 +921,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(
-            Queries.newMatchAllQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T03:00:00", "2019-08-02T10:00:00")),
             writer -> {
@@ -964,7 +962,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(
-            Queries.newMatchAllQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
                 .extendedBounds(new LongBounds("2019-08-02T01:00:00", "2019-08-02T08:00:00")),
@@ -994,7 +992,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> testCase(
-                Queries.newMatchAllQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                     .hardBounds(new LongBounds("2019-08-02T01:00:00", "2019-08-02T08:00:00"))
                     .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
@@ -1031,7 +1029,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
 
         testCase(
-            Queries.newMatchAllQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
                 .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
                 .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
@@ -1082,10 +1080,8 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 InternalDateHistogram histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(histogram);

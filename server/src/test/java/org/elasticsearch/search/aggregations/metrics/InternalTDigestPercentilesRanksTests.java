@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -35,7 +36,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         if (empty) {
             return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
         }
-        final TDigestState state = new TDigestState(100);
+        final HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, 100);
         Arrays.stream(values).forEach(state::add);
 
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
@@ -49,7 +50,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         double max = Double.NEGATIVE_INFINITY;
         long totalCount = 0;
         for (InternalTDigestPercentileRanks ranks : inputs) {
-            if (ranks.state.centroidCount() == 0) {
+            if (ranks.state.centroids().isEmpty()) {
                 // quantiles would return NaN
                 continue;
             }
@@ -83,15 +84,10 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentileRanks.class;
-    }
-
-    @Override
     protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
-        TDigestState state = instance.state;
+        HistogramUnionState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
@@ -103,7 +99,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                HistogramUnionState newState = HistogramUnionState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

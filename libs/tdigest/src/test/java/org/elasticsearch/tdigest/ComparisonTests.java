@@ -21,118 +21,118 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
-public class ComparisonTests extends ESTestCase {
+public class ComparisonTests extends TDigestTestCase {
 
-    public void testRandomDenseDistribution() {
-        final int SAMPLE_COUNT = 1_000_000;
+    private static final int SAMPLE_COUNT = 1_000_000;
+
+    private TDigest avlTreeDigest;
+    private TDigest mergingDigest;
+    private TDigest sortingDigest;
+    private TDigest hybridDigest;
+
+    double[] samples;
+
+    private void loadData(Supplier<Double> sampleGenerator) {
         final int COMPRESSION = 100;
+        avlTreeDigest = TDigest.createAvlTreeDigest(arrays(), COMPRESSION);
+        mergingDigest = TDigest.createMergingDigest(arrays(), COMPRESSION);
+        sortingDigest = TDigest.createSortingDigest(arrays());
+        hybridDigest = TDigest.createHybridDigest(arrays(), COMPRESSION);
+        samples = new double[SAMPLE_COUNT];
 
-        TDigest avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
-        TDigest mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        double[] samples = new double[SAMPLE_COUNT];
-
-        var rand = random();
         for (int i = 0; i < SAMPLE_COUNT; i++) {
-            samples[i] = rand.nextDouble();
+            samples[i] = sampleGenerator.get();
             avlTreeDigest.add(samples[i]);
             mergingDigest.add(samples[i]);
+            sortingDigest.add(samples[i]);
+            hybridDigest.add(samples[i]);
         }
         Arrays.sort(samples);
+    }
+
+    private void releaseData() {
+        Releasables.close(avlTreeDigest, mergingDigest, sortingDigest, hybridDigest);
+    }
+
+    public void testRandomDenseDistribution() {
+        loadData(() -> random().nextDouble());
 
         for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
+            assertEquals(String.valueOf(percentile), expected, sortingDigest.quantile(q), 0);
             assertEquals(String.valueOf(percentile), expected, avlTreeDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
+            assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
+
+        releaseData();
     }
 
     public void testRandomSparseDistribution() {
-        final int SAMPLE_COUNT = 1_000_000;
-        final int COMPRESSION = 100;
-
-        TDigest avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
-        TDigest mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        double[] samples = new double[SAMPLE_COUNT];
-
-        var rand = random();
-        for (int i = 0; i < SAMPLE_COUNT; i++) {
-            samples[i] = rand.nextDouble() * SAMPLE_COUNT * SAMPLE_COUNT + SAMPLE_COUNT;
-            avlTreeDigest.add(samples[i]);
-            mergingDigest.add(samples[i]);
-        }
-        Arrays.sort(samples);
+        loadData(() -> random().nextDouble() * SAMPLE_COUNT * SAMPLE_COUNT + SAMPLE_COUNT);
 
         for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 50, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
+            assertEquals(String.valueOf(percentile), expected, sortingDigest.quantile(q), 0);
             assertEquals(String.valueOf(percentile), expected, avlTreeDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
+            assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
+
+        releaseData();
     }
 
     public void testDenseGaussianDistribution() {
-        final int SAMPLE_COUNT = 1_000_000;
-        final int COMPRESSION = 100;
-
-        TDigest avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
-        TDigest mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        double[] samples = new double[SAMPLE_COUNT];
-
-        var rand = random();
-        for (int i = 0; i < SAMPLE_COUNT; i++) {
-            samples[i] = rand.nextGaussian();
-            avlTreeDigest.add(samples[i]);
-            mergingDigest.add(samples[i]);
-        }
-        Arrays.sort(samples);
+        loadData(() -> random().nextGaussian());
 
         for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
+            assertEquals(String.valueOf(percentile), expected, sortingDigest.quantile(q), 0);
             assertEquals(String.valueOf(percentile), expected, avlTreeDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
+            assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
 
         double expectedMedian = Dist.quantile(0.5, samples);
+        assertEquals(expectedMedian, sortingDigest.quantile(0.5), 0);
         assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), 0.01);
         assertEquals(expectedMedian, mergingDigest.quantile(0.5), 0.01);
+        assertEquals(expectedMedian, hybridDigest.quantile(0.5), 0.01);
+
+        releaseData();
     }
 
     public void testSparseGaussianDistribution() {
-        final int SAMPLE_COUNT = 1_000_000;
-        final int COMPRESSION = 100;
-
-        TDigest avlTreeDigest = TDigest.createAvlTreeDigest(COMPRESSION);
-        TDigest mergingDigest = TDigest.createMergingDigest(COMPRESSION);
-        double[] samples = new double[SAMPLE_COUNT];
-        var rand = random();
-
-        for (int i = 0; i < SAMPLE_COUNT; i++) {
-            samples[i] = rand.nextGaussian() * SAMPLE_COUNT;
-            avlTreeDigest.add(samples[i]);
-            mergingDigest.add(samples[i]);
-        }
-        Arrays.sort(samples);
+        loadData(() -> random().nextGaussian() * SAMPLE_COUNT);
 
         for (double percentile : new double[] { 0, 0.01, 0.1, 1, 5, 10, 25, 75, 90, 99, 99.9, 99.99, 100.0 }) {
             double q = percentile / 100.0;
             double expected = Dist.quantile(q, samples);
             double accuracy = percentile > 1 ? Math.abs(expected / 10) : Math.abs(expected);
+            assertEquals(String.valueOf(percentile), expected, sortingDigest.quantile(q), 0);
             assertEquals(String.valueOf(percentile), expected, avlTreeDigest.quantile(q), accuracy);
             assertEquals(String.valueOf(percentile), expected, mergingDigest.quantile(q), accuracy);
+            assertEquals(String.valueOf(percentile), expected, hybridDigest.quantile(q), accuracy);
         }
 
         // The absolute value of median is within [0,5000], which is deemed close enough to 0 compared to the max value.
         double expectedMedian = Dist.quantile(0.5, samples);
+        assertEquals(expectedMedian, sortingDigest.quantile(0.5), 0);
         assertEquals(expectedMedian, avlTreeDigest.quantile(0.5), 5000);
         assertEquals(expectedMedian, mergingDigest.quantile(0.5), 5000);
+        assertEquals(expectedMedian, hybridDigest.quantile(0.5), 5000);
+
+        releaseData();
     }
 }

@@ -7,6 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.core.UpdateForV10;
+
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsConstants {
 
     private AnalyticsConstants() {}
@@ -18,7 +25,7 @@ public class AnalyticsConstants {
     public static final String EVENT_DATA_STREAM_INDEX_PATTERN = EVENT_DATA_STREAM_INDEX_PREFIX + "*";
 
     // Resource config.
-    public static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/entsearch/analytics/";
+    public static final String ROOT_RESOURCE_PATH = "/entsearch/analytics/";
 
     // The variable to be replaced with the template version number
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.entsearch.analytics.template.version";

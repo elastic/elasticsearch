@@ -1,0 +1,12 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  clusterModules(project(":modules:analysis-common"))
+  clusterModules(project(":modules:rest-root"))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}

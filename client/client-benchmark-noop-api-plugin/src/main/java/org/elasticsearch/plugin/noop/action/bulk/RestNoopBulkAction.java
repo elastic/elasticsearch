@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
@@ -54,6 +55,8 @@ public class RestNoopBulkAction extends BaseRestHandler {
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
         Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
+        Boolean defaultRequireDataStream = request.paramAsBoolean("require_data_stream", null);
+        Boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -68,6 +71,8 @@ public class RestNoopBulkAction extends BaseRestHandler {
             null,
             defaultPipeline,
             defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
             true,
             request.getXContentType(),
             request.getRestApiVersion()

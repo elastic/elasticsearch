@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.MockIndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -25,6 +25,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -45,11 +48,15 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.ALLOW_NO_INDICES;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -60,6 +67,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +82,7 @@ public class SecurityActionFilterTests extends ESTestCase {
     private SecurityActionFilter filter;
     private ThreadContext threadContext;
     private boolean failDestructiveOperations;
+    private AtomicInteger authServiceCallsRunning = new AtomicInteger();
 
     @Before
     public void init() throws Exception {
@@ -96,7 +105,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("id1"))
-            .add(DiscoveryNodeUtils.builder("id2").version(Version.CURRENT.minimumCompatibilityVersion()).build())
+            .add(
+                DiscoveryNodeUtils.builder("id2")
+                    .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    .build()
+            )
             .build();
         when(state.nodes()).thenReturn(nodes);
 
@@ -108,7 +121,8 @@ public class SecurityActionFilterTests extends ESTestCase {
             licenseState,
             threadPool,
             securityContext,
-            destructiveOperations
+            destructiveOperations,
+            () -> Set.of("_action_secondary_auth")
         );
     }
 
@@ -146,12 +160,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionResponse actionResponse = mock(ActionResponse.class);
         mockChain(task, "_action", request, actionResponse);
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-        assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+        assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
 
         filter.apply(task, "_action", request, listener, chain);
 
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-        assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+        assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
         verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
     }
@@ -169,7 +183,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         SetOnce<String> requestIdOnActionHandler = new SetOnce<>();
         ActionFilterChain chain = (task, action, request1, listener1) -> {
             authenticationSetOnce.set(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-            accessControlSetOnce.set(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+            accessControlSetOnce.set(INDICES_PERMISSIONS_VALUE.get(threadContext));
             requestIdOnActionHandler.set(AuditUtil.extractRequestId(threadContext));
         };
         Task task = mock(Task.class);
@@ -180,7 +194,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             AuditUtil.generateRequestId(threadContext);
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
-            threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+            AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
             if (hasExistingAccessControl) {
                 new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             }
@@ -206,7 +220,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         if (hasExistingAuthentication) {
             assertEquals(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             if (hasExistingAccessControl) {
-                assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(IndicesAccessControl.ALLOW_NO_INDICES));
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), sameInstance(ALLOW_NO_INDICES));
             }
         } else {
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
@@ -223,7 +237,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
+        String action = randomFrom(TransportCloseIndexAction.NAME, OpenIndexAction.NAME, TransportDeleteIndexAction.TYPE.name());
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
@@ -300,17 +314,95 @@ public class SecurityActionFilterTests extends ESTestCase {
         verifyNoMoreInteractions(chain);
     }
 
-    private void mockAuthentication(ActionRequest request, Authentication authentication, String requestId) {
+    public void testSecondaryAuth() throws Exception {
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        User user1 = new User("user1", "r1", "r2");
+        User user2 = new User("user2", "r3", "r4");
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user1)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        Authentication secondaryAuth = AuthenticationTestHelper.builder()
+            .user(user2)
+            .realmRef(new RealmRef("test2", "test2", "foo2"))
+            .build(false);
+        String requestId = UUIDs.randomBase64UUID();
+
+        // mock primary and secondary authentication headers already set
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+        assertNull(threadContext.getTransient(SecondaryAuthentication.THREAD_CTX_KEY));
+        threadContext.putTransient(SecondaryAuthentication.THREAD_CTX_KEY, secondaryAuth);
+        threadContext.putHeader(SecondaryAuthentication.THREAD_CTX_KEY, secondaryAuth.encode());
+
+        String actionName = "_action_secondary_auth";
+        // ensure that the filter swaps out to the secondary user
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
-            assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-            threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-            threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+            assertSame(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY), secondaryAuth);
+            assertEquals(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), secondaryAuth.encode());
             threadContext.putHeader("_xpack_audit_request_id", requestId);
-            callback.onResponse(authentication);
+            callback.onResponse(secondaryAuth);
             return Void.TYPE;
+        }).when(authcService).authenticate(eq(actionName), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
+
+        mockAuthorize();
+        ActionResponse actionResponse = mock(ActionResponse.class);
+        mockChain(task, actionName, request, actionResponse);
+        filter.apply(task, actionName, request, listener, chain);
+        verify(authzService).authorize(eq(secondaryAuth), eq(actionName), eq(request), anyActionListener());
+        verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(secondaryAuth), eq(actionName), eq(request), eq(actionResponse));
+    }
+
+    public void testSecondaryAuthRequired() throws Exception {
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        User user1 = new User("user1", "r1", "r2");
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user1)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        // mock primary but not secondary authentication headers already set
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+        String actionName = "_action_secondary_auth";
+        ActionResponse actionResponse = mock(ActionResponse.class);
+        mockChain(task, actionName, request, actionResponse);
+        filter.apply(task, actionName, request, listener, chain);
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
+        assertEquals(
+            "es-secondary-authorization header must be used to call action [" + actionName + "]",
+            exceptionCaptor.getValue().getMessage()
+        );
+        verifyNoInteractions(authcService);
+        verifyNoInteractions(authzService);
+    }
+
+    private void mockAuthentication(ActionRequest request, Authentication authentication, String requestId) {
+        doAnswer(i -> {
+            try {
+                authServiceCallsRunning.incrementAndGet();
+                final Object[] args = i.getArguments();
+                assertThat(args, arrayWithSize(4));
+                ActionListener callback = (ActionListener) args[args.length - 1];
+                assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+                threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+                threadContext.putHeader("_xpack_audit_request_id", requestId);
+                callback.onResponse(authentication);
+                return Void.TYPE;
+            } finally {
+                authServiceCallsRunning.decrementAndGet();
+            }
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
     }
 
@@ -320,18 +412,24 @@ public class SecurityActionFilterTests extends ESTestCase {
 
     private void mockAuthorize(IndicesAccessControl indicesAccessControl) {
         doAnswer(i -> {
-            final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(4));
-            ActionListener callback = (ActionListener) args[args.length - 1];
-            assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
-            callback.onResponse(null);
-            return Void.TYPE;
+            try {
+                authServiceCallsRunning.incrementAndGet();
+                final Object[] args = i.getArguments();
+                assertThat(args, arrayWithSize(4));
+                ActionListener callback = (ActionListener) args[args.length - 1];
+                assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
+                new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
+                callback.onResponse(null);
+                return Void.TYPE;
+            } finally {
+                authServiceCallsRunning.decrementAndGet();
+            }
         }).when(authzService).authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), anyActionListener());
     }
 
     private void mockChain(Task task, String action, ActionRequest request, ActionResponse actionResponse) {
         doAnswer(i -> {
+            assertEquals(0, authServiceCallsRunning.get());
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];

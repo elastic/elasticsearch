@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -243,8 +244,22 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(0L));
     }
 
-    public void testEncryptedPdf() throws Exception {
+    public void testEncryptedWithPasswordPdf() throws Exception {
+        /*
+         * This tests that a PDF that has been encrypted with a password fails in the way expected
+         */
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
+        assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
+    }
+
+    public void testEncryptedWithKeyPdf() throws Exception {
+        /*
+         * This tests that a PDF that has been encrypted with a public key fails in the way expected
+         */
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseDocument("encrypted-with-key.pdf", processor)
+        );
         assertThat(e.getDetailedMessage(), containsString("document is encrypted"));
     }
 

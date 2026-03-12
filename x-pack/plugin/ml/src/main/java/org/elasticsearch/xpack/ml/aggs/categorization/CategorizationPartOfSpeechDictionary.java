@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -73,49 +72,56 @@ public class CategorizationPartOfSpeechDictionary {
         }
     }
 
-    /**
-     * Lazy loaded singleton instance to avoid loading the dictionary repeatedly.
-     */
-    private static CategorizationPartOfSpeechDictionary instance;
-    private static final Object INIT_LOCK = new Object();
+    private static final class Holder {
+        /**
+         * Lazy loaded singleton instance to avoid loading the dictionary repeatedly.
+         */
+        private static final CategorizationPartOfSpeechDictionary instance = new CategorizationPartOfSpeechDictionary();
+    }
 
     /**
      * Keys are lower case.
      */
-    private final Map<String, PartOfSpeech> partOfSpeechDictionary = new HashMap<>();
+    private final Map<String, PartOfSpeech> partOfSpeechDictionary;
+
     private final int maxDictionaryWordLength;
 
-    CategorizationPartOfSpeechDictionary(InputStream is) throws IOException {
-
-        int maxLength = 0;
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            line = line.trim();
-            if (line.isEmpty()) {
-                continue;
+    CategorizationPartOfSpeechDictionary() {
+        try (InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(DICTIONARY_FILE_PATH)) {
+            int maxLength = 0;
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+            String line;
+            final Map<String, PartOfSpeech> partOfSpeechMap = new HashMap<>();
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+                String[] split = line.split(PART_OF_SPEECH_SEPARATOR);
+                if (split.length != 2) {
+                    throw new IllegalArgumentException(
+                        "Unexpected format in line [" + line + "]: expected one [" + PART_OF_SPEECH_SEPARATOR + "] separator"
+                    );
+                }
+                if (split[0].isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Unexpected format in line [" + line + "]: nothing preceding [" + PART_OF_SPEECH_SEPARATOR + "] separator"
+                    );
+                }
+                if (split[1].isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Unexpected format in line [" + line + "]: nothing following [" + PART_OF_SPEECH_SEPARATOR + "] separator"
+                    );
+                }
+                String lowerCaseWord = split[0].toLowerCase(Locale.ROOT);
+                partOfSpeechMap.put(lowerCaseWord, PartOfSpeech.fromCode(split[1].charAt(0)));
+                maxLength = Math.max(maxLength, lowerCaseWord.length());
             }
-            String[] split = line.split(PART_OF_SPEECH_SEPARATOR);
-            if (split.length != 2) {
-                throw new IllegalArgumentException(
-                    "Unexpected format in line [" + line + "]: expected one [" + PART_OF_SPEECH_SEPARATOR + "] separator"
-                );
-            }
-            if (split[0].isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Unexpected format in line [" + line + "]: nothing preceding [" + PART_OF_SPEECH_SEPARATOR + "] separator"
-                );
-            }
-            if (split[1].isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Unexpected format in line [" + line + "]: nothing following [" + PART_OF_SPEECH_SEPARATOR + "] separator"
-                );
-            }
-            String lowerCaseWord = split[0].toLowerCase(Locale.ROOT);
-            partOfSpeechDictionary.put(lowerCaseWord, PartOfSpeech.fromCode(split[1].charAt(0)));
-            maxLength = Math.max(maxLength, lowerCaseWord.length());
+            partOfSpeechDictionary = Map.copyOf(partOfSpeechMap);
+            maxDictionaryWordLength = maxLength;
+        } catch (Exception e) {
+            throw new AssertionError(e);
         }
-        maxDictionaryWordLength = maxLength;
     }
 
     // TODO: now we have this in Java, perform this operation in Java for anomaly detection categorization instead of in C++.
@@ -142,17 +148,7 @@ public class CategorizationPartOfSpeechDictionary {
         return getPartOfSpeech(word) != PartOfSpeech.NOT_IN_DICTIONARY;
     }
 
-    public static CategorizationPartOfSpeechDictionary getInstance() throws IOException {
-        if (instance != null) {
-            return instance;
-        }
-        synchronized (INIT_LOCK) {
-            if (instance == null) {
-                try (InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(DICTIONARY_FILE_PATH)) {
-                    instance = new CategorizationPartOfSpeechDictionary(is);
-                }
-            }
-            return instance;
-        }
+    public static CategorizationPartOfSpeechDictionary getInstance() {
+        return Holder.instance;
     }
 }

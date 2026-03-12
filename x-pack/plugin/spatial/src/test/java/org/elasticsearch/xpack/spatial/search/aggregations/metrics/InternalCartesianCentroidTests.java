@@ -8,20 +8,15 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,18 +33,6 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
     @Override
     protected SearchPlugin registerPlugin() {
         return new LocalStateSpatialPlugin();
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(CartesianCentroidAggregationBuilder.NAME),
-                (p, c) -> ParsedCartesianCentroid.fromXContent(p, (String) c)
-            )
-        );
     }
 
     @Override
@@ -103,17 +86,11 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
             Long.MAX_VALUE,
             Collections.emptyMap()
         );
-        InternalCentroid reducedCentroid = maxValueCentroid.reduce(Collections.singletonList(maxValueCentroid), null);
+        InternalCentroid reducedCentroid = (InternalCentroid) InternalAggregationTestCase.reduce(
+            Collections.singletonList(maxValueCentroid),
+            null
+        );
         assertThat(reducedCentroid.count(), equalTo(Long.MAX_VALUE));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalCartesianCentroid aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedCartesianCentroid);
-        ParsedCartesianCentroid parsed = (ParsedCartesianCentroid) parsedAggregation;
-
-        assertEquals(aggregation.centroid(), parsed.centroid());
-        assertEquals(aggregation.count(), parsed.count());
     }
 
     @Override

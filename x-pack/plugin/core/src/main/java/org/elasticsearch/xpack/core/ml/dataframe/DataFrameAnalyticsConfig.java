@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -109,7 +108,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 ObjectParser.ValueType.VALUE
             );
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
-            parser.declareString(Builder::setVersion, Version::fromString, VERSION);
+            parser.declareString(Builder::setVersion, MlConfigVersion::fromString, VERSION);
         }
         return parser;
     }
@@ -139,7 +138,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
     private final Instant createTime;
-    private final Version version;
+    private final MlConfigVersion version;
     private final boolean allowLazyStart;
     private final int maxNumThreads;
     private final Map<String, Object> meta;
@@ -154,7 +153,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         ByteSizeValue modelMemoryLimit,
         FetchSourceContext analyzedFields,
         Instant createTime,
-        Version version,
+        MlConfigVersion version,
         boolean allowLazyStart,
         Integer maxNumThreads,
         Map<String, Object> meta
@@ -188,15 +187,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
         this.headers = in.readImmutableMap(StreamInput::readString);
         this.createTime = in.readOptionalInstant();
-        this.version = in.readBoolean() ? Version.readVersion(in) : null;
+        this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            Map<String, Object> readMeta = in.readMap();
-            this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
-        } else {
-            this.meta = null;
-        }
+        Map<String, Object> readMeta = in.readGenericMap();
+        this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
     }
 
     public String getId() {
@@ -235,7 +230,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return createTime;
     }
 
-    public Version getVersion() {
+    public MlConfigVersion getVersion() {
         return version;
     }
 
@@ -258,7 +253,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (createTime != null) {
-                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    CREATE_TIME.getPreferredName(),
+                    CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
             }
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);
@@ -309,19 +308,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalInstant(createTime);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            MlConfigVersion.writeVersion(version, out);
         } else {
             out.writeBoolean(false);
         }
         out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeGenericMap(meta);
-        }
+        out.writeGenericMap(meta);
     }
 
     @Override
@@ -394,7 +391,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private ByteSizeValue maxModelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
         private Instant createTime;
-        private Version version;
+        private MlConfigVersion version;
         private boolean allowLazyStart;
         private Integer maxNumThreads;
         private Map<String, Object> meta;
@@ -474,7 +471,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        public Builder setVersion(MlConfigVersion version) {
             this.version = version;
             return this;
         }

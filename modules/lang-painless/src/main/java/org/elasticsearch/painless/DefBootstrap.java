@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -200,7 +201,10 @@ public final class DefBootstrap {
                     try {
                         return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
-                        Def.rethrow(t);
+                        // ClassValue.getFromHashMap wraps checked exceptions as Error, so we
+                        // use a sentinel class [PainlessWrappedException] here to work around
+                        // this issue and later unwrap the original exception
+                        Def.rethrow(t instanceof Exception ? new PainlessWrappedException((Exception) t) : t);
                         throw new AssertionError();
                     }
                 }

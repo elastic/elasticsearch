@@ -10,9 +10,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,11 +37,13 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     WatcherStatsRequest,
     WatcherStatsResponse,
     WatcherStatsRequest.Node,
-    WatcherStatsResponse.Node> {
+    WatcherStatsResponse.Node,
+    Void> {
 
     private final ExecutionService executionService;
     private final TriggerService triggerService;
     private final WatcherLifeCycleService lifeCycleService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportWatcherStatsAction(
@@ -50,22 +53,21 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
         ActionFilters actionFilters,
         WatcherLifeCycleService lifeCycleService,
         ExecutionService executionService,
-        TriggerService triggerService
+        TriggerService triggerService,
+        ProjectResolver projectResolver
     ) {
         super(
             WatcherStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            WatcherStatsRequest::new,
             WatcherStatsRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            WatcherStatsResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;
         this.triggerService = triggerService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -108,7 +110,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     }
 
     private WatcherMetadata getWatcherMetadata() {
-        WatcherMetadata watcherMetadata = clusterService.state().getMetadata().custom(WatcherMetadata.TYPE);
+
+        WatcherMetadata watcherMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(WatcherMetadata.TYPE);
         if (watcherMetadata == null) {
             watcherMetadata = new WatcherMetadata(false);
         }

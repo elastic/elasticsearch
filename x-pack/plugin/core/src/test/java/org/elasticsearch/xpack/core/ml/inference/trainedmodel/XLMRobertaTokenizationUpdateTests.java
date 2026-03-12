@@ -67,9 +67,6 @@ public class XLMRobertaTokenizationUpdateTests extends AbstractBWCWireSerializat
 
     @Override
     protected XLMRobertaTokenizationUpdate mutateInstanceForVersion(XLMRobertaTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
-            return new XLMRobertaTokenizationUpdate(instance.getTruncate(), null);
-        }
 
         return instance;
     }

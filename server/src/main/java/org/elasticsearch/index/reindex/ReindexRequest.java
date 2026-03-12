@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -18,8 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -31,13 +33,15 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -55,7 +59,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     /**
      * Prototype for index requests.
      */
-    private IndexRequest destination;
+    private final IndexRequest destination;
 
     private RemoteInfo remoteInfo;
 
@@ -63,11 +67,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this(new SearchRequest(), new IndexRequest(), true);
     }
 
-    ReindexRequest(SearchRequest search, IndexRequest destination) {
-        this(search, destination, true);
-    }
-
-    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+    ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
         super(search, setDefaults);
         this.destination = destination;
     }
@@ -81,6 +81,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     protected ReindexRequest self() {
         return this;
+    }
+
+    @Override
+    public boolean supportsRemoteIndicesSearch() {
+        return true;
     }
 
     @Override
@@ -115,6 +120,18 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
+            }
+            if (getSearchRequest().source().slice() != null) {
+                e = addValidationError(
+                    "reindex from remote sources doesn't support source.slice but was [" + getSearchRequest().source().slice() + "]",
+                    e
+                );
+            }
+            if (getRemoteInfo().getUsername() != null && getRemoteInfo().getPassword() == null) {
+                e = addValidationError("reindex from remote source included username but not password", e);
+            }
+            if (getRemoteInfo().getPassword() != null && getRemoteInfo().getUsername() == null) {
+                e = addValidationError("reindex from remote source included password but not username", e);
             }
         }
         return e;
@@ -249,6 +266,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
         sliced.setRemoteInfo(remoteInfo);
+        sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
     }
 
@@ -315,10 +333,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return builder;
     }
 
-    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Predicate<NodeFeature>> PARSER = new ObjectParser<>("reindex");
 
     static {
-        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, Predicate<NodeFeature>> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -329,12 +347,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser innerParser = parser.contentType()
-                    .xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
+                XContentParser innerParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    parser.contentType()
+                )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false);
+                request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, context);
             }
         };
 
@@ -346,30 +366,20 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
-
-        PARSER.declareInt(
-            ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs", "size").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
+        PARSER.declareField(
+            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
+            new ParseField("dest"),
+            ObjectParser.ValueType.OBJECT
         );
 
-        PARSER.declareInt(
-            ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-        );
-        // avoid silently accepting an ignored size.
-        PARSER.declareInt(
-            (r, s) -> failOnSizeSpecified(),
-            new ParseField("size").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-        );
-
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
+    public static ReindexRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, null);
+        PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
         return reindexRequest;
     }
 
@@ -426,6 +436,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
 
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        String apiKey = extractString(remote, "api_key");
+        if (apiKey != null) {
+            headers = headersWithApiKey(headers, apiKey);
+        }
+
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
@@ -503,7 +518,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
-    private static void failOnSizeSpecified() {
-        throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
+    /**
+     * Returns a headers map with the {@code Authorization} key set to the value {@code "ApiKey <apiKey>"}. If the original map is a
+     * {@link HashMap}, it is mutated; if not (e.g. it is {@link java.util.Collections#EMPTY_MAP}), it is copied. If the headers already
+     * include an {@code Authorization} key, an {@link IllegalArgumentException} is thrown.
+     */
+    private static Map<String, String> headersWithApiKey(Map<String, String> original, String apiKey) {
+        if (original.keySet().stream().anyMatch(key -> key.equalsIgnoreCase("Authorization"))) {
+            throw new IllegalArgumentException("Cannot specify both [api_key] and [headers] including [Authorization] key");
+        }
+        Map<String, String> updated = (original instanceof HashMap) ? original : new HashMap<>(original);
+        updated.put("Authorization", "ApiKey " + apiKey);
+        return updated;
     }
 }

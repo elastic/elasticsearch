@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,8 +21,10 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
@@ -135,7 +136,7 @@ public final class TransformNodes {
      * @param clusterState state
      */
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
-        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
+        if (TransformMetadata.getTransformMetadata(clusterState).resetMode() == false) {
             if (hasAnyTransformNode(clusterState.getNodes()) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
@@ -176,7 +177,7 @@ public final class TransformNodes {
                     appropriateNode.get(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, reader)
+                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 Map<String, String> explain = new TreeMap<>();
@@ -211,16 +212,19 @@ public final class TransformNodes {
 
     public static boolean nodeCanRunThisTransform(
         DiscoveryNode node,
-        Version minRequiredVersion,
+        TransformConfigVersion minRequiredVersion,
         boolean requiresRemote,
         Map<String, String> explain
     ) {
         // version of the transform run on a node that has at least the same version
-        if (minRequiredVersion != null && node.getVersion().onOrAfter(minRequiredVersion) == false) {
+        if (minRequiredVersion != null && TransformConfigVersion.fromNode(node).onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
                     node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
+                    "node supports transform config version: "
+                        + TransformConfigVersion.fromNode(node)
+                        + " but transform requires at least "
+                        + minRequiredVersion
                 );
             }
             return false;
@@ -237,7 +241,10 @@ public final class TransformNodes {
         // does the transform require a remote and remote is enabled?
         if (requiresRemote && node.isRemoteClusterClient() == false) {
             if (explain != null) {
-                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+                explain.put(
+                    node.getId(),
+                    "transform requires a remote connection but the node does not have the remote_cluster_client role"
+                );
             }
             return false;
         }

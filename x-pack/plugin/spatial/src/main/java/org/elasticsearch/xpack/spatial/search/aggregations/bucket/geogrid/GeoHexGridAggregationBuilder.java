@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
+public final class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohex_grid";
     private static final int DEFAULT_PRECISION = 5;
     private static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -118,12 +118,7 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_1_0;
+        return TransportVersion.minimumCompatible();
     }
 }

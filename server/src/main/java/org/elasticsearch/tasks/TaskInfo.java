@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public record TaskInfo(
     TaskId taskId,
     String type,
+    String node,
     String action,
     String description,
     Task.Status status,
@@ -61,8 +63,10 @@ public record TaskInfo(
      * Read from a stream.
      */
     public static TaskInfo from(StreamInput in) throws IOException {
+        TaskId taskId = TaskId.readFromStream(in);
         return new TaskInfo(
-            TaskId.readFromStream(in),
+            taskId,
+            in.readString(),
             in.readString(),
             in.readString(),
             in.readOptionalString(),
@@ -80,6 +84,7 @@ public record TaskInfo(
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
+        out.writeString(node);
         out.writeString(action);
         out.writeOptionalString(description);
         out.writeOptionalNamedWriteable(status);
@@ -88,7 +93,7 @@ public record TaskInfo(
         out.writeBoolean(cancellable);
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public long id() {
@@ -97,7 +102,7 @@ public record TaskInfo(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("node", taskId.getNodeId());
+        builder.field("node", node);
         builder.field("id", taskId.getId());
         builder.field("type", type);
         builder.field("action", action);
@@ -107,7 +112,7 @@ public record TaskInfo(
         if (description != null) {
             builder.field("description", description);
         }
-        builder.timeField("start_time_in_millis", "start_time", startTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTime);
         if (builder.humanReadable()) {
             builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
         }
@@ -136,7 +141,8 @@ public record TaskInfo(
 
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>("task_info", true, a -> {
         int i = 0;
-        TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+        String node = (String) a[i++];
+        TaskId id = new TaskId(node, (Long) a[i++]);
         String type = (String) a[i++];
         String action = (String) a[i++];
         String description = (String) a[i++];
@@ -157,6 +163,7 @@ public record TaskInfo(
         return new TaskInfo(
             id,
             type,
+            node,
             action,
             description,
             status,

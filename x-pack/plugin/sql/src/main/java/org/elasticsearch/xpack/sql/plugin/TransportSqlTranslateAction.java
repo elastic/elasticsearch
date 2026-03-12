@@ -10,8 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,6 +37,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
+    private final CrossProjectModeDecider cpsDecider;
 
     @Inject
     public TransportSqlTranslateAction(
@@ -44,9 +47,10 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         ThreadPool threadPool,
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
-        SqlLicenseChecker sqlLicenseChecker
+        SqlLicenseChecker sqlLicenseChecker,
+        CrossProjectModeDecider cpsDecider
     ) {
-        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
+        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -54,6 +58,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
+        this.cpsDecider = cpsDecider;
     }
 
     @Override
@@ -77,17 +82,16 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             Protocol.INDEX_INCLUDE_FROZEN,
             null,
             null,
-            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS
+            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            cpsDecider.crossProjectEnabled(),
+            request.projectRouting()
         );
 
         planExecutor.searchSource(
             cfg,
             request.query(),
             request.params(),
-            ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, searchSourceBuilder) -> l.onResponse(new SqlTranslateResponse(searchSourceBuilder)))
         );
     }
 }

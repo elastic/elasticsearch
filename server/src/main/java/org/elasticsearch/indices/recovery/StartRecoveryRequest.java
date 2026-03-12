@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -15,20 +16,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Represents a request for starting a peer recovery.
  */
-public class StartRecoveryRequest extends TransportRequest {
+public class StartRecoveryRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
     private final String targetAllocationId;
     private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
+    private final long clusterStateVersion;
     private final Store.MetadataSnapshot metadataSnapshot;
     private final boolean primaryRelocation;
     private final long startingSeqNo;
@@ -41,14 +43,11 @@ public class StartRecoveryRequest extends TransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
+        clusterStateVersion = in.readVLong();
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
-        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            canDownloadSnapshotFiles = in.readBoolean();
-        } else {
-            canDownloadSnapshotFiles = true;
-        }
+        canDownloadSnapshotFiles = in.readBoolean();
     }
 
     /**
@@ -58,6 +57,7 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param targetAllocationId       the allocation id of the target shard
      * @param sourceNode               the source node to remover from
      * @param targetNode               the target node to recover to
+     * @param clusterStateVersion      the cluster state version which initiated the recovery
      * @param metadataSnapshot         the Lucene metadata
      * @param primaryRelocation        whether or not the recovery is a primary relocation
      * @param recoveryId               the recovery ID
@@ -69,12 +69,14 @@ public class StartRecoveryRequest extends TransportRequest {
         final String targetAllocationId,
         final DiscoveryNode sourceNode,
         final DiscoveryNode targetNode,
+        final long clusterStateVersion,
         final Store.MetadataSnapshot metadataSnapshot,
         final boolean primaryRelocation,
         final long recoveryId,
         final long startingSeqNo,
         final boolean canDownloadSnapshotFiles
     ) {
+        this.clusterStateVersion = clusterStateVersion;
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -108,6 +110,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
+    public long clusterStateVersion() {
+        return clusterStateVersion;
+    }
+
     public boolean isPrimaryRelocation() {
         return primaryRelocation;
     }
@@ -129,11 +135,13 @@ public class StartRecoveryRequest extends TransportRequest {
         return Strings.format(
             """
                 recovery of %s to %s \
-                [recoveryId=%d, targetAllocationId=%s, startingSeqNo=%d, primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
+                [recoveryId=%d, targetAllocationId=%s, clusterStateVersion=%d, startingSeqNo=%d, \
+                primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
             shardId,
             targetNode.descriptionWithoutAttributes(),
             recoveryId,
             targetAllocationId,
+            clusterStateVersion,
             startingSeqNo,
             primaryRelocation,
             canDownloadSnapshotFiles
@@ -148,11 +156,32 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
+        out.writeVLong(clusterStateVersion);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
-        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            out.writeBoolean(canDownloadSnapshotFiles);
-        }
+        out.writeBoolean(canDownloadSnapshotFiles);
+    }
+
+    @Override
+    public String toString() {
+        return "StartRecoveryRequest{"
+            + "shardId="
+            + shardId
+            + ", targetNode="
+            + targetNode.descriptionWithoutAttributes()
+            + ", recoveryId="
+            + recoveryId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + "', clusterStateVersion="
+            + clusterStateVersion
+            + ", primaryRelocation="
+            + primaryRelocation
+            + ", startingSeqNo="
+            + startingSeqNo
+            + ", canDownloadSnapshotFiles="
+            + canDownloadSnapshotFiles
+            + '}';
     }
 }

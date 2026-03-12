@@ -223,7 +223,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
      * Implementations can override this if they need to perform extra processing
      * immediately after the native process's input stream is closed.
      */
-    protected void afterProcessInStreamClose() {
+    protected void afterProcessInStreamClose() throws TimeoutException {
         // no-op by default
     }
 

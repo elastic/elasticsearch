@@ -103,24 +103,21 @@ public class TestRestrictedIndices {
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-[0-9]+*", "fleet policies"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-policies-leader*", "fleet policies leader"),
                     SystemIndexDescriptorUtils.createUnmanaged(".fleet-servers*", "fleet servers"),
-                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-artifacts*", "fleet artifacts")
+                    SystemIndexDescriptorUtils.createUnmanaged(".fleet-artifacts*", "fleet artifacts"),
+                    SystemIndexDescriptorUtils.createUnmanaged(".integration_knowledge*", "fleet integration knowledge base")
                 ),
                 List.of(
                     new SystemDataStreamDescriptor(
                         ".fleet-actions-results",
                         "fleet actions results",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(".fleet-actions-results"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".fleet-actions-results"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
+                        "fleet",
                         null
                     )
                 )
@@ -184,8 +181,7 @@ public class TestRestrictedIndices {
     private static SystemIndexDescriptor.Builder getInitializedDescriptorBuilder(int indexFormat) {
         return SystemIndexDescriptor.builder()
             .setMappings(mockMappings())
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build())
-            .setVersionMetaKey("version");
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build());
     }
 
     private static SystemIndexDescriptor getMainSecurityDescriptor() {
@@ -266,6 +262,7 @@ public class TestRestrictedIndices {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

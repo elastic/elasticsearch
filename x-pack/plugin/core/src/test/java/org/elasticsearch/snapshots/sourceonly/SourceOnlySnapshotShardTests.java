@@ -11,9 +11,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -21,31 +21,36 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -64,14 +69,14 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -84,23 +89,26 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.equalTo;
+
+@FixForMultiProject(description = "Randomizing projectId once snapshot and restore support multiple projects, ES-10225, ES-10228")
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -118,15 +126,20 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
+        final var projectId = ProjectId.DEFAULT;
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                new ShardGeneration(-1L),
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -134,7 +147,61 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
+                        randomMillisUpToYear9999(),
+                        future
+                    )
+                )
+            );
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
+            assertEquals(
+                "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source",
+                illegalStateException.getMessage()
+            );
+        }
+        closeShards(shard);
+    }
+
+    public void testSourceIncompleteSyntheticSourceNoDoc() throws IOException {
+        ShardRouting shardRouting = shardRoutingBuilder(
+            new ShardId("index", "_na_", 0),
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
+        IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+        recoverShardFromStore(shard);
+        SnapshotId snapshotId = new SnapshotId("test", "test");
+        IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
+        final var projectId = ProjectId.DEFAULT;
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        assertThat(repository.getProjectId(), equalTo(projectId));
+        repository.start();
+        try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                new ShardGeneration(-1L),
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
+            runAsSnapshot(
+                shard.getThreadPool(),
+                () -> repository.snapshotShard(
+                    new LocalPrimarySnapshotShardContext(
+                        shard.store(),
+                        shard.mapperService(),
+                        snapshotId,
+                        indexId,
+                        new SnapshotIndexCommit(snapshotRef),
+                        null,
+                        indexShardSnapshotStatus,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -157,18 +224,23 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
 
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
+        final var projectId = ProjectId.DEFAULT;
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         int totalFileCount;
         ShardGeneration shardGeneration;
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                null,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -176,7 +248,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -194,12 +266,15 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                shardGeneration,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -207,7 +282,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -225,12 +300,15 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                shardGeneration,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(
                 shard.getThreadPool(),
                 () -> repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -238,7 +316,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
@@ -284,14 +362,19 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
+        final var projectId = ProjectId.DEFAULT;
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
-            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                null,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(
-                    new SnapshotShardContext(
+                    new LocalPrimarySnapshotShardContext(
                         shard.store(),
                         shard.mapperService(),
                         snapshotId,
@@ -299,21 +382,24 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         new SnapshotIndexCommit(snapshotRef),
                         null,
                         indexShardSnapshotStatus,
-                        Version.CURRENT,
+                        IndexVersion.current(),
                         randomMillisUpToYear9999(),
                         future
                     )
                 );
                 future.actionGet();
-                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
+                final CountDownLatch finishedLatch = new CountDownLatch(2);
                 final ShardGenerations shardGenerations = ShardGenerations.builder()
                     .put(indexId, 0, indexShardSnapshotStatus.generation())
                     .build();
                 repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        shardGenerations,
+                        false,
+                        new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                         ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
-                        Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                        Metadata.builder()
+                            .put(ProjectMetadata.builder(projectId).put(shard.indexSettings().getIndexMetadata(), false))
+                            .build(),
                         new SnapshotInfo(
                             new Snapshot(repository.getMetadata().name(), snapshotId),
                             shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
@@ -328,43 +414,36 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                             0L,
                             Collections.emptyMap()
                         ),
-                        Version.CURRENT,
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(RepositoryData repositoryData) {
-                                // nothing will resolve in the onDone callback below
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                finFuture.onFailure(e);
-                            }
-                        },
-                        finFuture::onResponse
+                        IndexVersion.current(),
+                        ActionTestUtils.assertNoFailureListener(ignored -> finishedLatch.countDown()),
+                        finishedLatch::countDown
                     )
                 );
-                finFuture.actionGet();
+                safeAwait(finishedLatch);
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
-                Version.CURRENT,
+                IndexVersion.current(),
                 indexId
             )
-        );
-        IndexMetadata metadata = runAsSnapshot(
-            threadPool,
-            () -> repository.getSnapshotIndexMetaData(PlainActionFuture.get(repository::getRepositoryData), snapshotId, indexId)
+        ).build();
+
+        IndexMetadata metadata = repository.getSnapshotIndexMetaData(
+            safeAwait(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
+            snapshotId,
+            indexId
         );
         IndexShard restoredShard = newShard(
             shardRouting,
@@ -377,7 +456,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
         runAsSnapshot(shard.getThreadPool(), () -> {
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
             assertTrue(future.actionGet());
         });
@@ -396,15 +475,15 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         final IndexShard targetShard;
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
-            TopDocs search = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             search = searcher.search(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Integer.MAX_VALUE,
                 new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)),
                 false
             );
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             long previous = -1;
             for (ScoreDoc doc : search.scoreDocs) {
                 FieldDoc fieldDoc = (FieldDoc) doc;
@@ -427,8 +506,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {
-                Document document = original.docIdAndVersion().reader.document(original.docIdAndVersion().docId);
-                Document restoredDocument = restored.docIdAndVersion().reader.document(restored.docIdAndVersion().docId);
+                StoredFields storedFields = original.docIdAndVersion().reader.storedFields();
+                Document document = storedFields.document(original.docIdAndVersion().docId);
+                Document restoredDocument = storedFields.document(restored.docIdAndVersion().docId);
                 for (IndexableField field : document) {
                     assertEquals(document.get(field.name()), restoredDocument.get(field.name()));
                 }
@@ -440,15 +520,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
-        ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+        ShardRouting targetShardRouting = shardRoutingBuilder(
             new ShardId("target", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -468,7 +547,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 for (int i = 0; i < leafReader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
-                        leafReader.document(i, rootFieldsVisitor);
+                        leafReader.storedFields().document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType);
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
@@ -476,7 +555,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing(), Map.of()),
+                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing()),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -513,11 +592,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     /** Create a {@link Repository} with a random name **/
-    private Repository createRepository() {
+    private Repository createRepository(ProjectId projectId) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final Repository repository = new FsRepository(
+            projectId,
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

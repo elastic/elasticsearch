@@ -11,7 +11,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -21,6 +24,22 @@ import static org.hamcrest.Matchers.containsString;
  * to use that pipeline for ingestion.
  */
 public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.ml.enabled", "false")
+        // We run with a trial license, but explicitly disable security.
+        // This means the security plugin is loaded and all feature are permitted, but they are not enabled
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testDefineAndUseProcessor() throws Exception {
         final String pipeline = "pipeline-" + getTestName();

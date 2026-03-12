@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -12,12 +13,17 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.MockResolvedIndices;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -25,6 +31,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
@@ -32,27 +40,38 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.DataRewriteContext;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -62,6 +81,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.MockQueryRewriteInterceptor;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
@@ -71,8 +92,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
@@ -95,12 +117,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
@@ -124,28 +148,36 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
@@ -213,12 +245,16 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion();
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
     protected static IndexSettings indexSettings() {
         return serviceHolder.idxSettings;
+    }
+
+    protected static MapperService mapperService() {
+        return serviceHolder.mapperService;
     }
 
     protected static String expectedFieldName(String builderFieldName) {
@@ -330,6 +366,19 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
     }
 
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max,
+        String tier
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max, tier);
+    }
+
+    protected static DataRewriteContext dataRewriteContext() {
+        return serviceHolder.createDataContext();
+    }
+
     /**
      * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
@@ -342,6 +391,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
      */
     protected static SearchExecutionContext createSearchExecutionContext() {
         return createSearchExecutionContext(null);
+    }
+
+    protected static QueryRewriteContext createQueryRewriteContext() {
+        return serviceHolder.createQueryRewriteContext();
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -379,6 +432,86 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     }
 
+    protected static CircuitBreaker createCircuitBreakerService(String limit) {
+        Settings settings = Settings.builder()
+            .put("indices.breaker.request.limit", limit)
+            .put("indices.breaker.request.overhead", "1.0")
+            .build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            Collections.emptyList(),
+            clusterSettings
+        );
+
+        return service.getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    /**
+     * Creates a circuit breaker for testing query construction with default limit (10% of heap).
+     *
+     * @return a configured CircuitBreaker instance
+     */
+    protected static CircuitBreaker createCircuitBreakerService() {
+        return createCircuitBreakerService("10%");
+    }
+
+    /**
+     * Override this method to provide a custom CircuitBreakerService for tests.
+     * By default, returns NoneCircuitBreakerService for backwards compatibility.
+     *
+     * @param nodeSettings the node settings
+     * @param clusterSettings the cluster settings
+     * @return the CircuitBreakerService to use in tests
+     */
+    protected CircuitBreakerService createCircuitBreakerService(Settings nodeSettings, ClusterSettings clusterSettings) {
+        return new NoneCircuitBreakerService();
+    }
+
+    /**
+     * Asserts that building the supplied query trips the circuit breaker with a "Data too large" message.
+     */
+    protected static void assertCircuitBreakerTripsOnQueryConstruction(String breakerLimit, Supplier<QueryBuilder> querySupplier) {
+        SearchExecutionContext context = new SearchExecutionContext(
+            createSearchExecutionContext(),
+            createCircuitBreakerService(breakerLimit)
+        );
+
+        try {
+            QueryBuilder query = querySupplier.get();
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
+            assertThat(exception.getMessage(), containsString("Data too large"));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    /**
+     * Asserts that the circuit breaker correctly accounts for the memory used by the given query.
+     */
+    protected static void assertCircuitBreakerAccountsForQuery(QueryBuilder queryBuilder) throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+
+        try {
+            long before = cb.getUsed();
+            Query query = queryBuilder.toQuery(context);
+            long after = cb.getUsed();
+
+            if (query instanceof Accountable accountable) {
+                long queryMemory = accountable.ramBytesUsed();
+                if (queryMemory > 0) {
+                    assertTrue("Circuit breaker should account for query memory", after >= before);
+                    assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
+                }
+            }
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
     private static class ServiceHolder implements Closeable {
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
@@ -392,6 +525,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
+        private final IndexMetadata indexMetadata;
+        private final CircuitBreakerService circuitBreakerService;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -408,30 +543,33 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             ClusterService clusterService = new ClusterService(
                 Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                clusterSettings,
+                new DeterministicTaskQueue().getThreadPool(),
+                null
             );
+
+            this.circuitBreakerService = testCase.createCircuitBreakerService(nodeSettings, clusterSettings);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
                 new Class<?>[] { Client.class },
                 clientInvocationHandler
             );
-            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class).toList());
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
                 pluginsService.flatMap(Plugin::getSettings).toList(),
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
-                Collections.emptySet()
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
             );
-            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
+            pluginsService.forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
             parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(
                 new NamedXContentRegistry(
@@ -445,9 +583,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 emptyList(),
                 new StablePluginsRegistry()
             );
-            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
+            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
+            this.bitsetFilterCache = new BitsetFilterCache(idxSettings, BitsetFilterCache.Listener.NOOP);
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
                 clusterService,
@@ -458,23 +597,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperRegistry,
                 () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
-                ScriptCompiler.NONE
+                ScriptCompiler.NONE,
+                bitsetFilterCache::getBitSetProducer,
+                MapperMetrics.NOOP,
+                null,
+                null
             );
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {});
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
-            bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-
             if (registerType) {
                 mapperService.merge(
                     "_doc",
@@ -537,6 +667,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
+
+            indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putInferenceFields(mapperService.mappingLookup().inferenceFields())
+                .build();
         }
 
         public static Predicate<String> indexNameMatcher() {
@@ -567,18 +708,58 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 indexNameMatcher(),
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                null,
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
+            );
+        }
+
+        QueryRewriteContext createQueryRewriteContext() {
+            return new QueryRewriteContext(
+                parserConfiguration,
+                client,
+                () -> nowInMillis,
+                mapperService,
+                mapperService.mappingLookup(),
+                emptyMap(),
+                idxSettings,
+                TransportVersion.current(),
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                new Index(
+                    RemoteClusterAware.buildRemoteIndexName(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, idxSettings.getIndex().getName()),
+                    idxSettings.getIndex().getUUID()
+                ),
+                indexNameMatcher(),
+                namedWriteableRegistry,
+                null,
+                () -> true,
+                scriptService,
+                createMockResolvedIndices(),
+                null,
+                createMockQueryRewriteInterceptor(),
+                null,
+                false,
+                false
             );
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
-            return new CoordinatorRewriteContext(
-                parserConfiguration,
-                this.client,
-                () -> nowInMillis,
+            return createCoordinatorContext(dateFieldType, min, max, "");
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max, String tier) {
+            DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
+                dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
-                dateFieldType
+                dateFieldType,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo, tier);
+        }
+
+        DataRewriteContext createDataContext() {
+            return new DataRewriteContext(parserConfiguration, this.client, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
@@ -591,6 +772,18 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
+        }
+
+        private ResolvedIndices createMockResolvedIndices() {
+            return new MockResolvedIndices(
+                Map.of(),
+                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
+                Map.of(index, indexMetadata)
+            );
+        }
+
+        private QueryRewriteInterceptor createMockQueryRewriteInterceptor() {
+            return new MockQueryRewriteInterceptor();
         }
     }
 }

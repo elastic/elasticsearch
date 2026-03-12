@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
@@ -32,15 +34,22 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        return createMappingParser(settings, IndexVersion.CURRENT, TransportVersion.current());
+        return createMappingParser(settings, IndexVersion.current(), TransportVersion.current());
     }
 
     private static MappingParser createMappingParser(Settings settings, IndexVersion version, TransportVersion transportVersion) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
+        ScriptService scriptService = new ScriptService(
+            settings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
@@ -53,22 +62,26 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData()
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            bitsetFilterCache::getBitSetProducer,
+            null
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
-            if (m != null) {
-                metadataMappers.put(m.getClass(), m);
+        MappingParserContext ctx = mappingParserContextSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        });
+        }
         return new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            () -> metadataMappers,
+            () -> metadataBuilders,
             type -> MapperService.SINGLE_MAPPING_NAME
         );
     }
@@ -101,7 +114,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -116,7 +129,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {
@@ -193,27 +206,27 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertEquals(1, mapping.getRoot().mappers.size());
         Mapper object = mapping.getRoot().getMapper("obj");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("obj", object.simpleName());
-        assertEquals("obj", object.name());
+        assertEquals("obj", object.leafName());
+        assertEquals("obj", object.fullPath());
         ObjectMapper objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("source");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("source", object.simpleName());
-        assertEquals("obj.source", object.name());
+        assertEquals("source", object.leafName());
+        assertEquals("obj.source", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         object = objectMapper.getMapper("geo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
-        assertEquals("geo", object.simpleName());
-        assertEquals("obj.source.geo", object.name());
+        assertEquals("geo", object.leafName());
+        assertEquals("obj.source.geo", object.fullPath());
         objectMapper = (ObjectMapper) object;
         assertEquals(1, objectMapper.mappers.size());
         Mapper location = objectMapper.getMapper("location");
         assertThat(location, CoreMatchers.instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) location;
-        assertEquals("obj.source.geo.location", geoPointFieldMapper.name());
-        assertEquals("location", geoPointFieldMapper.simpleName());
+        assertEquals("obj.source.geo.location", geoPointFieldMapper.fullPath());
+        assertEquals("location", geoPointFieldMapper.leafName());
         assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 
@@ -312,33 +325,6 @@ public class MappingParserTests extends MapperServiceTestCase {
                 () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
             );
             assertEquals("field name cannot contain only whitespaces", iae.getMessage());
-        }
-    }
-
-    public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.V_8_5_0);
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.V_8_5_0
-        );
-        {
-            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
         }
     }
 

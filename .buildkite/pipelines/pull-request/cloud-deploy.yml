@@ -1,0 +1,13 @@
+config:
+  allow-labels: cloud-deploy
+steps:
+  - label: cloud-deploy
+    command: .buildkite/scripts/cloud-deploy.sh
+    env:
+      USE_PROD_DOCKER_CREDENTIALS: "true"
+    timeout_in_minutes: 20
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

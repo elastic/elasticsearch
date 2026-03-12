@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.EnumSet;
@@ -45,8 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EnableAllocationTests extends ESAllocationTestCase {
 
-    private final Logger logger = LogManager.getLogger(EnableAllocationTests.class);
-
     public void testClusterEnableNone() {
         AllocationService strategy = createAllocationService(
             Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()).build()
@@ -55,11 +52,11 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -82,11 +79,11 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -112,16 +109,18 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("disabled")
-                    .settings(settings(Version.CURRENT).put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()))
+                    .settings(
+                        settings(IndexVersion.current()).put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
+                    )
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
-            .put(IndexMetadata.builder("enabled").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("enabled").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("disabled"))
-            .addAsNew(metadata.index("enabled"))
+            .addAsNew(metadata.getProject().index("disabled"))
+            .addAsNew(metadata.getProject().index("enabled"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -162,11 +161,16 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT).put(indexSettings)).numberOfShards(3).numberOfReplicas(1))
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()).put(indexSettings))
+                    .numberOfShards(3)
+                    .numberOfReplicas(1)
+            )
             .put(
                 IndexMetadata.builder("always_disabled")
                     .settings(
-                        settings(Version.CURRENT).put(
+                        settings(IndexVersion.current()).put(
                             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
                             Rebalance.NONE
                         )
@@ -177,8 +181,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("always_disabled"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("always_disabled"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -214,8 +218,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 )
                 .build();
         } else {
-            IndexMetadata meta = clusterState.getMetadata().index("test");
-            IndexMetadata meta1 = clusterState.getMetadata().index("always_disabled");
+            IndexMetadata meta = clusterState.getMetadata().getProject().index("test");
+            IndexMetadata meta1 = clusterState.getMetadata().getProject().index("always_disabled");
             clusterState = ClusterState.builder(clusterState)
                 .metadata(
                     Metadata.builder(clusterState.metadata())
@@ -292,11 +296,16 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT).put(indexSettings)).numberOfShards(6).numberOfReplicas(0))
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()).put(indexSettings))
+                    .numberOfShards(6)
+                    .numberOfReplicas(0)
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -335,7 +344,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 )
                 .build();
         } else {
-            IndexMetadata meta = clusterState.getMetadata().index("test");
+            IndexMetadata meta = clusterState.getMetadata().getProject().index("test");
             clusterState = ClusterState.builder(clusterState)
                 .metadata(
                     Metadata.builder(metadata)
@@ -376,7 +385,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 }

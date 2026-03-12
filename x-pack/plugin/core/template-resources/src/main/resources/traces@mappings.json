@@ -1,0 +1,28 @@
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "data_stream.type": {
+          "type": "constant_keyword",
+          "value": "traces"
+        },
+        "data_stream.dataset": {
+          "type": "constant_keyword"
+        },
+        "data_stream.namespace": {
+          "type": "constant_keyword"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the traces index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

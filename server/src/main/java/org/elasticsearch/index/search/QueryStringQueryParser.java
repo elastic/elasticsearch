@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
@@ -24,7 +25,6 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -267,18 +267,19 @@ public class QueryStringQueryParser extends QueryParser {
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
                 extractedFields = fieldsAndWeights;
+            } else {
+                boolean multiFields = Regex.isSimpleMatchPattern(field);
+                // Filters unsupported fields if a pattern is requested
+                // Filters metadata fields if all fields are requested
+                extractedFields = resolveMappingField(
+                    context,
+                    field,
+                    1.0f,
+                    allFields == false,
+                    multiFields == false,
+                    quoted ? quoteFieldSuffix : null
+                );
             }
-            boolean multiFields = Regex.isSimpleMatchPattern(field);
-            // Filters unsupported fields if a pattern is requested
-            // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(
-                context,
-                field,
-                1.0f,
-                allFields == false,
-                multiFields == false,
-                quoted ? quoteFieldSuffix : null
-            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
@@ -290,7 +291,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     @Override
     protected Query newMatchAllDocsQuery() {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -646,7 +647,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     private Query existsQuery(String fieldName) {
         if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-            return new MatchNoDocsQuery("No mappings yet");
+            return Queries.NO_MAPPINGS;
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
             .getFieldType(FieldNamesFieldMapper.NAME);
@@ -759,7 +760,14 @@ public class QueryStringQueryParser extends QueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
             }
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
+            return currentFieldType.regexpQuery(
+                termStr,
+                RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT,
+                0,
+                getDeterminizeWorkLimit(),
+                getMultiTermRewriteMethod(),
+                context
+            );
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

@@ -89,7 +89,7 @@ class HttpExportBulk extends ExportBulk {
             if (docs != null && docs.isEmpty() == false) {
                 final BytesStreamOutput scratch = new BytesStreamOutput();
                 final CountingOutputStream countingStream;
-                try (OutputStream payload = CompressorFactory.COMPRESSOR.threadLocalOutputStream(scratch)) {
+                try (OutputStream payload = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(scratch)) {
                     countingStream = new CountingOutputStream(payload);
                     for (MonitoringDoc monitoringDoc : docs) {
                         writeDocument(monitoringDoc, countingStream);
@@ -176,7 +176,7 @@ class HttpExportBulk extends ExportBulk {
         }
 
         // Adds action metadata line bulk separator
-        out.write(xContent.streamSeparator());
+        out.write(xContent.bulkSeparator());
 
         // Adds the source of the monitoring document
         try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
@@ -184,7 +184,7 @@ class HttpExportBulk extends ExportBulk {
         }
 
         // Adds final bulk separator
-        out.write(xContent.streamSeparator());
+        out.write(xContent.bulkSeparator());
 
         logger.trace("http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]", name, index, id, doc.getType());
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -12,9 +13,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -23,6 +26,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -181,9 +185,8 @@ public class ValuesSourceConfig {
             aggregationScript,
             scriptValueType,
             missing,
-            timeZone,
             docValueFormat,
-            context
+            context::nowInMillis
         );
         return config;
     }
@@ -257,14 +260,14 @@ public class ValuesSourceConfig {
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
-        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
+        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, context::nowInMillis);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, AggregationContext context) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, context::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
@@ -274,13 +277,9 @@ public class ValuesSourceConfig {
     private final boolean unmapped;
     private final DocValueFormat format;
     private final Object missing;
-    private final ZoneId timeZone;
     private final ValuesSource valuesSource;
 
-    private ValuesSourceConfig() {
-        throw new UnsupportedOperationException();
-    }
-
+    @SuppressWarnings("this-escape")
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
         FieldContext fieldContext,
@@ -288,9 +287,8 @@ public class ValuesSourceConfig {
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
         Object missing,
-        ZoneId timeZone,
         DocValueFormat format,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         if (unmapped && fieldContext != null) {
             throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
@@ -301,7 +299,6 @@ public class ValuesSourceConfig {
         this.script = script;
         this.scriptValueType = scriptValueType;
         this.missing = missing;
-        this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
         if (valid() == false) {
@@ -310,10 +307,10 @@ public class ValuesSourceConfig {
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped"
             );
         }
-        valuesSource = constructValuesSource(missing, format, context);
+        valuesSource = constructValuesSource(missing, format, nowInMillis);
     }
 
-    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, AggregationContext context) {
+    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, LongSupplier nowInMillis) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
@@ -328,7 +325,7 @@ public class ValuesSourceConfig {
         }
 
         if (missing() != null) {
-            return valueSourceType().replaceMissing(vs, missing, format, context);
+            return valueSourceType().replaceMissing(vs, missing, format, nowInMillis);
         } else {
             return vs;
         }
@@ -385,10 +382,6 @@ public class ValuesSourceConfig {
         return this.missing;
     }
 
-    public ZoneId timezone() {
-        return this.timeZone;
-    }
-
     public DocValueFormat format() {
         return format;
     }
@@ -428,7 +421,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -437,8 +430,16 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
+    public boolean alignsWithSearchIndex() {
+        var ft = fieldType();
+        // Text fields have doc values that don't align with the search index because the indexed form is tokenized (ex. "foo", "bar")
+        // while doc values store the raw string (ex. "foo bar")
+        boolean isTextField = ft instanceof TextFieldMapper.TextFieldType;
+        return script() == null
+            && missing() == null
+            && ft != null
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts())
+            && isTextField == false;
     }
 
     /**
@@ -451,8 +452,15 @@ public class ValuesSourceConfig {
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            String typeName = fieldType.typeName();
+            String valuesSourceTypeName = valuesSourceType.typeName();
+            if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
+            } else {
+                // Avoid repeated names. Currently only time series values source types have a different behaviour/validation.
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
+            }
         }
-        return "unmapped field";
+        return "unmapped field with value source type [" + valuesSourceType.typeName() + "]";
     }
 }

@@ -1,0 +1,466 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.plugin;
+
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
+import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.AsyncOperator;
+import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.MMROperator;
+import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.SampleOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
+import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
+import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
+import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
+import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.GetViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
+import org.elasticsearch.xpack.esql.view.RestGetViewAction;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
+import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
+import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
+import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
+import org.elasticsearch.xpack.esql.view.ViewService;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
+
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+
+    public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
+        "esql.worker.thread_pool_size",
+        -1,
+        -1,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
+        "esql.query.allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.warn",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_INFO_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.info",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.debug",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.trace",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> ESQL_QUERYLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
+        "esql.querylog.include.user",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Tuning parameter for deciding when to use the "merge" stored field loader.
+     * Think of it as "how similar to a sequential block of documents do I have to
+     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
+     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
+     * A value of {@code .2} means we'll use the sequential reader even if we only
+     * need one in ten documents.
+     * <p>
+     *     The default value of this was experimentally derived using a
+     *     <a href="https://gist.github.com/nik9000/ac6857de10745aad210b6397915ff846">script</a>.
+     *     And a little paranoia. A lower default value was looking good locally, but
+     *     I'm concerned about the implications of effectively using this all the time.
+     * </p>
+     */
+    public static final Setting<Double> STORED_FIELDS_SEQUENTIAL_PROPORTION = Setting.doubleSetting(
+        "index.esql.stored_fields_sequential_proportion",
+        0.20,
+        0,
+        1,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
+    private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
+    private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
+
+    private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        Settings settings = services.clusterService().getSettings();
+        BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        var blockFactoryProvider = blockFactoryProvider(
+            BlockFactory.builder(bigArrays)
+                .maxPrimitiveArraySize(
+                    settings.getAsBytesSize(
+                        BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                        BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
+                    )
+                )
+                .bytesRefRamOverestimateThreshold(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings))
+                .bytesRefRamOverestimateFactor(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings))
+        );
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
+            .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
+            .toList();
+
+        // Discover DataSourcePlugin implementations via SPI (META-INF/services)
+        // This discovers built-in plugins from this plugin's classloader
+        List<DataSourcePlugin> allDataSourcePlugins = new ArrayList<>(dataSourcePlugins);
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            try {
+                allDataSourcePlugins.add(pluginClass.getConstructor().newInstance());
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
+            }
+        }
+
+        // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
+        DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
+
+        // Create DataSourceModule with all discovered plugins
+        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        DataSourceModule dataSourceModule = new DataSourceModule(
+            allDataSourcePlugins,
+            dataSourceCapabilities,
+            settings,
+            blockFactoryProvider.blockFactory(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
+        );
+
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
+
+        List<Object> components = new ArrayList<>(
+            List.of(
+                new PlanExecutor(
+                    new IndexResolver(services.client()),
+                    services.telemetryProvider().getMeterRegistry(),
+                    getLicenseState(),
+                    new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
+                    extraCheckers,
+                    services.crossProjectModeDecider(),
+                    dataSourceModule,
+                    functionRegistry,
+                    parser
+                ),
+                new ExchangeService(
+                    services.clusterService().getSettings(),
+                    services.threadPool(),
+                    ThreadPool.Names.SEARCH,
+                    blockFactoryProvider.blockFactory()
+                ),
+                blockFactoryProvider,
+                dataSourceModule
+            )
+        );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            components = new ArrayList<>(components);
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
+            components.add(new ViewService(services.clusterService(), functionRegistry, parser));
+        }
+        return components;
+    }
+
+    protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+        return new BlockFactoryProvider(builder.build());
+    }
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    /**
+     * The settings defined by the ESQL plugin.
+     *
+     * @return the settings
+     */
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<>(
+            List.of(
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
+                QUERY_ALLOW_PARTIAL_RESULTS,
+                ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+                STORED_FIELDS_SEQUENTIAL_PROPORTION,
+                ESQL_WORKER_THREAD_POOL_SIZE,
+                EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+            )
+        );
+        settings.addAll(PlannerSettings.settings());
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
+            settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
+            settings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
+        }
+
+        // Inference command settings
+        settings.addAll(InferenceSettings.getSettings());
+
+        return Collections.unmodifiableList(settings);
+    }
+
+    @Override
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> releasedActions = List.of(
+            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
+        );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            List<ActionHandler> actions = new ArrayList<>(releasedActions);
+            actions.addAll(
+                List.of(
+                    new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                    new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                    new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+                )
+            );
+            return actions;
+        }
+        return releasedActions;
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        EsqlCapabilities capabilities = this.capabilities.get();
+        List<RestHandler> releasedRestHandlers = List.of(
+            new RestEsqlQueryAction(capabilities),
+            new RestEsqlAsyncQueryAction(capabilities),
+            new RestEsqlGetAsyncResultAction(),
+            new RestEsqlStopAsyncAction(),
+            new RestEsqlDeleteAsyncResultAction(),
+            new RestEsqlListQueriesAction()
+        );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);
+            restHandlers.addAll(List.of(new RestPutViewAction(), new RestDeleteViewAction(), new RestGetViewAction()));
+            return restHandlers;
+        }
+        return releasedRestHandlers;
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(DriverStatus.ENTRY);
+        entries.add(AbstractPageMappingOperator.Status.ENTRY);
+        entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
+        entries.add(AggregationOperator.Status.ENTRY);
+        entries.add(EsqlQueryStatus.ENTRY);
+        entries.add(ExchangeSinkOperator.Status.ENTRY);
+        entries.add(ExchangeSourceOperator.Status.ENTRY);
+        entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
+        entries.add(HashAggregationOperator.Status.ENTRY);
+        entries.add(LimitOperator.Status.ENTRY);
+        entries.add(GroupedLimitOperator.Status.ENTRY);
+        entries.add(LuceneOperator.Status.ENTRY);
+        entries.add(TopNOperatorStatus.ENTRY);
+        entries.add(MvExpandOperator.Status.ENTRY);
+        entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
+        entries.add(SingleValueQuery.ENTRY);
+        entries.add(AsyncOperator.Status.ENTRY);
+        entries.add(EnrichLookupOperator.Status.ENTRY);
+        entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
+        entries.add(SampleOperator.Status.ENTRY);
+        entries.add(LinearScoreEvalOperator.Status.ENTRY);
+        entries.add(MMROperator.Status.ENTRY);
+
+        entries.add(FileSplit.ENTRY);
+        entries.add(CoalescedSplit.ENTRY);
+
+        entries.add(ExpressionQueryBuilder.ENTRY);
+        entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            entries.addAll(ViewMetadata.ENTRIES);
+        }
+
+        entries.addAll(ExpressionWritables.getNamedWriteables());
+        entries.addAll(PlanWritables.getNamedWriteables());
+        return entries;
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            namedXContent.add(
+                new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
+            );
+        }
+        return namedXContent;
+    }
+
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
+        int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
+        return List.of(
+            new FixedExecutorBuilder(
+                settings,
+                ESQL_WORKER_THREAD_POOL_NAME,
+                poolSize,
+                1000,
+                ESQL_WORKER_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
+        dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return ExpressionWritables.getGenericNamedWriteables();
+    }
+}

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
@@ -28,6 +29,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
 
@@ -47,11 +51,8 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             .method(PercentilesMethod.HDR);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-            Percentile rank = ranks.iterator().next();
-            assertEquals(Double.NaN, rank.getPercent(), 0d);
-            assertEquals(0.5, rank.getValue(), 0d);
+            PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
+            assertFalse(ranks.iterator().hasNext());
             assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
         }
     }
@@ -69,19 +70,18 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 .method(PercentilesMethod.HDR);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
-                assertEquals(0.1, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.equalTo(0d));
+                assertEquals(0.1, rank.value(), 0d);
+                assertThat(rank.percent(), Matchers.equalTo(0d));
                 rank = rankIterator.next();
-                assertEquals(0.5, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.greaterThan(0d));
-                assertThat(rank.getPercent(), Matchers.lessThan(100d));
+                assertEquals(0.5, rank.value(), 0d);
+                assertThat(rank.percent(), Matchers.greaterThan(0d));
+                assertThat(rank.percent(), Matchers.lessThan(100d));
                 rank = rankIterator.next();
-                assertEquals(12, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.equalTo(100d));
+                assertEquals(12, rank.value(), 0d);
+                assertThat(rank.percent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
                 assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
             }
@@ -103,5 +103,27 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         );
 
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
+    }
+
+    public void testInvalidNegativeNumber() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", -20)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
+            iw.commit();
+
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
+                .field("number")
+                .method(PercentilesMethod.HDR);
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+            try (IndexReader reader = iw.getReader()) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType))
+                );
+                assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
+            }
+        }
     }
 }

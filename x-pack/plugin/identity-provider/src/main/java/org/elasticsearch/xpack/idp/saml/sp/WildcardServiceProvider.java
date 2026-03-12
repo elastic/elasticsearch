@@ -185,7 +185,7 @@ class WildcardServiceProvider {
         }
     }
 
-    private SamlServiceProviderDocument toServiceProviderDocument(String serviceJson) throws IOException {
+    private static SamlServiceProviderDocument toServiceProviderDocument(String serviceJson) throws IOException {
         try (XContentParser docParser = parser(new BytesArray(serviceJson))) {
             return SamlServiceProviderDocument.fromXContent(null, docParser);
         }
@@ -195,7 +195,7 @@ class WildcardServiceProvider {
         return XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body, XContentType.JSON);
     }
 
-    private String extractGroup(Matcher matcher, String name) {
+    private static String extractGroup(Matcher matcher, String name) {
         try {
             return matcher.group(name);
         } catch (IllegalArgumentException e) {

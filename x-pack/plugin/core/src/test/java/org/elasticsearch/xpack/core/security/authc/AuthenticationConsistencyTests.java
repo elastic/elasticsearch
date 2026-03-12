@@ -149,9 +149,39 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
+                "Cloud API key authentication cannot have domain",
+                encodeAuthentication(
+                    new Subject(
+                        userFoo,
+                        new Authentication.RealmRef(
+                            AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+                            AuthenticationField.CLOUD_API_KEY_REALM_TYPE,
+                            "node",
+                            new RealmDomain(
+                                "domain1",
+                                Set.of(
+                                    new RealmConfig.RealmIdentifier(
+                                        AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+                                        AuthenticationField.CLOUD_API_KEY_REALM_TYPE
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
                 "API key authentication cannot have internal user [_xpack]",
                 encodeAuthentication(
                     new Subject(InternalUsers.XPACK_USER, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot have internal user [_xpack]",
+                encodeAuthentication(
+                    new Subject(InternalUsers.XPACK_USER, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
@@ -234,6 +264,33 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                             List.of()
                         )
                     ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot contain a role descriptors metadata field",
+                encodeAuthentication(
+                    new Subject(
+                        new User("api_key_id", "role1"),
+                        Authentication.RealmRef.newCloudApiKeyRealmRef("node"),
+                        TransportVersion.current(),
+                        Map.of(
+                            randomFrom(
+                                AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
+                                AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                                AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
+                            ),
+                            List.of()
+                        )
+                    ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
+                "Cloud API key authentication cannot run-as other user",
+                encodeAuthentication(
+                    new Subject(userBar, realm2),
+                    new Subject(userFoo, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
@@ -327,6 +384,14 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 "Run-as subject type cannot be [API_KEY]",
                 encodeAuthentication(
                     new Subject(userBar, Authentication.RealmRef.newApiKeyRealmRef("node")),
+                    new Subject(userFoo, realm1),
+                    Authentication.AuthenticationType.REALM
+                )
+            ),
+            entry(
+                "Run-as subject type cannot be [CLOUD_API_KEY]",
+                encodeAuthentication(
+                    new Subject(userBar, Authentication.RealmRef.newCloudApiKeyRealmRef("node")),
                     new Subject(userFoo, realm1),
                     Authentication.AuthenticationType.REALM
                 )

@@ -1,0 +1,135 @@
+
+simpleFilter-Ignore
+from employees | where first_name =~ "mary" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+simpleFilterUpper-Ignore
+from employees | where first_name =~ "MARY" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+simpleFilterPartial-Ignore
+from employees | where first_name =~ "mar" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+;
+
+
+mixedConditionsAnd-Ignore
+from employees | where first_name =~ "mary" AND emp_no == 10011 | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+mixedConditionsOr-Ignore
+from employees | where first_name =~ "mary" OR emp_no == 10001 | keep emp_no, first_name, last_name |sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+10011          | Mary               | Sluis
+;
+
+
+evalEquals-Ignore
+from employees | where emp_no == 10001 
+| eval a = first_name =~ "georgi", b = first_name == "georgi", c = first_name =~ "GEORGI", d = first_name =~ "Geor", e = first_name =~ "GeoRgI" 
+| keep emp_no, first_name, a, b, c, d, e;
+
+emp_no:integer | first_name:keyword | a:boolean | b:boolean | c:boolean | d:boolean | e:boolean
+10001          | Georgi             | true      | false     | true      | false     | true
+;
+
+
+//waiting for final decisions on supporting generic expressions on the right
+//https://github.com/elastic/elasticsearch/issues/103599
+constantsAndFolding-Ignore
+row name = "foobar" | where "FoObAr" =~ name;
+
+name:keyword
+foobar
+;
+
+
+noWildcardSimple-Ignore
+row name = "foobar" | where name =~ "FoOb*";
+
+name:keyword
+;
+
+
+noWildcard-Ignore
+from employees | where first_name =~ "Georg*" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+
+noWildcardSingle-Ignore
+from employees | where first_name =~ "Georg?" | sort emp_no | keep emp_no, first_name;
+
+emp_no:integer | first_name:keyword
+;
+
+
+//waiting for final decisions on supporting generic expressions on the right
+//https://github.com/elastic/elasticsearch/issues/103599
+fieldRight-Ignore
+from employees | where "Guoxiang" =~ first_name | keep emp_no, first_name;
+
+emp_no:integer  | first_name:keyword
+10015           | Guoxiang
+;
+
+
+expressionsRight-Ignore
+from employees | where first_name =~ concat("Tzv","ETAN") | keep emp_no, first_name;
+
+emp_no:integer  | first_name:keyword
+10007           | Tzvetan
+;
+
+
+expressionsLeft-Ignore
+from employees | where concat(first_name, "_foo") =~ "TzvETAN_fOo" | keep emp_no, first_name;
+
+emp_no:integer  | first_name:keyword
+10007           | Tzvetan
+;
+
+
+//waiting for final decisions on supporting generic expressions on the right
+//https://github.com/elastic/elasticsearch/issues/103599
+expressionsLeftRight-Ignore
+from employees | where substring(first_name, 1, 2) =~ substring(last_name, -2) | keep emp_no, first_name, last_name | sort emp_no;
+
+emp_no:integer  | first_name:keyword    | last_name:keyword
+10055           | Georgy                | Dredge
+10091           | Amabile               | Gomatam
+;
+
+
+multiValuesExcluded-Ignore
+row a = ["Foo", "Bar"] | where a =~ "foo";
+
+a:keyword
+;
+
+
+multiValuesPushedDownExcluded-Ignore
+from employees | where job_positions =~ "reporting analyst" | sort emp_no | keep emp_no, job_positions;
+warning:Line 1:24: evaluation of [job_positions =~ \"reporting analyst\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer  | job_positions:keyword
+10013           | Reporting Analyst
+10026           | Reporting Analyst
+;

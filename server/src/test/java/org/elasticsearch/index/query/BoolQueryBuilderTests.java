@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,6 +14,9 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -24,15 +28,21 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -115,7 +125,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                         }
                     }
                     if (isNegative) {
-                        clauses.add(new BooleanClause(new MatchAllDocsQuery(), BooleanClause.Occur.MUST));
+                        clauses.add(new BooleanClause(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST));
                     }
                 }
                 assertThat(booleanQuery.clauses().size(), equalTo(clauses.size()));
@@ -204,15 +214,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(booleanQuery.clauses().size(), equalTo(1));
         BooleanClause booleanClause = booleanQuery.clauses().get(0);
-        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
+        assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanClause.query(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.query();
         // we didn't set minimum should match initially, there are no should clauses so it should be 0
         assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
-        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(innerBooleanClause.occur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(innerBooleanClause.query(), instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
@@ -447,6 +457,12 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
 
         boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.should(new WrapperQueryBuilder(new MatchNoneQueryBuilder().toString()));
+        boolQueryBuilder.mustNot(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        rewritten = Rewriteable.rewrite(boolQueryBuilder, createSearchExecutionContext());
+        assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         boolQueryBuilder.mustNot(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
         rewritten = boolQueryBuilder.rewrite(createSearchExecutionContext());
@@ -462,5 +478,296 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQuery.must(termQuery);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testShallowCopy() {
+        BoolQueryBuilder orig = createTestQueryBuilder();
+        BoolQueryBuilder shallowCopy = orig.shallowCopy();
+        assertThat(shallowCopy.adjustPureNegative(), equalTo(orig.adjustPureNegative()));
+        assertThat(shallowCopy.minimumShouldMatch(), equalTo(orig.minimumShouldMatch()));
+        assertThat(shallowCopy.must(), equalTo(orig.must()));
+        assertThat(shallowCopy.mustNot(), equalTo(orig.mustNot()));
+        assertThat(shallowCopy.should(), equalTo(orig.should()));
+        assertThat(shallowCopy.filter(), equalTo(orig.filter()));
+
+        QueryBuilder b = new MatchQueryBuilder("foo", "bar");
+        switch (between(0, 3)) {
+            case 0 -> {
+                shallowCopy.must(b);
+                assertThat(shallowCopy.must(), hasItem(b));
+                assertThat(orig.must(), not(hasItem(b)));
+            }
+            case 1 -> {
+                shallowCopy.mustNot(b);
+                assertThat(shallowCopy.mustNot(), hasItem(b));
+                assertThat(orig.mustNot(), not(hasItem(b)));
+            }
+            case 2 -> {
+                shallowCopy.should(b);
+                assertThat(shallowCopy.should(), hasItem(b));
+                assertThat(orig.should(), not(hasItem(b)));
+            }
+            case 3 -> {
+                shallowCopy.filter(b);
+                assertThat(shallowCopy.filter(), hasItem(b));
+                assertThat(orig.filter(), not(hasItem(b)));
+            }
+        }
+    }
+
+    public void testAutoPrefiltering_GivenSingleMustPrefilteringClause() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndNoFilters(BooleanClause.Occur.MUST);
+    }
+
+    public void testAutoPrefiltering_GivenSingleShouldPrefilteringClause() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndNoFilters(BooleanClause.Occur.SHOULD);
+    }
+
+    public void testAutoPrefiltering_GivenSingleFilterPrefilteringClause() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndNoFilters(BooleanClause.Occur.FILTER);
+    }
+
+    public void testAutoPrefiltering_GivenSingleMustNotPrefilteringClause() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndNoFilters(BooleanClause.Occur.MUST_NOT);
+    }
+
+    public void testAutoPrefiltering_GivenSingleMustPrefilteringClauseAndRandomGroupOfClauses() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+            BooleanClause.Occur.MUST,
+            randomFrom(BooleanClause.Occur.values())
+        );
+    }
+
+    public void testAutoPrefiltering_GivenSingleShouldPrefilteringClauseAndRandomGroupOfClauses() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+            BooleanClause.Occur.SHOULD,
+            randomFrom(BooleanClause.Occur.values())
+        );
+    }
+
+    public void testAutoPrefiltering_GivenSingleFilterPrefilteringClauseAndRandomGroupOfClauses() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+            BooleanClause.Occur.FILTER,
+            randomFrom(BooleanClause.Occur.values())
+        );
+    }
+
+    public void testAutoPrefiltering_GivenSingleMustNotPrefilteringClauseAndRandomGroupOfClauses() throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+            BooleanClause.Occur.MUST_NOT,
+            randomFrom(BooleanClause.Occur.values())
+        );
+    }
+
+    private void doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndNoFilters(BooleanClause.Occur prefilteringOccur)
+        throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+            prefilteringOccur,
+            randomFrom(BooleanClause.Occur.values()),
+            true
+        );
+    }
+
+    private void doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+        BooleanClause.Occur prefilteringOccur,
+        BooleanClause.Occur filterOccur
+    ) throws IOException {
+        doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(prefilteringOccur, filterOccur, false);
+    }
+
+    private void doTestAutoPrefiltering_GivenSinglePrefilteringClauseAndSingleGroupOfFilters(
+        BooleanClause.Occur prefilteringOccur,
+        BooleanClause.Occur filterOccur,
+        boolean noFilters
+    ) throws IOException {
+        final BoolQueryBuilder query = new BoolQueryBuilder();
+        Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap = new HashMap<>();
+        QueryBuilder prefilteringClause = new TestAutoPrefilteringQueryBuilder("test", prefiltersToQueryNameMap);
+        switch (prefilteringOccur) {
+            case MUST -> query.must(prefilteringClause);
+            case SHOULD -> query.should(prefilteringClause);
+            case FILTER -> query.filter(prefilteringClause);
+            case MUST_NOT -> query.mustNot(prefilteringClause);
+        }
+        if (noFilters == false) {
+            randomList(1, 5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(f -> {
+                switch (filterOccur) {
+                    case MUST -> query.must(f);
+                    case SHOULD -> query.should(f);
+                    case FILTER -> query.filter(f);
+                    case MUST_NOT -> query.mustNot(f);
+                }
+            });
+        }
+
+        QueryBuilder rewritten = Rewriteable.rewrite(query, createQueryRewriteContext());
+        rewritten.toQuery(createSearchExecutionContext());
+
+        Set<QueryBuilder> expectedFilters = new HashSet<>();
+        if (noFilters == false) {
+            switch (filterOccur) {
+                case MUST -> expectedFilters.addAll(query.must());
+                case FILTER -> expectedFilters.addAll(query.filter());
+                case MUST_NOT -> expectedFilters.addAll(
+                    query.mustNot().stream().map(q -> new BoolQueryBuilder().mustNot(q)).collect(Collectors.toList())
+                );
+            }
+            switch (prefilteringOccur) {
+                case MUST -> expectedFilters.remove(prefilteringClause);
+                case SHOULD -> expectedFilters.remove(prefilteringClause);
+                case FILTER -> expectedFilters.remove(prefilteringClause);
+                case MUST_NOT -> expectedFilters.remove(new BoolQueryBuilder().mustNot(prefilteringClause));
+            }
+        }
+        assertThat(prefiltersToQueryNameMap.get("test"), equalTo(expectedFilters));
+    }
+
+    public void testAutoPrefiltering_GivenRandomMultipleClauses() throws IOException {
+        for (int i = 0; i < 100; i++) {
+            BoolQueryBuilder rootQuery = new BoolQueryBuilder();
+            Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap = new HashMap<>();
+            TestAutoPrefilteringQueryBuilder must_1 = new TestAutoPrefilteringQueryBuilder("must_1", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder must_2 = new TestAutoPrefilteringQueryBuilder("must_2", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder should_1 = new TestAutoPrefilteringQueryBuilder("should_1", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder should_2 = new TestAutoPrefilteringQueryBuilder("should_2", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder filter_1 = new TestAutoPrefilteringQueryBuilder("filter_1", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder filter_2 = new TestAutoPrefilteringQueryBuilder("filter_2", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder must_not_1 = new TestAutoPrefilteringQueryBuilder("must_not_1", prefiltersToQueryNameMap);
+            TestAutoPrefilteringQueryBuilder must_not_2 = new TestAutoPrefilteringQueryBuilder("must_not_2", prefiltersToQueryNameMap);
+            rootQuery.must(must_1);
+            rootQuery.must(must_2);
+            rootQuery.should(should_1);
+            rootQuery.should(should_2);
+            rootQuery.filter(filter_1);
+            rootQuery.filter(filter_2);
+            rootQuery.mustNot(must_not_1);
+            rootQuery.mustNot(must_not_2);
+
+            randomList(5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(rootQuery::must);
+            randomList(5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(rootQuery::should);
+            randomList(5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(rootQuery::filter);
+            randomList(5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(rootQuery::mustNot);
+
+            // We add a must clause that is another bool query containing a prefiltering clause
+            BoolQueryBuilder bool_1 = new BoolQueryBuilder();
+            TestAutoPrefilteringQueryBuilder must_3 = new TestAutoPrefilteringQueryBuilder("must_3", prefiltersToQueryNameMap);
+            bool_1.must(must_3);
+            randomList(5, () -> randomTermQueryMaybeWrappedInCompoundQuery()).forEach(bool_1::filter);
+            rootQuery.must(bool_1);
+
+            rootQuery = (BoolQueryBuilder) Rewriteable.rewrite(rootQuery, createQueryRewriteContext());
+            rootQuery.toQuery(createSearchExecutionContext());
+
+            Set<QueryBuilder> expectedPrefilters = collectExpectedPrefilters(rootQuery);
+            assertThat(
+                prefiltersToQueryNameMap.get("must_1"),
+                equalTo(expectedPrefilters.stream().filter(q -> q != must_1).collect(Collectors.toSet()))
+            );
+            assertThat(
+                prefiltersToQueryNameMap.get("must_2"),
+                equalTo(expectedPrefilters.stream().filter(q -> q != must_2).collect(Collectors.toSet()))
+            );
+            assertThat(prefiltersToQueryNameMap.get("should_1"), containsInAnyOrder(expectedPrefilters.toArray()));
+            assertThat(prefiltersToQueryNameMap.get("should_2"), containsInAnyOrder(expectedPrefilters.toArray()));
+            assertThat(
+                prefiltersToQueryNameMap.get("filter_1"),
+                equalTo(expectedPrefilters.stream().filter(q -> q != filter_1).collect(Collectors.toSet()))
+            );
+            assertThat(
+                prefiltersToQueryNameMap.get("filter_2"),
+                equalTo(expectedPrefilters.stream().filter(q -> q != filter_2).collect(Collectors.toSet()))
+            );
+            assertThat(
+                prefiltersToQueryNameMap.get("must_not_1"),
+                equalTo(
+                    expectedPrefilters.stream().filter(q -> q.equals(boolQuery().mustNot(must_not_1)) == false).collect(Collectors.toSet())
+                )
+            );
+            assertThat(
+                prefiltersToQueryNameMap.get("must_not_2"),
+                equalTo(
+                    expectedPrefilters.stream().filter(q -> q.equals(boolQuery().mustNot(must_not_2)) == false).collect(Collectors.toSet())
+                )
+            );
+
+            expectedPrefilters = collectExpectedPrefilters(rootQuery, bool_1);
+            assertThat(
+                prefiltersToQueryNameMap.get("must_3"),
+                equalTo(expectedPrefilters.stream().filter(q -> q != must_3 && q != bool_1).collect(Collectors.toSet()))
+            );
+        }
+    }
+
+    private static QueryBuilder randomTermQueryMaybeWrappedInCompoundQuery() {
+        QueryBuilder termQuery = randomTermQuery();
+        if (randomBoolean()) {
+            return termQuery;
+        }
+        return switch (randomIntBetween(0, 4)) {
+            case 0 -> QueryBuilders.constantScoreQuery(termQuery);
+            case 1 -> QueryBuilders.functionScoreQuery(termQuery);
+            case 2 -> QueryBuilders.boostingQuery(termQuery, randomTermQuery());
+            case 3 -> QueryBuilders.disMaxQuery().add(termQuery).add(randomTermQuery());
+            case 4 -> QueryBuilders.boolQuery().filter(termQuery);
+            default -> throw new IllegalStateException("Unexpected value: " + randomIntBetween(0, 2));
+        };
+    }
+
+    private static QueryBuilder randomTermQuery() {
+        String filterFieldName = randomBoolean() ? KEYWORD_FIELD_NAME : TEXT_FIELD_NAME;
+        return termQuery(filterFieldName, randomAlphaOfLength(10));
+    }
+
+    private static Set<QueryBuilder> collectExpectedPrefilters(BoolQueryBuilder... queries) {
+        Set<QueryBuilder> expectedPrefilters = new HashSet<>();
+        for (BoolQueryBuilder query : queries) {
+            expectedPrefilters.addAll(query.must());
+            expectedPrefilters.addAll(query.filter());
+            expectedPrefilters.addAll(query.mustNot().stream().map(q -> boolQuery().mustNot(q)).collect(Collectors.toList()));
+        }
+        return expectedPrefilters;
+    }
+
+    private static final class TestAutoPrefilteringQueryBuilder extends AbstractQueryBuilder<TestAutoPrefilteringQueryBuilder> {
+
+        Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap;
+
+        private TestAutoPrefilteringQueryBuilder(String queryName, Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap) {
+            super();
+            queryName(queryName);
+            this.prefiltersToQueryNameMap = prefiltersToQueryNameMap;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            prefiltersToQueryNameMap.put(queryName(), context.autoPrefilteringScope().getPrefilters().stream().collect(Collectors.toSet()));
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        @Override
+        protected boolean doEquals(TestAutoPrefilteringQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
     }
 }

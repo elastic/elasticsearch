@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public final class Grok {
 
@@ -86,7 +88,7 @@ public final class Grok {
             expressionBytes.length,
             Option.DEFAULT,
             UTF8Encoding.INSTANCE,
-            message -> logCallBack.accept(message)
+            logCallBack::accept
         );
 
         List<GrokCaptureConfig> grokCaptureConfigs = new ArrayList<>();
@@ -96,15 +98,15 @@ public final class Grok {
         this.captureConfig = List.copyOf(grokCaptureConfigs);
     }
 
-    private String groupMatch(String name, Region region, String pattern) {
+    private static String groupMatch(String name, Region region, String pattern) {
         int number = GROK_PATTERN_REGEX.nameToBackrefNumber(
             name.getBytes(StandardCharsets.UTF_8),
             0,
             name.getBytes(StandardCharsets.UTF_8).length,
             region
         );
-        int begin = region.beg[number];
-        int end = region.end[number];
+        int begin = region.getBeg(number);
+        int end = region.getEnd(number);
         if (begin < 0) { // no match found
             return null;
         }
@@ -116,7 +118,7 @@ public final class Grok {
      *
      * @return named regex expression
      */
-    protected String toRegex(PatternBank patternBank, String grokPattern) {
+    String toRegex(PatternBank patternBank, String grokPattern) {
         StringBuilder res = new StringBuilder();
         for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
@@ -129,7 +131,7 @@ public final class Grok {
             } finally {
                 matcherWatchdog.unregister(matcher);
             }
-
+            handleInterrupted(result);
             if (result < 0) {
                 return res.append(grokPattern).toString();
             }
@@ -157,7 +159,12 @@ public final class Grok {
                 grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + result, pattern);
             }
             String start = new String(grokPatternBytes, 0, result, StandardCharsets.UTF_8);
-            String rest = new String(grokPatternBytes, region.end[0], grokPatternBytes.length - region.end[0], StandardCharsets.UTF_8);
+            String rest = new String(
+                grokPatternBytes,
+                region.getEnd(0),
+                grokPatternBytes.length - region.getEnd(0),
+                StandardCharsets.UTF_8
+            );
             grokPattern = grokPart + rest;
             res.append(start);
         }
@@ -179,6 +186,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
+        handleInterrupted(result);
         return (result != -1);
     }
 
@@ -189,8 +197,25 @@ public final class Grok {
      * @return a map containing field names and their respective coerced values that matched or null if the pattern didn't match
      */
     public Map<String, Object> captures(String text) {
+        return innerCaptures(text, cfg -> cfg::objectExtracter);
+    }
+
+    /**
+     * Matches and returns the ranges of any named captures.
+     *
+     * @param text the text to match and extract values from.
+     * @return a map containing field names and their respective ranges that matched or null if the pattern didn't match
+     */
+    public Map<String, Object> captureRanges(String text) {
+        return innerCaptures(text, cfg -> cfg::rangeExtracter);
+    }
+
+    private Map<String, Object> innerCaptures(
+        String text,
+        Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
+    ) {
         byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig);
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig, getExtracter);
         if (match(utf8Bytes, 0, utf8Bytes.length, extracter)) {
             return extracter.result();
         }
@@ -215,11 +240,7 @@ public final class Grok {
         } finally {
             matcherWatchdog.unregister(matcher);
         }
-        if (result == Matcher.INTERRUPTED) {
-            throw new RuntimeException(
-                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
-            );
-        }
+        handleInterrupted(result);
         if (result == Matcher.FAILED) {
             return false;
         }
@@ -238,4 +259,40 @@ public final class Grok {
         return compiledExpression;
     }
 
+    private void handleInterrupted(int result) {
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
+        }
+    }
+
+    public static String combinePatterns(List<String> patterns) {
+        return combinePatterns(patterns, null);
+    }
+
+    public static String combinePatterns(List<String> patterns, String traceMatchKey) {
+        String combinedPattern;
+        if (patterns.size() > 1) {
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                if (traceMatchKey != null) {
+                    valueWrap = "(?<" + traceMatchKey + "." + i + ">" + pattern + ")";
+                } else {
+                    valueWrap = "(?:" + patterns.get(i) + ")";
+                }
+                if (combinedPattern.isEmpty()) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
+            }
+        } else {
+            combinedPattern = patterns.getFirst();
+        }
+
+        return combinedPattern;
+    }
 }

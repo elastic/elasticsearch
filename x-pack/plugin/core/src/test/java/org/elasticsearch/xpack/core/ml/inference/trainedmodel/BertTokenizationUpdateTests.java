@@ -74,9 +74,6 @@ public class BertTokenizationUpdateTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected BertTokenizationUpdate mutateInstanceForVersion(BertTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_2_0)) {
-            return new BertTokenizationUpdate(instance.getTruncate(), null);
-        }
 
         return instance;
     }

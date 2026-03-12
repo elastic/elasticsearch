@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -60,8 +60,8 @@ public final class AutoCreateIndex {
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
-    public boolean shouldAutoCreate(String index, ClusterState state) {
-        if (resolver.hasIndexAbstraction(index, state)) {
+    public boolean shouldAutoCreate(String index, ProjectMetadata projectMetadata) {
+        if (resolver.hasIndexAbstraction(index, projectMetadata)) {
             return false;
         }
 
@@ -71,7 +71,7 @@ public final class AutoCreateIndex {
         }
 
         // Templates can override the AUTO_CREATE_INDEX_SETTING setting
-        final ComposableIndexTemplate template = findTemplate(index, state.metadata());
+        final ComposableIndexTemplate template = findTemplate(index, projectMetadata);
         if (template != null && template.getAllowAutoCreate() != null) {
             if (template.getAllowAutoCreate()) {
                 return true;
@@ -119,9 +119,9 @@ public final class AutoCreateIndex {
         this.autoCreate = autoCreate;
     }
 
-    private static ComposableIndexTemplate findTemplate(String indexName, Metadata metadata) {
-        final String templateName = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
-        return metadata.templatesV2().get(templateName);
+    private static ComposableIndexTemplate findTemplate(String indexName, ProjectMetadata projectMetadata) {
+        final String templateName = MetadataIndexTemplateService.findV2Template(projectMetadata, indexName, false);
+        return projectMetadata.templatesV2().get(templateName);
     }
 
     static class AutoCreate {

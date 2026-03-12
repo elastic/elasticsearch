@@ -15,6 +15,6 @@ public class SqlStatsAction extends ActionType<SqlStatsResponse> {
     public static final String NAME = "cluster:monitor/xpack/sql/stats/dist";
 
     private SqlStatsAction() {
-        super(NAME, SqlStatsResponse::new);
+        super(NAME);
     }
 }

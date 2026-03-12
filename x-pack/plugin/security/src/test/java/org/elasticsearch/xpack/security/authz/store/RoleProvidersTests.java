@@ -62,7 +62,7 @@ public class RoleProvidersTests extends ESTestCase {
 
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
             @Override
-            public void rolesChanged(Set<String> roles) {
+            public void clusterScopedRolesChanged(Set<String> roles) {
                 roleChangeCount.incrementAndGet();
                 lastRolesChange.set(roles);
             }
@@ -113,7 +113,7 @@ public class RoleProvidersTests extends ESTestCase {
         final AtomicInteger providerChangeCount = new AtomicInteger(0);
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
             @Override
-            public void rolesChanged(Set<String> roles) {
+            public void clusterScopedRolesChanged(Set<String> roles) {
                 // ignore
             }
 

@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -24,20 +26,26 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
+public class GetAnalyticsCollectionAction {
 
-    public static final GetAnalyticsCollectionAction INSTANCE = new GetAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";
+    public static final ActionType<GetAnalyticsCollectionAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private GetAnalyticsCollectionAction() {
-        super(NAME, GetAnalyticsCollectionAction.Response::new);
-    }
+    private GetAnalyticsCollectionAction() {/* no instances */}
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
 
-        public Request(String[] names) {
-            this.names = Objects.requireNonNull(names);
+        public static final ParseField NAMES_FIELD = new ParseField("names");
+
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
+            this.names = Objects.requireNonNull(names, "Collection names cannot be null");
         }
 
         public Request(StreamInput in) throws IOException {
@@ -72,6 +80,14 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             Request request = (Request) o;
             return Arrays.equals(this.names, request.names);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(NAMES_FIELD.getPreferredName(), names);
+            builder.endObject();
+            return builder;
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -81,8 +97,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         public static final ParseField EVENT_DATA_STREAM_NAME_FIELD = new ParseField("name");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            this.collections = in.readList(AnalyticsCollection::new);
+            this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 
         public Response(List<AnalyticsCollection> collections) {
@@ -107,7 +122,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(collections);
+            out.writeCollection(collections);
         }
 
         public List<AnalyticsCollection> getAnalyticsCollections() {

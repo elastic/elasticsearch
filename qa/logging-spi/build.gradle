@@ -1,0 +1,18 @@
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'logging-spi-test'
+  description = 'An test plugin to test the SPI behaviour of ES logging'
+  classname ='org.elasticsearch.test.logging.plugin.TestLoggingPlugin'
+}
+
+dependencies {
+  clusterPlugins project(':qa:logging-spi')
+}
+
+tasks.named("javadoc").configure {
+  // There seems to be some problem generating javadoc on a QA project that has a module definition
+  enabled = false
+}

@@ -8,19 +8,16 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -32,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFac
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper.UserData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.support.CancellableRunnable;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
@@ -39,15 +37,15 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -57,7 +55,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionF
 /**
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
  */
-public final class LdapRealm extends CachingUsernamePasswordRealm {
+public final class LdapRealm extends CachingUsernamePasswordRealm implements ReloadableSecurityComponent {
 
     private final SessionFactory sessionFactory;
     private final UserRoleMapper roleMapper;
@@ -70,13 +68,13 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService,
-        NativeRoleMappingStore nativeRoleMappingStore,
+        UserRoleMapper userRoleMapper,
         ThreadPool threadPool
     ) throws LDAPException {
         this(
             config,
             sessionFactory(config, sslService, threadPool),
-            new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore),
+            new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper),
             threadPool
         );
     }
@@ -88,7 +86,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         this.roleMapper = roleMapper;
         this.threadPool = threadPool;
         this.executionTimeout = config.getSetting(LdapRealmSettings.EXECUTION_TIMEOUT);
-        roleMapper.refreshRealmOnChange(this);
+        roleMapper.clearRealmCacheOnChange(this);
     }
 
     static SessionFactory sessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
@@ -148,7 +146,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
-        final CancellableLdapRunnable<AuthenticationResult<User>> cancellableLdapRunnable = new CancellableLdapRunnable<>(
+        final CancellableRunnable<AuthenticationResult<User>> cancellableLdapRunnable = new CancellableRunnable<>(
             listener,
             ex -> AuthenticationResult.unsuccessful("Authentication against realm [" + this.toString() + "] failed", ex),
             () -> sessionFactory.session(
@@ -159,7 +157,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             logger
         );
         threadPool.generic().execute(cancellableLdapRunnable);
-        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
@@ -171,7 +169,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 result -> userActionListener.onResponse(result.getValue()),
                 userActionListener::onFailure
             );
-            final CancellableLdapRunnable<User> cancellableLdapRunnable = new CancellableLdapRunnable<>(
+            final CancellableRunnable<User> cancellableLdapRunnable = new CancellableRunnable<>(
                 userActionListener,
                 e -> null,
                 () -> sessionFactory.unauthenticatedSession(
@@ -181,7 +179,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 logger
             );
             threadPool.generic().execute(cancellableLdapRunnable);
-            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         } else {
             userActionListener.onResponse(null);
         }
@@ -215,6 +213,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             usage.put("user_search", false == configuredUserSearchSettings(config).isEmpty());
             listener.onResponse(usage);
         }, listener::onFailure));
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        this.sessionFactory.reload(settings);
     }
 
     private static void buildUser(
@@ -256,16 +259,18 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 listener.onFailure(e);
             };
             session.resolve(ActionListener.wrap((ldapData) -> {
-                final Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder()
-                    .put("ldap_dn", session.userDn())
-                    .put("ldap_groups", ldapData.groups)
-                    .putAll(ldapData.metadata)
-                    .map();
+                final Map<String, Object> metadata = new HashMap<>();
+                metadata.put("ldap_dn", session.userDn());
+                metadata.put("ldap_groups", ldapData.groups);
+                metadata.putAll(ldapData.metadata);
                 final UserData user = new UserData(username, session.userDn(), ldapData.groups, metadata, session.realm());
+
                 roleMapper.resolveRoles(user, ActionListener.wrap(roles -> {
                     IOUtils.close(session);
                     String[] rolesArray = roles.toArray(new String[roles.size()]);
-                    listener.onResponse(AuthenticationResult.success(new User(username, rolesArray, null, null, metadata, true)));
+                    listener.onResponse(
+                        AuthenticationResult.success(new User(username, rolesArray, ldapData.fullName, ldapData.email, metadata, true))
+                    );
                 }, onFailure));
             }, onFailure));
             loadingGroups = true;
@@ -313,66 +318,6 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 logger.debug(() -> format("Exception occurred during %s for %s", action, LdapRealm.this), e);
             }
             resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
-        }
-
-    }
-
-    /**
-     * A runnable that allows us to terminate and call the listener. We use this as a runnable can
-     * be queued and not executed for a long time or ever and this causes user requests to appear
-     * to hang. In these cases at least we can provide a response.
-     */
-    static class CancellableLdapRunnable<T> extends AbstractRunnable {
-
-        private final Runnable in;
-        private final ActionListener<T> listener;
-        private final Function<Exception, T> defaultValue;
-        private final Logger logger;
-        private final AtomicReference<LdapRunnableState> state = new AtomicReference<>(LdapRunnableState.AWAITING_EXECUTION);
-
-        CancellableLdapRunnable(ActionListener<T> listener, Function<Exception, T> defaultValue, Runnable in, Logger logger) {
-            this.listener = listener;
-            this.defaultValue = Objects.requireNonNull(defaultValue);
-            this.in = in;
-            this.logger = logger;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error("execution of ldap runnable failed", e);
-            final T result = defaultValue.apply(e);
-            listener.onResponse(result);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            if (state.compareAndSet(LdapRunnableState.AWAITING_EXECUTION, LdapRunnableState.EXECUTING)) {
-                in.run();
-            } else {
-                logger.trace("skipping execution of ldap runnable as the current state is [{}]", state.get());
-            }
-        }
-
-        @Override
-        public void onRejection(Exception e) {
-            listener.onFailure(e);
-        }
-
-        /**
-         * If the execution of this runnable has not already started, the runnable is cancelled and we pass an exception to the user
-         * listener
-         */
-        void maybeTimeout() {
-            if (state.compareAndSet(LdapRunnableState.AWAITING_EXECUTION, LdapRunnableState.TIMED_OUT)) {
-                logger.warn("skipping execution of ldap runnable as it has been waiting for " + "execution too long");
-                listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for " + "execution of ldap runnable"));
-            }
-        }
-
-        enum LdapRunnableState {
-            AWAITING_EXECUTION,
-            EXECUTING,
-            TIMED_OUT
         }
     }
 }

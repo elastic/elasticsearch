@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
@@ -32,9 +32,9 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
-        UnfollowAction.Request request = new UnfollowAction.Request(followerIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(r -> {
+    void innerPerformAction(String followerIndex, ProjectState currentState, ActionListener<Void> listener) {
+        final var request = new UnfollowAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, followerIndex);
+        getClient(currentState.projectId()).execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(r -> {
             if (r.isAcknowledged() == false) {
                 throw new ElasticsearchException("unfollow request failed to be acknowledged");
             }
@@ -43,7 +43,7 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
             if (exception instanceof ElasticsearchException e && e.getMetadata("es.failed_to_remove_retention_leases") != null) {
                 List<String> leasesNotRemoved = e.getMetadata("es.failed_to_remove_retention_leases");
                 logger.debug(
-                    "failed to remove leader retention lease(s) {} while unfollowing index [{}], " + "continuing with lifecycle execution",
+                    "failed to remove leader retention lease(s) {} while unfollowing index [{}], continuing with lifecycle execution",
                     leasesNotRemoved,
                     followerIndex
                 );

@@ -1,0 +1,142 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              properties:
+                terms_field:
+                  type: keyword
+                int_field:
+                   type : integer
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+                geo_point_field:
+                  type: geo_point
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    "1"
+           - terms_field: foo
+           - index:
+               _index: test_1
+               _id:    "2"
+           - terms_field: foo
+           - index:
+               _index: test_1
+               _id:    "3"
+           - terms_field: bar
+
+---
+"Basic test":
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: terms_field
+                "order":
+                  "_key": "asc"
+              aggs:
+                min_agg:
+                  min:
+                    field: double_field
+                max_agg:
+                  max:
+                    field: double_field
+                avg_agg:
+                  avg:
+                    field: double_field
+                sum_agg:
+                  avg:
+                    field: double_field
+                value_count_agg:
+                  value_count:
+                    field: double_field
+                cardinality_agg:
+                  cardinality:
+                    field: string_field
+                weighted_avg_agg:
+                  weighted_avg:
+                    value:
+                      field: int_field
+                    weight:
+                      field: double_field
+                median_absolute_deviation_agg:
+                  median_absolute_deviation:
+                    field: double_field
+                stats_agg:
+                  stats:
+                    field: double_field
+                extended_stats_agg:
+                  extended_stats:
+                    field: double_field
+                percentiles_agg:
+                  percentiles:
+                    field: double_field
+                    percents: 50
+                geo_bounds_agg:
+                  geo_bounds:
+                    field: geo_point_field
+                geo_centroid_agg:
+                  geo_centroid:
+                    field: geo_point_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.the_terms.buckets.0.key: bar}
+  - match: { aggregations.the_terms.buckets.0.doc_count: 1}
+  - match: { aggregations.the_terms.buckets.0.min_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.max_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.avg_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.sum_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.value_count_agg.value: 0 }
+  - match: { aggregations.the_terms.buckets.0.cardinality_agg.value: 0 }
+  - match: { aggregations.the_terms.buckets.0.weighted_avg_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.median_absolute_deviation_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.stats_agg.min: null }
+  - match: { aggregations.the_terms.buckets.0.stats_agg.max: null }
+  - match: { aggregations.the_terms.buckets.0.stats_agg.avg: null }
+  - match: { aggregations.the_terms.buckets.0.stats_agg.sum: 0.0 }
+  - match: { aggregations.the_terms.buckets.0.extended_stats_agg.min: null }
+  - match: { aggregations.the_terms.buckets.0.extended_stats_agg.max: null }
+  - match: { aggregations.the_terms.buckets.0.extended_stats_agg.avg: null }
+  - match: { aggregations.the_terms.buckets.0.extended_stats_agg.sum: 0.0 }
+  - match: { aggregations.the_terms.buckets.0.extended_stats_agg.sum_of_squares: null }
+  - match: { aggregations.the_terms.buckets.0.percentiles_agg.50: null }
+  - match: { aggregations.the_terms.buckets.0.geo_bounds_agg.top_left: null }
+  - match: { aggregations.the_terms.buckets.0.geo_bounds_agg.bottom_right: null }
+  - match: { aggregations.the_terms.buckets.0.geo_centroid_agg.count: 0 }
+  - match: { aggregations.the_terms.buckets.1.key: foo }
+  - match: { aggregations.the_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.the_terms.buckets.1.min_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.max_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.avg_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.sum_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.value_count_agg.value: 0 }
+  - match: { aggregations.the_terms.buckets.1.cardinality_agg.value: 0 }
+  - match: { aggregations.the_terms.buckets.1.weighted_avg_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.median_absolute_deviation_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.stats_agg.min: null }
+  - match: { aggregations.the_terms.buckets.1.stats_agg.max: null }
+  - match: { aggregations.the_terms.buckets.1.stats_agg.avg: null }
+  - match: { aggregations.the_terms.buckets.1.stats_agg.sum: 0.0 }
+  - match: { aggregations.the_terms.buckets.1.extended_stats_agg.min: null }
+  - match: { aggregations.the_terms.buckets.1.extended_stats_agg.max: null }
+  - match: { aggregations.the_terms.buckets.1.extended_stats_agg.avg: null }
+  - match: { aggregations.the_terms.buckets.1.extended_stats_agg.sum: 0.0 }
+  - match: { aggregations.the_terms.buckets.1.extended_stats_agg.sum_of_squares: null }
+  - match: { aggregations.the_terms.buckets.1.percentiles_agg.50: null }
+  - match: { aggregations.the_terms.buckets.1.geo_bounds_agg.top_left: null }
+  - match: { aggregations.the_terms.buckets.1.geo_bounds_agg.bottom_right: null }
+  - match: { aggregations.the_terms.buckets.1.geo_centroid_agg.count: 0 }

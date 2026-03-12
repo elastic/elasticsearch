@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -49,9 +50,11 @@ public abstract class Assertion implements ExecutableSection {
     }
 
     protected final Object getActualValue(ClientYamlTestExecutionContext executionContext) throws IOException {
-        if (executionContext.stash().containsStashedValue(field)) {
+        // If the "field" name contains only a simple stashed value reference, such as "$body", just get that value from the stash.
+        if (executionContext.stash().isStashedValue(field)) {
             return executionContext.stash().getValue(field);
         }
+        // Otherwise, get the value from the response. The field name will be subject to expansion of embedded ${...} references.
         return executionContext.response(field);
     }
 

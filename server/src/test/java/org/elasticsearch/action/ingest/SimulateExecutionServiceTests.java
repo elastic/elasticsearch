@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -108,7 +109,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
-        assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(ingestDocument));
+        assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(), ingestDocument);
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
 
@@ -260,7 +261,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocument() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -280,7 +281,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocumentVerbose() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -303,7 +304,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocumentVerboseExtraProcessor() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2, processor3));
 

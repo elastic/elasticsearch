@@ -1,0 +1,80 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sample1
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+              version:
+                type: version
+              missing_keyword:
+                type: keyword
+              type_test:
+                type: keyword
+              "@timestamp_pretty":
+                type: date
+                format: dd-MM-yyyy
+              event_type:
+                type: keyword
+              event:
+                properties:
+                  category:
+                    type: alias
+                    path: event_type
+              host:
+                type: keyword
+              os:
+                type: keyword
+              bool:
+                type: boolean
+              uptime:
+                type: long
+              port:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"12-12-2022","type_test":"abc","event_type":"alert","os":"win10","port":1234,"missing_keyword":"test","ip":"10.0.0.1","host":"doom","id":11,"version":"1.0.0","uptime":0}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"13-12-2022","event_type":"alert","type_test":"abc","os":"win10","port":1,"host":"CS","id":12,"version":"1.2.0","uptime":5}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"12-12-2022","event_type":"alert","type_test":"abc","bool":false,"os":"win10","port":1234,"host":"farcry","id":13,"version":"2.0.0","uptime":1}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"13-12-2022","event_type":"alert","type_test":"abc","os":"slack","port":12,"host":"GTA","id":14,"version":"10.0.0","uptime":3}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"17-12-2022","event_type":"alert","os":"fedora","port":1234,"host":"sniper 3d","id":15,"version":"20.1.0","uptime":6}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"17-12-2022","event_type":"alert","bool":true,"os":"redhat","port":65123,"host":"doom","id":16,"version":"20.10.0"}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"17-12-2022","event_type":"failure","bool":true,"os":"redhat","port":1234,"missing_keyword":"yyy","host":"doom","id":17,"version":"20.2.0","uptime":15}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"12-12-2022","event_type":"success","os":"win10","port":512,"missing_keyword":"test","host":"doom","id":18,"version":"1.2.3","uptime":16}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"@timestamp_pretty":"15-12-2022","event_type":"success","bool":true,"os":"win10","port":12,"missing_keyword":"test","host":"GTA","id":19,"version":"1.2.3"}'
+          - '{"index" : { "_index" : "sample1" }}'
+          - '{"event_type":"alert","bool":true,"os":"win10","port":1234,"missing_keyword":null,"ip":"10.0.0.5","host":"farcry","id":110,"version":"1.2.3","uptime":1}'
+
+---
+# Test an empty reply due to query filtering
+"Execute some EQL.":
+  - do:
+      eql.search:
+        index: sample1
+        body:
+          query: 'sample by host [any where uptime > 0] by os [any where port > 100] by os [any where bool == true] by os'
+          filter:
+            range:
+              "@timestamp_pretty":
+                gte: now-5m
+                lte: now
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 0}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences: []}
+

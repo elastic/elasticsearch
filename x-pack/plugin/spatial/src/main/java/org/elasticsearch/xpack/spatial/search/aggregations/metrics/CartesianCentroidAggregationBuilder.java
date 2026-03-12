@@ -37,6 +37,7 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
         NAME,
         CartesianCentroidAggregationBuilder::new
     );
+
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
@@ -106,12 +107,7 @@ public class CartesianCentroidAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_6_0;
+        return TransportVersion.minimumCompatible();
     }
 }

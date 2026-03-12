@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
@@ -145,11 +145,10 @@ public class JiraIssue implements ToXContentObject {
             final List<String> errors = new ArrayList<>();
             // EMPTY is safe here because we never call namedObject
             try (
-                InputStream stream = response.body().streamInput();
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    stream
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    response.body(),
+                    XContentType.JSON
                 )
             ) {
                 XContentParser.Token token = parser.currentToken();

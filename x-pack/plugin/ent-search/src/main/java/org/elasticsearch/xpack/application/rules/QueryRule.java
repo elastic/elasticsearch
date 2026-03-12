@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,14 +23,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
 /**
  * A query rule consists of:
@@ -41,12 +48,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class QueryRule implements Writeable, ToXContentObject {
 
+    public static final int MAX_NUM_DOCS_IN_RULE = 100;
+    public static final ParseField IDS_FIELD = new ParseField("ids");
+    public static final ParseField DOCS_FIELD = new ParseField("docs");
+    public static final ParseField INDEX_FIELD = new ParseField("_index");
+
     private final String id;
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
+    private final Integer priority;
+
+    public static final int MIN_PRIORITY = 0;
+    public static final int MAX_PRIORITY = 1000000;
 
     public enum QueryRuleType {
+        EXCLUDE,
         PINNED;
 
         public static QueryRuleType queryRuleType(String type) {
@@ -57,7 +74,14 @@ public class QueryRule implements Writeable, ToXContentObject {
             }
             throw new IllegalArgumentException("Unknown QueryRuleType: " + type);
         }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
+
+    public static final NodeFeature NUMERIC_VALIDATION = new NodeFeature("query_rules.numeric_validation", true);
 
     /**
      * Public constructor.
@@ -66,11 +90,17 @@ public class QueryRule implements Writeable, ToXContentObject {
      * @param type                      The {@link QueryRuleType} of this rule
      * @param criteria                  The {@link QueryRuleCriteria} required for a query to match this rule
      * @param actions                   The actions that should be taken if this rule is matched, dependent on the type of rule
+     * @param priority        If specified, assigns a priority to the rule. Rules with specified priorities are applied before
+     *                                  rules without specified priorities, in ascending priority order.
      */
-    public QueryRule(String id, QueryRuleType type, List<QueryRuleCriteria> criteria, Map<String, Object> actions) {
-        if (Strings.isNullOrEmpty(id)) {
-            throw new IllegalArgumentException("Query rule id cannot be null or blank");
-        }
+    public QueryRule(
+        @Nullable String id,
+        QueryRuleType type,
+        List<QueryRuleCriteria> criteria,
+        Map<String, Object> actions,
+        @Nullable Integer priority
+    ) {
+        // Interstitial null state allowed during rule creation; validation occurs in CRUD API
         this.id = id;
 
         Objects.requireNonNull(type, "Query rule type cannot be null");
@@ -87,26 +117,58 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Query rule actions cannot be empty");
         }
         this.actions = actions;
+        this.priority = priority;
 
         validate();
+    }
+
+    public QueryRule(String id, QueryRule other) {
+        this(id, other.type, other.criteria, other.actions, other.priority);
     }
 
     public QueryRule(StreamInput in) throws IOException {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
-        this.criteria = in.readList(QueryRuleCriteria::new);
-        this.actions = in.readMap();
+        this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
+        this.actions = in.readGenericMap();
+        this.priority = in.readOptionalVInt();
 
         validate();
     }
 
     private void validate() {
-        if (type == QueryRuleType.PINNED) {
-            if (actions.containsKey("ids") == false && actions.containsKey("docs") == false) {
-                throw new ElasticsearchParseException("Pinned Query rule actions must contain either ids or docs");
+        if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
+            throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
+        }
+
+        if (Set.of(QueryRuleType.PINNED, QueryRuleType.EXCLUDE).contains(type)) {
+            boolean ruleContainsIds = actions.containsKey(IDS_FIELD.getPreferredName());
+            boolean ruleContainsDocs = actions.containsKey(DOCS_FIELD.getPreferredName());
+            if (ruleContainsIds ^ ruleContainsDocs) {
+                validateIdOrDocAction(actions.get(IDS_FIELD.getPreferredName()));
+                validateIdOrDocAction(actions.get(DOCS_FIELD.getPreferredName()));
+            } else {
+                throw new ElasticsearchParseException(type.toString() + " query rule actions must contain only one of either ids or docs");
             }
-        } else {
-            throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
+
+        criteria.forEach(criterion -> {
+            List<Object> values = criterion.criteriaValues();
+            if (values != null) {
+                values.forEach(criterion.criteriaType()::validateInput);
+            }
+        });
+    }
+
+    private void validateIdOrDocAction(Object action) {
+        if (action != null) {
+            if (action instanceof List == false) {
+                throw new ElasticsearchParseException(type + " query rule actions must be a list");
+            } else if (((List<?>) action).isEmpty()) {
+                throw new ElasticsearchParseException(type + " query rule actions cannot be empty");
+            } else if (((List<?>) action).size() > MAX_NUM_DOCS_IN_RULE) {
+                throw new ElasticsearchParseException(type + " documents cannot exceed " + MAX_NUM_DOCS_IN_RULE);
+            }
         }
     }
 
@@ -114,8 +176,9 @@ public class QueryRule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(type.toString());
-        out.writeList(criteria);
+        out.writeCollection(criteria);
         out.writeGenericMap(actions);
+        out.writeOptionalVInt(priority);
     }
 
     @SuppressWarnings("unchecked")
@@ -127,7 +190,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
             final List<QueryRuleCriteria> criteria = (List<QueryRuleCriteria>) params[2];
             final Map<String, Object> actions = (Map<String, Object>) params[3];
-            return new QueryRule(id, type, criteria, actions);
+            final Integer priority = (Integer) params[4];
+            return new QueryRule(id, type, criteria, actions, priority);
         }
     );
 
@@ -135,12 +199,14 @@ public class QueryRule implements Writeable, ToXContentObject {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField CRITERIA_FIELD = new ParseField("criteria");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
+    public static final ParseField PRIORITY_FIELD = new ParseField("priority");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), PRIORITY_FIELD);
     }
 
     /**
@@ -183,7 +249,9 @@ public class QueryRule implements Writeable, ToXContentObject {
             builder.xContentList(CRITERIA_FIELD.getPreferredName(), criteria);
             builder.field(ACTIONS_FIELD.getPreferredName());
             builder.map(actions);
-
+            if (priority != null) {
+                builder.field(PRIORITY_FIELD.getPreferredName(), priority);
+            }
         }
         builder.endObject();
         return builder;
@@ -225,6 +293,10 @@ public class QueryRule implements Writeable, ToXContentObject {
         return actions;
     }
 
+    public Integer priority() {
+        return priority;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -233,16 +305,72 @@ public class QueryRule implements Writeable, ToXContentObject {
         return Objects.equals(id, queryRule.id)
             && type == queryRule.type
             && Objects.equals(criteria, queryRule.criteria)
-            && Objects.equals(actions, queryRule.actions);
+            && Objects.equals(actions, queryRule.actions)
+            && Objects.equals(priority, queryRule.priority);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type, criteria, actions);
+        return Objects.hash(id, type, criteria, actions, priority);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
     }
+
+    public AppliedQueryRules applyRule(AppliedQueryRules appliedRules, Map<String, Object> matchCriteria) {
+        List<SpecifiedDocument> pinnedDocs = appliedRules.pinnedDocs();
+        List<SpecifiedDocument> excludedDocs = appliedRules.excludedDocs();
+        List<SpecifiedDocument> matchingDocs = identifyMatchingDocs(matchCriteria);
+
+        switch (type) {
+            case PINNED -> pinnedDocs.addAll(matchingDocs);
+            case EXCLUDE -> excludedDocs.addAll(matchingDocs);
+            default -> throw new IllegalStateException("Unsupported query rule type: " + type);
+        }
+        return new AppliedQueryRules(pinnedDocs, excludedDocs);
+    }
+
+    public boolean isRuleMatch(Map<String, Object> matchCriteria) {
+        Boolean isRuleMatch = null;
+        for (QueryRuleCriteria criterion : criteria) {
+            for (String match : matchCriteria.keySet()) {
+                final Object matchValue = matchCriteria.get(match);
+                final QueryRuleCriteriaType criteriaType = criterion.criteriaType();
+                final String criteriaMetadata = criterion.criteriaMetadata();
+
+                if (criteriaType == ALWAYS || (criteriaMetadata != null && criteriaMetadata.equals(match))) {
+                    boolean singleCriterionMatches = criterion.isMatch(matchValue, criteriaType, false);
+                    isRuleMatch = (isRuleMatch == null) ? singleCriterionMatches : isRuleMatch && singleCriterionMatches;
+                }
+            }
+        }
+        return isRuleMatch != null && isRuleMatch;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
+        List<SpecifiedDocument> matchingDocs = new ArrayList<>();
+        if (isRuleMatch(matchCriteria)) {
+            if (actions.containsKey(IDS_FIELD.getPreferredName())) {
+                matchingDocs.addAll(
+                    ((List<String>) actions.get(IDS_FIELD.getPreferredName())).stream().map(id -> new SpecifiedDocument(null, id)).toList()
+                );
+            } else if (actions.containsKey(DOCS_FIELD.getPreferredName())) {
+                List<Map<String, String>> docsToPin = (List<Map<String, String>>) actions.get(DOCS_FIELD.getPreferredName());
+                List<SpecifiedDocument> specifiedDocuments = docsToPin.stream()
+                    .map(
+                        map -> new SpecifiedDocument(
+                            map.get(INDEX_FIELD.getPreferredName()),
+                            map.get(SpecifiedDocument.ID_FIELD.getPreferredName())
+                        )
+                    )
+                    .toList();
+                matchingDocs.addAll(specifiedDocuments);
+            }
+        }
+        return matchingDocs;
+    }
+
 }

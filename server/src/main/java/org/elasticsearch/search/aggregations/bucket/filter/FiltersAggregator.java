@@ -1,19 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DisiPriorityQueue;
+import org.apache.lucene.search.DisiWrapper;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -38,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.IntPredicate;
 import java.util.function.LongPredicate;
 
 /**
@@ -136,7 +141,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator>(
+            new FilterByFilterAggregator.AdapterBuilder<>(
                 name,
                 keyed,
                 keyedBucket,
@@ -203,21 +208,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
-                    return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key().toString(),
-                        docCount,
-                        subAggregationResults,
-                        keyed,
-                        keyedBucket
-                    );
+                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key(), docCount, subAggregationResults);
                 }
-                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed, keyedBucket);
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults);
             },
             buckets -> new InternalFilters(name, buckets, keyed, keyedBucket, metadata())
         );
@@ -228,18 +227,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(
-                filter.key().toString(),
-                0,
-                subAggs,
-                keyed,
-                keyedBucket
-            );
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs);
             buckets.add(bucket);
         }
 
         if (otherBucketKey != null) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs);
             buckets.add(bucket);
         }
 
@@ -289,29 +282,210 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-            IntPredicate[] docFilters = new IntPredicate[filters().size()];
-            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(aggCtx.getLeafReaderContext());
+            if (QueryToFilterAdapter.matchesNoDocs(filters()) && otherBucketKey == null) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            return new LeafBucketCollectorBase(sub, null) {
-                @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    boolean matched = false;
-                    for (int i = 0; i < docFilters.length; i++) {
-                        if (docFilters[i].test(doc)) {
-                            collectBucket(sub, doc, bucketOrd(bucket, i));
-                            matched = true;
-                        }
-                    }
-                    if (otherBucketKey != null && false == matched) {
-                        collectBucket(sub, doc, bucketOrd(bucket, docFilters.length));
-                    }
+
+            final int numFilters = filters().size();
+            List<FilterMatchingDisiWrapper> filterWrappers = new ArrayList<>();
+            long totalCost = 0;
+            // trigger the parent circuit breaker to make sure we have enough heap to build the first scorer.
+            // note we might still fail if the scorer is huge.
+            addRequestCircuitBreakerBytes(0L);
+            for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
+                Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
+                if (randomAccessScorer == null) {
+                    continue;
                 }
-            };
+                // scorer can take a fair amount of heap, and we have no means to estimate the size, so
+                // we trigger the parent circuit breaker to at least fail if we are running out of heap
+                addRequestCircuitBreakerBytes(0L);
+                totalCost += randomAccessScorer.iterator().cost();
+                filterWrappers.add(
+                    randomAccessScorer.twoPhaseIterator() == null
+                        ? new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd)
+                        : new TwoPhaseFilterMatchingDisiWrapper(randomAccessScorer, filterOrd)
+                );
+            }
+
+            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
+            // and the cost of per-filter doc iterator is smaller than maxDoc, indicating that there are docs matching the main
+            // query but not the filter query.
+            final boolean hasOtherBucket = otherBucketKey != null;
+            // TODO: https://github.com/elastic/elasticsearch/issues/126955
+            // competitive iterator is currently broken, we would rather be slow than broken
+            final boolean usesCompetitiveIterator = false;
+
+            if (filterWrappers.size() == 1) {
+                return new SingleFilterLeafCollector(
+                    sub,
+                    filterWrappers.get(0),
+                    numFilters,
+                    totalNumKeys,
+                    usesCompetitiveIterator,
+                    hasOtherBucket
+                );
+            }
+            // TODO: https://github.com/elastic/elasticsearch/issues/126955
+            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, hasOtherBucket);
+        }
+    }
+
+    private abstract static class AbstractLeafCollector extends LeafBucketCollectorBase {
+        final LeafBucketCollector sub;
+        final int numFilters;
+        final int totalNumKeys;
+        final boolean usesCompetitiveIterator;
+        final boolean hasOtherBucket;
+
+        AbstractLeafCollector(
+            LeafBucketCollector sub,
+            int numFilters,
+            int totalNumKeys,
+            boolean usesCompetitiveIterator,
+            boolean hasOtherBucket
+        ) {
+            super(sub, null);
+            this.sub = sub;
+            this.numFilters = numFilters;
+            this.totalNumKeys = totalNumKeys;
+            this.usesCompetitiveIterator = usesCompetitiveIterator;
+            this.hasOtherBucket = hasOtherBucket;
         }
 
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
             return owningBucketOrdinal * totalNumKeys + filterOrd;
+        }
+    }
+
+    private class SingleFilterLeafCollector extends AbstractLeafCollector {
+
+        final FilterMatchingDisiWrapper filterWrapper;
+
+        SingleFilterLeafCollector(
+            LeafBucketCollector sub,
+            FilterMatchingDisiWrapper filterWrapper,
+            int numFilters,
+            int totalNumKeys,
+            boolean usesCompetitiveIterator,
+            boolean hasOtherBucket
+        ) {
+            super(sub, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            this.filterWrapper = filterWrapper;
+        }
+
+        public void collect(int doc, long bucket) throws IOException {
+            if (filterWrapper.approximation.docID() < doc) {
+                filterWrapper.approximation.advance(doc);
+            }
+            boolean matched = false;
+            if (filterWrapper.approximation.docID() == doc) {
+                if (filterWrapper.checkDocForMatch(doc)) {
+                    collectBucket(sub, doc, bucketOrd(bucket, filterWrapper.filterOrd));
+                    matched = true;
+                }
+            }
+            if (hasOtherBucket && false == matched) {
+                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            if (usesCompetitiveIterator) {
+                return filterWrapper.approximation;
+            }
+            return null;
+        }
+    }
+
+    private final class MultiFilterLeafCollector extends AbstractLeafCollector {
+
+        // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
+        DisiPriorityQueue filterIterators;
+
+        MultiFilterLeafCollector(
+            LeafBucketCollector sub,
+            List<FilterMatchingDisiWrapper> filterWrappers,
+            int numFilters,
+            int totalNumKeys,
+            boolean hasOtherBucket
+        ) {
+            super(sub, numFilters, totalNumKeys, false, hasOtherBucket);
+            filterIterators = filterWrappers.isEmpty() ? null : DisiPriorityQueue.ofMaxSize(filterWrappers.size());
+            for (FilterMatchingDisiWrapper wrapper : filterWrappers) {
+                filterIterators.add(wrapper);
+            }
+        }
+
+        public void collect(int doc, long bucket) throws IOException {
+            boolean matched = false;
+            if (filterIterators != null) {
+                // Advance filters if necessary.
+                DisiWrapper top = filterIterators.top();
+                while (top.doc < doc) {
+                    top.doc = top.approximation.advance(doc);
+                    top = filterIterators.updateTop();
+                }
+
+                if (top.doc == doc) {
+                    for (DisiWrapper w = filterIterators.topList(); w != null; w = w.next) {
+                        // It would be nice if DisiPriorityQueue supported generics to avoid unchecked casts.
+                        FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+                        if (topMatch.checkDocForMatch(doc)) {
+                            collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                            matched = true;
+                        }
+                    }
+                }
+            }
+
+            if (hasOtherBucket && false == matched) {
+                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() {
+            return null;
+        }
+    }
+
+    private static class FilterMatchingDisiWrapper extends DisiWrapper {
+        final int filterOrd;
+
+        FilterMatchingDisiWrapper(Scorer scorer, int ord) {
+            super(scorer, false);
+            this.filterOrd = ord;
+        }
+
+        boolean checkDocForMatch(int doc) throws IOException {
+            return true;
+        }
+    }
+
+    private static class TwoPhaseFilterMatchingDisiWrapper extends FilterMatchingDisiWrapper {
+        // Tracks the last doc that matches the filter.
+        int lastMatchingDoc = -1;
+        // Tracks the last doc that was checked for filter matching.
+        int lastCheckedDoc = -1;
+
+        TwoPhaseFilterMatchingDisiWrapper(Scorer scorer, int ord) {
+            super(scorer, ord);
+        }
+
+        @Override
+        boolean checkDocForMatch(int doc) throws IOException {
+            // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
+            // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
+            // buckets.
+            if (lastCheckedDoc < doc) {
+                lastCheckedDoc = doc;
+                if (twoPhaseView.matches()) {
+                    lastMatchingDoc = doc;
+                }
+            }
+            return (lastMatchingDoc == doc);
         }
     }
 

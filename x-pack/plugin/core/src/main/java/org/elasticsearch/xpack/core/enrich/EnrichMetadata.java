@@ -29,11 +29,13 @@ import java.util.Objects;
 /**
  * Encapsulates enrich policies as custom metadata inside cluster state.
  */
-public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "enrich";
 
     static final ParseField POLICIES = new ParseField("policies");
+
+    public static final EnrichMetadata EMPTY = new EnrichMetadata(Collections.emptyMap());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -83,7 +85,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -93,12 +95,12 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policies, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(policies, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentFragmentValuesMap(POLICIES.getPreferredName(), policies);
+        return ChunkedToXContentHelper.xContentObjectFieldObjects(POLICIES.getPreferredName(), policies);
     }
 
     @Override

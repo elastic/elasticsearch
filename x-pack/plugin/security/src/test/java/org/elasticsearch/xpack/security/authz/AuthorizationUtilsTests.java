@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -29,7 +31,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -67,7 +69,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
@@ -78,7 +80,30 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("internal:foo/bar"));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
+    }
+
+    public void testShouldSwitchToSystemUserForProxyNonInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        String nonInternalAction = randomFrom("indices:foo", "cluster:bar");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction(nonInternalAction));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
+    }
+
+    public void testShouldNotSwitchToSystemUserForProxyInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 
@@ -119,8 +144,12 @@ public class AuthorizationUtilsTests extends ESTestCase {
         );
     }
 
-    public void testSwitchWithDlmOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(DataLifecycle.DLM_ORIGIN, InternalUsers.DLM_USER, randomTransportVersion());
+    public void testSwitchWithDataStreamLifecycleOrigin() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(
+            DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN,
+            InternalUsers.DATA_STREAM_LIFECYCLE_USER,
+            randomTransportVersion()
+        );
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
@@ -151,14 +180,14 @@ public class AuthorizationUtilsTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
 
-        final ActionListener<Void> listener = ActionListener.wrap(v -> {
+        final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             final Authentication authentication = securityContext.getAuthentication();
             assertEquals(user, authentication.getEffectiveSubject().getUser());
             assertEquals(version, authentication.getEffectiveSubject().getTransportVersion());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
@@ -178,6 +207,6 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     private TransportVersion randomTransportVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 }

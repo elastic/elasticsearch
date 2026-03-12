@@ -12,9 +12,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,8 +30,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
         ClusterService clusterService,
         MutableLicenseService licenseService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             PostStartTrialAction.NAME,
@@ -40,9 +39,8 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
             threadPool,
             actionFilters,
             PostStartTrialRequest::new,
-            indexNameExpressionResolver,
             PostStartTrialResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseService = licenseService;
     }
@@ -54,6 +52,15 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
         ClusterState state,
         ActionListener<PostStartTrialResponse> listener
     ) throws Exception {
+        if (state.nodes().isMixedVersionCluster()) {
+            throw new IllegalStateException(
+                "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
+                    + state.nodes().getMaxNodeVersion()
+                    + "] and the lowest node version is ["
+                    + state.nodes().getMinNodeVersion()
+                    + "]"
+            );
+        }
         licenseService.startTrialLicense(request, listener);
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -96,11 +98,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return true;
     }
 
-    @Override
-    public boolean supportsConcurrentExecution() {
-        return false;
-    }
-
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();
@@ -111,7 +108,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         this.size = in.readVInt();
         if (in.readBoolean()) {
-            this.after = in.readMap();
+            this.after = in.readGenericMap();
         }
     }
 
@@ -250,20 +247,24 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 Object obj = after.get(sourceName);
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
-                } else if (obj instanceof Comparable<?> c) {
-                    values[i] = c;
-                } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
-                    // If input is a _tsid map, encode the map to the _tsid BytesRef
-                    values[i] = configs[i].format().parseBytesRef(obj);
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid value for [after."
-                            + sources.get(i).name()
-                            + "], expected comparable, got ["
-                            + (obj == null ? "null" : obj.getClass().getSimpleName())
-                            + "]"
-                    );
-                }
+                } else if (obj instanceof String s
+                    && configs[i].fieldType() != null
+                    && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        values[i] = configs[i].format().parseBytesRef(s);
+                    } else if (obj instanceof Comparable<?> c) {
+                        values[i] = c;
+                    } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        // If input is a _tsid map, encode the map to the _tsid BytesRef
+                        values[i] = configs[i].format().parseBytesRef(obj);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Invalid value for [after."
+                                + sources.get(i).name()
+                                + "], expected comparable, got ["
+                                + (obj == null ? "null" : obj.getClass().getSimpleName())
+                                + "]"
+                        );
+                    }
             }
             afterKey = new CompositeKey(values);
         } else {
@@ -304,6 +305,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersion.zero();
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 }

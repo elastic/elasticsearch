@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -18,9 +19,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -28,17 +27,15 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.junit.After;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
@@ -77,34 +74,8 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
-    private long retryDelay(int retryCount) {
-        return 100 * (1 << retryCount) + Randomness.get().nextInt(10);
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        int retryCount = 0;
-        do {
-            try {
-                // this can fail on Windows because of timing
-                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-                return;
-            } catch (IOException e) {
-                logger.info("--> retrying writing a settings file [" + retryCount + "]");
-                if (retryCount == 4) { // retry 5 times
-                    throw e;
-                }
-                Thread.sleep(retryDelay(retryCount));
-                retryCount++;
-            }
-        } while (true);
+        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -133,7 +104,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        return clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())).get();
+        return clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())).get();
     }
 
     public void testRestoreWithRemovedFileSettings() throws Exception {
@@ -173,26 +144,36 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         Files.delete(fs.watchedFile());
 
         logger.info("--> restore global state from the snapshot");
-        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
 
         ensureGreen();
 
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().metadata(true)).actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).metadata(true))
+            .actionGet();
 
-        // We expect no reserved metadata state for file based settings, the operator file was deleted.
-        assertNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
+        // We expect empty reserved metadata state for file based settings, the operator file was deleted.
+        ReservedStateMetadata reservedState = clusterStateResponse.getState()
+            .metadata()
+            .reservedStateMetadata()
+            .get(FileSettingsService.NAMESPACE);
+        assertThat(reservedState, notNullValue());
+        assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
+        assertTrue(reservedState.handlers().isEmpty());
 
         final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).actionGet();
 
         assertThat(
             getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
             equalTo("25s")
         );
-        // We didn't remove the setting set by file settings, we simply removed the reserved (operator) section.
-        assertThat(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"), equalTo("50mb"));
+        // File setting were re-set as the file was absent, this trumps the snapshot restore.
+        assertNull(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"));
         // cleanup
         updateClusterSettings(
             Settings.builder()
@@ -285,7 +266,10 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> restore global state from the snapshot");
         var removedReservedState = removedReservedClusterStateListener(masterNode);
 
-        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
 
         ensureGreen();
 
@@ -299,14 +283,14 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> reserved state would be restored to non-zero version");
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().metadata(true).waitForMetadataVersion(removedReservedState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).metadata(true).waitForMetadataVersion(removedReservedState.v2().get())
         ).actionGet();
 
         assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
         final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).actionGet();
 
         assertThat(

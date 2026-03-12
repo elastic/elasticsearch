@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
@@ -42,17 +41,13 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
         return new TextExpansionConfigUpdate(resultsField, tokenizationUpdate);
     }
 
-    private static final ObjectParser<TextExpansionConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    private static ObjectParser<TextExpansionConfigUpdate.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<TextExpansionConfigUpdate.Builder, Void> parser = new ObjectParser<>(
-            NAME,
-            lenient,
-            TextExpansionConfigUpdate.Builder::new
-        );
-        parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
+    private static ObjectParser<Builder, Void> createParser(boolean lenient) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(NAME, lenient, Builder::new);
+        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
         parser.declareNamedObject(
-            TextExpansionConfigUpdate.Builder::setTokenizationUpdate,
+            Builder::setTokenizationUpdate,
             (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
             TOKENIZATION
         );
@@ -100,33 +95,6 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof TextExpansionConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-        TextExpansionConfig textExpansionConfig = (TextExpansionConfig) originalConfig;
-        if (isNoop(textExpansionConfig)) {
-            return textExpansionConfig;
-        }
-
-        return new TextExpansionConfig(
-            textExpansionConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null)
-                ? textExpansionConfig.getTokenization()
-                : tokenizationUpdate.apply(textExpansionConfig.getTokenization()),
-            Optional.ofNullable(resultsField).orElse(textExpansionConfig.getResultsField())
-        );
-    }
-
-    boolean isNoop(TextExpansionConfig originalConfig) {
-        return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField())) && super.isNoop();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof TextExpansionConfig;
     }
@@ -138,7 +106,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new TextExpansionConfigUpdate.Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
+        return new Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override
@@ -161,20 +129,20 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
-    public static class Builder implements InferenceConfigUpdate.Builder<TextExpansionConfigUpdate.Builder, TextExpansionConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, TextExpansionConfigUpdate> {
         private String resultsField;
         private TokenizationUpdate tokenizationUpdate;
 
         @Override
-        public TextExpansionConfigUpdate.Builder setResultsField(String resultsField) {
+        public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
 
-        public TextExpansionConfigUpdate.Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
+        public Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
             this.tokenizationUpdate = tokenizationUpdate;
             return this;
         }

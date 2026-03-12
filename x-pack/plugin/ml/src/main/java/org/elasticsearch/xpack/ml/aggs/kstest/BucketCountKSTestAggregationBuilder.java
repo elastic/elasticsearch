@@ -185,6 +185,6 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_14_0;
+        return TransportVersion.zero();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -15,6 +16,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -22,23 +25,79 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
+public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
+    implements
+        Accountable,
+        RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private final boolean isSimulated;
+
+    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        isSimulated = in.readBoolean();
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items
+    ) {
+        this(shardId, reshardSplitShardCountSummary, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        super(shardId);
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, false);
+    }
+
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, isSimulated);
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items,
+        boolean isSimulated
+    ) {
+        super(shardId, reshardSplitShardCountSummary);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+        this.isSimulated = isSimulated;
+    }
+
+    /**
+     * Public for test
+     * Set the transient metadata indicating that this request requires running inference before proceeding.
+     */
+    public void setInferenceFieldMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
+        this.inferenceFieldMap = fieldInferenceMap;
+    }
+
+    /**
+     * Consumes the inference metadata to execute inference on the bulk items just once.
+     */
+    public Map<String, InferenceFieldMetadata> consumeInferenceFieldMap() {
+        Map<String, InferenceFieldMetadata> ret = inferenceFieldMap;
+        inferenceFieldMap = null;
+        return ret;
+    }
+
+    /**
+     * Public for test
+     */
+    public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
+        return inferenceFieldMap;
     }
 
     public long totalSizeInBytes() {
@@ -46,17 +105,31 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).source().length();
-                }
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                if (doc != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
                 }
             }
         }
         return totalSizeInBytes;
+    }
+
+    public long maxOperationSizeInBytes() {
+        long maxOperationSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
+                }
+            }
+        }
+        return maxOperationSizeInBytes;
     }
 
     public BulkItemRequest[] items() {
@@ -82,15 +155,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (inferenceFieldMap != null) {
+            // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
+            throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
+        }
         super.writeTo(out);
-        out.writeArray((o, item) -> {
-            if (item != null) {
-                o.writeBoolean(true);
-                item.writeThin(o);
-            } else {
-                o.writeBoolean(false);
-            }
-        }, items);
+        out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
+        out.writeBoolean(isSimulated);
     }
 
     @Override
@@ -114,6 +185,9 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
             case NONE:
                 break;
         }
+        if (isSimulated) {
+            b.append(", simulated");
+        }
         return b.toString();
     }
 
@@ -133,12 +207,12 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     @Override
-    public void onRetry() {
+    public void onRetry(boolean possiblyExecuted) {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
-                ((ReplicationRequest<?>) item.request()).onRetry();
+                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
             }
         }
     }
@@ -150,5 +224,17 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public long largestOperationSize() {
+        long maxOperationSize = 0;
+        for (BulkItemRequest item : items) {
+            maxOperationSize = Math.max(maxOperationSize, item.ramBytesUsed());
+        }
+        return maxOperationSize;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
     }
 }

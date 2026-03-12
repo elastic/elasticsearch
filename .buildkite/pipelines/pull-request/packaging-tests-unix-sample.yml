@@ -1,0 +1,28 @@
+config:
+  skip-labels:
+    - ">test-mute"
+    - ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-unix-sample
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-sample"
+        key: "packaging-tests-unix-sample"
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rhel-8
+              - ubuntu-2404
+            PACKAGING_TASK:
+              - destructiveDistroTest.docker
+              - destructiveDistroTest.packages
+              - destructiveDistroTest.archives
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
+        env:
+          USE_PROD_DOCKER_CREDENTIALS: "true"
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

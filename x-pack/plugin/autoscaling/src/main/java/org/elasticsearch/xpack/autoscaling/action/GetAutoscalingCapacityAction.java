@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -33,13 +34,13 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_capacity";
 
     private GetAutoscalingCapacityAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<GetAutoscalingCapacityAction.Request> {
+    public static class Request extends MasterNodeRequest<Request> {
 
-        public Request() {
-
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public Request(final StreamInput in) throws IOException {
@@ -52,13 +53,13 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
@@ -84,13 +85,12 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         }
 
         public Response(final StreamInput in) throws IOException {
-            super(in);
             results = new TreeMap<>(in.readMap(AutoscalingDeciderResults::new));
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeMap(results, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
+            out.writeMap(results, StreamOutput::writeWriteable);
         }
 
         public SortedMap<String, AutoscalingDeciderResults> results() {

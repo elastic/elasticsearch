@@ -1,9 +1,9 @@
 ---
 "Repository throttling stats (no repository exists)":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "repository throttling stats was added in 8.9.0"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}
@@ -19,10 +19,10 @@
 
 ---
 "Repository throttling stats (some repositories exist)":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "repository throttling stats was added in 8.9.0"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}

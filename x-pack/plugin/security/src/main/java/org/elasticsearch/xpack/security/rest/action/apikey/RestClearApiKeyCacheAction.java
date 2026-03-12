@@ -23,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestClearApiKeyCacheAction extends SecurityBaseRestHandler {
 
     public RestClearApiKeyCacheAction(Settings settings, XPackLicenseState licenseState) {

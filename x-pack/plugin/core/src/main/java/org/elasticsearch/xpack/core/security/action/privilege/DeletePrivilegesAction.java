@@ -17,6 +17,6 @@ public final class DeletePrivilegesAction extends ActionType<DeletePrivilegesRes
     public static final String NAME = "cluster:admin/xpack/security/privilege/delete";
 
     private DeletePrivilegesAction() {
-        super(NAME, DeletePrivilegesResponse::new);
+        super(NAME);
     }
 }

@@ -19,26 +19,35 @@ import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.HeaderValidationException;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
+import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -50,8 +59,8 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
+import static org.elasticsearch.transport.InboundDecoder.ChannelType.SERVER;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
@@ -64,13 +73,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SecurityTransportExceptionHandler exceptionHandler;
     private final SSLService sslService;
-    private final SslConfiguration defaultSslConfiguration;
-    private final Map<String, SslConfiguration> profileConfigurations;
+    private final SslProfile defaultSslProfile;
+    private final Map<String, SslProfile> profiles;
     private final boolean transportSslEnabled;
-    private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
-    private final SslConfiguration remoteClusterClientSslConfiguration;
+    private final SslProfile remoteClusterClientSslProfile;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
+    private final RemoteClusterAuthenticationService remoteClusterAuthenticationService;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -81,7 +90,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
         final NamedWriteableRegistry namedWriteableRegistry,
         final CircuitBreakerService circuitBreakerService,
         final SSLService sslService,
-        final SharedGroupFactory sharedGroupFactory
+        final SharedGroupFactory sharedGroupFactory,
+        final RemoteClusterAuthenticationService remoteClusterAuthenticationService
     ) {
         super(
             settings,
@@ -93,21 +103,21 @@ public class SecurityNetty4Transport extends Netty4Transport {
             circuitBreakerService,
             sharedGroupFactory
         );
+        this.remoteClusterAuthenticationService = remoteClusterAuthenticationService;
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        this.remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.remoteClusterServerSslEnabled = REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings);
-        this.profileConfigurations = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
-        this.defaultSslConfiguration = this.profileConfigurations.get(TransportSettings.DEFAULT_PROFILE);
-        assert this.transportSslEnabled == false || this.defaultSslConfiguration != null;
+        this.profiles = Collections.unmodifiableMap(ProfileConfigurations.get(settings, sslService, true));
+        this.defaultSslProfile = this.profiles.get(TransportSettings.DEFAULT_PROFILE);
+        assert this.transportSslEnabled == false || this.defaultSslProfile != null;
 
         // Client configuration does not depend on whether the remote access port is enabled
         if (REMOTE_CLUSTER_CLIENT_SSL_ENABLED.get(settings)) {
-            this.remoteClusterClientSslConfiguration = sslService.getSSLConfiguration(REMOTE_CLUSTER_CLIENT_SSL_PREFIX);
-            assert this.remoteClusterClientSslConfiguration != null;
+            this.remoteClusterClientSslProfile = sslService.profile(REMOTE_CLUSTER_CLIENT_SSL_PREFIX);
+            assert this.remoteClusterClientSslProfile != null;
         } else {
-            this.remoteClusterClientSslConfiguration = null;
+            this.remoteClusterClientSslProfile = null;
         }
         this.remoteClusterClientBootstrapOptions = RemoteClusterClientBootstrapOptions.fromSettings(settings);
     }
@@ -121,20 +131,20 @@ public class SecurityNetty4Transport extends Netty4Transport {
     public final ChannelHandler getServerChannelInitializer(String name) {
         if (remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name)) {
             if (remoteClusterServerSslEnabled) {
-                final SslConfiguration remoteClusterSslConfiguration = profileConfigurations.get(name);
-                if (remoteClusterSslConfiguration == null) {
+                final SslProfile remoteClusterSslProfile = profiles.get(name);
+                if (remoteClusterSslProfile == null) {
                     throw new IllegalStateException("remote cluster SSL is enabled but no configuration is found");
                 }
-                return getSslChannelInitializer(name, remoteClusterSslConfiguration);
+                return getSslChannelInitializer(name, remoteClusterSslProfile);
             } else {
                 return getNoSslChannelInitializer(name);
             }
         } else if (transportSslEnabled) {
-            SslConfiguration configuration = profileConfigurations.get(name);
-            if (configuration == null) {
+            SslProfile profile = profiles.get(name);
+            if (profile == null) {
                 throw new IllegalStateException("unknown profile: " + name);
             }
-            return getSslChannelInitializer(name, configuration);
+            return getSslChannelInitializer(name, profile);
         } else {
             return getNoSslChannelInitializer(name);
         }
@@ -147,6 +157,54 @@ public class SecurityNetty4Transport extends Netty4Transport {
     @Override
     protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
         return new SecurityClientChannelInitializer(node, connectionProfile);
+    }
+
+    @Override
+    protected InboundPipeline getInboundPipeline(Channel channel, boolean isRemoteClusterServerChannel) {
+        if (false == isRemoteClusterServerChannel) {
+            return super.getInboundPipeline(channel, false);
+        } else {
+            return new InboundPipeline(
+                getStatsTracker(),
+                threadPool.relativeTimeInMillisSupplier(),
+                new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
+                new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+                this::inboundMessage
+            ) {
+                @Override
+                protected void headerReceived(Header header) {
+                    if (header.isHandshake() == false) {
+                        // eagerly (before buffering the full request) authenticate all request headers for this type of channel
+                        assert header.isRequest();
+                        // authn is mostly async, avoid buffering anymore data while authn is in progress
+                        channel.config().setAutoRead(false);
+                        // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                            remoteClusterAuthenticationService.authenticateHeaders(
+                                header.getRequestHeaders(),
+                                ActionListener.runAfter(ActionListener.wrap(aVoid -> {
+                                    // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                                    // Header#toString does not print credentials (which are stored in request headers)
+                                    logger.debug("Transport CCS authentication SUCCESS for [{}] on channel [{}]", header, channel);
+                                }, e -> {
+                                    // Header#toString does not print credentials (which are stored in request headers)
+                                    logger.debug(
+                                        "Transport CCS authentication FAIL for [{}] with [{}], closing channel [{}]",
+                                        header,
+                                        e.getMessage(),
+                                        channel
+                                    );
+                                    channel.eventLoop()
+                                        .submit(() -> channel.pipeline().fireExceptionCaught(new HeaderValidationException(header, e)));
+                                }), () -> channel.config().setAutoRead(true))
+                            );
+                        }
+                    }
+                    // go on with the message parts
+                    super.headerReceived(header);
+                }
+            };
+        }
     }
 
     @Override
@@ -170,26 +228,27 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     public class SslChannelInitializer extends ServerChannelInitializer {
-        private final SslConfiguration configuration;
+        private final SslProfile profile;
 
-        public SslChannelInitializer(String name, SslConfiguration configuration) {
+        public SslChannelInitializer(String name, SslProfile profile) {
             super(name);
-            this.configuration = configuration;
+            this.profile = profile;
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
+            SSLEngine serverEngine = profile.engine(null, -1);
             serverEngine.setUseClientMode(false);
             final SslHandler sslHandler = new SslHandler(serverEngine);
+            sslHandler.setHandshakeTimeoutMillis(profile.configuration().handshakeTimeoutMillis());
             ch.pipeline().addFirst("sslhandler", sslHandler);
             super.initChannel(ch);
             assert ch.pipeline().first() == sslHandler : "SSL handler must be first handler in pipeline";
         }
     }
 
-    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslConfiguration configuration) {
-        return new SslChannelInitializer(name, configuration);
+    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslProfile profile) {
+        return new SslChannelInitializer(name, profile);
     }
 
     @Override
@@ -201,7 +260,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
         private final boolean hostnameVerificationEnabled;
         private final SNIHostName serverName;
-        private final SslConfiguration channelSslConfiguration;
+        private final SslProfile channelSslProfile;
 
         SecurityClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
             final String transportProfile = connectionProfile.getTransportProfile();
@@ -209,13 +268,15 @@ public class SecurityNetty4Transport extends Netty4Transport {
             // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
             // All other client connections use the default transport profile regardless of the transport profile used on the server side.
             if (REMOTE_CLUSTER_PROFILE.equals(transportProfile)) {
-                this.channelSslConfiguration = remoteClusterClientSslConfiguration;
+                this.channelSslProfile = remoteClusterClientSslProfile;
             } else {
                 assert TransportSettings.DEFAULT_PROFILE.equals(transportProfile);
-                this.channelSslConfiguration = defaultSslConfiguration;
+                this.channelSslProfile = defaultSslProfile;
             }
-            if (this.channelSslConfiguration != null) {
-                this.hostnameVerificationEnabled = this.channelSslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            if (this.channelSslProfile != null) {
+                this.hostnameVerificationEnabled = this.channelSslProfile.configuration()
+                    .verificationMode()
+                    .isHostnameVerificationEnabled();
             } else {
                 this.hostnameVerificationEnabled = false;
             }
@@ -234,11 +295,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (channelSslConfiguration != null) {
+            if (channelSslProfile != null) {
                 ch.pipeline()
-                    .addFirst(
-                        new ClientSslHandlerInitializer(channelSslConfiguration, sslService, hostnameVerificationEnabled, serverName)
-                    );
+                    .addFirst(new ClientSslHandlerInitializer(channelSslProfile, sslService, hostnameVerificationEnabled, serverName));
             }
         }
     }
@@ -246,17 +305,17 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private static class ClientSslHandlerInitializer extends ChannelOutboundHandlerAdapter {
 
         private final boolean hostnameVerificationEnabled;
-        private final SslConfiguration sslConfiguration;
+        private final SslProfile sslProfile;
         private final SSLService sslService;
         private final SNIServerName serverName;
 
         private ClientSslHandlerInitializer(
-            SslConfiguration sslConfiguration,
+            SslProfile sslProfile,
             SSLService sslService,
             boolean hostnameVerificationEnabled,
             SNIServerName serverName
         ) {
-            this.sslConfiguration = sslConfiguration;
+            this.sslProfile = sslProfile;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
             this.serverName = serverName;
@@ -269,9 +328,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
             if (hostnameVerificationEnabled) {
                 InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslConfiguration, inetSocketAddress.getHostString(), inetSocketAddress.getPort());
+                sslEngine = sslProfile.engine(inetSocketAddress.getHostString(), inetSocketAddress.getPort());
             } else {
-                sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
+                sslEngine = sslProfile.engine(null, -1);
             }
 
             sslEngine.setUseClientMode(true);
@@ -282,9 +341,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
             final ChannelPromise connectPromise = ctx.newPromise();
             final SslHandler sslHandler = new SslHandler(sslEngine);
+            sslHandler.setHandshakeTimeoutMillis(sslProfile.configuration().handshakeTimeoutMillis());
             ctx.pipeline().replace(this, "ssl", sslHandler);
             final Future<?> handshakePromise = sslHandler.handshakeFuture();
-            connectPromise.addListener(result -> {
+            Netty4Utils.addListener(connectPromise, result -> {
                 if (result.isSuccess() == false) {
                     promise.tryFailure(result.cause());
                 } else {

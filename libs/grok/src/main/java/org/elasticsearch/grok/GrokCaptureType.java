@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -16,7 +17,7 @@ import java.util.function.Consumer;
 /**
  * The type defined for the field in the pattern.
  */
-enum GrokCaptureType {
+public enum GrokCaptureType {
     STRING {
         @Override
         <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
@@ -68,12 +69,13 @@ enum GrokCaptureType {
         };
     }
 
-    protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
+    protected static GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
-                if (region.beg[number] >= 0) {
-                    int matchOffset = offset + region.beg[number];
-                    int matchLength = region.end[number] - region.beg[number];
+                final int beginning = region.getBeg(number);
+                if (beginning >= 0) {
+                    int matchOffset = offset + beginning;
+                    int matchLength = region.getEnd(number) - beginning;
                     emit.accept(new String(utf8Bytes, matchOffset, matchLength, StandardCharsets.UTF_8));
                 }
             }

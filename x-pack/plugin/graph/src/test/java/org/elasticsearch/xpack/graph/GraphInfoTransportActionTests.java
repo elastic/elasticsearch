@@ -12,8 +12,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.junit.Before;
@@ -32,8 +34,9 @@ public class GraphInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -43,22 +46,21 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(null, null, null, future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new GraphFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new GraphFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(available));
     }
 
@@ -72,8 +74,10 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         } else {
             settings.put("xpack.graph.enabled", enabled);
         }
+
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -81,22 +85,21 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(enabled));
 
         GraphUsageTransportAction usageAction = new GraphUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             settings.build(),
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(null, null, null, future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(enabled));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new GraphFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new GraphFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(enabled));
     }
 

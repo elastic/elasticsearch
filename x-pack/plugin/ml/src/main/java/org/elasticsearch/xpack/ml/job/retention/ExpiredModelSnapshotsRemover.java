@@ -8,14 +8,18 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -25,24 +29,29 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Deletes all model snapshots that have expired the configured retention time
@@ -61,9 +70,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private static final long MS_IN_ONE_DAY = TimeValue.timeValueDays(1).getMillis();
 
     /**
-     *  The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
-     *  we don't change that in our ML indices. It should be more than enough for most cases. If not,
-     *  it will take a few iterations to delete all snapshots, which is OK.
+     * The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
+     * we don't change that in our ML indices. It should be more than enough for most cases. If not,
+     * it will take a few iterations to delete all snapshots, which is OK.
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
@@ -74,8 +83,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     public ExpiredModelSnapshotsRemover(
         OriginSettingClient client,
         Iterator<Job> jobIterator,
-        ThreadPool threadPool,
         TaskId parentTaskId,
+        ThreadPool threadPool,
         JobResultsProvider jobResultsProvider,
         AnomalyDetectionAuditor auditor
     ) {
@@ -99,19 +108,18 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            listener
-        );
-
-        latestSnapshotTimeStamp(jobId, ActionListener.wrap(latestTime -> {
+        latestSnapshotTimeStamp(jobId, listener.delegateFailureAndWrap((l, latestTime) -> {
+            ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                l
+            );
             if (latestTime == null) {
                 threadedActionListener.onResponse(null);
             } else {
                 long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
                 threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void latestSnapshotTimeStamp(String jobId, ActionListener<Long> listener) {
@@ -134,22 +142,22 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(getParentTaskId());
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
+        client.search(searchRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
                 // no snapshots found
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
                 String timestamp = stringFieldValueOrNull(hits[0], ModelSnapshot.TIMESTAMP.getPreferredName());
                 if (timestamp == null) {
                     LOGGER.warn("Model snapshot document [{}] has a null timestamp field", hits[0].getId());
-                    listener.onResponse(null);
+                    delegate.onResponse(null);
                 } else {
                     long timestampMs = TimeUtils.parseToEpochMs(timestamp);
-                    listener.onResponse(timestampMs);
+                    delegate.onResponse(timestampMs);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override
@@ -230,7 +238,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, job.getId()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "[{}] Search for expired snapshots failed",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e,
+                        job.getId()
+                    )
+                );
             }
         };
     }
@@ -240,19 +255,59 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             listener.onResponse(true);
             return;
         }
-        JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-        deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(bulkResponse -> {
-            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
-            LOGGER.debug(
-                () -> format(
-                    "[%s] deleted model snapshots %s with descriptions %s",
-                    jobId,
-                    modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(toList()),
-                    modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(toList())
-                )
-            );
-            listener.onResponse(true);
-        }, listener::onFailure));
-    }
 
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
+
+        List<String> idsToDelete = new ArrayList<>();
+        Set<String> indices = new HashSet<>();
+        indices.add(stateIndexName);
+        indices.add(AnnotationIndex.READ_ALIAS_NAME);
+        for (ModelSnapshot modelSnapshot : modelSnapshots) {
+            idsToDelete.addAll(modelSnapshot.stateDocumentIds());
+            idsToDelete.add(ModelSnapshot.documentId(modelSnapshot));
+            idsToDelete.add(ModelSnapshot.annotationDocumentId(modelSnapshot));
+            indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
+        }
+
+        // Remove read-only indices
+        List<String> indicesToQuery;
+        try {
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indices);
+        } catch (Exception e) {
+            LOGGER.error("Failed to get writable indices for [" + jobId + "]", e);
+            listener.onFailure(e);
+            return;
+        }
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable model snapshot indices found for [{}] job. No expired model snapshots to remove.", jobId);
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setRefresh(true)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            DeleteByQueryAction.INSTANCE,
+            deleteByQueryRequest,
+            listener.delegateFailureAndWrap((l, bulkResponse) -> {
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
+                LOGGER.debug(
+                    () -> format(
+                        "[%s] deleted model snapshots %s with descriptions %s",
+                        jobId,
+                        modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(toList()),
+                        modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(toList())
+                    )
+                );
+                l.onResponse(true);
+            })
+        );
+    }
 }

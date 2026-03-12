@@ -1,14 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.SizeLimitingStringWriter;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +28,12 @@ import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Mustache based templating test
@@ -32,8 +44,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @Before
     public void setup() {
-        qe = new MustacheScriptEngine();
-        factory = new CustomMustacheFactory();
+        qe = new MustacheScriptEngine(Settings.builder().put(MustacheScriptEngine.MUSTACHE_RESULT_SIZE_LIMIT.getKey(), "1kb").build());
+        factory = CustomMustacheFactory.builder().build();
     }
 
     public void testSimpleParameterReplace() {
@@ -196,6 +208,74 @@ public class MustacheScriptEngineTests extends ESTestCase {
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
 
+    @SuppressWarnings("deprecation") // GeneralScriptException
+    public void testDetectMissingParam() {
+        Map<String, String> scriptOptions = Map.of(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true");
+
+        // fails when a param is missing and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of();
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
+        }
+
+        // fails when params is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(null).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
+        }
+
+        // works as expected when params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query_string", "foo");
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // do not throw when using a missing param in the conditional when DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{#query_string}}{{.}}{{/query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of();
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        }
+
+        // works as expected when nested params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of("string", "foo"));
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // fails when nested param is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of());
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query.string] is missing"));
+        }
+    }
+
+    public void testMissingParam() {
+        Map<String, String> scriptOptions = Map.of();
+        String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+        TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+
+        // When the DETECT_MISSING_PARAMS_OPTION is not specified, missing variable is replaced with an empty string.
+        assertThat(compiled.newInstance(Map.of()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        assertThat(compiled.newInstance(null).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+    }
+
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString = """
             {
@@ -235,10 +315,9 @@ public class MustacheScriptEngineTests extends ESTestCase {
     /**
      * BWC test for some odd reflection edge-cases. It's not really expected that customer code would be exercising this,
      * but maybe it's out there! Who knows!?
-     *
+     * <p>
      * If we change this, we should *know* that we're changing it.
      */
-    @SuppressWarnings({ "deprecation", "removal" })
     public void testReflection() {
         Map<String, Object> vars = Map.of("obj", new TestReflection());
 
@@ -280,7 +359,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
-    public void testEscapeJson() throws IOException {
+    public void testEscapeJson() {
         {
             StringWriter writer = new StringWriter();
             factory.encode("hello \n world", writer);
@@ -348,6 +427,24 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
+    public void testResultSizeLimit() throws IOException {
+        String vals = "\"" + "{{val}}".repeat(200) + "\"";
+        String params = "\"val\":\"aaaaaaaaaa\"";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.format("{\"source\":%s,\"params\":{%s}}", vals, params));
+        Script script = Script.parse(parser);
+        var compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
+        TemplateScript templateScript = compiled.newInstance(script.getParams());
+        var ex = expectThrows(ElasticsearchParseException.class, templateScript::execute);
+        assertThat(ex.getCause(), instanceOf(MustacheException.class));
+        assertThat(
+            ex.getCause().getCause(),
+            allOf(
+                instanceOf(SizeLimitingStringWriter.SizeLimitExceededException.class),
+                transformedMatch(Throwable::getMessage, endsWith("has size [1030] which exceeds the size limit [1024]"))
+            )
+        );
+    }
+
     private String getChars() {
         String string = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
         for (int i = 0; i < string.length(); i++) {
@@ -360,7 +457,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     *
+     * <p>
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000

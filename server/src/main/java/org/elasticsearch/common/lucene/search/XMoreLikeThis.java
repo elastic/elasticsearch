@@ -23,6 +23,7 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
@@ -33,6 +34,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
@@ -206,7 +208,7 @@ public final class XMoreLikeThis {
     /**
      * Return a Query with no more than this many terms.
      *
-     * @see BooleanQuery#getMaxClauseCount
+     * @see IndexSearcher#getMaxClauseCount
      * @see #setMaxQueryTerms
      */
     public static final int DEFAULT_MAX_QUERY_TERMS = 25;
@@ -467,7 +469,7 @@ public final class XMoreLikeThis {
 
             try {
                 query.add(tq, BooleanClause.Occur.SHOULD);
-            } catch (BooleanQuery.TooManyClauses ignore) {
+            } catch (IndexSearcher.TooManyClauses ignore) {
                 break;
             }
         }
@@ -592,6 +594,7 @@ public final class XMoreLikeThis {
             int tokenCount = 0;
             // for every token
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            TermFrequencyAttribute tfAtt = ts.addAttribute(TermFrequencyAttribute.class);
             ts.reset();
             while (ts.incrementToken()) {
                 String word = termAtt.toString();
@@ -612,9 +615,9 @@ public final class XMoreLikeThis {
                 // increment frequency
                 Int cnt = termFreqMap.get(word);
                 if (cnt == null) {
-                    termFreqMap.put(word, new Int());
+                    termFreqMap.put(word, new Int(tfAtt.getTermFrequency()));
                 } else {
-                    cnt.x++;
+                    cnt.x += tfAtt.getTermFrequency();
                 }
             }
             ts.end();
@@ -681,10 +684,14 @@ public final class XMoreLikeThis {
      * Use for frequencies and to avoid renewing Integers.
      */
     private static class Int {
-        int x;
+        private int x;
 
-        Int() {
-            x = 1;
+        private Int(int initialValue) {
+            x = initialValue;
+        }
+
+        private Int() {
+            this(1);
         }
     }
 }

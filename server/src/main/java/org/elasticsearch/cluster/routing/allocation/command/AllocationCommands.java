@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Strings;
@@ -99,7 +101,7 @@ public class AllocationCommands implements ToXContentFragment {
      * @throws IOException if something happens during write
      */
     public static void writeTo(AllocationCommands commands, StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(commands.commands);
+        out.writeNamedWriteableCollection(commands.commands);
     }
 
     /**
@@ -115,7 +117,7 @@ public class AllocationCommands implements ToXContentFragment {
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser, ProjectId projectId) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -141,7 +143,7 @@ public class AllocationCommands implements ToXContentFragment {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(parser.namedObject(AllocationCommand.class, commandName, null));
+                commands.add(parser.namedObject(AllocationCommand.class, commandName, projectId));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException(

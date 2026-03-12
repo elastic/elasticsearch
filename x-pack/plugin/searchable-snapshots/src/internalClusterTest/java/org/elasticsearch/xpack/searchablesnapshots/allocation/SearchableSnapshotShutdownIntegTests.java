@@ -58,7 +58,12 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
         final Set<String> indexNodes = restoredIndexNames.stream()
             .flatMap(index -> internalCluster().nodesInclude(index).stream())
             .collect(Collectors.toSet());
-        final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).setNodes(true).get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .setNodes(true)
+            .get()
+            .getState();
         final Map<String, String> nodeNameToId = state.getNodes()
             .stream()
             .collect(Collectors.toMap(DiscoveryNode::getName, DiscoveryNode::getId));
@@ -82,10 +87,9 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
                 @Override
                 public Settings onNodeStopped(String nodeName) throws Exception {
                     assertBusy(() -> {
-                        ClusterHealthResponse response = client().admin()
-                            .cluster()
-                            .health(new ClusterHealthRequest(restoredIndexNamesArray))
-                            .actionGet();
+                        ClusterHealthResponse response = clusterAdmin().health(
+                            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, restoredIndexNamesArray)
+                        ).actionGet();
                         assertThat(response.getUnassignedShards(), Matchers.equalTo(shards));
                     });
                     return super.onNodeStopped(nodeName);
@@ -111,7 +115,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             createAndPopulateIndex(indexName, Settings.builder());
 
             final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-" + i, List.of(indexName)).snapshotId();
-            assertAcked(client().admin().indices().prepareDelete(indexName));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
             restoredIndices.add(mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY));
         }
         return restoredIndices;
@@ -119,6 +123,8 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
 
     private void putShutdown(String nodeToRestartId) throws InterruptedException, ExecutionException {
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -130,6 +136,11 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
     }
 
     private void removeShutdown(String node) throws ExecutionException, InterruptedException {
-        assertTrue(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(node)).get().isAcknowledged());
+        assertTrue(
+            client().execute(
+                DeleteShutdownNodeAction.INSTANCE,
+                new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, node)
+            ).get().isAcknowledged()
+        );
     }
 }

@@ -14,6 +14,6 @@ public class PostStartTrialAction extends ActionType<PostStartTrialResponse> {
     public static final String NAME = "cluster:admin/xpack/license/start_trial";
 
     private PostStartTrialAction() {
-        super(NAME, PostStartTrialResponse::new);
+        super(NAME);
     }
 }

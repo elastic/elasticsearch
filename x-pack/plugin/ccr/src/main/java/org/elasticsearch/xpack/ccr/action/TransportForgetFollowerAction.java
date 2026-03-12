@@ -16,19 +16,19 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,9 +44,9 @@ import java.util.Objects;
 public class TransportForgetFollowerAction extends TransportBroadcastByNodeAction<
     ForgetFollowerAction.Request,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
@@ -64,9 +64,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             Objects.requireNonNull(actionFilters),
             Objects.requireNonNull(indexNameExpressionResolver),
             ForgetFollowerAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = Objects.requireNonNull(indicesService);
     }
 
@@ -98,10 +97,11 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final ForgetFollowerAction.Request request,
         final ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<EmptyResult> listener
     ) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
-        final Index leaderIndex = clusterService.state().metadata().index(request.leaderIndex()).getIndex();
+        final Index leaderIndex = clusterService.state().metadata().getProject().index(request.leaderIndex()).getIndex();
         final String id = CcrRetentionLeases.retentionLeaseId(
             request.followerCluster(),
             followerIndex,
@@ -133,7 +133,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                     onFailure(e);
                 }
             }
-        }, ThreadPool.Names.SAME);
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
@@ -142,8 +142,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final ForgetFollowerAction.Request request,
         final String[] concreteIndices
     ) {
-        final GroupShardsIterator<ShardIterator> activePrimaryShards = clusterState.routingTable()
-            .activePrimaryShardsGrouped(concreteIndices, false);
+        final List<ShardIterator> activePrimaryShards = clusterState.routingTable().activePrimaryShardsGrouped(concreteIndices, false);
         final List<ShardRouting> shardRoutings = new ArrayList<>();
         final Iterator<ShardIterator> it = activePrimaryShards.iterator();
         while (it.hasNext()) {

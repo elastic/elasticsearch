@@ -58,6 +58,10 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
         return resultsField;
     }
 
+    public double score() {
+        return score;
+    }
+
     @Override
     public Double predictedValue() {
         return score;
@@ -66,6 +70,13 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     @Override
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, score);
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, score);
+        return map;
     }
 
     @Override

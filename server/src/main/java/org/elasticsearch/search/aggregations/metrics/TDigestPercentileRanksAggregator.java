@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -25,16 +26,17 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
         Aggregator parent,
         double[] percents,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, config, context, parent, percents, compression, keyed, formatter, metadata);
+        super(name, config, context, parent, percents, compression, executionHint, keyed, formatter, metadata);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
+        HistogramUnionState state = getState(owningBucketOrdinal);
         if (state == null) {
             return buildEmptyAggregation();
         } else {
@@ -44,16 +46,16 @@ class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggrega
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalTDigestPercentileRanks.empty(name, keys, compression, keyed, formatter, metadata());
+        return InternalTDigestPercentileRanks.empty(name, keys, compression, executionHint, keyed, formatter, metadata());
     }
 
     @Override
     public double metric(String name, long bucketOrd) {
-        TDigestState state = getState(bucketOrd);
+        HistogramUnionState state = getState(bucketOrd);
         if (state == null) {
             return Double.NaN;
         } else {
-            return InternalTDigestPercentileRanks.percentileRank(state, Double.valueOf(name));
+            return InternalTDigestPercentileRanks.percentileRank(state, Double.parseDouble(name));
         }
     }
 }

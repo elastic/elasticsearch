@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.UUIDs;
@@ -29,7 +29,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to execute, and if so, executes it
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
- * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
@@ -46,8 +45,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      * Should this task store its result?
      */
     private boolean shouldStoreResult;
-
-    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersion.V_8_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
@@ -70,12 +67,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
-            forceMergeUUID = in.readString();
-        } else {
-            forceMergeUUID = in.readOptionalString();
-            assert forceMergeUUID != null : "optional was just used as a BwC measure";
-        }
+        forceMergeUUID = in.readString();
     }
 
     /**
@@ -166,11 +158,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
-            out.writeString(forceMergeUUID);
-        } else {
-            out.writeOptionalString(forceMergeUUID);
-        }
+        out.writeString(forceMergeUUID);
     }
 
     @Override

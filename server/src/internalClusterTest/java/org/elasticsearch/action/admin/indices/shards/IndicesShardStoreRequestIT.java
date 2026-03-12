@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shards;
@@ -31,7 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -49,9 +50,13 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
+    private static IndicesShardStoresResponse execute(IndicesShardStoresRequest request) {
+        return client().execute(TransportIndicesShardStoresAction.TYPE, request).actionGet(10, TimeUnit.SECONDS);
+    }
+
     public void testEmpty() {
         ensureGreen();
-        IndicesShardStoresResponse rsp = indicesAdmin().prepareShardStores().get();
+        IndicesShardStoresResponse rsp = execute(new IndicesShardStoresRequest());
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
@@ -63,11 +68,11 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         ensureGreen(index);
 
         // no unallocated shards
-        IndicesShardStoresResponse response = indicesAdmin().prepareShardStores(index).get();
+        IndicesShardStoresResponse response = execute(new IndicesShardStoresRequest(index));
         assertThat(response.getStoreStatuses().size(), equalTo(0));
 
         // all shards
-        response = indicesAdmin().shardStores(new IndicesShardStoresRequest(index).shardStatuses("all")).get();
+        response = execute(new IndicesShardStoresRequest(index).shardStatuses("all"));
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
         assertThat(shardStores.size(), equalTo(2));
@@ -84,12 +89,12 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         logger.info("--> disable allocation");
         disableAllocation(index);
         logger.info("--> stop random node");
-        int num = clusterAdmin().prepareState().get().getState().nodes().getSize();
+        int num = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getSize();
         internalCluster().stopNode(internalCluster().getNodeNameThat(new IndexNodePredicate(index)));
-        assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes("" + (num - 1)));
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("" + (num - 1)));
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
-        response = indicesAdmin().shardStores(new IndicesShardStoresRequest(index)).get();
+        response = execute(new IndicesShardStoresRequest(index));
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
@@ -109,14 +114,17 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index1 = "test1";
         String index2 = "test2";
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(prepareCreate(index1).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")));
-        assertAcked(prepareCreate(index2).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")));
+        for (final var index : List.of(index1, index2)) {
+            final var settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
+            if (randomBoolean()) {
+                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
+            }
+            assertAcked(prepareCreate(index).setSettings(settings));
+        }
         indexRandomData(index1);
         indexRandomData(index2);
         ensureGreen();
-        IndicesShardStoresResponse response = indicesAdmin().shardStores(
-            new IndicesShardStoresRequest(new String[] {}).shardStatuses("all")
-        ).get();
+        IndicesShardStoresResponse response = execute(new IndicesShardStoresRequest(new String[] {}).shardStatuses("all"));
         Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
@@ -124,7 +132,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStatuses.get(index2).size(), equalTo(2));
 
         // ensure index filtering works
-        response = indicesAdmin().shardStores(new IndicesShardStoresRequest(index1).shardStatuses("all")).get();
+        response = execute(new IndicesShardStoresRequest(index1).shardStatuses("all"));
         shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(false));
@@ -171,7 +179,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> { // IndicesClusterStateService#failAndRemoveShard() called asynchronously but we need it to have completed here.
-            IndicesShardStoresResponse rsp = indicesAdmin().prepareShardStores(index).setShardStatuses("all").get();
+            IndicesShardStoresResponse rsp = execute(new IndicesShardStoresRequest(index).shardStatuses("all"));
             Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
             assertNotNull(shardStatuses);
             assertThat(shardStatuses.size(), greaterThan(0));
@@ -197,14 +205,14 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         enableAllocation(index);
     }
 
-    private void indexRandomData(String index) throws ExecutionException, InterruptedException {
+    private void indexRandomData(String index) throws InterruptedException {
         int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setSource("field", "value");
+            builders[i] = prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
-        indicesAdmin().prepareFlush().setForce(true).execute().actionGet();
+        indicesAdmin().prepareFlush().setForce(true).get();
     }
 
     private static final class IndexNodePredicate implements Predicate<Settings> {
@@ -220,7 +228,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         }
 
         private Set<String> findNodesWithShard(String index) {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
             List<ShardRouting> startedShards = indexRoutingTable.shardsWithState(ShardRoutingState.STARTED);
             Set<String> nodesNamesWithShard = new HashSet<>();

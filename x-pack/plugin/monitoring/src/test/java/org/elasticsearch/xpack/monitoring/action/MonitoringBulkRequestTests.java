@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -105,16 +106,16 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                 builder.endObject();
 
                 builder.flush();
-                content.write(xContentType.xContent().streamSeparator());
+                content.write(xContentType.xContent().bulkSeparator());
 
                 sources[i] = RandomObjects.randomSource(random(), xContentType);
                 BytesRef bytes = sources[i].toBytesRef();
                 content.write(bytes.bytes, bytes.offset, bytes.length);
 
-                content.write(xContentType.xContent().streamSeparator());
+                content.write(xContentType.xContent().bulkSeparator());
             }
 
-            content.write(xContentType.xContent().streamSeparator());
+            content.write(xContentType.xContent().bulkSeparator());
         }
 
         final MonitoredSystem system = randomFrom(MonitoredSystem.values());
@@ -134,7 +135,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
             assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));
-            assertThat(bulkDoc.getSource(), equalTo(sources[count]));
+            assertThat(bulkDoc.getSource(), equalBytes(sources[count]));
             assertThat(bulkDoc.getXContentType(), equalTo(xContentType));
             ++count;
         }
@@ -146,7 +147,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final int totalDocs = nbDocs + nbEmptyDocs;
 
         final XContentType xContentType = XContentType.JSON;
-        final byte separator = xContentType.xContent().streamSeparator();
+        final byte separator = xContentType.xContent().bulkSeparator();
 
         final BytesStreamOutput content = new BytesStreamOutput();
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
@@ -192,7 +193,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final String indexName = randomAlphaOfLength(10);
 
         final XContentType xContentType = XContentType.JSON;
-        final byte separator = xContentType.xContent().streamSeparator();
+        final byte separator = xContentType.xContent().bulkSeparator();
 
         final BytesStreamOutput content = new BytesStreamOutput();
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {

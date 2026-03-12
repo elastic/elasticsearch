@@ -1,0 +1,154 @@
+setup:
+  - requires:
+      test_runner_features: headers
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_dense_vector:
+                index: false
+                type: dense_vector
+                element_type: byte
+                dims: 5
+              my_dense_vector_indexed:
+                index: true
+                type: dense_vector
+                element_type: byte
+                dims: 5
+
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          my_dense_vector: [8, 5, -15, 1, -7]
+          my_dense_vector_indexed: [8, 5, -15, 1, -7]
+
+  - do:
+      index:
+        index: test-index
+        id: "2"
+        body:
+          my_dense_vector: [-1, 115, -3, 4, -128]
+          my_dense_vector_indexed: [-1, 115, -3, 4, -128]
+
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          my_dense_vector: [2, 18, -5, 0, -124]
+          my_dense_vector_indexed: [2, 18, -5, 0, -124]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Hamming distance":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector_indexed')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+---
+"Hamming distance hexidecimal":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'my_dense_vector_indexed')"
+                params:
+                  query_vector: "006ff30e84"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 17.0}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 16.0}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2._score: 11.0}

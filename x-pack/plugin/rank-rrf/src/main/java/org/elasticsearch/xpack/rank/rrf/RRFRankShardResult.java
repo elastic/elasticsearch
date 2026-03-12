@@ -48,7 +48,7 @@ public class RRFRankShardResult implements RankShardResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

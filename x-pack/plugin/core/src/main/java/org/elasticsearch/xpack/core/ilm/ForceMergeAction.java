@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -119,6 +120,7 @@ public class ForceMergeAction implements LifecycleAction {
 
         StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
         StepKey checkNotWriteIndexKey = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
         StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
@@ -133,8 +135,8 @@ public class ForceMergeAction implements LifecycleAction {
             preForceMergeBranchingKey,
             checkNotWriteIndexKey,
             nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     String policyName = indexMetadata.getLifecyclePolicyName();
@@ -154,7 +156,13 @@ public class ForceMergeAction implements LifecycleAction {
         // Indices in this step key can skip the no-op step and jump directly to the step with closeKey/forcemergeKey key
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndexKey,
-            codecChange ? closeKey : forceMergeKey
+            waitTimeSeriesEndTimePassesKey
+        );
+
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
+            codecChange ? closeKey : forceMergeKey,
+            Instant::now
         );
 
         // Indices already in this step key when upgrading need to know how to move forward but stop making the index
@@ -182,6 +190,7 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
         mergeSteps.add(checkNotWriteIndexStep);
+        mergeSteps.add(waitUntilTimeSeriesEndTimeStep);
         mergeSteps.add(noopStep);
 
         if (codecChange) {

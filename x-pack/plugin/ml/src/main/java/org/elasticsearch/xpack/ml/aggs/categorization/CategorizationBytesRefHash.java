@@ -11,13 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
-class CategorizationBytesRefHash implements Releasable {
+public class CategorizationBytesRefHash implements Releasable {
 
     private final BytesRefHash bytesRefHash;
 
-    CategorizationBytesRefHash(BytesRefHash bytesRefHash) {
+    public CategorizationBytesRefHash(BytesRefHash bytesRefHash) {
         this.bytesRefHash = bytesRefHash;
     }
 
@@ -49,7 +48,7 @@ class CategorizationBytesRefHash implements Releasable {
             return (int) (-1L - hash);
         }
         if (hash > Integer.MAX_VALUE) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 LoggerMessageFormat.format(
                     "more than [{}] unique terms encountered. "
                         + "Consider restricting the documents queried or adding [{}] in the {} configuration",

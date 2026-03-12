@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -30,9 +29,11 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
     public static final String DEFER_DEFINITION_DECOMPRESSION = "defer_definition_decompression";
     public static final PutTrainedModelAction INSTANCE = new PutTrainedModelAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
+    public static final String MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT =
+        "the model id is the same as the deployment id of a current model deployment";
 
     private PutTrainedModelAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -73,6 +74,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         }
 
         public Request(TrainedModelConfig config, boolean deferDefinitionDecompression, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.config = config;
             this.deferDefinitionDecompression = deferDefinitionDecompression;
             this.waitForCompletion = waitForCompletion;
@@ -82,11 +84,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super(in);
             this.config = new TrainedModelConfig(in);
             this.deferDefinitionDecompression = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                this.waitForCompletion = in.readBoolean();
-            } else {
-                this.waitForCompletion = false;
-            }
+            this.waitForCompletion = in.readBoolean();
         }
 
         public TrainedModelConfig getTrainedModelConfig() {
@@ -122,9 +120,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             super.writeTo(out);
             config.writeTo(out);
             out.writeBoolean(deferDefinitionDecompression);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                out.writeBoolean(waitForCompletion);
-            }
+            out.writeBoolean(waitForCompletion);
         }
 
         @Override
@@ -157,7 +153,6 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             trainedModelConfig = new TrainedModelConfig(in);
         }
 

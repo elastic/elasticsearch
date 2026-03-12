@@ -21,8 +21,8 @@ import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
@@ -134,7 +134,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             ArrayUtils.reverseSubArray(sortVals, 0, sortVals.length);
             ArrayUtils.reverseSubArray(bucketLine, 0, bucketLine.length);
         }
-        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, bucketSize);
+        return new InternalGeoLine(name, bucketLine, sortVals, metadata, complete, includeSorts, sortOrder, bucketSize, true, true);
     }
 
     /**
@@ -152,11 +152,11 @@ class TimeSeriesGeoLineBuckets implements Releasable {
      * Since that library has no knowledge of timestamps or sort-fields, we need to use these custom objects
      * to maintain the geo_point-timestamp correlation through the simplification process.
      */
-    private static class SimplifiablePoint extends StreamingGeometrySimplifier.PointError {
+    static class SimplifiablePoint extends StreamingGeometrySimplifier.PointError {
         private double sortValue;
         private long encoded;
 
-        private SimplifiablePoint(int index, double x, double y, double sortValue) {
+        SimplifiablePoint(int index, double x, double y, double sortValue) {
             super(index, x, y);
             this.sortValue = sortValue;
             setEncoded(x, y);
@@ -183,9 +183,9 @@ class TimeSeriesGeoLineBuckets implements Releasable {
      * length of the geo_line, which could be much shorter. This class allocates the two arrays used internally in
      * the InternalGeoLine aggregation object, and copies the reusable memory into these arrays.
      */
-    private static class LineStream implements Geometry {
-        private final long[] encodedPoints;
-        private final double[] sortValues;
+    static class LineStream implements Geometry {
+        final long[] encodedPoints;
+        final double[] sortValues;
 
         private LineStream(int length, StreamingGeometrySimplifier.PointError[] points) {
             this.encodedPoints = new long[length];
@@ -288,10 +288,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             if (docSortValues.advanceExact(doc)) {
                 // If we get here from TSDB `position` metric, this assertion should have been made during indexing
                 if (docSortValues.docValueCount() > 1) {
-                    throw new AggregationExecutionException(
-                        "Encountered more than one sort value for a "
-                            + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
-                    );
+                    throw AggregationErrors.unsupportedMultivalue();
                 }
                 assert docSortValues.docValueCount() == 1;
                 simplifier.currentSortValue = docSortValues.nextValue();
@@ -306,10 +303,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             }
 
             if (docGeoPointValues.docValueCount() > 1) {
-                throw new AggregationExecutionException(
-                    "Encountered more than one geo_point value for a "
-                        + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
-                );
+                throw AggregationErrors.unsupportedMultivalue();
             }
 
             final GeoPoint point = docGeoPointValues.nextValue();

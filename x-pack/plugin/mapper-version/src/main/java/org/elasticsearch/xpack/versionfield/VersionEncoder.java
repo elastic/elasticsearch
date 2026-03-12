@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 
 import java.util.Locale;
@@ -209,13 +208,13 @@ class VersionEncoder {
         builder.setAccept(lastState, true);
         a = builder.finish();
 
-        assert a.isDeterministic();
         assert Operations.hasDeadStates(a) == false;
 
         a = Operations.concatenate(a, Automata.makeAnyBinary());
-        a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+        assert a.isDeterministic();
+        a = Operations.determinize(a, 0);
 
-        return new CompiledAutomaton(a, null, true, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, true);
+        return new CompiledAutomaton(a, false, true, true);
     }
 
     static class EncodedVersion {

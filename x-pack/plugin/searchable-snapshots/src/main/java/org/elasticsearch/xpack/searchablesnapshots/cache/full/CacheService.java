@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -70,7 +71,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
-    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.of(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.ofBytes(Integer.MAX_VALUE);
 
     /**
@@ -81,7 +82,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
-        new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        ByteSizeValue.of(32, ByteSizeUnit.MB),                 // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -95,7 +96,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "recovery_range_size",
-        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+        ByteSizeValue.of(128, ByteSizeUnit.KB),                // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -244,7 +245,11 @@ public class CacheService extends AbstractLifecycleComponent {
         final Lifecycle.State state = lifecycleState();
         assert state != Lifecycle.State.INITIALIZED : state;
         if (state != Lifecycle.State.STARTED) {
-            throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
+            if (state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED) {
+                throw new AlreadyClosedException("Failed to read data from cache: cache service is [" + state + ']');
+            } else {
+                throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
+            }
         }
     }
 
@@ -347,7 +352,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
-                    final PlainActionFuture<?> future = PlainActionFuture.newFuture();
+                    final PlainActionFuture<?> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
@@ -636,7 +641,7 @@ public class CacheService extends AbstractLifecycleComponent {
     class CacheSynchronizationTask extends AbstractAsyncTask {
 
         CacheSynchronizationTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+            super(logger, Objects.requireNonNull(threadPool), threadPool.generic(), Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -647,11 +652,6 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void runInternal() {
             synchronizeCache();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

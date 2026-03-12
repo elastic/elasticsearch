@@ -210,6 +210,22 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             .build();
     }
 
+    /**
+     * Create a <code>categorization_analyzer</code> that will be used by the ES|QL categorize function.
+     * The only difference from the DSL analyzer is the tokenizer (standard instead of ml_standard).
+     * This means the results are slightly different from the categorize text aggregation and the ML job,
+     * however you can use these tokens for looking up messages in indices generated with the standard
+     * tokenizer. The latter is considered more important.
+     */
+    public static CategorizationAnalyzerConfig buildStandardEsqlCategorizationAnalyzer() {
+
+        return new CategorizationAnalyzerConfig.Builder().addCharFilter("first_line_with_letters")
+            .setTokenizer("standard")
+            .addDateWordsTokenFilter()
+            .addLimitFilter()
+            .build();
+    }
+
     private final String analyzer;
     private final List<NameOrDefinition> charFilters;
     private final NameOrDefinition tokenizer;
@@ -229,17 +245,17 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
     public CategorizationAnalyzerConfig(StreamInput in) throws IOException {
         analyzer = in.readOptionalString();
-        charFilters = in.readList(NameOrDefinition::new);
+        charFilters = in.readCollectionAsList(NameOrDefinition::new);
         tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-        tokenFilters = in.readList(NameOrDefinition::new);
+        tokenFilters = in.readCollectionAsList(NameOrDefinition::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(analyzer);
-        out.writeList(charFilters);
+        out.writeCollection(charFilters);
         out.writeOptionalWriteable(tokenizer);
-        out.writeList(tokenFilters);
+        out.writeCollection(tokenFilters);
     }
 
     public String getAnalyzer() {
@@ -294,11 +310,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
         String strRep = Strings.toString(this);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            strRep
-        );
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                strRep
+            )
+        ) {
+            return parser.mapOrdered();
+        }
     }
 
     @Override

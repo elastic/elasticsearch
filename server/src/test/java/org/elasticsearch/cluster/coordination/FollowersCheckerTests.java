@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
@@ -33,8 +36,6 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -311,7 +313,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }
@@ -375,7 +377,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
     private void testBehaviourOfFailingNode(
         Settings testSettings,
-        Supplier<TransportResponse.Empty> responder,
+        Supplier<ActionResponse.Empty> responder,
         String failureReason,
         long expectedFailureTime,
         NodeHealthService nodeHealthService
@@ -545,7 +547,12 @@ public class FollowersCheckerTests extends ESTestCase {
             new FollowerCheckRequest(leaderTerm, leader),
             new TransportResponseHandler.Empty() {
                 @Override
-                public void handleResponse(TransportResponse.Empty response) {
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
+                public void handleResponse() {
                     fail("unexpected success");
                 }
 
@@ -629,7 +636,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -691,7 +703,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -722,7 +739,12 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         fail("unexpected success");
                     }
 
@@ -806,13 +828,18 @@ public class FollowersCheckerTests extends ESTestCase {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
+        public void handleResponse() {
             assertTrue(responseReceived.compareAndSet(false, true));
         }
 
         @Override
         public void handleException(TransportException exp) {
-            throw new AssertionError("unexpected", exp);
+            fail(exp);
         }
 
         public boolean succeeded() {

@@ -11,7 +11,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -39,6 +39,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SearchIdleTests extends ESSingleNodeTestCase {
 
@@ -92,7 +96,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -105,39 +108,40 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse beforeStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse beforeStatsResponse = indicesAdmin().prepareStats("test*").get();
         assertIdleShard(beforeStatsResponse);
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", randomAlphaOfLength(5), 5);
-        assertEquals(RestStatus.OK, searchResponse.status());
-        // NOTE: we need an empty result from at least one shard
-        assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertResponse(search("test*", "constant_keyword", randomAlphaOfLength(5), 5), searchResponse -> {
+            assertEquals(RestStatus.OK, searchResponse.status());
+            assertEquals(idleIndexShardsCount + activeIndexShardsCount, searchResponse.getSkippedShards());
+            assertEquals(0, searchResponse.getFailedShards());
+            assertEquals(0, searchResponse.getHits().getHits().length);
+        });
 
         // THEN
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse afterStatsResponse = indicesAdmin().prepareStats("test*").get();
 
         assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
+
+        List<ShardStats> active = Arrays.stream(afterStatsResponse.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, hasSize(0));
     }
 
     public void testSearchIdleConstantKeywordMatchOneIndex() throws InterruptedException {
@@ -155,7 +159,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value1",
             "keyword",
@@ -168,40 +171,42 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant_value2",
             "keyword",
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        final IndicesStatsResponse idleIndexStatsBefore = indicesAdmin().prepareStats("test1").get();
         assertIdleShard(idleIndexStatsBefore);
 
-        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        final IndicesStatsResponse activeIndexStatsBefore = indicesAdmin().prepareStats("test2").get();
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant_value2", 5);
-        assertEquals(RestStatus.OK, searchResponse.status());
-        assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+        assertResponse(search("test*", "constant_keyword", "constant_value2", 5), searchResponse -> {
+            assertEquals(RestStatus.OK, searchResponse.status());
+            assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
+            assertEquals(0, searchResponse.getFailedShards());
+            Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+        });
 
         // THEN
-        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+        final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
+
+        List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, empty());
     }
 
     public void testSearchIdleConstantKeywordMatchTwoIndices() throws InterruptedException {
@@ -219,7 +224,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
@@ -232,40 +236,39 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=constant",
             "keyword",
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse beforeStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final IndicesStatsResponse beforeStatsResponse = indicesAdmin().prepareStats("test*").get();
         assertIdleShard(beforeStatsResponse);
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant", 5);
+        assertResponse(search("test*", "constant_keyword", "constant", 5), searchResponse -> {
 
-        // THEN
-        assertEquals(RestStatus.OK, searchResponse.status());
-        assertEquals(0, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        assertArrayEquals(
-            new String[] { "test1", "test2" },
-            Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).sorted().toArray()
-        );
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
-        assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
+            // THEN
+            assertEquals(RestStatus.OK, searchResponse.status());
+            assertEquals(0, searchResponse.getSkippedShards());
+            assertEquals(0, searchResponse.getFailedShards());
+            assertArrayEquals(
+                new String[] { "test1", "test2" },
+                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).sorted().toArray()
+            );
+            final IndicesStatsResponse afterStatsResponse = indicesAdmin().prepareStats("test*").get();
+            assertIdleShardsRefreshStats(beforeStatsResponse, afterStatsResponse);
+        });
     }
 
     public void testSearchIdleWildcardQueryMatchOneIndex() throws InterruptedException {
@@ -283,7 +286,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test1_value"
         );
@@ -294,48 +296,48 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
-            "doc",
             "constant_keyword",
             "type=constant_keyword,value=test2_value"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "value").get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", "value").get().status());
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", "value").get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", "value").get().status());
+        assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
-            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
-                .allMatch(ShardStats::isSearchIdle),
+            () -> Arrays.stream(indicesAdmin().prepareStats(idleIndex, activeIndex).get().getShards()).allMatch(ShardStats::isSearchIdle),
             2,
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        final IndicesStatsResponse idleIndexStatsBefore = indicesAdmin().prepareStats("test1").get();
         assertIdleShard(idleIndexStatsBefore);
 
-        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        final IndicesStatsResponse activeIndexStatsBefore = indicesAdmin().prepareStats("test2").get();
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
-        final SearchResponse searchResponse = client().prepareSearch("test*")
-            .setQuery(new WildcardQueryBuilder("constant_keyword", "test2*"))
-            .setPreFilterShardSize(5)
-            .get();
+        assertResponse(
+            client().prepareSearch("test*").setQuery(new WildcardQueryBuilder("constant_keyword", "test2*")).setPreFilterShardSize(5),
+            searchResponse -> {
 
-        // THEN
-        assertEquals(RestStatus.OK, searchResponse.status());
-        assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
-        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+                // THEN
+                assertEquals(RestStatus.OK, searchResponse.status());
+                assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
+                assertEquals(0, searchResponse.getFailedShards());
+                Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+            }
+        );
+        final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
+
+        // Can match should not mark shards as search active, because query rewrite should skip shard before doing any search i/o:
+        List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
+        assertThat(active, empty());
     }
 
-    private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {
-        return client().prepareSearch(index)
-            .setQuery(new MatchPhraseQueryBuilder(field, value))
-            .setPreFilterShardSize(preFilterShardSize)
-            .get();
+    private SearchRequestBuilder search(final String index, final String field, final String value, int preFilterShardSize) {
+        return client().prepareSearch(index).setQuery(new MatchPhraseQueryBuilder(field, value)).setPreFilterShardSize(preFilterShardSize);
     }
 
     private static void assertIdleShard(final IndicesStatsResponse statsResponse) {

@@ -1,0 +1,16 @@
+---
+"basic SLM health indicator test":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
+
+  - do:
+      health_report: { }
+
+  - is_true: cluster_name
+  # This test might execute before the health node has received all health info, resulting in status "unknown"
+  - is_true: status
+  - match: { indicators.slm.status: "green" }
+  - match: { indicators.slm.symptom: "No Snapshot Lifecycle Management policies configured" }
+  - match: { indicators.slm.details.slm_status: "RUNNING" }
+  - exists: indicators.slm.details.policies

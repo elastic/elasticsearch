@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -90,6 +91,6 @@ public class ItemSetMapReduceValueSourceTests extends ESTestCase {
     }
 
     private Field copyField(Field field) throws IOException {
-        return copyInstance(field, writableRegistry(), (out, value) -> value.writeTo(out), Field::new, TransportVersion.current());
+        return copyInstance(field, writableRegistry(), StreamOutput::writeWriteable, Field::new, TransportVersion.current());
     }
 }

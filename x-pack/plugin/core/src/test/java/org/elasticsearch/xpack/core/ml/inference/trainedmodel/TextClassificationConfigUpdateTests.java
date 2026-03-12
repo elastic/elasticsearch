@@ -43,14 +43,6 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
     }
 
     public static TextClassificationConfigUpdate mutateForVersion(TextClassificationConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
-            return new TextClassificationConfigUpdate(
-                instance.getClassificationLabels(),
-                instance.getNumTopClasses(),
-                instance.getResultsField(),
-                null
-            );
-        }
         return instance;
     }
 
@@ -78,38 +70,6 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
         return TextClassificationConfigUpdate.fromMap(map);
     }
 
-    public void testIsNoop() {
-        assertTrue(new TextClassificationConfigUpdate.Builder().build().isNoop(TextClassificationConfigTests.createRandom()));
-
-        assertFalse(
-            new TextClassificationConfigUpdate.Builder().setResultsField("foo")
-                .build()
-                .isNoop(
-                    new TextClassificationConfig.Builder().setClassificationLabels(List.of("a", "b"))
-                        .setNumTopClasses(-1)
-                        .setResultsField("bar")
-                        .build()
-                )
-        );
-
-        assertTrue(
-            new TextClassificationConfigUpdate.Builder().setNumTopClasses(3)
-                .build()
-                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("a", "b")).setNumTopClasses(3).build())
-        );
-        assertFalse(
-            new TextClassificationConfigUpdate.Builder().setClassificationLabels(List.of("a", "b"))
-                .build()
-                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
-        );
-        assertFalse(
-            new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null)
-            ).build().isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
-        );
-
-    }
-
     public void testApply() {
         TextClassificationConfig originalConfig = new TextClassificationConfig(
             VocabularyConfigTests.createRandom(),
@@ -119,24 +79,24 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
             "foo-results"
         );
 
-        assertThat(originalConfig, equalTo(new TextClassificationConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new TextClassificationConfigUpdate.Builder().build())));
 
         assertThat(
             new TextClassificationConfig.Builder(originalConfig).setClassificationLabels(List.of("foo", "bar")).build(),
             equalTo(
-                new TextClassificationConfigUpdate.Builder().setClassificationLabels(List.of("foo", "bar")).build().apply(originalConfig)
+                originalConfig.apply(new TextClassificationConfigUpdate.Builder().setClassificationLabels(List.of("foo", "bar")).build())
             )
         );
         assertThat(
             new TextClassificationConfig.Builder(originalConfig).setResultsField("ml-results").build(),
-            equalTo(new TextClassificationConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextClassificationConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
         assertThat(
             new TextClassificationConfig.Builder(originalConfig).setNumTopClasses(originalConfig.getNumTopClasses() + 2).build(),
             equalTo(
-                new TextClassificationConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 2)
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextClassificationConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 2).build()
+                )
             )
         );
 
@@ -145,9 +105,11 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
         assertThat(
             new TextClassificationConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
-                new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }
@@ -160,7 +122,7 @@ public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdate
 
         var update = new TextClassificationConfigUpdate.Builder().setClassificationLabels(newLabels).build();
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> update.apply(originalConfig));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> originalConfig.apply(update));
         assertThat(
             e.getMessage(),
             containsString(

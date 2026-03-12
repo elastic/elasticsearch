@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -19,22 +19,29 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -44,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,8 +62,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -91,8 +102,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             actionFilters,
             StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new,
-            StopDatafeedAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.threadPool = Objects.requireNonNull(threadPool);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
@@ -102,7 +112,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
     }
 
     /**
-     * Sort the datafeed IDs the their task state and add to one
+     * Sort the datafeed IDs by their task state and add to one
      * of the list arguments depending on the state.
      *
      * @param expandedDatafeedIds The expanded set of IDs
@@ -179,11 +189,15 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new)
+                    new ActionListenerResponseHandler<>(
+                        listener,
+                        StopDatafeedAction.Response::new,
+                        TransportResponseHandler.TRANSPORT_WORKER
+                    )
                 );
             }
         } else {
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             datafeedConfigProvider.expandDatafeedIds(
                 request.getDatafeedId(),
                 request.allowNoMatch(),
@@ -200,14 +214,117 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                         return;
                     }
 
+                    // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
+                    // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
+                    // "close_job" flag set to false, to avoid recursion)
+                    if (request.closeJob()) {
+                        List<String> jobIds = getJobIdsFromDatafeedIds(
+                            request.isForce() ? notStoppedDatafeeds : startedDatafeeds,
+                            tasks,
+                            nodes
+                        );
+
+                        closeDatafeedJobs(request, jobIds, listener);
+
+                        return;
+                    }
+
+                    // If we are not closing jobs, proceed with the appropriate stop action.
                     if (request.isForce()) {
                         forceStopDatafeed(request, listener, tasks, nodes, notStoppedDatafeeds);
                     } else {
-                        normalStopDatafeed(task, request, listener, tasks, nodes, startedDatafeeds, stoppingDatafeeds, attempt);
+                        normalStopDatafeed(
+                            task,
+                            request,
+                            listener,
+                            tasks,
+                            nodes,
+                            startedDatafeeds,
+                            stoppingDatafeeds,
+                            getJobIdsFromDatafeedIds(startedDatafeeds, tasks, nodes),
+                            attempt
+                        );
                     }
                 }, listener::onFailure)
             );
         }
+    }
+
+    private void closeDatafeedJobs(
+        StopDatafeedAction.Request request,
+        List<String> jobIds,
+        ActionListener<StopDatafeedAction.Response> listener
+    ) {
+        if (jobIds.isEmpty()) {
+            listener.onResponse(new StopDatafeedAction.Response(true));
+            return;
+        }
+
+        ActionListener<List<Tuple<String, CloseJobAction.Response>>> closeJobActionListener = listener.delegateFailureAndWrap(
+            (delegate, jobsResponses) -> {
+                List<String> responseJobIds = jobsResponses.stream()
+                    .filter(t -> t.v2().isClosed() == false)
+                    .map(Tuple::v1)
+                    .collect(toList());
+                if (responseJobIds.isEmpty()) {
+                    logger.debug("Successfully closed jobs (and associated datafeeds)");
+                    delegate.onResponse(new StopDatafeedAction.Response(true));
+                } else {
+                    logger.warn("Failed to close jobs (and associated datafeeds): {}", responseJobIds);
+                    delegate.onResponse(new StopDatafeedAction.Response(false));
+                }
+            }
+        );
+
+        TypedChainTaskExecutor<Tuple<String, CloseJobAction.Response>> chainTaskExecutor = new TypedChainTaskExecutor<>(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Predicates.always(),
+            Predicates.always()
+        );
+        jobIds.forEach(jobId -> {
+            chainTaskExecutor.add(
+                al -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    CloseJobAction.INSTANCE,
+                    // Pass through the "is_force" parameter to the close job action.
+                    new CloseJobAction.Request(jobId).setForce(request.isForce()),
+                    ActionListener.wrap(response -> al.onResponse(Tuple.tuple(jobId, response)), e -> {
+                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                        if (unwrapped instanceof ResourceNotFoundException) {
+                            logger.debug(
+                                () -> format(
+                                    "[%s] Job was already closed or does not exist" + " when attempting to close via stop datafeed",
+                                    jobId
+                                ),
+                                e
+                            );
+                            // Treat not found as a success for closing, as the end state is the same.
+                            al.onResponse(Tuple.tuple(jobId, new CloseJobAction.Response(true)));
+                        } else {
+                            al.onFailure(e);
+                        }
+                    })
+                )
+            );
+        });
+        chainTaskExecutor.execute(closeJobActionListener);
+    }
+
+    private static List<String> getJobIdsFromDatafeedIds(
+        List<String> datafeedIds,
+        PersistentTasksCustomMetadata tasks,
+        DiscoveryNodes nodes
+    ) {
+        List<String> jobIds = new ArrayList<>();
+        for (String datafeedId : datafeedIds) {
+            PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
+            if (datafeedTask != null
+                && PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
+                jobIds.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
+            }
+        }
+        return jobIds;
     }
 
     private void normalStopDatafeed(
@@ -218,10 +335,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         DiscoveryNodes nodes,
         List<String> startedDatafeeds,
         List<String> stoppingDatafeeds,
+        List<String> startedDatafeedsJobs,
         int attempt
     ) {
         final Set<String> executorNodes = new HashSet<>();
-        final List<String> startedDatafeedsJobs = new ArrayList<>();
         final List<String> resolvedStartedDatafeeds = new ArrayList<>();
         final List<PersistentTasksCustomMetadata.PersistentTask<?>> allDataFeedsToWaitFor = new ArrayList<>();
         for (String datafeedId : startedDatafeeds) {
@@ -231,8 +348,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 String msg = "Requested datafeed [" + datafeedId + "] be stopped, but datafeed's task could not be found.";
                 assert datafeedTask != null : msg;
                 logger.error(msg);
-            } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
-                startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
+            } else if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
                 resolvedStartedDatafeeds.add(datafeedId);
                 executorNodes.add(datafeedTask.getExecutorNode());
                 allDataFeedsToWaitFor.add(datafeedTask);
@@ -245,6 +361,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 // already waits for these persistent tasks to disappear.
                 persistentTasksService.sendRemoveRequest(
                     datafeedTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(
                         r -> auditDatafeedStopped(datafeedTask),
                         e -> logger.error("[" + datafeedId + "] failed to remove task to stop unassigned datafeed", e)
@@ -271,6 +388,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
                     persistentTasksService.sendRemoveRequest(
                         datafeedTask.getId(),
+                        MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                         ActionListener.wrap(r -> auditDatafeedStopped(datafeedTask), e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 logger.debug("[{}] relocated datafeed task already removed", datafeedId);
@@ -332,7 +450,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                         threadPool.schedule(
                             () -> doExecute(task, request, listener, attempt + 1),
                             TimeValue.timeValueMillis(100L * attempt),
-                            ThreadPool.Names.SAME
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                     } else {
                         listener.onFailure(
@@ -374,28 +492,32 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(persistentTask -> {
-                    // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
-                    // If the datafeed was active then it audits itself on being cancelled.
-                    if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
-                        auditDatafeedStopped(datafeedTask);
-                    }
-                    if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
-                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                    }
-                }, e -> {
-                    final int slot = counter.incrementAndGet();
-                    // We validated that the datafeed names supplied in the request existed when we started processing the action.
-                    // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
-                    // request.
-                    // This is not an error.
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                        failures.set(slot - 1, e);
-                    }
-                    if (slot == notStoppedDatafeeds.size()) {
-                        sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                    }
-                }));
+                persistentTasksService.sendRemoveRequest(
+                    datafeedTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    ActionListener.wrap(persistentTask -> {
+                        // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
+                        // If the datafeed was active then it audits itself on being cancelled.
+                        if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes)) {
+                            auditDatafeedStopped(datafeedTask);
+                        }
+                        if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {
+                            sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                        }
+                    }, e -> {
+                        final int slot = counter.incrementAndGet();
+                        // We validated that the datafeed names supplied in the request existed when we started processing the action.
+                        // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop
+                        // request.
+                        // This is not an error.
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                            failures.set(slot - 1, e);
+                        }
+                        if (slot == notStoppedDatafeeds.size()) {
+                            sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                        }
+                    })
+                );
             } else {
                 // This should not happen, because startedDatafeeds and stoppingDatafeeds
                 // were derived from the same tasks that were passed to this method
@@ -450,13 +572,13 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }));
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String datafeedId,
         ActionListener<StopDatafeedAction.Response> listener,
         AtomicArray<Exception> failures
     ) {
         List<Exception> caughtExceptions = failures.asList();
-        if (caughtExceptions.size() == 0) {
+        if (caughtExceptions.isEmpty()) {
             listener.onResponse(new StopDatafeedAction.Response(true));
             return;
         }
@@ -465,11 +587,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             + datafeedId
             + "] with ["
             + caughtExceptions.size()
-            + "] failures, rethrowing last, all Exceptions: ["
+            + "] failures, rethrowing first. All Exceptions: ["
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
         listener.onFailure(e);
     }
 
@@ -489,7 +611,12 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         ActionListener<StopDatafeedAction.Response> listener,
         Set<String> movedDatafeeds
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
             for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : datafeedPersistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(
@@ -507,7 +634,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
+        }, request.getTimeout(), listener.safeMap(result -> response));
     }
 
     @Override

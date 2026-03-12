@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.store;
@@ -82,7 +83,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                 }
                 try {
                     BytesStreamOutput os = new BytesStreamOutput();
-                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8);
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
                     if (status.clean == false) {
@@ -116,7 +117,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         }
     }
 
-    private Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
+    private static Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
 
         double randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         double randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
@@ -135,7 +136,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         return w;
     }
 
-    private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+    private static Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
         final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
                 Settings.builder()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -21,9 +22,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class IndexStorePluginTests extends ESTestCase {
 
@@ -112,7 +113,7 @@ public class IndexStorePluginTests extends ESTestCase {
         assertThat(
             e,
             hasToString(
-                matches(
+                matchesRegex(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
                         + "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
                         + "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"

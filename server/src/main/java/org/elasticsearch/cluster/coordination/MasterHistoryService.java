@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -23,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -60,7 +62,7 @@ public class MasterHistoryService {
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
-        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool.relativeTimeInMillisSupplier();
         this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
 
@@ -153,7 +155,10 @@ public class MasterHistoryService {
                                 logger.warn("Exception in master history request to master node", e);
                                 remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                             }
-                        }, () -> Releasables.close(releasable)), MasterHistoryAction.Response::new)
+                        }, () -> Releasables.close(releasable)),
+                            MasterHistoryAction.Response::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 }
 

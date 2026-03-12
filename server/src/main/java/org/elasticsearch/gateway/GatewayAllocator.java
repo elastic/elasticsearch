@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -24,19 +25,20 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.difference;
@@ -116,11 +118,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
         assert replicaShardAllocator != null;
         if (allocation.routingNodes().hasInactiveReplicas()) {
             // cancel existing recoveries if we have a better match
-            replicaShardAllocator.processExistingRecoveries(allocation);
+            replicaShardAllocator.processExistingRecoveries(allocation, isRelevantShardPredicate);
         }
     }
 
@@ -248,7 +250,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_started",
                     shardId,
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
                     allocation.routingNodes().size()
                 ) {
                     @Override
@@ -261,7 +263,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListGatewayStartedShards.TYPE,
                             new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }
@@ -295,7 +297,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_store",
                     shard.shardId(),
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
                     allocation.routingNodes().size()
                 ) {
                     @Override
@@ -308,7 +310,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListShardStoreMetadata.TYPE,
                             new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }

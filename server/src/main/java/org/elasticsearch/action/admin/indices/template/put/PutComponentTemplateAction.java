@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -13,12 +14,17 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.ResettableValue;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -31,7 +37,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/component_template/put";
 
     private PutComponentTemplateAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     /**
@@ -56,6 +62,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
          * Constructs a new put component template request with the provided name.
          */
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 
@@ -76,6 +83,33 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             }
             if (componentTemplate == null) {
                 validationException = addValidationError("a component template is required", validationException);
+            }
+            if (componentTemplate.createdDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: created_date_millis",
+                    validationException
+                );
+            }
+            if (componentTemplate.modifiedDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: modified_date_millis",
+                    validationException
+                );
+            }
+            List<DataStreamLifecycle.DownsamplingRound> rounds = Optional.ofNullable(componentTemplate.template())
+                .map(Template::lifecycle)
+                .map(DataStreamLifecycle.Template::downsamplingRounds)
+                .map(ResettableValue::get)
+                .orElse(null);
+            if (rounds != null) {
+                try {
+                    DataStreamLifecycle.DownsamplingRound.validateRounds(rounds);
+                } catch (Exception e) {
+                    validationException = addValidationError(
+                        "template downsampling rounds are not valid: " + e.getMessage(),
+                        validationException
+                    );
+                }
             }
             return validationException;
         }

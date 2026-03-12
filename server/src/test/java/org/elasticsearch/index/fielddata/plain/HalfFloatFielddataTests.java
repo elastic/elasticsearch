@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -33,7 +35,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         // we need the default codec to check for singletons
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()));
         LuceneDocument doc = new LuceneDocument();
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, IndexType.points(false, true), false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
@@ -53,8 +55,8 @@ public class HalfFloatFielddataTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 2f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, IndexType.points(false, true), false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 2f, IndexType.points(false, true), false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);

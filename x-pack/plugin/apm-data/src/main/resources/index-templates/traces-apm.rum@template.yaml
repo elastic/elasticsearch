@@ -1,0 +1,37 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: ["traces-apm.rum-*"]
+priority: 210
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for traces-apm.rum-*
+  managed: true
+composed_of:
+- traces@mappings
+- apm@mappings
+- apm@settings
+- apm-90d@lifecycle
+- traces-apm@mappings
+- traces-apm.rum@mappings
+- traces-apm.rum-fallback@ilm
+- traces@custom
+- traces-apm.rum@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- traces@custom
+- traces-apm.rum@custom
+- traces-apm.rum-fallback@ilm
+template:
+  settings:
+    index:
+      default_pipeline: traces-apm.rum@default-pipeline
+      final_pipeline: traces-apm@pipeline
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: traces
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.rum

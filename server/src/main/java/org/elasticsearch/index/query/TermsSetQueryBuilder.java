@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
@@ -47,12 +47,14 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
     static final ParseField MINIMUM_SHOULD_MATCH_SCRIPT = new ParseField("minimum_should_match_script");
+    static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
 
     private final String fieldName;
     private final List<?> values;
 
     private String minimumShouldMatchField;
     private Script minimumShouldMatchScript;
+    private String minimumShouldMatch;
 
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
         this(fieldName, values, true);
@@ -74,6 +76,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
+        this.minimumShouldMatch = in.readOptionalString();
     }
 
     @Override
@@ -82,6 +85,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     // package protected for testing purpose
@@ -98,8 +102,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     public TermsSetQueryBuilder setMinimumShouldMatchField(String minimumShouldMatchField) {
-        if (minimumShouldMatchScript != null) {
-            throw new IllegalArgumentException("A script has already been specified. Cannot specify both a field and script");
+        if (minimumShouldMatchScript != null || minimumShouldMatch != null) {
+            throw new IllegalArgumentException(
+                "A script or value has already been specified. Cannot specify both a field and a script or value"
+            );
         }
         this.minimumShouldMatchField = minimumShouldMatchField;
         return this;
@@ -110,10 +116,26 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     public TermsSetQueryBuilder setMinimumShouldMatchScript(Script minimumShouldMatchScript) {
-        if (minimumShouldMatchField != null) {
-            throw new IllegalArgumentException("A field has already been specified. Cannot specify both a field and script");
+        if (minimumShouldMatchField != null || minimumShouldMatch != null) {
+            throw new IllegalArgumentException(
+                "A field or value has already been specified. Cannot specify both a script and a field or value"
+            );
         }
         this.minimumShouldMatchScript = minimumShouldMatchScript;
+        return this;
+    }
+
+    public String getMinimumShouldMatch() {
+        return minimumShouldMatch;
+    }
+
+    public TermsSetQueryBuilder setMinimumShouldMatch(String minimumShouldMatch) {
+        if (minimumShouldMatchField != null || minimumShouldMatchScript != null) {
+            throw new IllegalArgumentException(
+                "A field or script has already been specified. Cannot specify both a value and a script or field"
+            );
+        }
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
 
@@ -122,12 +144,13 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(values, other.values)
             && Objects.equals(minimumShouldMatchField, other.minimumShouldMatchField)
-            && Objects.equals(minimumShouldMatchScript, other.minimumShouldMatchScript);
+            && Objects.equals(minimumShouldMatchScript, other.minimumShouldMatchScript)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, minimumShouldMatchField, minimumShouldMatchScript);
+        return Objects.hash(fieldName, values, minimumShouldMatchField, minimumShouldMatchScript, minimumShouldMatch);
     }
 
     @Override
@@ -145,6 +168,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         }
         if (minimumShouldMatchScript != null) {
             builder.field(MINIMUM_SHOULD_MATCH_SCRIPT.getPreferredName(), minimumShouldMatchScript);
+        }
+        if (minimumShouldMatch != null) {
+            builder.field(MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -166,6 +192,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         List<Object> values = new ArrayList<>();
         String minimumShouldMatchField = null;
+        String minimumShouldMatch = null;
         Script minimumShouldMatchScript = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -194,6 +221,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             } else if (token.isValue()) {
                 if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatchField = parser.text();
+                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {
+                    minimumShouldMatch = parser.text();
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -221,6 +250,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
         }
+        if (minimumShouldMatch != null) {
+            queryBuilder.setMinimumShouldMatch(minimumShouldMatch);
+        }
         if (minimumShouldMatchScript != null) {
             queryBuilder.setMinimumShouldMatchScript(minimumShouldMatchScript);
         }
@@ -233,8 +265,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);
@@ -260,7 +292,9 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
-        if (minimumShouldMatchField != null) {
+        if (minimumShouldMatch != null) {
+            longValuesSource = LongValuesSource.constant(Queries.calculateMinShouldMatch(values.size(), minimumShouldMatch));
+        } else if (minimumShouldMatchField != null) {
             MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);
             if (msmFieldType == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
@@ -397,7 +431,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SortedNumericDocValues values = fieldData.load(ctx).getLongValues();
+            SortedNumericLongValues values = fieldData.load(ctx).getLongValues();
             return new LongValues() {
 
                 long current = -1;
@@ -439,6 +473,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersion.zero();
     }
 }

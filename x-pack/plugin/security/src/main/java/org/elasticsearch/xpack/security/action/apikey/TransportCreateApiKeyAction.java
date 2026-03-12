@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -27,7 +28,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 /**
  * Implementation of the action needed to create an API key
  */
-public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
+public final class TransportCreateApiKeyAction extends TransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final ApiKeyUserRoleDescriptorResolver resolver;
@@ -42,7 +43,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
+        super(CreateApiKeyAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
         this.securityContext = context;

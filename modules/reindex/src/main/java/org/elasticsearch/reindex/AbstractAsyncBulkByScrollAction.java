@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -24,37 +24,42 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -64,8 +69,8 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -91,21 +96,21 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Request mainRequest;
 
-    private final AtomicLong startTime = new AtomicLong(-1);
-    private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicLong startTimeEpochMillis = new AtomicLong(-1);
+    private final Set<String> destinationIndices = ConcurrentCollections.newConcurrentSet();
 
     private final ParentTaskAssigningClient searchClient;
     private final ParentTaskAssigningClient bulkClient;
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
-    private final ScrollableHitSource scrollSource;
+    private final PaginatedHitSource paginatedHitSource;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
      * from copying search hit metadata (parent, routing, etc) to potentially transforming the
      * {@link RequestWrapper} completely.
      */
-    private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
+    private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
      * Keeps track of the total number of bulk operations performed
@@ -120,6 +125,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BulkByScrollTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        boolean needsVectors,
         Logger logger,
         ParentTaskAssigningClient client,
         ThreadPool threadPool,
@@ -132,6 +138,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             task,
             needsSourceDocumentVersions,
             needsSourceDocumentSeqNoAndPrimaryTerm,
+            needsVectors,
             logger,
             client,
             client,
@@ -147,6 +154,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BulkByScrollTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        boolean needsVectors,
         Logger logger,
         ParentTaskAssigningClient searchClient,
         ParentTaskAssigningClient bulkClient,
@@ -172,22 +180,23 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        scrollSource = buildScrollableResultSource(
+        paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
-            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm)
+            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
 
     /**
-     * Prepares a search request to be used in a ScrollableHitSource.
+     * Prepares a search request to be used in a {@link PaginatedHitSource}.
      * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
      */
     // Visible for testing
     static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,
-        boolean needsSourceDocumentSeqNoAndPrimaryTerm
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        boolean needsVectors
     ) {
         var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
 
@@ -206,13 +215,23 @@ public abstract class AbstractAsyncBulkByScrollAction<
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
 
+        if (needsVectors) {
+            // always include vectors in the response unless explicitly set
+            var fetchSource = sourceBuilder.fetchSource();
+            if (fetchSource == null) {
+                sourceBuilder.fetchSource(FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS);
+            } else if (fetchSource.excludeVectors() == null) {
+                sourceBuilder.excludeVectors(false);
+            }
+        }
+
         /*
          * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
          */
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
-            preparedSearchRequest.scroll((Scroll) null);
+            preparedSearchRequest.scroll(null);
         }
 
         return preparedSearchRequest;
@@ -223,7 +242,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      *
      * Public for testings....
      */
-    public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+    public BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
@@ -233,12 +252,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * metadata or scripting. That will be handled by copyMetadata and
      * apply functions that can be overridden.
      */
-    protected abstract RequestWrapper<?> buildRequest(ScrollableHitSource.Hit doc);
+    protected abstract RequestWrapper<?> buildRequest(PaginatedHitSource.Hit doc);
 
     /**
      * Copies the metadata from a hit to the request.
      */
-    protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
+    protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
         copyRouting(request, doc.getRouting());
         return request;
     }
@@ -255,7 +274,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * from the bulk request. It is also where we fail on invalid search hits, like
      * when the document has no source but it's required.
      */
-    protected boolean accept(ScrollableHitSource.Hit doc) {
+    protected boolean accept(PaginatedHitSource.Hit doc) {
         if (doc.getSource() == null) {
             /*
              * Either the document didn't store _source or we didn't fetch it for some reason. Since we don't allow the user to
@@ -267,9 +286,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return true;
     }
 
-    protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
+    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs) {
         BulkRequest bulkRequest = new BulkRequest();
-        for (ScrollableHitSource.Hit doc : docs) {
+        for (PaginatedHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
                 if (request != null) {
@@ -280,8 +299,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
-    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
-        return new ClientScrollableHitSource(
+    protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        return new ClientScrollablePaginatedHitSource(
             logger,
             backoffPolicy,
             threadPool,
@@ -306,7 +325,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Start the action by firing the initial search request.
+     * Start the worker action by firing the initial search request or resume search from the resumeInfo state
      */
     public void start() {
         logger.debug("[{}]: starting", task.getId());
@@ -316,14 +335,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         try {
-            startTime.set(System.nanoTime());
-            scrollSource.start();
+            if (mainRequest.getResumeInfo().isPresent()) {
+                var resumeInfo = mainRequest.getResumeInfo().get();
+                // At this point only worker task can be started, leader task would have split slices into worker tasks
+                assert resumeInfo.getWorker().isPresent() : "Resume info for worker task must have worker resume info";
+                WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
+                startTimeEpochMillis.set(workerResumeInfo.startTimeEpochMillis());
+                worker.restoreState(workerResumeInfo.status());
+                paginatedHitSource.resume(workerResumeInfo);
+            } else {
+                startTimeEpochMillis.set(System.currentTimeMillis());
+                paginatedHitSource.start();
+            }
         } catch (Exception e) {
             finishHim(e);
         }
     }
 
-    void onScrollResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
+    void onScrollResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
         onScrollResponse(new ScrollConsumableHitsResponse(asyncResponse));
     }
 
@@ -337,10 +366,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
-     * @param asyncResponse the response to process from ScrollableHitSource
+     * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
-        ScrollableHitSource.Response response = asyncResponse.response();
+        PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
@@ -395,7 +424,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         worker.countBatch();
-        final List<? extends ScrollableHitSource.Hit> hits;
+        final List<? extends PaginatedHitSource.Hit> hits;
 
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
             // Truncate the hits if we have more than the request max docs
@@ -503,7 +532,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
-            if (scrollSource.hasScroll() == false) {
+            if (paginatedHitSource.hasScroll() == false) {
                 // Index contains fewer matching docs than max_docs (found < max_docs <= scroll size)
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
@@ -524,12 +553,48 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.lastBatchSize = batchSize;
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
-        if (asyncResponse.hasRemainingHits() == false) {
-            int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
-            asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
-        } else {
+        if (asyncResponse.hasRemainingHits()) {
             onScrollResponse(asyncResponse);
+            return;
         }
+        if (task.isRelocationRequested()) {
+            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
+            if (nodeToRelocateTo.isPresent()) {
+                final String scrollId = asyncResponse.response().getScrollId();
+                final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
+                    ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
+                    : null;
+                final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                    scrollId,
+                    startTimeEpochMillis.get(),
+                    worker.getStatus(),
+                    remoteVersion
+                );
+                final ResumeInfo resumeInfo = new ResumeInfo(workerResumeInfo, null);
+                // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
+                // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
+                // its own combined status from it to serialize to .tasks index.
+                // For non-sliced, status is unused (comes from the worker state).
+                final BulkByScrollResponse response = new BulkByScrollResponse(
+                    TimeValue.MINUS_ONE,
+                    task.getStatus(),
+                    List.of(),
+                    List.of(),
+                    false,
+                    resumeInfo
+                );
+                // Don't call finishHim — it clears the pagination which the relocated task needs.
+                // Do close local resources (e.g. the remote REST client) that won't be reused.
+                paginatedHitSource.cleanupWithoutClosingPagination(
+                    threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
+                );
+                return;
+            }
+            // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.
+        }
+
+        int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
+        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {
@@ -554,9 +619,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         logger.debug("[{}]: refreshing", task.getId());
-        bulkClient.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+        bulkClient.admin().indices().refresh(refresh, new ActionListener<>() {
             @Override
-            public void onResponse(RefreshResponse response) {
+            public void onResponse(BroadcastResponse response) {
                 finishHim(null, indexingFailures, searchFailures, timedOut);
             }
 
@@ -586,10 +651,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        scrollSource.close(threadPool.getThreadContext().preserveContext(() -> {
+        paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
-                    timeValueNanos(System.nanoTime() - startTime.get()),
+                    timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
                     searchFailures,
                     timedOut
@@ -620,7 +685,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Set the last returned scrollId. Exists entirely for testing.
      */
     void setScroll(String scroll) {
-        scrollSource.setScroll(scroll);
+        paginatedHitSource.setScroll(scroll);
     }
 
     /**
@@ -816,7 +881,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     public abstract static class ScriptApplier<T extends Metadata>
         implements
-            BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+            BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> {
 
         // "index" is the default operation
         protected static final String INDEX = "index";
@@ -842,7 +907,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         @Override
-        public RequestWrapper<?> apply(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
+        public RequestWrapper<?> apply(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
             if (script == null) {
                 return request;
             }
@@ -858,7 +923,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return requestFromOp(request, metadata.getOp());
         }
 
-        protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
+        protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source);
 
         protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
 
@@ -884,24 +949,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     static class ScrollConsumableHitsResponse {
-        private final ScrollableHitSource.AsyncResponse asyncResponse;
-        private final List<? extends ScrollableHitSource.Hit> hits;
+        private final PaginatedHitSource.AsyncResponse asyncResponse;
+        private final List<? extends PaginatedHitSource.Hit> hits;
         private int consumedOffset = 0;
 
-        ScrollConsumableHitsResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
+        ScrollConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
             this.hits = asyncResponse.response().getHits();
         }
 
-        ScrollableHitSource.Response response() {
+        PaginatedHitSource.Response response() {
             return asyncResponse.response();
         }
 
-        List<? extends ScrollableHitSource.Hit> consumeRemainingHits() {
+        List<? extends PaginatedHitSource.Hit> consumeRemainingHits() {
             return consumeHits(remainingHits());
         }
 
-        List<? extends ScrollableHitSource.Hit> consumeHits(int numberOfHits) {
+        List<? extends PaginatedHitSource.Hit> consumeHits(int numberOfHits) {
             if (numberOfHits < 0) {
                 throw new IllegalArgumentException("Invalid number of hits to consume [" + numberOfHits + "]");
             }

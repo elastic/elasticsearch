@@ -16,7 +16,7 @@ import java.util.OptionalDouble;
 
 class LeastSquaresOnlineRegression {
 
-    private static final double SINGLE_VALUE_DECOMPOSITION_EPS = 1e+15;
+    private static final double SINGLE_VALUE_DECOMPOSITION_MAX_COND = 1e+15;
 
     private final RunningStatistics statistics;
     private final Array2DRowRealMatrix Nx;
@@ -33,9 +33,8 @@ class LeastSquaresOnlineRegression {
     }
 
     double rSquared() {
-        double result = 0;
         if (statistics.count <= 0.0) {
-            return result;
+            return 0.0;
         }
         double var = statistics.stats[3 * N - 1] - statistics.stats[2 * N - 1] * statistics.stats[2 * N - 1];
         double residualVariance = var;
@@ -43,7 +42,7 @@ class LeastSquaresOnlineRegression {
         boolean done = false;
         while (--n > 0 && done == false) {
             if (n == 1) {
-                return result;
+                return 0.0;
             } else if (n == this.N) {
                 OptionalDouble maybeResidualVar = residualVariance(N, Nx, Ny, Nz);
                 if (maybeResidualVar.isPresent()) {
@@ -54,7 +53,7 @@ class LeastSquaresOnlineRegression {
                 Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
                 Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
                 Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
-                OptionalDouble maybeResidualVar = residualVariance(N, Nx, Ny, Nz);
+                OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
                 if (maybeResidualVar.isPresent()) {
                     residualVariance = maybeResidualVar.getAsDouble();
                     done = true;
@@ -71,7 +70,7 @@ class LeastSquaresOnlineRegression {
             d[i] = xi;
             d[i + 2 * N - 1] = xi * y;
         }
-        for (int i = 3; i < 2 * N - 1; ++i, xi *= x) {
+        for (int i = N; i < 2 * N - 1; ++i, xi *= x) {
             d[i] = xi;
         }
         d[3 * N - 1] = y * y;
@@ -90,6 +89,7 @@ class LeastSquaresOnlineRegression {
         if (n == 1) {
             return OptionalDouble.of(statistics.stats[3 * N - 1] - statistics.stats[2 * N - 1] * statistics.stats[2 * N - 1]);
         }
+
         for (int i = 0; i < n; ++i) {
             x.setEntry(i, i, statistics.stats[i + i]);
             y.setEntry(i, 0, statistics.stats[i + 2 * N - 1]);
@@ -102,7 +102,7 @@ class LeastSquaresOnlineRegression {
 
         SingularValueDecomposition svd = new SingularValueDecomposition(x);
         double[] singularValues = svd.getSingularValues();
-        if (singularValues[0] > SINGLE_VALUE_DECOMPOSITION_EPS * singularValues[n - 1]) {
+        if (singularValues[0] > SINGLE_VALUE_DECOMPOSITION_MAX_COND * singularValues[n - 1]) {
             return OptionalDouble.empty();
         }
         RealMatrix r = svd.getSolver().solve(y);

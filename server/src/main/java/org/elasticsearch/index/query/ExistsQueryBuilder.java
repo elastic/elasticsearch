@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -66,14 +67,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            if (getMappedFields(context, fieldName).isEmpty()) {
-                return new MatchNoneQueryBuilder();
-            }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        if (getMappedFields(context, fieldName).isEmpty()) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        } else {
+            return this;
         }
-        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -153,7 +152,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Collection<String> getMappedFields(SearchExecutionContext context, String fieldPattern) {
+    private static Collection<String> getMappedFields(QueryRewriteContext context, String fieldPattern) {
         Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
         if (matchingFieldNames.isEmpty()) {
             // might be an object field, so try matching it as an object prefix pattern
@@ -179,6 +178,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersion.zero();
     }
 }

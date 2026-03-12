@@ -20,9 +20,15 @@ public interface InferenceConfigUpdate extends VersionedNamedWriteable {
         Arrays.asList(WarningInferenceResults.WARNING.getPreferredName(), TrainedModelConfig.MODEL_ID.getPreferredName())
     );
 
-    InferenceConfig apply(InferenceConfig originalConfig);
-
     boolean isSupported(InferenceConfig config);
+
+    /**
+     * Is this an empty update.
+     * @return True if empty
+     */
+    default boolean isEmpty() {
+        return false;
+    }
 
     String getResultsField();
 

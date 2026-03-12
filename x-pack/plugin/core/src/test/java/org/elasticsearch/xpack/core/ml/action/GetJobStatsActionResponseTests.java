@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
-
 public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
@@ -49,7 +47,7 @@ public class GetJobStatsActionResponseTests extends AbstractWireSerializingTestC
                 ? null
                 : DiscoveryNodeUtils.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
-            TimeValue openTime = randomBoolean() ? null : parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
+            TimeValue openTime = randomBoolean() ? null : randomPositiveTimeValue();
             TimingStats timingStats = randomBoolean() ? null : TimingStatsTests.createTestInstance("foo");
             Response.JobStats jobStats = new Response.JobStats(
                 jobId,

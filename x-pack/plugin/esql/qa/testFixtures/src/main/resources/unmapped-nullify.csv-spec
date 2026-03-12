@@ -314,7 +314,7 @@ statsByMissing
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
-FROM languages
+FROM languages_lookup
 | STATS c = COUNT(*) BY does_not_exist
 ;
 
@@ -326,7 +326,7 @@ statsGroupAliasShadowingSourceColumnNoFilter
 required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
-FROM languages
+FROM languages_lookup
 | STATS c = COUNT(*) BY language_code = does_not_exist
 ;
 
@@ -338,7 +338,7 @@ statsGroupAliasShadowingSourceColumnWithFilter
 required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
-FROM languages
+FROM languages_lookup
 | WHERE language_code == 1
 | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
 ;
@@ -351,7 +351,7 @@ statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
 required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
-FROM languages
+FROM languages_lookup
 | WHERE language_code == 1
 | STATS c = COUNT(*) + COALESCE(language_code, 0)
         BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
@@ -551,7 +551,7 @@ required_capability: optional_fields_nullify_skip_group_aliases
 required_capability: join_lookup_v12
 
 SET unmapped_fields="nullify"\;
-FROM languages
+FROM languages_lookup
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP language_code, language_name, foobar
 | WHERE language_code == 1

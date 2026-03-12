@@ -3469,7 +3469,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
-        blobStoreSnapshotMetrics.shardSnapshotStarted();
+        blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));

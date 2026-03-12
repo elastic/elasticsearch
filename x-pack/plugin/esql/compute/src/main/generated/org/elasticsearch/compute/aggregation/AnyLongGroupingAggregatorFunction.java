@@ -35,16 +35,10 @@ public final class AnyLongGroupingAggregatorFunction implements GroupingAggregat
 
   private final DriverContext driverContext;
 
-  public AnyLongGroupingAggregatorFunction(List<Integer> channels,
-      AnyLongAggregator.GroupingState state, DriverContext driverContext) {
+  AnyLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AnyLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AnyLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AnyLongGroupingAggregatorFunction(channels, AnyLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -34,17 +34,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final DriverContext driverContext;
     private final boolean countAll;
 
-    public static CountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(driverContext.bigArrays(), 0), driverContext);
-    }
-
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    protected CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
+    CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = state;
+        this.state = new LongArrayState(driverContext.bigArrays(), 0);
         this.driverContext = driverContext;
         this.countAll = channels.isEmpty();
     }

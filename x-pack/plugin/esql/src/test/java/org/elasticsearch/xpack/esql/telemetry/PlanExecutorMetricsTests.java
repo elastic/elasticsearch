@@ -62,6 +62,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
@@ -153,15 +155,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                CrossProjectModeDecider.NOOP,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
             var enrichResolver = mockEnrichResolver();
 
             var request = new EsqlQueryRequest();
@@ -263,15 +257,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                CrossProjectModeDecider.NOOP,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial values should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
@@ -362,15 +348,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                CrossProjectModeDecider.NOOP,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
@@ -439,15 +417,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                CrossProjectModeDecider.NOOP,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.approximation"));
@@ -507,15 +477,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                CrossProjectModeDecider.NOOP,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // In stateful mode, project_routing metric should not be registered at all
             var nestedMap = planExecutor.metrics().stats().toNestedMap();
@@ -605,6 +567,20 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private PlanExecutor buildPlanExecutor(IndexResolver indexResolver, DataSourceModule dataSourceModule) {
+        return new PlanExecutor(
+            indexResolver,
+            MeterRegistry.NOOP,
+            new XPackLicenseState(() -> 0L),
+            mockQueryLog(),
+            List.of(),
+            CrossProjectModeDecider.NOOP,
+            dataSourceModule,
+            TEST_FUNCTION_REGISTRY,
+            TEST_PARSER
+        );
     }
 
     private BlockFactory blockFactory() {

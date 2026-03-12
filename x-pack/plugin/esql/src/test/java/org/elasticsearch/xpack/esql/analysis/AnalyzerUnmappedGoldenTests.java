@@ -138,7 +138,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testEvalReplace() throws Exception {
+    public void testShadowingAfterEval() throws Exception {
         runTests("""
             FROM employees
             | EVAL x = does_not_exist_field::DOUBLE + 1
@@ -146,7 +146,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testKeepThenEval() throws Exception {
+    public void testShadowingAfterKeep() throws Exception {
         runTests("""
             FROM employees
             | KEEP does_not_exist_field
@@ -405,6 +405,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             TS k8s
             | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
+            """, STAGES);
+    }
+
+    public void testRow() throws Exception {
+        runTestsNullifyOnly("""
+            ROW x = 1
+            | EVAL y = does_not_exist_field1::INTEGER + x
+            | KEEP *, does_not_exist_field2
             """, STAGES);
     }
 

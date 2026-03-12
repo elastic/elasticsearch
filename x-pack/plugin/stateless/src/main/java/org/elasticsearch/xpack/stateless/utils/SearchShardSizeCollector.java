@@ -15,14 +15,14 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.stateless.autoscaling.search;
+package org.elasticsearch.xpack.stateless.utils;
 
 import org.elasticsearch.index.shard.ShardId;
 
 @FunctionalInterface
-public interface ShardSizeCollector {
+public interface SearchShardSizeCollector {
 
-    ShardSizeCollector NOOP = shardId -> { assert false : "should not be called"; };
+    SearchShardSizeCollector NOOP = shardId -> {};
 
     void collectShardSize(ShardId shardId);
 }

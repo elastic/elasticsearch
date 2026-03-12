@@ -239,7 +239,8 @@ public class FakeStatelessNode implements Closeable {
                         ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
                         SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
                         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
-                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING
+                        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
+                        SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING
                     )
                 ).toList()
             )

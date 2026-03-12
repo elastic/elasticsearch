@@ -376,6 +376,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP);
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING);
+            res.add(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
             res.add(StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING);

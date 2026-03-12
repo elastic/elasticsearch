@@ -79,7 +79,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         }
     }
 
-    public void testDropAndMatchingStar() throws Exception {
+    public void testDropWithMatchingStar() throws Exception {
         runTests("""
             FROM employees
             | DROP emp_*, does_not_exist_field
@@ -93,7 +93,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testRenameRepeated() throws Exception {
+    public void testRenameShadowed() throws Exception {
         runTests("""
             FROM employees
             | RENAME does_not_exist_field AS now_it_does, neither_does_this AS now_it_does, emp_no AS employee_number
@@ -183,14 +183,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testStatsAggAndAliasGroup() throws Exception {
+    public void testStatsAggAndAliasedGroup() throws Exception {
         runTests("""
             FROM employees
             | STATS s = SUM(does_not_exist1::DOUBLE) + d2 BY d2 = does_not_exist2::DOUBLE, emp_no
             """);
     }
 
-    public void testStatsAggAndAliasedGroupedWithExpression() throws Exception {
+    public void testStatsAggAndAliasedGroupWithExpression() throws Exception {
         runTests("""
             FROM employees
             | STATS sum = SUM(does_not_exist1::DOUBLE) + s0 + s1 BY s0 = does_not_exist2::DOUBLE + does_not_exist3::DOUBLE, s1 = emp_no

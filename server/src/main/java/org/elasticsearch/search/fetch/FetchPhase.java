@@ -373,51 +373,47 @@ public final class FetchPhase {
         ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
     ) {
-        SearchHits resultToReturn = null;
-        Exception caughtException = null;
-        try (
-            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
+        ActionListener<SearchHitsWithSizeBytes> wrappedListener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchHitsWithSizeBytes result) {
+                buildListener.onResponse(null);
+                listener.onResponse(result);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                long leakedBytes = docsIterator.getRequestBreakerBytes();
+                if (leakedBytes > 0) {
+                    context.circuitBreaker().addWithoutBreaking(-leakedBytes);
+                }
+                buildListener.onFailure(e);
+                listener.onFailure(e);
+            }
+        };
+
+        ActionListener.runWithResource(
+            wrappedListener,
+            () -> docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
                 context.request().allowPartialSearchResults(),
                 context.queryResult()
-            )
-        ) {
-            if (context.isCancelled()) {
-                for (SearchHit hit : result.hits) {
-                    if (hit != null) {
-                        hit.decRef();
+            ),
+            (l, result) -> {
+                if (context.isCancelled()) {
+                    for (SearchHit hit : result.hits) {
+                        if (hit != null) {
+                            hit.decRef();
+                        }
                     }
+                    throw new TaskCancelledException("cancelled");
                 }
-                throw new TaskCancelledException("cancelled");
+                TotalHits totalHits = context.getTotalHits();
+                SearchHits searchHits = new SearchHits(result.hits, totalHits, context.getMaxScore());
+                l.onResponse(new SearchHitsWithSizeBytes(searchHits, docsIterator.getRequestBreakerBytes()));
             }
-
-            TotalHits totalHits = context.getTotalHits();
-            resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
-            listener.onResponse(new SearchHitsWithSizeBytes(resultToReturn, docsIterator.getRequestBreakerBytes()));
-
-            resultToReturn = null;
-        } catch (Exception e) {
-            caughtException = e;
-            if (resultToReturn != null) {
-                resultToReturn.decRef();
-            }
-            long leakedBytes = docsIterator.getRequestBreakerBytes();
-            if (leakedBytes > 0) {
-                context.circuitBreaker().addWithoutBreaking(-leakedBytes);
-            }
-        } finally {
-            if (caughtException != null) {
-                buildListener.onFailure(caughtException);
-            } else {
-                buildListener.onResponse(null);
-            }
-
-            if (caughtException != null) {
-                listener.onFailure(caughtException);
-            }
-        }
+        );
     }
 
     /**

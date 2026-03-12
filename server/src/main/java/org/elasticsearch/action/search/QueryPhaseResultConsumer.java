@@ -287,15 +287,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             topHitsOwnershipTransferred = true;
             buffer = null;
         } finally {
-            // Buffer is non-null on exception
             if (buffer != null) {
                 releaseAggs(buffer);
-                if (localAggsList != null) {
-                    Releasables.close(localAggsList);
-                }
-                if (remoteAggsList != null) {
-                    Releasables.close(remoteAggsList);
-                }
+            }
+            if (localAggsList != null) {
+                Releasables.close(localAggsList);
+            }
+            if (remoteAggsList != null) {
+                Releasables.close(remoteAggsList);
             }
         }
         if (hasAggs

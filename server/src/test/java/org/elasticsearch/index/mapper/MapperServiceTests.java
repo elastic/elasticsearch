@@ -47,7 +47,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,

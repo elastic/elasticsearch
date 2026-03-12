@@ -110,10 +110,7 @@ public class TransportFetchPhaseResponseChunkAction {
                 processChunk(
                     coordinatingTaskId,
                     chunk,
-                    ActionListener.releaseAfter(
-                        ActionListener.running(() -> channel.sendResponse(ActionResponse.Empty.INSTANCE)),
-                        chunk
-                    )
+                    ActionListener.releaseAfter(ActionListener.running(() -> channel.sendResponse(ActionResponse.Empty.INSTANCE)), chunk)
                 );
             }
         );

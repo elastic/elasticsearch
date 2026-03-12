@@ -109,7 +109,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
-    private final EsqlCursorStore cursorStore;
+    private final EsqlCursorIndexService cursorIndexService;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -136,7 +136,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        EsqlCursorStore cursorStore
+        EsqlCursorIndexService cursorIndexService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -230,7 +230,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             logWriterProvider,
             fieldProvider
         );
-        this.cursorStore = cursorStore;
+        this.cursorIndexService = cursorIndexService;
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -335,20 +335,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                var response = toResponse(task, request, request.profile(), result);
-                assert response.isAsync() == request.async() : "The response must be async if the request was async";
+                toResponse(task, request, request.profile(), result, loggingListener.delegateFailureAndWrap((delegate, response) -> {
+                    assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
-                if (response.isAsync()) {
-                    if (response.asyncExecutionId().isPresent()) {
-                        String asyncExecutionId = response.asyncExecutionId().get();
-                        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                    if (response.isAsync()) {
+                        if (response.asyncExecutionId().isPresent()) {
+                            String asyncExecutionId = response.asyncExecutionId().get();
+                            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                        }
+                        boolean isRunning = response.isRunning();
+                        threadPool.getThreadContext()
+                            .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
                     }
-                    boolean isRunning = response.isRunning();
-                    threadPool.getThreadContext()
-                        .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
-                }
 
-                loggingListener.onResponse(response);
+                    delegate.onResponse(response);
+                }));
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 loggingListener.onFailure(ex);
@@ -440,7 +441,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
+    private void toResponse(
+        Task task,
+        EsqlQueryRequest request,
+        boolean profileEnabled,
+        Versioned<Result> result,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
         var innerResult = result.inner();
         List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
@@ -462,32 +469,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
         List<Page> allPages = innerResult.pages();
         Integer pageSize = request.pageSize();
-        String cursor = null;
 
-        List<Page> responsePages;
         if (pageSize != null) {
             int totalRows = allPages.stream().mapToInt(Page::getPositionCount).sum();
             if (totalRows > pageSize) {
-                long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorStore.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
-                String cursorId = cursorStore.store(
-                    new EsqlCursorStore.CursorState(
-                        columns,
-                        allPages,
-                        totalRows,
-                        expirationMillis,
-                        result.inner().configuration().zoneId(),
-                        request.columnar()
-                    )
-                );
-                cursor = new EsqlCursor(cursorId, pageSize, pageSize).encode();
-                responsePages = slicePages(allPages, 0, pageSize);
-            } else {
-                responsePages = allPages;
-            }
-        } else {
-            responsePages = allPages;
-        }
+                long expirationMillis = System.currentTimeMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
 
+                List<List<Page>> outputPages = chunkOutputPages(allPages, pageSize);
+
+                cursorIndexService.storeMetadata(
+                    columns,
+                    totalRows,
+                    outputPages.size(),
+                    expirationMillis,
+                    result.inner().configuration().zoneId(),
+                    request.columnar(),
+                    listener.delegateFailureAndWrap((delegate, cursorId) -> {
+                        String cursor = new EsqlCursor(cursorId, 1, pageSize).encode();
+                        delegate.onResponse(
+                            buildResponse(task, request, columns, outputPages.get(0), profile, innerResult, result, cursor)
+                        );
+                        cursorIndexService.storeRemainingPages(cursorId, outputPages, 0, expirationMillis);
+                        allPages.forEach(Page::releaseBlocks);
+                        for (int i = 0; i < outputPages.size(); i++) {
+                            outputPages.get(i).forEach(Page::releaseBlocks);
+                        }
+                    })
+                );
+                return;
+            }
+        }
+        listener.onResponse(buildResponse(task, request, columns, allPages, profile, innerResult, result, null));
+    }
+
+    private EsqlQueryResponse buildResponse(
+        Task task,
+        EsqlQueryRequest request,
+        List<ColumnInfoImpl> columns,
+        List<Page> responsePages,
+        EsqlQueryResponse.Profile profile,
+        Result innerResult,
+        Versioned<Result> result,
+        @Nullable String cursor
+    ) {
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
@@ -523,6 +547,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             innerResult.executionInfo(),
             cursor
         );
+    }
+
+    /**
+     * Splits the raw engine pages into fixed-size output pages of {@code pageSize} rows each.
+     * Each element of the returned list is the list of Page objects for one output page.
+     */
+    static List<List<Page>> chunkOutputPages(List<Page> allPages, int pageSize) {
+        int totalRows = allPages.stream().mapToInt(Page::getPositionCount).sum();
+        int totalOutputPages = (totalRows + pageSize - 1) / pageSize;
+        List<List<Page>> result = new ArrayList<>(totalOutputPages);
+        for (int i = 0; i < totalOutputPages; i++) {
+            result.add(slicePages(allPages, i * pageSize, pageSize));
+        }
+        return result;
     }
 
     /**

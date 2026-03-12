@@ -41,11 +41,13 @@ import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -119,7 +121,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, SystemIndexPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -251,8 +253,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        EsqlCursorStore cursorStore = new EsqlCursorStore(services.threadPool());
-        cursorStore.start();
+        EsqlCursorIndexService cursorIndexService = new EsqlCursorIndexService(
+            services.client(),
+            services.clusterService(),
+            services.namedWriteableRegistry(),
+            blockFactoryProvider.blockFactory()
+        );
 
         List<Object> components = new ArrayList<>(
             List.of(
@@ -273,9 +279,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ),
                 blockFactoryProvider,
                 dataSourceModule,
-                cursorStore
+                cursorIndexService
             )
         );
+        if (org.elasticsearch.cluster.node.DiscoveryNode.canContainData(services.environment().settings())) {
+            EsqlCursorMaintenanceService maintenanceService = new EsqlCursorMaintenanceService(
+                services.clusterService(),
+                services.projectResolver(),
+                services.nodeEnvironment().nodeId(),
+                services.threadPool(),
+                new org.elasticsearch.client.internal.OriginSettingClient(
+                    services.client(),
+                    org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN
+                )
+            );
+            components.add(maintenanceService);
+        }
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
             components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
@@ -429,6 +448,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
         return entries;
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
+        return List.of(EsqlCursorIndexService.getSystemIndexDescriptor());
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages ES|QL paginated cursor results";
     }
 
     @Override

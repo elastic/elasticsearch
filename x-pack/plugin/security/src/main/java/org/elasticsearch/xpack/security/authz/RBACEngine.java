@@ -396,13 +396,17 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
                 return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
+            } else if (isEsqlCursorRelatedAction(action)) {
+                // ES|QL cursor fetch/delete: indices were authorized on the initial query.
+                // Cursor state lives in a system index; no additional DLS/FLS here.
+                return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
-                    : "only scroll and async-search related requests are known indices api that don't "
+                    : "only scroll, async-search, and esql-cursor related requests are known indices api that don't "
                         + "support retrieving the indices they relate to";
                 return SubscribableListener.newFailed(
                     new IllegalStateException(
-                        "only scroll and async-search related requests are known indices "
+                        "only scroll, async-search, and esql-cursor related requests are known indices "
                             + "api that don't support retrieving the indices they relate to"
                     )
                 );
@@ -1144,6 +1148,10 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_STOP_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    private static boolean isEsqlCursorRelatedAction(String action) {
+        return action.equals("indices:data/read/esql/cursor") || action.equals("indices:data/read/esql/cursor/delete");
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {

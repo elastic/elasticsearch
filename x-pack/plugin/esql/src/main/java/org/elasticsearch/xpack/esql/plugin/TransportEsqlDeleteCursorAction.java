@@ -21,10 +21,14 @@ import org.elasticsearch.xpack.esql.action.EsqlDeleteCursorRequest;
 
 public class TransportEsqlDeleteCursorAction extends HandledTransportAction<EsqlDeleteCursorRequest, AcknowledgedResponse> {
 
-    private final EsqlCursorStore cursorStore;
+    private final EsqlCursorIndexService cursorIndexService;
 
     @Inject
-    public TransportEsqlDeleteCursorAction(TransportService transportService, ActionFilters actionFilters, EsqlCursorStore cursorStore) {
+    public TransportEsqlDeleteCursorAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        EsqlCursorIndexService cursorIndexService
+    ) {
         super(
             EsqlDeleteCursorAction.NAME,
             transportService,
@@ -32,15 +36,14 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
             EsqlDeleteCursorRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.cursorStore = cursorStore;
+        this.cursorIndexService = cursorIndexService;
     }
 
     @Override
     protected void doExecute(Task task, EsqlDeleteCursorRequest request, ActionListener<AcknowledgedResponse> listener) {
         try {
             EsqlCursor cursor = EsqlCursor.decode(request.cursor());
-            boolean deleted = cursorStore.delete(cursor.cursorId());
-            listener.onResponse(AcknowledgedResponse.of(deleted));
+            cursorIndexService.delete(cursor.cursorId(), listener.map(AcknowledgedResponse::of));
         } catch (Exception e) {
             listener.onFailure(e);
         }

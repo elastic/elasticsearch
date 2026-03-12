@@ -30,6 +30,73 @@ setup:
           - { "value": 4, "name": "d" }
           - { "index": { } }
           - { "value": 5, "name": "e" }
+  - do:
+      indices.create:
+        index: pagination_test_many
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              value:
+                type: long
+              name:
+                type: keyword
+  - do:
+      bulk:
+        index: pagination_test_many
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value": 1, "name": "a" }
+          - { "index": { } }
+          - { "value": 2, "name": "b" }
+          - { "index": { } }
+          - { "value": 3, "name": "c" }
+          - { "index": { } }
+          - { "value": 4, "name": "d" }
+          - { "index": { } }
+          - { "value": 5, "name": "e" }
+          - { "index": { } }
+          - { "value": 6, "name": "f" }
+          - { "index": { } }
+          - { "value": 7, "name": "g" }
+          - { "index": { } }
+          - { "value": 8, "name": "h" }
+          - { "index": { } }
+          - { "value": 9, "name": "i" }
+          - { "index": { } }
+          - { "value": 10, "name": "j" }
+          - { "index": { } }
+          - { "value": 11, "name": "k" }
+          - { "index": { } }
+          - { "value": 12, "name": "l" }
+          - { "index": { } }
+          - { "value": 13, "name": "m" }
+          - { "index": { } }
+          - { "value": 14, "name": "n" }
+          - { "index": { } }
+          - { "value": 15, "name": "o" }
+          - { "index": { } }
+          - { "value": 16, "name": "p" }
+          - { "index": { } }
+          - { "value": 17, "name": "q" }
+          - { "index": { } }
+          - { "value": 18, "name": "r" }
+          - { "index": { } }
+          - { "value": 19, "name": "s" }
+          - { "index": { } }
+          - { "value": 20, "name": "t" }
+          - { "index": { } }
+          - { "value": 21, "name": "u" }
+          - { "index": { } }
+          - { "value": 22, "name": "v" }
+          - { "index": { } }
+          - { "value": 23, "name": "w" }
+          - { "index": { } }
+          - { "value": 24, "name": "x" }
+          - { "index": { } }
+          - { "value": 25, "name": "y" }
 
 ---
 "Paginated query returns cursor and first page":
@@ -171,6 +238,136 @@ setup:
   - do:
       esql.delete_cursor:
         cursor: $c1
+
+---
+"More than 10 pages - cursor stores batches correctly":
+  - do:
+      esql.query:
+        body:
+          query: 'from pagination_test_many | sort value | limit 25'
+          page_size: 2
+
+  # 25 rows, page_size 2 -> 13 pages. First response has page 1.
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+  - is_true: cursor
+  - set: { cursor: c }
+
+  # Pages 2-10 (9 more fetches)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 5}
+  - match: {values.1.1: 6}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 7}
+  - match: {values.1.1: 8}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 9}
+  - match: {values.1.1: 10}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 11}
+  - match: {values.1.1: 12}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 13}
+  - match: {values.1.1: 14}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 15}
+  - match: {values.1.1: 16}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 17}
+  - match: {values.1.1: 18}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 19}
+  - match: {values.1.1: 20}
+  - set: { cursor: c }
+
+  # Page 11 - past PAGES_PER_BULK (10)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 21}
+  - match: {values.1.1: 22}
+  - set: { cursor: c }
+
+  # Page 12
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 23}
+  - match: {values.1.1: 24}
+  - set: { cursor: c }
+
+  # Last page (13)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 25}
+  - is_false: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
 
 ---
 "Delete cursor releases resources":

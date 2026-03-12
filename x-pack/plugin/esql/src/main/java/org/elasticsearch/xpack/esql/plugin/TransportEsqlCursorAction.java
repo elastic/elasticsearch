@@ -12,25 +12,37 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCursor;
 import org.elasticsearch.xpack.esql.action.EsqlCursorAction;
 import org.elasticsearch.xpack.esql.action.EsqlCursorRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
-import java.util.List;
-
 public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursorRequest, EsqlQueryResponse> {
 
-    private final EsqlCursorStore cursorStore;
+    private static final Logger logger = LogManager.getLogger(TransportEsqlCursorAction.class);
+
+    static final int MAX_PAGE_FETCH_RETRIES = 10;
+    static final TimeValue PAGE_FETCH_RETRY_DELAY = TimeValue.timeValueMillis(200);
+
+    private final EsqlCursorIndexService cursorIndexService;
+    private final ThreadPool threadPool;
 
     @Inject
-    public TransportEsqlCursorAction(TransportService transportService, ActionFilters actionFilters, EsqlCursorStore cursorStore) {
+    public TransportEsqlCursorAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        EsqlCursorIndexService cursorIndexService
+    ) {
         super(EsqlCursorAction.NAME, transportService, actionFilters, EsqlCursorRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.cursorStore = cursorStore;
+        this.cursorIndexService = cursorIndexService;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
@@ -38,48 +50,70 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
         listener = listener.delegateFailureAndWrap(ActionListener::respondAndRelease);
         try {
             EsqlCursor cursor = EsqlCursor.decode(request.cursor());
-            EsqlCursorStore.CursorState state = cursorStore.get(cursor.cursorId());
-            if (state == null) {
-                listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
-                return;
-            }
 
             if (request.keepAlive() != null) {
-                cursorStore.updateKeepAlive(cursor.cursorId(), request.keepAlive());
+                cursorIndexService.updateKeepAlive(cursor.cursorId(), request.keepAlive(), ActionListener.noop());
             }
 
-            int pageSize = cursor.pageSize();
-            int fromRow = cursor.nextRowOffset();
-            int totalRows = state.totalRows();
+            cursorIndexService.getMetadata(cursor.cursorId(), listener.delegateFailureAndWrap((metaDelegate, metadata) -> {
+                fetchPageWithRetry(cursor, metadata, 0, metaDelegate);
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
-            List<Page> responsePages = TransportEsqlQueryAction.slicePages(state.pages(), fromRow, pageSize);
-
+    /**
+     * Attempts to fetch a page from the cursor index, retrying on {@link ResourceNotFoundException}
+     * because remaining pages may still be in flight from the async bulk write.
+     */
+    private void fetchPageWithRetry(
+        EsqlCursor cursor,
+        EsqlCursorIndexService.CursorMetadata metadata,
+        int attempt,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
+        cursorIndexService.getPage(cursor.cursorId(), cursor.pageIndex(), ActionListener.wrap(pages -> {
             String nextCursor = null;
-            int nextRowOffset = fromRow + pageSize;
-            if (nextRowOffset < totalRows) {
-                nextCursor = new EsqlCursor(cursor.cursorId(), nextRowOffset, pageSize).encode();
+            int nextPageIndex = cursor.pageIndex() + 1;
+            if (nextPageIndex < metadata.totalPages()) {
+                nextCursor = new EsqlCursor(cursor.cursorId(), nextPageIndex, cursor.pageSize()).encode();
             }
 
             listener.onResponse(
                 new EsqlQueryResponse(
-                    state.columns(),
-                    responsePages,
+                    metadata.columns(),
+                    pages,
                     0,
                     0,
                     null,
-                    state.columnar(),
+                    metadata.columnar(),
                     null,
                     false,
                     false,
-                    state.zoneId(),
+                    metadata.zoneId(),
                     0,
                     0,
                     null,
                     nextCursor
                 )
             );
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        }, e -> {
+            if (e instanceof ResourceNotFoundException && attempt < MAX_PAGE_FETCH_RETRIES) {
+                logger.debug(
+                    "page [{}] for cursor [{}] not yet available, retrying (attempt [{}])",
+                    cursor.pageIndex(),
+                    cursor.cursorId(),
+                    attempt + 1
+                );
+                threadPool.schedule(
+                    () -> fetchPageWithRetry(cursor, metadata, attempt + 1, listener),
+                    PAGE_FETCH_RETRY_DELAY,
+                    threadPool.generic()
+                );
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 }

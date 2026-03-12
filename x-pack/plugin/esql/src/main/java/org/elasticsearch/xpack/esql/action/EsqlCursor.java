@@ -13,16 +13,17 @@ import java.util.Base64;
 
 /**
  * An opaque cursor token that encodes the state needed to fetch the next page
- * of a paginated ES|QL query result.
+ * of a paginated ES|QL query result. The {@code pageIndex} maps directly to
+ * the page document suffix {@code _p{pageIndex}} in the cursor system index.
  */
-public record EsqlCursor(String cursorId, int nextRowOffset, int pageSize) {
+public record EsqlCursor(String cursorId, int pageIndex, int pageSize) {
 
     public String encode() {
         byte[] idBytes = cursorId.getBytes(StandardCharsets.UTF_8);
         ByteBuffer buf = ByteBuffer.allocate(4 + idBytes.length + 4 + 4);
         buf.putInt(idBytes.length);
         buf.put(idBytes);
-        buf.putInt(nextRowOffset);
+        buf.putInt(pageIndex);
         buf.putInt(pageSize);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buf.array());
     }
@@ -34,8 +35,8 @@ public record EsqlCursor(String cursorId, int nextRowOffset, int pageSize) {
         byte[] idBytes = new byte[idLen];
         buf.get(idBytes);
         String cursorId = new String(idBytes, StandardCharsets.UTF_8);
-        int nextRowOffset = buf.getInt();
+        int pageIndex = buf.getInt();
         int pageSize = buf.getInt();
-        return new EsqlCursor(cursorId, nextRowOffset, pageSize);
+        return new EsqlCursor(cursorId, pageIndex, pageSize);
     }
 }

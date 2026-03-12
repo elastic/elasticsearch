@@ -13,6 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.util.ArrayList;
@@ -30,8 +33,15 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    public static final String OTEL_METRIC_FIELD = "_metric_names_hash";
-    public static final String PROMETHEUS_LABEL_FIELD = "labels.__name__";
+    /**
+     * The maximum number of fields to use for the value similarity part of the TSID.
+     * This is a trade-off between clustering similar time series together and the size of the TSID.
+     * More fields improve clustering but also increase the size of the TSID.
+     */
+    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
+    static final String OTEL_METRIC_FIELD = "_metric_names_hash";
+    static final String PROMETHEUS_LABEL_FIELD = "labels.__name__";
+
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
     private final List<Dimension> dimensions;
@@ -210,46 +220,113 @@ public class TsidBuilder {
         return murmur3Hasher.digestHash();
     }
 
-    /**
-     * Builds a time series identifier (TSID) based on the dimensions added to this builder.
-     */
-    public BytesRef buildTsid() {
+    public final BytesRef buildTsid(IndexVersion indexVersion) {
         throwIfEmpty();
         Collections.sort(dimensions);
+        if (indexVersion.onOrAfter(IndexVersions.CLUSTERING_TSID)) {
+            return buildClusteringTsid();
+        } else {
+            return buildLegacyTsid();
+        }
+    }
+
+    /**
+     * Builds a time series identifier (TSID) based on the dimensions added to this builder.
+     * This is a slight adaptation of {@link RoutingPathFields#buildHash()} but creates shorter tsids.
+     * The TSID is a hash that includes:
+     * <ul>
+     *     <li>
+     *         A hash of the dimension field names (1 byte).
+     *         This is to cluster time series that are using the same dimensions together, which makes the encodings more effective.
+     *     </li>
+     *     <li>
+     *         A hash of the dimension field values (1 byte each, up to a maximum of 4 fields).
+     *         This is to cluster time series with similar values together, also helping with making encodings more effective.
+     *     </li>
+     *     <li>
+     *         A hash of all names and values combined (16 bytes).
+     *         This is to avoid hash collisions.
+     *     </li>
+     * </ul>
+     *
+     * @return a BytesRef containing the TSID
+     * @throws IllegalArgumentException if no dimensions have been added
+     */
+    private BytesRef buildLegacyTsid() {
+        int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
+        byte[] hash = new byte[1 + numberOfValues + 16];
+        int index = 0;
+
+        MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
+        murmur3Hasher.reset();
+        // similarity hash for dimension names
+        for (int i = 0; i < dimensions.size(); i++) {
+            Dimension dim = dimensions.get(i);
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
+        }
+        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+
+        // similarity hash for dimension values
+        String previousPath = null;
+        for (int i = 0; index < numberOfValues + 1 && i < dimensions.size(); i++) {
+            Dimension dim = dimensions.get(i);
+            String path = dim.path();
+            if (path.equals(previousPath)) {
+                // only add the first value for array fields
+                continue;
+            }
+            MurmurHash3.Hash128 valueHash = dim.valueHash();
+            murmur3Hasher.reset();
+            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
+            hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+            previousPath = path;
+        }
+
+        murmur3Hasher.reset();
+        // full hash for all dimension names and values for uniqueness
+        for (int i = 0; i < dimensions.size(); i++) {
+            Dimension dim = dimensions.get(i);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+        }
+        index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
+        return new BytesRef(hash, 0, index);
+    }
+
+    private BytesRef buildClusteringTsid() {
         final byte[] tsid = new byte[16];
         murmur3Hasher.reset();
-        MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
+        MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
         // hash of all dimension names and values for uniqueness
         for (Dimension dim : dimensions) {
             murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
-        murmur3Hasher.digestHash(hash128);
-        ByteUtils.writeLongLE(hash128.h1, tsid, 0);
-        ByteUtils.writeLongLE(hash128.h2, tsid, 8);
-        tsid[0] = clusteringByte(hash128);
+        murmur3Hasher.digestHash(hashBuffer);
+        ByteUtils.writeLongLE(hashBuffer.h2, tsid, 0);
+        ByteUtils.writeLongLE(hashBuffer.h1, tsid, 8);
+        tsid[0] = clusteringByte(hashBuffer);
         return new BytesRef(tsid);
     }
 
-    private byte clusteringByte(MurmurHash3.Hash128 hash128) {
+    private byte clusteringByte(MurmurHash3.Hash128 hashBuffer) {
         murmur3Hasher.reset();
         Dimension otelMetric = findDimensionName(dimensions, OTEL_METRIC_FIELD);
         if (otelMetric != null) {
             murmur3Hasher.addLong(otelMetric.valueHash().h1 ^ otelMetric.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(hash128).h1;
+            return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
         }
         Dimension prometheusLabel = findDimensionName(dimensions, PROMETHEUS_LABEL_FIELD);
         if (prometheusLabel != null) {
             murmur3Hasher.addLong(prometheusLabel.valueHash().h1 ^ prometheusLabel.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(hash128).h1;
+            return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
         }
         // similarity hash for dimension names
         for (Dimension dim : dimensions) {
             murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        return (byte) murmur3Hasher.digestHash(hash128).h1;
+        return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
     }
 
-    static Dimension findDimensionName(List<Dimension> sortedDimensions, String name) {
+    private static Dimension findDimensionName(List<Dimension> sortedDimensions, String name) {
         for (Dimension dim : sortedDimensions) {
             int cmp = dim.path.compareTo(name);
             if (cmp > 0) {
@@ -265,6 +342,14 @@ public class TsidBuilder {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimensions are empty");
         }
+    }
+
+    private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
+        ByteUtils.writeLongLE(hash128.h2, buffer, index);
+        index += 8;
+        ByteUtils.writeLongLE(hash128.h1, buffer, index);
+        index += 8;
+        return index;
     }
 
     public int size() {

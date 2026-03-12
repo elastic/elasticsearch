@@ -1236,7 +1236,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int hash(IndexRouting routing, List<Object> keysAndValues) {
         if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
-            return tsidBasedRoutingHash(keysAndValues);
+            return tsidBasedRoutingHash(keysAndValues, routing.creationVersion);
         }
         return legacyRoutingHash(keysAndValues);
     }
@@ -1252,7 +1252,7 @@ public class IndexRoutingTests extends ESTestCase {
         return hash;
     }
 
-    private static int tsidBasedRoutingHash(List<Object> keysAndValues) {
+    private static int tsidBasedRoutingHash(List<Object> keysAndValues, IndexVersion indexVersion) {
         TsidBuilder tsidBuilder = new TsidBuilder();
         for (int i = 0; i < keysAndValues.size(); i += 2) {
             String key = keysAndValues.get(i).toString();
@@ -1271,6 +1271,6 @@ public class IndexRoutingTests extends ESTestCase {
                 throw new IllegalArgumentException("Unsupported value type for TSID routing: " + value.getClass());
             }
         }
-        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(), 0);
+        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(indexVersion), 0);
     }
 }

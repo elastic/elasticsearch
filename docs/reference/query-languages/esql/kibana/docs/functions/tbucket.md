@@ -2,8 +2,13 @@
 
 ### TBUCKET
 Creates groups of values - buckets - out of a `@timestamp` attribute.
-The size of the buckets can either be provided directly as a duration or period,
-or chosen based on a recommended count and a range.
+The size of the buckets can be provided directly as a duration or period.
+Alternatively, the bucket size can be chosen based on a recommended count
+and a range.
+
+When using ES|QL in Kibana, the range can be derived automatically from the
+[`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
+that Kibana adds to the query.
 
 ```esql
 FROM sample_data

@@ -204,9 +204,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
     @Override
     protected void onClose() {
-        for (Page page : outputPages) {
-            page.releaseBlocks();
-        }
+        Releasables.close(outputPages);
     }
 
     @Override

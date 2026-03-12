@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.data.TDigestHolder;
@@ -18,7 +19,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -124,10 +127,16 @@ public class PercentileTests extends AbstractAggregationTestCase {
     }
 
     public static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {
-        TDigestState merged = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-        values.stream().filter(Objects::nonNull).forEach(tDigestHolder -> tDigestHolder.addTo(merged));
-        double result = merged.quantile(percentile / 100.0);
-        return Double.isNaN(result) ? null : result;
+        try (
+            TDigest merged = TDigest.createMergingDigest(
+                new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("test-breaker")),
+                TDigestStates.COMPRESSION
+            )
+        ) {
+            values.stream().filter(Objects::nonNull).forEach(merged::add);
+            double result = merged.quantile(percentile / 100.0);
+            return Double.isNaN(result) ? null : result;
+        }
     }
 
     @Override

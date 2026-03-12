@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 141762
+summary: "[Native] Using native scorers in BBQ"
+type: enhancement

@@ -42,6 +42,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
@@ -82,7 +83,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final TimeValue forceConnectTimeoutSecs;
@@ -96,7 +96,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -104,9 +105,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.forceConnectTimeoutSecs = clusterService.getSettings()
             .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));
         transportService.registerRequestHandler(
@@ -179,15 +179,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         // CPS
         final int linkedProjectsToQuery = indicesPerCluster.size();
-        ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesListener = listener.delegateFailureAndWrap(
-            (l, responses) -> {
+        ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
+            .delegateFailureAndWrap((l, responses) -> {
                 Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
-                    .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
+                    .filter(e -> e.getValue().response() instanceof ResolveIndexAction.Response)
                     .collect(
                         Collectors.toMap(
                             Map.Entry::getKey,
-                            e -> e.getValue().getResolvedIndexExpressions()
-
+                            e -> ((ResolveIndexAction.Response) e.getValue().response()).getResolvedIndexExpressions()
                         )
                     );
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
@@ -223,9 +222,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 }
                 request.indices(collectedIndices.toArray(String[]::new));
                 executeOpenPit(task, request, listener);
-            }
-        );
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> groupedListener = new GroupedActionListener<>(
+            });
+        ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> groupedListener = new GroupedActionListener<>(
             linkedProjectsToQuery,
             responsesListener
         );
@@ -242,7 +240,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
             connectionListener.addListener(groupedListener.delegateResponse((l, failure) -> {
                 logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                l.onFailure(failure);
+                l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
             })
                 .delegateFailure(
                     (ignored, connection) -> transportService.sendRequest(
@@ -252,11 +250,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(groupedListener.delegateResponse((l, failure) -> {
                             logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
-                            l.onFailure(failure);
-                        }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
-                            ResolveIndexAction.Response::new,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE
-                        )
+                            l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
+                        })
+                            .map(
+                                resolveIndexResponse -> Map.entry(
+                                    clusterAlias,
+                                    new SearchPlanningPhaseResolutionResult(resolveIndexResponse, null)
+                                )
+                            ), ResolveIndexAction.Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                     )
                 ));
 

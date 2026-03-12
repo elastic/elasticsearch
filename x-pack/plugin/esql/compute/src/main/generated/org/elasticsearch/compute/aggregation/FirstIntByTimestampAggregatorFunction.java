@@ -36,16 +36,10 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
 
   private final List<Integer> channels;
 
-  public FirstIntByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongIntState state) {
+  FirstIntByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstIntByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstIntByTimestampAggregatorFunction(driverContext, channels, FirstIntByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstIntByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

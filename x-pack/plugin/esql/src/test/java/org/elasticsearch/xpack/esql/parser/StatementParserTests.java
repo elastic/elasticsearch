@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -107,6 +108,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -135,6 +138,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1080,6 +1084,78 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY hostname, @timestamp / 10
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings().size(), equalTo(2));
+        assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
+        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
+        Alias divAlias = (Alias) limitBy.groupings().get(1);
+        assertThat(divAlias.child(), instanceOf(Div.class));
+        Div divExpr = (Div) divAlias.child();
+        assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
+        assertThat(divExpr.right(), instanceOf(Literal.class));
+        assertThat(((Literal) divExpr.right()).value(), equalTo(10));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByQualifiedName() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY [foo].[hostname]
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limitBy.groupings().getFirst();
+        assertThat(groupKey.qualifier(), equalTo("foo"));
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
     }
 
     public void testBasicSortCommand() {
@@ -3766,7 +3842,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
@@ -3782,7 +3858,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant("queryText", "statement text"), paramAsConstant("inferenceId", "reranker"))
         );
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery(
+                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
+                queryParams
+            ),
             Rerank.class
         );
 
@@ -3958,7 +4037,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -3971,7 +4050,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 
@@ -4307,7 +4386,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
      * builds a little json report of the valid types.
      */
     public void testInlineCast() throws IOException {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
             .resolve("query-languages")
             .resolve("esql")
@@ -4328,7 +4407,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.parseQuery("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
@@ -4444,7 +4523,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithFieldQueryVector() {
         var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
         var mmrCmd = as(
-            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 

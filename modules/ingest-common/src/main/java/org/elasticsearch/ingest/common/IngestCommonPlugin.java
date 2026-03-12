@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.features.NodeFeature;

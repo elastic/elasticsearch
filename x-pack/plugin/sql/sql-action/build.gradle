@@ -2,6 +2,7 @@
  * This project contains transport-level requests and responses that are shared between x-pack plugin and qa tests
  */
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.transport-version-references'
 
 description = 'Request and response objects shared by the Elasticsearch plugin and qa tests'
 

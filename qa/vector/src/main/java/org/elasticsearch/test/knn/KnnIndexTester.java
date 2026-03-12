@@ -15,7 +15,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -40,9 +40,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFo
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -246,37 +246,44 @@ public class KnnIndexTester {
                 );
             };
             case HNSW -> switch (quantizeBits) {
-                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec);
+                case null -> new ES93HnswVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    mergeWorkers,
+                    exec,
+                    args.flatVectorThreshold()
+                );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     false,
                     mergeWorkers,
-                    exec
+                    exec,
+                    args.flatVectorThreshold()
                 );
-                default -> new ES93HnswScalarQuantizedVectorsFormat(
+                default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
-                    null,
                     quantizeBits,
-                    true,
                     false,
                     mergeWorkers,
-                    exec
+                    exec,
+                    args.flatVectorThreshold()
                 );
             };
             case FLAT -> switch (quantizeBits) {
                 case null -> new ES93FlatVectorFormat(elementType);
                 case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                default -> new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
             };
         };
 
         logger.info("Using format {}", format.getName());
 
-        return new Lucene103Codec() {
+        return new Lucene104Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return new KnnVectorsFormat(format.getName()) {
@@ -348,6 +355,13 @@ public class KnnIndexTester {
             System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file> [--warmUp]");
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
             System.out.println("--warmUp is the number of warm up iterations");
+            System.out.println();
+            System.out.println("Available datasets:");
+            try {
+                System.out.println(TestConfiguration.listDatasets());
+            } catch (Exception e) {
+                System.out.println("Failed to list datasets: " + e.getMessage());
+            }
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");

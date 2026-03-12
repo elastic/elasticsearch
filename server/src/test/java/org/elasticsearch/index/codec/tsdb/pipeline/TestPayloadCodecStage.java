@@ -11,8 +11,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadCodecStage;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ import java.io.IOException;
  * a concrete payload stage without depending on production stage implementations (PR 2+).
  * ID {@code 0x00} is reserved for test-only stages and must never be persisted.
  */
-public final class TestPayloadCodecStage implements PayloadEncoder, PayloadDecoder {
+public final class TestPayloadCodecStage implements PayloadCodecStage {
 
     /** Singleton instance. */
     public static final TestPayloadCodecStage INSTANCE = new TestPayloadCodecStage();

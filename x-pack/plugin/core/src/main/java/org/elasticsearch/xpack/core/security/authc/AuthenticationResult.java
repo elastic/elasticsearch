@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Represents the result of an authentication attempt.
@@ -193,6 +194,18 @@ public final class AuthenticationResult<T> {
             + ", exception="
             + exception
             + '}';
+    }
+
+    public <S> AuthenticationResult<S> map(Function<T, S> fn) {
+        if (this == NOT_HANDLED) {
+            return notHandled();
+        }
+        if (this.isAuthenticated()) {
+            return new AuthenticationResult<>(Status.SUCCESS, fn.apply(this.value), message, exception, metadata);
+        } else {
+            assert this.value == null : "unsuccessful result must have null value";
+            return new AuthenticationResult<>(this.status, null, message, exception, metadata);
+        }
     }
 
 }

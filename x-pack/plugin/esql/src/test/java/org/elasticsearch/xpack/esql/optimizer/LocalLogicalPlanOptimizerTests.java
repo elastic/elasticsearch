@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -2692,5 +2693,29 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // The left side should still be a MetadataAttribute
         var metadataAttr = as(equals.left(), MetadataAttribute.class);
         assertThat(metadataAttr.name(), equalTo("_index"));
+    }
+
+    public void testTimeSeriesMetadataAttributeNotReplaced() {
+        var timeSeriesAttr = new TimeSeriesMetadataAttribute(EMPTY, Set.of());
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(fieldAttr, timeSeriesAttr)
+        );
+        var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
+
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
+
+        var optimizedEval = as(optimizedPlan, Eval.class);
+        var alias = as(optimizedEval.fields().get(0), Alias.class);
+        var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
+        assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
+        assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
     }
 }

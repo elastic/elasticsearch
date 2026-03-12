@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -33,24 +35,32 @@ public final class Expressions {
     }
 
     /**
-     * @return a list of {@link ReferenceAttribute}s corresponding to the given named expressions.
-     * <p>
-     * The returned ReferenceAttributes will have new {@link NameId}s, also in the case the input contains ReferenceAttributes.
+     * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
+     * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
      * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
      * converted to an {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute} via
      * {@link FieldAttribute#checkUnresolved()}, so the analyzer can surface a clear user-facing error.
      */
-    public static List<Attribute> toReferenceAttributes(List<? extends NamedExpression> named) {
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<? extends NamedExpression> named,
+        List<Attribute> existingOutput
+    ) {
         if (named.isEmpty()) {
             return emptyList();
         }
+        Map<String, Attribute> existingByName = HashMap.newHashMap(existingOutput.size());
+        for (Attribute attr : existingOutput) {
+            existingByName.put(attr.name(), attr);
+        }
         List<Attribute> list = new ArrayList<>(named.size());
         for (NamedExpression exp : named) {
+            Attribute existing = existingByName.get(exp.name());
+            NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
                 case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.checkUnresolved();
-                case ReferenceAttribute ra -> ra.withId(new NameId());
-                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), null, exp.synthetic());
+                case ReferenceAttribute ra -> ra.withId(id);
+                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
             };
             list.add(refAttr);
         }

@@ -9,17 +9,11 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public class CanonicalizeExpressions extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
     public CanonicalizeExpressions() {
         super(OptimizerRules.TransformDirection.UP);
-    }
-
-    @Override
-    protected boolean shouldVisit(LogicalPlan plan) {
-        return true;
     }
 
     @Override

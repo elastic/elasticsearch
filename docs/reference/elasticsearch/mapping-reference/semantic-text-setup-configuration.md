@@ -55,31 +55,31 @@ The default {{infer}} endpoint varies by deployment type and version:
 
 - {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
 
-If you use the default {{infer}} endpoint and upgrade to a newer version, newly created indices may use a different embedding model than existing ones. Queries that target these indices together may produce unexpected ranking results.
+If you use the default {{infer}} endpoint and upgrade to a later version, newly created indices might use a different embedding model than existing ones. Queries that target these indices together can produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
 :::
 
 :::::{dropdown} Potential issues when mixing embedding models across indices
 :name: default-endpoint-considerations
 
-If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings may change across versions or deployments. This can result in indices using different embedding models. 
+If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings might change across versions or deployments. This can result in indices using different embedding models. 
 
-For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices may contain ELSER embeddings while newer indices contain Jina embeddings.
+For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices contain ELSER embeddings while newer indices contain Jina embeddings.
 
 Mixed embedding models across indices can occur in several common scenarios, including:
 
 - [Data streams](docs-content://manage-data/data-store/data-streams.md) with [{{ilm-init}} rollover](docs-content://manage-data/lifecycle/index-lifecycle-management.md): When a data stream rolls over, older backing indices may contain ELSER embeddings while newer indices created after an upgrade use Jina embeddings.
-- [Aliases](docs-content://manage-data/data-store/aliases.md) referencing multiple indices: An alias may point to several indices created at different times. If some indices use ELSER and others use Jina, searches against the alias will query both.
-- Explicit [multi-index searches](/reference/elasticsearch/rest-apis/search-multiple-data-streams-indices.md): Queries that target multiple indices (for example `GET index1,index2/_search`) may combine results from indices using different embedding models.
+- [Aliases](docs-content://manage-data/data-store/aliases.md) referencing multiple indices: An alias can point to several indices created at different times. If some indices use ELSER and others use Jina, searches against the alias will query both.
+- Explicit [multi-index searches](/reference/elasticsearch/rest-apis/search-multiple-data-streams-indices.md): Queries that target multiple indices (for example `GET index1,index2/_search`) might combine results from indices using different embedding models.
 - [{{ccs-cap}}](docs-content://explore-analyze/cross-cluster-search.md): Searches across multiple clusters may query indices created on different stack versions, which may use different default {{infer}} endpoints.
 
-Queries that target indices using different embedding models may lead to issues or unexpected results. The following sections describe these issues and how to mitigate them.
+Queries that target indices using different embedding models can lead to issues or unexpected results. The following sections describe these issues and how to mitigate them.
 
 #### Incorrect ranking due to different scoring scales
 
 ELSER and Jina use different scoring ranges. ELSER scores typically range between `0` and above `10`, while Jina scores are normalized between `0` and `1`.
 
-When results from both models are ranked together, ELSER documents may appear ahead of Jina documents even if the Jina results are more relevant. This can lead to misleading rankings without any errors being returned.
+When results from both models are ranked together, ELSER documents might appear ahead of Jina documents even if the Jina results are more relevant. This can lead to misleading rankings without any errors being returned.
 
 To mitigate this issue, ensure that indices queried together use the same embedding model by explicitly specifying the `inference_id` when defining `semantic_text` fields:
 
@@ -122,11 +122,11 @@ To mitigate this issue, ensure that indices queried together use the same {{infe
 - explicitly setting the `inference_id` when defining the `semantic_text` field, or 
 - by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) older indices with the desired endpoint.
 
-#### Alerts based on raw relevance scores may stop triggering
+#### Alerts based on raw relevance scores might stop triggering
 
-Some [alerts](docs-content://explore-analyze/alerting/alerts.md) or [rules](docs-content://explore-analyze/alerting/alerts/rule-types.md) rely on raw `_score` values. Because ELSER and Jina use different score ranges, score thresholds designed for ELSER may no longer work when results are generated with Jina.
+Some [alerts](docs-content://explore-analyze/alerting/alerts.md) or [rules](docs-content://explore-analyze/alerting/alerts/rule-types.md) rely on raw `_score` values. Because ELSER and Jina use different score ranges, score thresholds designed for ELSER might no longer work when results are generated with Jina.
 
-For example, a condition such as `_score > 10`, may never be satisfied by Jina results, since Jina scores are normalized between `0` and `1`.
+For example, a condition such as `_score > 10` might never be satisfied by Jina results, because Jina scores are normalized between `0` and `1`.
 
 To mitigate this issue, adjust alert thresholds to match the scoring range of the embedding model being used, or avoid relying on raw `_score` values in alert conditions.
 

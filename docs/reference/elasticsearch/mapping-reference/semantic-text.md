@@ -36,7 +36,7 @@ PUT semantic-embeddings
 }
 ```
 :::{important}
-If you don't specify an `inference_id`, like in the example above, and upgrade to a newer version, newly created indices may use a different embedding model than existing ones. Queries that target these indices together may produce unexpected ranking results.
+If you don't specify an `inference_id`, like in the example above, and upgrade to a later version, newly created indices might use a different embedding model than existing ones. Queries that target these indices together can produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](./semantic-text-setup-configuration.md#default-endpoint-considerations).
 :::
 

@@ -195,7 +195,9 @@ public final class Expressions {
         for (int i = 0; i < leftList.size(); i++) {
             Expression left = leftList.get(i);
             Expression right = rightList.get(i);
-            assert left != null && right != null;
+            if (left == null || right == null) {
+                return false;
+            }
             if (left.semanticEquals(right) == false) {
                 return false;
             }

@@ -49,7 +49,7 @@ public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.Optim
                 evals.add(as);
                 newGroupings.set(i, as.toAttribute());
             } else if (g instanceof Attribute == false) {
-                var name = rawTemporaryName("LIMIT BY", String.valueOf(i), String.valueOf(counter++));
+                var name = rawTemporaryName("limit_by", String.valueOf(i), String.valueOf(counter++));
                 var alias = new Alias(g.source(), name, g, null, true);
                 evals.add(alias);
                 newGroupings.set(i, alias.toAttribute());

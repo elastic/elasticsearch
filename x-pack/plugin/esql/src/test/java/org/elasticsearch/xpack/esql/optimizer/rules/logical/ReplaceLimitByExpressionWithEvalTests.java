@@ -30,7 +30,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * Grouping on a plain attribute needs no rewrite.
      * <pre>{@code
-     * Limit[1000[INTEGER],[],false,false]
+     * Limit[1000[INTEGER],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -51,7 +51,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * Multiple plain-attribute groupings need no rewrite.
      * <pre>{@code
-     * Limit[1000[INTEGER],[],false,false]
+     * Limit[1000[INTEGER],false,false]
      * \_Limit[2[INTEGER],[emp_no{f}#N, salary{f}#M],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -109,7 +109,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * Only foldable groupings are pruned; attribute groupings survive.
      * <pre>{@code
-     * Limit[1000[INTEGER],[],false,false]
+     * Limit[1000[INTEGER],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -132,7 +132,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * preserved with a wrapping Project.
      * <pre>{@code
      * Project[[emp_no{f}#N]]
-     * \_Limit[1000[INTEGER],[],false,false]
+     * \_Limit[1000[INTEGER],false,false]
      *   \_Limit[1[INTEGER],[emp_no + 5{r}#M],false,false]
      *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#M]]
      *       \_EsRelation[test][...]
@@ -163,7 +163,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Multiple non-attribute expression groupings are all extracted into a single Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],[],false,false]
+     * \_Limit[1000[INTEGER],false,false]
      *   \_Limit[1[INTEGER],[emp_no + 5{r}#A, salary * 2{r}#B],false,false]
      *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#A, salary{f}#M * 2[INTEGER] AS salary * 2#B]]
      *       \_EsRelation[test][...]
@@ -197,7 +197,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * When groupings mix plain attributes and expressions, only the expressions are extracted to Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],[],false,false]
+     * \_Limit[1000[INTEGER],false,false]
      *   \_Limit[1[INTEGER],[emp_no{f}#N, salary * 2{r}#A],false,false]
      *     \_Eval[[salary{f}#M * 2[INTEGER] AS salary * 2#A]]
      *       \_EsRelation[test][...]
@@ -228,7 +228,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Foldable groupings are pruned and the surviving expression grouping is extracted to Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N]]
-     * \_Limit[1000[INTEGER],[],false,false]
+     * \_Limit[1000[INTEGER],false,false]
      *   \_Limit[1[INTEGER],[emp_no + 5{r}#M],false,false]
      *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#M]]
      *       \_EsRelation[test][...]
@@ -258,7 +258,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * All foldable groupings pruned, only attribute grouping survives. No Eval needed.
      * <pre>{@code
-     * Limit[1000[INTEGER],[],false,false]
+     * Limit[1000[INTEGER],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -315,7 +315,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Foldable grouping pruned, attribute and expression groupings survive.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],[],false,false]
+     * \_Limit[1000[INTEGER],false,false]
      *   \_Limit[1[INTEGER],[emp_no{f}#N, salary * 2{r}#A],false,false]
      *     \_Eval[[salary{f}#M * 2[INTEGER] AS salary * 2#A]]
      *       \_EsRelation[test][...]

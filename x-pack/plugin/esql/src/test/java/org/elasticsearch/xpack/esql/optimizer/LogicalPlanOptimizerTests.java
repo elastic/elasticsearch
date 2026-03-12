@@ -10338,7 +10338,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * Limit[10000[INTEGER],[],false,false]
+     * Limit[1000[INTEGER],false,false]
      * \_LocalRelation[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
      * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],EMPTY]
      * }</pre>
@@ -10350,7 +10350,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
 
         var defaultLimit = as(plan, Limit.class);
-        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
         as(defaultLimit.child(), LocalRelation.class);
     }
 

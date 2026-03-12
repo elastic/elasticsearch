@@ -9336,7 +9336,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Verify that a basic LIMIT BY creates a LimitByExec and the LimitBy inside the fragment (via ExchangeExec), so data nodes execute both operators.
+     * Verify that a basic LIMIT BY creates a LimitByExec and the LimitBy inside the fragment (via ExchangeExec), so data nodes execute
+     * both operators.
+     *
      * <pre>{@code
      * LimitExec[1000]
      * \_LimitByExec[5,[emp_no]]         (coordinator)

@@ -33,13 +33,13 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunctionSupplier im
   @Override
   public SpatialCentroidPointSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SpatialCentroidPointSourceValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialCentroidPointSourceValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialCentroidPointSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialCentroidPointSourceValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -33,7 +33,7 @@ import java.util.List;
  * data that is passed to it, runs the change point detector on the data (which
  * is a compute-heavy process), and then outputs all data with the change points.
  */
-public class ChangePointOperator implements Operator {
+public class ChangePointOperator extends CompleteInputCollectorOperator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
@@ -54,9 +54,7 @@ public class ChangePointOperator implements Operator {
     private final int channel;
     private final WarningSourceLocation source;
 
-    private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
-    private boolean finished;
     private Warnings warnings;
 
     public ChangePointOperator(DriverContext driverContext, int channel, WarningSourceLocation source) {
@@ -64,46 +62,13 @@ public class ChangePointOperator implements Operator {
         this.channel = channel;
         this.source = source;
 
-        finished = false;
-        inputPages = new ArrayDeque<>();
         outputPages = new ArrayDeque<>();
         warnings = null;
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        inputPages.add(page);
-    }
-
-    @Override
-    public void finish() {
-        if (finished == false) {
-            finished = true;
-            createOutputPages();
-        }
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && outputPages.isEmpty();
-    }
-
-    @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
         return outputPages.isEmpty() == false;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (finished == false || outputPages.isEmpty()) {
-            return null;
-        }
-        return outputPages.removeFirst();
     }
 
     private void createOutputPages() {
@@ -223,13 +188,23 @@ public class ChangePointOperator implements Operator {
     }
 
     @Override
-    public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
-        for (Page page : outputPages) {
-            page.releaseBlocks();
-        }
+    protected void onFinished() {
+        createOutputPages();
+    }
+
+    @Override
+    protected boolean isOperatorFinished() {
+        return outputPages.isEmpty();
+    }
+
+    @Override
+    protected Page onGetOutput() {
+        return outputPages.removeFirst();
+    }
+
+    @Override
+    protected void onClose() {
+        Releasables.close(outputPages);
     }
 
     @Override

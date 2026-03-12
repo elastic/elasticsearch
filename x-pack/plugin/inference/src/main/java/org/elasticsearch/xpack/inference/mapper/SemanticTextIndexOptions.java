@@ -137,15 +137,6 @@ public class SemanticTextIndexOptions implements ToXContent {
         boolean experimentalFeaturesEnabled
     ) {
         try {
-            // TODO: Update logic to not require type
-            Object type = map.remove(TYPE_FIELD);
-            if (type == null) {
-                throw new IllegalArgumentException("Required " + TYPE_FIELD);
-            }
-            DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
-                XContentMapValues.nodeStringValue(type, null)
-            ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
-
             DenseVectorFieldMapper.ElementType elementType = null;
             String elementTypeStr = XContentMapValues.nodeStringValue(
                 map.remove(ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD.getPreferredName())
@@ -154,7 +145,7 @@ public class SemanticTextIndexOptions implements ToXContent {
                 elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
             }
 
-            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = vectorIndexType.parseIndexOptions(
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = parseBaseDenseVectorIndexOptionsFromMap(
                 fieldName,
                 map,
                 indexVersion,
@@ -166,6 +157,24 @@ public class SemanticTextIndexOptions implements ToXContent {
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
+    }
+
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions parseBaseDenseVectorIndexOptionsFromMap(
+        String fieldName,
+        Map<String, Object> map,
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
+    ) {
+        Object type = map.remove(TYPE_FIELD);
+        if (type == null) {
+            return null;
+        }
+
+        DenseVectorFieldMapper.VectorIndexType vectorIndexType = DenseVectorFieldMapper.VectorIndexType.fromString(
+            XContentMapValues.nodeStringValue(type)
+        ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
+
+        return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
     }
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {

@@ -37,16 +37,10 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  public LossySumDoubleGroupingAggregatorFunction(List<Integer> channels,
-      LossySumDoubleAggregator.GroupingSumState state, DriverContext driverContext) {
+  LossySumDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = LossySumDoubleAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static LossySumDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new LossySumDoubleGroupingAggregatorFunction(channels, LossySumDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

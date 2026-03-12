@@ -95,7 +95,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     ) {
         Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestReindexAction(clusterSupportsFeature, settings),
+            new RestReindexAction(clusterSupportsFeature, restHandlersServices.crossProjectModeDecider()),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
             new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),

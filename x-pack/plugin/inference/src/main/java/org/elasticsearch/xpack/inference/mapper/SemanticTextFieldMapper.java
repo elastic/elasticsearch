@@ -620,8 +620,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
 
-                int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
-                denseVectorIndexOptions.validate(elementType, dims, true);
+                if (denseVectorIndexOptions != null) {
+                    int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
+                    denseVectorIndexOptions.validate(elementType, dims, true);
+                }
             }
         }
 
@@ -1456,7 +1458,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
         // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
         // and the field will use the defaults for the dense_vector field.
-        DenseVectorFieldMapper.ElementType resolvedElementType = denseVectorElementType(indexVersionCreated, modelSettings.elementType());
+        DenseVectorFieldMapper.ElementType resolvedElementType = defaultElementTypeToBfloat16(
+            indexVersionCreated,
+            modelSettings.elementType()
+        ) ? DenseVectorFieldMapper.ElementType.BFLOAT16 : modelSettings.elementType();
         if (indexOptions != null) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions;
             IndexOptions innerIndexOptions = indexOptions.indexOptions();
@@ -1511,17 +1516,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
-    private static DenseVectorFieldMapper.ElementType denseVectorElementType(
+    private static boolean defaultElementTypeToBfloat16(
         IndexVersion indexVersionCreated,
         DenseVectorFieldMapper.ElementType modelElementType
     ) {
-        DenseVectorFieldMapper.ElementType denseVectorElementType = modelElementType;
-        if (indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
-            && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT) {
-            denseVectorElementType = DenseVectorFieldMapper.ElementType.BFLOAT16;
-        }
-
-        return denseVectorElementType;
+        return indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+            && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
@@ -1537,12 +1537,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
-                indexVersionCreated,
-                modelSettings
-            );
+            IndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
+            if (defaultElementTypeToBfloat16(indexVersionCreated, modelSettings.elementType())) {
+                denseVectorIndexOptions = new ExtendedDenseVectorIndexOptions(
+                    (DenseVectorFieldMapper.DenseVectorIndexOptions) denseVectorIndexOptions,
+                    DenseVectorFieldMapper.ElementType.BFLOAT16
+                );
+            }
 
-            // TODO: Serialize when we switch to bfloat16 by default
             return denseVectorIndexOptions == null
                 ? null
                 : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);

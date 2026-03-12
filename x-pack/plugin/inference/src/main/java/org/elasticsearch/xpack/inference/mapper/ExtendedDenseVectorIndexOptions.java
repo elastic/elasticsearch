@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,10 +23,10 @@ public class ExtendedDenseVectorIndexOptions implements IndexOptions {
     private final DenseVectorFieldMapper.ElementType elementType;
 
     public ExtendedDenseVectorIndexOptions(
-        DenseVectorFieldMapper.DenseVectorIndexOptions baseIndexOptions,
+        @Nullable DenseVectorFieldMapper.DenseVectorIndexOptions baseIndexOptions,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        this.baseIndexOptions = Objects.requireNonNull(baseIndexOptions);
+        this.baseIndexOptions = baseIndexOptions;
         this.elementType = Objects.requireNonNull(elementType);
     }
 
@@ -39,7 +40,9 @@ public class ExtendedDenseVectorIndexOptions implements IndexOptions {
 
     @Override
     public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        baseIndexOptions.toXContentFragment(builder, params);
+        if (baseIndexOptions != null) {
+            baseIndexOptions.toXContentFragment(builder, params);
+        }
         builder.field(ELEMENT_TYPE_FIELD.getPreferredName(), elementType.toString());
     }
 

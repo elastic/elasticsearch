@@ -137,6 +137,7 @@ public class SemanticTextIndexOptions implements ToXContent {
         boolean experimentalFeaturesEnabled
     ) {
         try {
+            // TODO: Update logic to not require type
             Object type = map.remove(TYPE_FIELD);
             if (type == null) {
                 throw new IllegalArgumentException("Required " + TYPE_FIELD);

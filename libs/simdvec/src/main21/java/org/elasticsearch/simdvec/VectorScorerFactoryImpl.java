@@ -173,11 +173,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension(), input);
-        return switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> Optional.of(new Int4VectorScorerSupplier.DotProductSupplier(input, values));
-            case EUCLIDEAN -> Optional.of(new Int4VectorScorerSupplier.EuclideanSupplier(input, values));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int4VectorScorerSupplier.MaxInnerProductSupplier(input, values));
-        };
+        return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
     }
 
     @Override

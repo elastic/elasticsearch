@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 /**
  * SPI for extending plugins that need to receive stateless services from the stateless plugin.
@@ -28,5 +29,9 @@ public interface StatelessExtensionProvider {
     /**
      * Callback invoked for extending plugins to allow them to access the stateless services.
      */
-    default void onServicesCreated(ClosedShardService closedShardService, HollowShardsService hollowShardsService) {}
+    default void onServicesCreated(
+        ClosedShardService closedShardService,
+        HollowShardsService hollowShardsService,
+        SearchShardSizeCollector searchShardSizeCollector
+    ) {}
 }

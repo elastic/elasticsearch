@@ -17,8 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
-
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilterMergePolicy;
@@ -41,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -63,8 +60,6 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.autoscaling.search.SearchShardSizeCollector;
-import org.elasticsearch.xpack.stateless.autoscaling.search.ShardSizesPublisher;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -83,7 +78,6 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.SearchEngineTestUtils;
-import org.elasticsearch.xpack.stateless.lucene.stats.ShardSizeStatsClient;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -190,28 +184,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 cacheWarmingService,
                 telemetryProvider
             );
-        }
-
-        @Override
-        protected SearchShardSizeCollector createSearchShardSizeCollector(
-            ClusterSettings clusterSettings,
-            ThreadPool threadPool,
-            Client client
-        ) {
-            // We have to disable the search shard size collector in this test suite as some test checks that
-            // the search node has a particular set of commits open and the shard size collector might hold a
-            // commit for too long breaking such assertions.
-            return new SearchShardSizeCollector(clusterSettings, threadPool, new ShardSizeStatsClient(client) {
-                @Override
-                public void getAllShardSizes(TimeValue boostWindowInterval, ActionListener<Map<ShardId, ShardSize>> listener) {
-                    ActionListener.completeWith(listener, Map::of);
-                }
-
-                @Override
-                public void getShardSize(ShardId shardId, TimeValue boostWindowInterval, ActionListener<ShardSize> listener) {
-                    ActionListener.completeWith(listener, () -> null);
-                }
-            }, new ShardSizesPublisher(client));
         }
 
         @Override

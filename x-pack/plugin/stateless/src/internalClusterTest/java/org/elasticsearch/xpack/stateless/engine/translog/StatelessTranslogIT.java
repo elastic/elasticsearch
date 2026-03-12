@@ -751,7 +751,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 }
             }
         }
-        ensureGreen(indexName);
+        ensureGreenAndNoInitializingShards(indexName);
     }
 
     private static String nonMasterIndexingNode() {

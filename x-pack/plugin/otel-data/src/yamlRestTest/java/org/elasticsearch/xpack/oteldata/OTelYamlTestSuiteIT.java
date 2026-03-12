@@ -19,7 +19,6 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("codecs-common")
         .module("constant-keyword")
         .module("counted-keyword")
         .module("data-streams")

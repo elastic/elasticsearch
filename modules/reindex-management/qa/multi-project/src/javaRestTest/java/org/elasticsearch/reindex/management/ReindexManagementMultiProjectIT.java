@@ -46,7 +46,6 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)   // 2 to test transport serializes projectId over wire.
-        .module("codecs-common")
         .module("reindex")
         .module("reindex-management")
         .module("test-multi-project")

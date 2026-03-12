@@ -29,7 +29,6 @@ public class ReindexManagementClientYamlTestSuiteIT extends ESClientYamlSuiteTes
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("codecs-common")
         .module("reindex")
         .module("reindex-management")
         .module("rest-root")

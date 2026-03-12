@@ -26,7 +26,6 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-analytics")     // for histogram
         .module("data-streams")         // for time series
         .module("ingest-common")
-        .module("codecs-common")
         .setting("xpack.security.enabled", "false")
         .build();
 

@@ -51,7 +51,6 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         .nodes(1)
         .distribution(DistributionType.INTEG_TEST)
         .module("analysis-common")
-        .module("codecs-common")
         .setting("test.multi_project.enabled", "true")
         .configFile("jwkset.json", Resource.fromClasspath("jwk/jwkset.json"))
         .setting("xpack.ml.enabled", "false")

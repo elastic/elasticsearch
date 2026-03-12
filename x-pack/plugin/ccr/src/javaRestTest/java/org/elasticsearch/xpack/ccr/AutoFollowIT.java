@@ -66,7 +66,6 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
 
     public static LocalClusterConfigProvider commonConfig = c -> c.module("x-pack-ccr")
         .module("analysis-common")
-        .module("codecs-common")
         .module("searchable-snapshots")
         .module("data-streams")
         .module("ingest-common")

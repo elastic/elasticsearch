@@ -18,7 +18,6 @@ public class AsyncSearchRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("codecs-common")
         .module("x-pack-test-deprecated-query")
         .module("x-pack-async-search")
         .build();

@@ -16,7 +16,7 @@ import org.junit.ClassRule;
 public abstract class AbstractHttpSmokeTestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("rest-root").module("codecs-common").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("rest-root").build();
 
     @Override
     protected String getTestRestCluster() {

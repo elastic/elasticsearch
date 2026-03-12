@@ -30,7 +30,6 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .module("ingest-common")
         .module("reindex")
         .module("analysis-common")
-        .module("codecs-common")
         .module("health-shards-availability")
         .module("data-streams")
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:

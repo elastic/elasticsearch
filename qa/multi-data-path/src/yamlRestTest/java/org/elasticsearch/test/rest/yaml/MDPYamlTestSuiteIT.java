@@ -21,10 +21,7 @@ import java.nio.file.Files;
 public class MDPYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("codecs-common")
-        .setting("path.shared_data", tempSharedDataPath())
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().setting("path.shared_data", tempSharedDataPath()).build();
 
     public MDPYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

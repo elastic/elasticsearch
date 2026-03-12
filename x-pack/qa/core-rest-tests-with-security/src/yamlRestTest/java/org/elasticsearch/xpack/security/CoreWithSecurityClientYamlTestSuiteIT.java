@@ -39,7 +39,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("reindex")
         .module("wildcard")
         .module("analysis-common")
-        .module("codecs-common")
         .module("health-shards-availability")
         .module("data-streams")
         .setting("xpack.security.enabled", "true")

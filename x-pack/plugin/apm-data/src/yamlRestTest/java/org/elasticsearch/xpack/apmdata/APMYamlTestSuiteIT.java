@@ -23,7 +23,6 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("counted-keyword")
         .module("data-streams")
         .module("ingest-common")
-        .module("codecs-common")
         .module("ingest-geoip")
         .module("ingest-user-agent")
         .module("lang-mustache")

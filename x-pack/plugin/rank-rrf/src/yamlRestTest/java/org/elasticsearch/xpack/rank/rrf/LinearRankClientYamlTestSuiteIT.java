@@ -22,7 +22,6 @@ public class LinearRankClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
-        .module("codecs-common")
         .module("mapper-extras")
         .module("rank-rrf")
         .module("lang-painless")

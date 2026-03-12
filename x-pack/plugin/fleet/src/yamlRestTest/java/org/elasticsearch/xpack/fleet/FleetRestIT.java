@@ -31,7 +31,6 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
         .module("mapper-version")
         .module("x-pack-inference")
         .module("data-streams")
-        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))

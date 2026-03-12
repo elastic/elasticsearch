@@ -57,7 +57,6 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .withConfigDir(() -> getRootPath(configDir))
         .module("reindex")
         .module("ingest-geoip")
-        .module("codecs-common")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
         // sets the plain (geoip.elastic.co) downloader endpoint, which is used in these tests
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)

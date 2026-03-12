@@ -24,7 +24,6 @@ public class LangPainlessClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("lang-painless")
         .module("mapper-extras")
-        .module("codecs-common")
         .systemProperty("es.scripting.update.ctx_in_params", "false")
         .systemProperty("es.transport.cname_in_publish_address", "true")
         .build();

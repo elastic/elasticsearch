@@ -23,7 +23,6 @@ public class SmokeTestIngestWithAllDepsClientYamlTestSuiteIT extends ESClientYam
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("ingest-common")
-        .module("codecs-common")
         .module("lang-mustache")
         .module("reindex")
         .module("data-streams")

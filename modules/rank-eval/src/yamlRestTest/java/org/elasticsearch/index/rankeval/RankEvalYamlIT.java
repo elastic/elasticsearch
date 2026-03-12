@@ -20,11 +20,7 @@ import org.junit.ClassRule;
 public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("lang-mustache")
-        .module("rank-eval")
-        .module("codecs-common")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").module("rank-eval").build();
 
     public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

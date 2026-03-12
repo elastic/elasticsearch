@@ -42,7 +42,6 @@ public class SecurityIndexMigrationMultiProjectIT extends ESRestTestCase {
         .distribution(DistributionType.INTEG_TEST)
         .module("test-multi-project")
         .module("analysis-common")
-        .module("codecs-common")
         .nodes(2)
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")

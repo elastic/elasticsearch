@@ -28,7 +28,7 @@ public class ConstantKeywordClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("constant-keyword").module("codecs-common").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("constant-keyword").build();
 
     @Override
     protected String getTestRestCluster() {

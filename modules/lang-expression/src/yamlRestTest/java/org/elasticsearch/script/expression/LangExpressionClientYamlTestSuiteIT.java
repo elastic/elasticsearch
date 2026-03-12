@@ -20,7 +20,7 @@ import org.junit.ClassRule;
 public class LangExpressionClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-expression").module("codecs-common").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-expression").build();
 
     public LangExpressionClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

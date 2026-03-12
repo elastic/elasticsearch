@@ -29,7 +29,6 @@ public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("codecs-common")
         .module("reindex")
         .module("lang-painless")
         .module("parent-join")

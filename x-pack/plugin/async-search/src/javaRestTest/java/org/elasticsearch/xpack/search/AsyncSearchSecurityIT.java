@@ -98,7 +98,6 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     private static ElasticsearchCluster getCluster() {
         var builder = ElasticsearchCluster.local()
             .module("analysis-common")
-            .module("codecs-common")
             .module("x-pack-async-search")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")

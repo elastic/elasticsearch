@@ -43,7 +43,6 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
         .nodes(1)
         .distribution(DistributionType.INTEG_TEST)
         .module("analysis-common")
-        .module("codecs-common")
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)

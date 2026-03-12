@@ -22,7 +22,7 @@ import java.io.IOException;
 public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("codecs-common").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
 
     public ESClientYamlSuiteTestCaseFailLogIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

@@ -62,7 +62,6 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     static final String KEYSTORE_PASSWORD = "keystore-password";
 
     protected static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("analysis-common")
-        .module("codecs-common")
         .keystorePassword(KEYSTORE_PASSWORD)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1041,43 +1040,39 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
      * Tests that deprecations warnings do not leak when the mapping is updated
      */
     public void testDeprecationsWarningsDoNotEscape() throws IOException {
-        try {
-            // We remove the extra test thread context from the warning headers so we can test
-            // the isolation of the thread pool thread context
-            HeaderWarning.removeThreadContext(getThreadContext());
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
 
-            IndicesService indicesService = getIndicesService();
-            IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
-                .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
-                .build();
-            IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
-
-            IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
-                .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
-                .putMapping("""
-                    {
-                      "_doc":{
-                        "properties": {
-                          "my-field": {
-                            "type": "deprecated-param-mapper",
-                            "deprecated_field": "someValue"
-                          }
-                        }
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "my-field": {
+                        "type": "deprecated-param-mapper",
+                        "deprecated_field": "someValue"
                       }
-                    }""")
-                .build();
-            indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
-            final List<String> warnings = indexService.getThreadPool().getThreadContext().getResponseHeaders().get("Warning");
-            if (warnings != null) {
-                assertThat(
-                    warnings,
-                    not(contains(containsString("Parameter [deprecated_field] is deprecated and will be removed in a future version")))
-                );
-            }
-        } finally {
-            // Add the test thread context back because the teardown expects it
-            HeaderWarning.setThreadContext(getThreadContext());
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+        // This test sets two thread contexts to the HeaderWarning class, the thread context of the ESTestCase and the
+        // thread pool one, consequently the deprecation warning is added to both. The production code will only have
+        // the thread pool context, so we test the isolation of this context only.
+        final List<String> warnings = indexService.getThreadPool().getThreadContext().getResponseHeaders().get("Warning");
+        if (warnings != null) {
+            assertThat(
+                warnings,
+                not(contains(containsString("Parameter [deprecated_field] is deprecated and will be removed in a future version")))
+            );
         }
+        // For the test's thread context we just handle the expected warning.
+        assertWarnings("Parameter [deprecated_field] is deprecated and will be removed in a future version");
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

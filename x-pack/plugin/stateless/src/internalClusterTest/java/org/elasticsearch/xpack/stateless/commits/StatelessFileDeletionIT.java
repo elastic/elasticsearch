@@ -18,9 +18,12 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -42,7 +45,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,6 +71,7 @@ import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchService;
@@ -143,6 +151,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -153,6 +162,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 @TestIssueLogging(
     issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
@@ -169,6 +179,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
         public final Semaphore snapshotBlocker = new Semaphore(Integer.MAX_VALUE);
+        public final AtomicBoolean shouldDeleteShardFiles = new AtomicBoolean(true);
 
         private final AtomicReference<CountDownLatch> uploadAndBccReleaseLatch = new AtomicReference<>();
 
@@ -287,6 +298,24 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             } else {
                 throw new IllegalStateException("Awaiter onUploadAndBccRelease already exist");
             }
+        }
+
+        @Override
+        protected ObjectStoreService createObjectStoreService(
+            Settings settings,
+            RepositoriesService repositoriesService,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ProjectResolver projectResolver
+        ) {
+            return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver) {
+                @Override
+                public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
+                    if (shouldDeleteShardFiles.get()) {
+                        super.asyncDeleteShardFile(staleCompoundCommit);
+                    }
+                }
+            };
         }
     }
 
@@ -1091,6 +1120,119 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
         assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all blobs should be deleted
+    }
+
+    public void testBlobsNotDeletedDuringSuccessfulRelocation() throws Exception {
+        verifyBlobDeletionDeferredDuringRelocation(true);
+    }
+
+    public void testBlobsNotDeletedDuringFailedRelocation() throws Exception {
+        verifyBlobDeletionDeferredDuringRelocation(false);
+    }
+
+    private void verifyBlobDeletionDeferredDuringRelocation(boolean relocationSucceeds) throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeA = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomIndexName();
+        // We sometimes want relocation to fail, no need to retry it
+        createIndex(indexName, indexSettings(1, 1).put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0).build());
+        ensureGreen(indexName);
+        final var indexShard = findIndexShard(indexName);
+        final var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+        // Prevent indexNodeB from deleting shard files so that deletions can only be from indexNodeA
+        findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(false);
+
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var commitService = indexEngine.getStatelessCommitService();
+        final var shardLocalReadersTracker = commitService.getShardLocalCommitsTracker(indexShard.shardId()).shardLocalReadersTracker();
+
+        // Step 1: Create multiple commits and track their Lucene generations
+        final var readers = new ArrayList<DirectoryReader>();
+        final Runnable acquireLocalReaderForCurrentCommit = () -> {
+            final var reader = mock(DirectoryReader.class);
+            shardLocalReadersTracker.trackOpenReader(
+                reader,
+                commitService.getCommitBCCResolverForShard(indexShard.shardId())
+                    .resolveReferencedBCCsForCommit(indexEngine.getCurrentGeneration())
+            );
+            readers.add(reader);
+        };
+        acquireLocalReaderForCurrentCommit.run(); // acquire for the initial commit
+        int totalDocs = 0;
+        int numberOfCommitsBeforeMerge = 3;
+        for (int i = 0; i < numberOfCommitsBeforeMerge; i++) {
+            totalDocs += indexDocsAndFlush(indexName);
+            acquireLocalReaderForCurrentCommit.run();
+        }
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
+        final var blobsBeforeMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        assertThat(blobsBeforeMerge, not(empty()));
+        logger.info("--> blobs before merge: {}", blobsBeforeMerge);
+
+        // Step 2: Force merge supersedes old commits. No deletion due to locally acquired readers
+        logger.info("--> force merging to a single segment");
+        forceMerge(true);
+        flush(indexName);
+        final Set<String> blobsAfterMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        logger.info("--> blobs after merge: {}", blobsAfterMerge);
+        assertThat(blobsAfterMerge, hasItems(blobsBeforeMerge.toArray(new String[0])));
+
+        // Step 3: Trigger relocation and block the primary context handoff to keep the shard in RELOCATING state
+        var handOffStarted = new CountDownLatch(1);
+        var proceedWithHandOff = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                handOffStarted.countDown();
+                safeAwait(proceedWithHandOff);
+                if (relocationSucceeds) {
+                    handler.messageReceived(request, channel, task);
+                } else {
+                    channel.sendResponse(new ElasticsearchException("test fails handoff on purpose"));
+                }
+            });
+        logger.info("--> triggering relocation");
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB, ProjectId.DEFAULT));
+        safeAwait(handOffStarted);
+
+        // Step 4: Release local readers of old commits while the shard is RELOCATING. Commits deletion should be deferred.
+        logger.info("--> releasing local readers of old commits");
+        readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
+        final Set<String> blobsAfterReleasingLocalReaders = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        logger.info("--> blobs after releasing local readers: {}", blobsAfterReleasingLocalReaders);
+        assertThat(blobsAfterReleasingLocalReaders, hasItems(blobsBeforeMerge.toArray(new String[0])));
+
+        // Step 5: Complete or fail the relocation and the commits are deleted accordingly
+        proceedWithHandOff.countDown();
+        ensureGreen(indexName);
+
+        if (relocationSucceeds) {
+            // The old primary discards deferred stale blob deletions on successful relocation. We prevent indexNodeB from deleting shard
+            // files.
+            // Therefore old commits should still exist
+            assertThat(
+                "old commit blobs should not be deleted by old primary after successful relocation",
+                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
+                hasItems(blobsBeforeMerge.toArray(String[]::new))
+            );
+        } else {
+            // The old primary reprocesses deferred stale blob deletions on failed relocation and deletes old commits
+            assertBusy(() -> {
+                final var remaining = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+                assertThat(
+                    remaining + " still contains some of " + blobsBeforeMerge,
+                    Sets.intersection(remaining, blobsBeforeMerge),
+                    empty()
+                );
+            });
+        }
+
+        assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
+        findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(true);
     }
 
     public void testStaleNodeDoesNotDeleteCommitFiles() throws Exception {

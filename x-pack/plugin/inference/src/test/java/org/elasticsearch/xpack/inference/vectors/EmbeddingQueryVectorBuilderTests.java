@@ -12,10 +12,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
-import org.elasticsearch.inference.DataType;
-import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloat
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
@@ -70,7 +67,7 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
     @Override
     protected EmbeddingQueryVectorBuilder createTestInstance() {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
-        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), randomInferenceStringGroup(), timeout);
+        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), InferenceStringGroupTests.createRandom(), timeout);
     }
 
     @Override
@@ -81,7 +78,7 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
 
         switch (randomIntBetween(0, 2)) {
             case 0 -> inferenceId = randomValueOtherThan(instance.getInferenceId(), () -> randomAlphaOfLength(10));
-            case 1 -> input = randomValueOtherThan(instance.getInput(), EmbeddingQueryVectorBuilderTests::randomInferenceStringGroup);
+            case 1 -> input = randomValueOtherThan(instance.getInput(), InferenceStringGroupTests::createRandom);
             case 2 -> timeout = timeout == null ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
             default -> throw new AssertionError("Unexpected value");
         }
@@ -92,20 +89,5 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
     @Override
     protected EmbeddingQueryVectorBuilder doParseInstance(XContentParser parser) throws IOException {
         return EmbeddingQueryVectorBuilder.fromXContent(parser);
-    }
-
-    static InferenceStringGroup randomInferenceStringGroup() {
-        int numInputs = randomIntBetween(1, 5);
-        List<InferenceString> inferenceStrings = new ArrayList<>(numInputs);
-        for (int i = 0; i < numInputs; i++) {
-            inferenceStrings.add(randomInferenceString());
-        }
-        return new InferenceStringGroup(inferenceStrings);
-    }
-
-    static InferenceString randomInferenceString() {
-        DataType type = randomFrom(DataType.values());
-        DataFormat format = randomBoolean() ? randomFrom(type.getSupportedFormats()) : null;
-        return new InferenceString(type, format, randomAlphaOfLength(20));
     }
 }

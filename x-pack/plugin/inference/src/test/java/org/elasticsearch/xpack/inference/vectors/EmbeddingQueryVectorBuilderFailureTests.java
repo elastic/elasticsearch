@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.inference.InferenceStringGroupTests;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -29,7 +30,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilderTests.randomInferenceStringGroup;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
@@ -118,6 +118,6 @@ public class EmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
     }
 
     private static EmbeddingQueryVectorBuilder createTestInstance() {
-        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(4), randomInferenceStringGroup(), null);
+        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(4), InferenceStringGroupTests.createRandom(), null);
     }
 }

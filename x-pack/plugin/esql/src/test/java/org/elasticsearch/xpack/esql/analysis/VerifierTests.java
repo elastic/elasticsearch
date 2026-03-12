@@ -3882,6 +3882,13 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testLimitByNotEnabled() {
+        assertThat(error("""
+            FROM test
+            | LIMIT 5 BY languages
+            """, defaultAnalyzer, VerificationException.class), containsString("LIMIT BY is not yet supported"));
+    }
+
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }

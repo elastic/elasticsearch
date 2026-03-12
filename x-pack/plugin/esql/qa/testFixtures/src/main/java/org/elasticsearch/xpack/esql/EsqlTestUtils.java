@@ -637,7 +637,7 @@ public final class EsqlTestUtils {
             new InferenceService(mock(Client.class), clusterService),
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            CrossProjectModeDecider.NOOP
         );
     }
 

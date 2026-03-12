@@ -1080,6 +1080,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 
+    public ClusterHealthStatus ensureGreenAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), true, indices);
+    }
+
     /**
      * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating

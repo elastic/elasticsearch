@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -575,7 +576,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             new XPackLicenseState(() -> 0L),
             mockQueryLog(),
             List.of(),
-            Settings.EMPTY,
+            CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
             TEST_PARSER

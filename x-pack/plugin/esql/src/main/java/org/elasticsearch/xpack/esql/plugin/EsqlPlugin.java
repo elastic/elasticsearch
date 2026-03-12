@@ -263,7 +263,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     getLicenseState(),
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
-                    settings,
+                    services.crossProjectModeDecider(),
                     dataSourceModule,
                     functionRegistry,
                     parser

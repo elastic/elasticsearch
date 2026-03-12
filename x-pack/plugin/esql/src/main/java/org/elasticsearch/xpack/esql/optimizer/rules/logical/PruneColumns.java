@@ -19,15 +19,16 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -39,7 +40,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
 /**
@@ -80,14 +80,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 recheck.set(false);
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
-                    case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, used, recheck);
+                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
-                    case Project project -> inlineJoin ? pruneColumnsInProject(project, used, recheck) : p;
+                    case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
+                    case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case Fork fork -> {
                         forkPresent.set(true);
                         yield pruneColumnsInFork(fork, used);
                     }
+                    case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -139,32 +141,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
-
+        used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
-        if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
+
+        if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
+            // ij.references() are the join keys and if the output of the inline join doesn't contain anything else except the join keys,
+            // then the inline join doesn't add any new columns. Since it preserves rows, it doesn't do anything and can be pruned.
             p = pruneRightSideAndProject(ij);
             recheck.set(true);
-        } else if (right != ij.right()) {
-            if (right.anyMatch(plan -> plan instanceof Aggregate) == false) {// there is no aggregation on the right side anymore
-                if (right instanceof StubRelation) {// right is just a StubRelation, meaning nothing is needed from the right side
-                    p = pruneRightSideAndProject(ij);
-                } else {
-                    // if the right has no aggregation anymore, but it still has some other plans (evals, projects),
-                    // we keep those and integrate them into the main plan. The InlineJoin is also replaced entirely.
-                    p = InlineJoin.replaceStub(ij.left(), right);
-                    p = new Project(ij.source(), p, mergeOutputExpressions(p.output(), ij.left().output()));
-                }
-            } else {
-                // if the right side has been updated, replace it
-                p = ij.replaceRight(right);
-            }
-            recheck.set(true);
-        }
-
-        if (recheck.get() == false) {
-            used.addAll(p.references());
         }
 
         return p;
@@ -198,13 +184,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    // Note: only run when the Project is a descendent of an InlineJoin.
     private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = project;
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
         if (remaining != null) {
-            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), project.child(), remaining);
+            p = new Project(project.source(), project.child(), remaining);
             recheck.set(true);
         }
 
@@ -227,6 +212,17 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes unused columns from an {@link ExternalRelation}.
+     * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
+     * the attribute list on an external relation directly controls which columns the format reader loads from storage.
+     */
+    private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        var remaining = pruneUnusedAndAddReferences(ext.output(), used);
+        return remaining != null ? ext.withAttributes(remaining) : ext;
+    }
+
+    // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
 
         // exit early for UnionAll
@@ -287,6 +283,39 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
         }
         return fork;
+    }
+
+    /**
+     * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
+     * <p>
+     * Partial field pruning is <b>not</b> supported due to a layout–operator mismatch in
+     * {@code LocalExecutionPlanner}:
+     * <ul>
+     *   <li>The <b>layout</b> is built from {@code extractedFields} (size N, after pruning), which
+     *       determines channel indices for all downstream operators.</li>
+     *   <li>The <b>operator</b> ({@code StringExtractOperator} / {@code ColumnExtractOperator}) is
+     *       initialized from the full parser pattern (size M, unpruned), so it always appends M blocks
+     *       to the page at runtime.</li>
+     * </ul>
+     * When N &lt; M, downstream operators (e.g. {@code Aggregator}) read from wrong channel indices
+     * (off by M − N), corrupting the page structure.
+     * <p>
+     * We also cannot simply reconcile the two sides by matching on {@code extractedFields} names,
+     * because {@code PushDownRegexExtract} may rename attributes to avoid variable shadowing
+     * (see PR #108360), while the parser still returns results keyed by the original pattern names.
+     * </p>
+     */
+    private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = re;
+
+        var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
+        // If none of the extracted fields are used, remove the entire RegexExtract node
+        if (remaining != null && remaining.isEmpty()) {
+            p = re.child();
+            recheck.set(true);
+        }
+
+        return p;
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

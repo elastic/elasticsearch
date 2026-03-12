@@ -65,7 +65,7 @@ public final class Utils {
     public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
-        var registeredSettings = InferencePlugin.getInferenceSettings();
+        var registeredSettings = InferencePlugin.getClusterSettings();
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
@@ -153,6 +153,8 @@ public final class Utils {
 
     public record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 
+    public record ModelConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {}
+
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -223,7 +225,7 @@ public final class Utils {
     }
 
     public static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
-        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+        return ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
         });

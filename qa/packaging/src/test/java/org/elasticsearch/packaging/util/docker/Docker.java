@@ -742,6 +742,10 @@ public class Docker {
     }
 
     public static Shell.Result getContainerLogs(String containerId) {
+        if (containerId == null || containerId.isBlank()) {
+            // Avoid running `docker logs null` which is confusing and hides the real failure.
+            return new Shell.Result(1, "", "No container id available to fetch docker logs");
+        }
         return sh.run("docker logs " + containerId);
     }
 

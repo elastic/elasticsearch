@@ -48,7 +48,6 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -87,6 +86,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
@@ -104,6 +104,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.ra
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -727,7 +728,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     public void testIndexingPressureTripsOnInferenceRequestGeneration() throws Exception {
         final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
         final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
-            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "1b").build()
+            // Set the max coordinating bytes to a value smaller than the source size
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "15kb").build()
         );
         final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ShardBulkInferenceActionFilter filter = createFilter(
@@ -738,7 +740,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             inferenceStats
         );
 
-        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", "bar");
+        // Generate a very large field value to trigger the indexing pressure failure
+        String sparseFieldValue = randomAlphanumericOfLength(50000);
+        XContentBuilder doc1Source = IndexSource.getXContentBuilder(XContentType.JSON, "sparse_field", sparseFieldValue);
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
@@ -1005,6 +1009,84 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         verify(coordinatingIndexingPressure).close();
     }
 
+    @SuppressWarnings("unchecked")
+    public void testMultipleFailuresPerIndexRequest() throws Exception {
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
+            // Set the coordinating bytes limit high enough to handle all the requests
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
+        );
+        final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
+        final int docCount = 10;
+
+        final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
+            BulkItemResponse response = item.getPrimaryResponse();
+            assertNotNull(response);
+            assertTrue(response.isFailed());
+
+            BulkItemResponse.Failure failure = response.getFailure();
+            assertNotNull(failure);
+            assertThat(failure.getStatus(), is(RestStatus.NOT_FOUND));
+            assertThat(failure.getCause(), instanceOf(ResourceNotFoundException.class));
+            assertThat(
+                failure.getCause().getMessage(),
+                containsString("Inference id [missing_inference_id] not found for field [inference_field]")
+            );
+            assertThat(failure.getCause().getSuppressed(), emptyArray());
+        };
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
+            try {
+                assertNull(request.getInferenceFieldMap());
+                assertThat(request.items().length, equalTo(docCount));
+
+                for (BulkItemRequest item : request.items()) {
+                    assertBulkItemRequest.accept(item);
+                }
+
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure, times(docCount)).increment(eq(1), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(docCount)).increment(anyInt(), anyLong());
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "inference_field",
+            new InferenceFieldMetadata("inference_field", "missing_inference_id", new String[] { "inference_field" }, null)
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            // Use a multivalued input to generate multiple failures per index request. Only the first failure should be kept.
+            List<String> inferenceFieldValue = randomList(2, 5, () -> randomAlphaOfLengthBetween(3, 20));
+            items[i] = new BulkItemRequest(
+                i,
+                new IndexRequest("index").id(Integer.toString(i)).source("inference_field", inferenceFieldValue)
+            );
+        }
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
+    }
+
     private static ShardBulkInferenceActionFilter createFilter(
         ThreadPool threadPool,
         Map<String, StaticModel> modelMap,
@@ -1084,11 +1166,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
-        Answer<Model> modelAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            return modelMap.get(inferenceId);
-        };
-        doAnswer(modelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
+        doAnswer(invocationOnMock -> {
+            UnparsedModel unparsedModel = invocationOnMock.getArgument(0);
+            return modelMap.get(unparsedModel.inferenceEntityId());
+        }).when(inferenceService).parsePersistedConfig(any(UnparsedModel.class));
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));

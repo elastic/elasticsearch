@@ -11,8 +11,6 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,8 +19,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.DataType.TEXT;
+import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
@@ -190,5 +190,14 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
             newInferenceStrings.removeLast();
         }
         return new InferenceStringGroup(newInferenceStrings);
+    }
+
+    /**
+     * Converts the given {@link InferenceStringGroup} to a map matching what is sent in the request body. Equivalent to converting the
+     * input to XContent, then parsing the XContent to a map.
+     */
+    public static Map<String, Object> toRequestMap(InferenceStringGroup input) {
+        List<Map<String, Object>> inferenceStrings = input.inferenceStrings().stream().map(InferenceStringTests::toRequestMap).toList();
+        return Map.of(CONTENT_FIELD, inferenceStrings);
     }
 }

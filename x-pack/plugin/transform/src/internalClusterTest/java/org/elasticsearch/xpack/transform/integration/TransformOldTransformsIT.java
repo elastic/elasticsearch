@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -141,11 +140,8 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
 
         assertTrue(startTransformActionResponse.isAcknowledged());
 
-        StopTransformAction.Response stopTransformActionResponse = client().execute(
-            StopTransformAction.INSTANCE,
-            new StopTransformAction.Request(transformId, true, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false, false)
-        ).actionGet();
-        assertTrue(stopTransformActionResponse.isAcknowledged());
+        stopTransform(transformId);
+        deleteTransform(transformId);
     }
 
     private void createTransformIndex() throws Exception {
@@ -159,10 +155,6 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
             builder.endObject();
             indicesAdmin().create(new CreateIndexRequest(OLD_INDEX).mapping(builder).origin(ClientHelper.TRANSFORM_ORIGIN)).actionGet();
         }
-    }
-
-    private void createSourceIndex(String index) {
-        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
     }
 
     private void putTransform(String transformId, String config) {
@@ -183,6 +175,8 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         client().execute(UpdateTransformAction.INSTANCE, updateRequest).actionGet();
 
         assertMaxPageSearchSizeInSettings(transformId, expectedMaxPageSearchSize);
+
+        deleteTransform(transformId);
     }
 
     private String createTransformWithDeprecatedMaxPageSearchSize(int maxPageSearchSize) throws Exception {
@@ -256,6 +250,9 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         assertTrue(startTransformActionResponse.isAcknowledged());
 
         assertMaxPageSearchSizeInSettings(transformId, expectedMaxPageSearchSize);
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
     }
 
     public void testMigratedTransformIndex() {
@@ -317,6 +314,8 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
         var getTransformResponse = client().execute(GetTransformAction.INSTANCE, getTransformRequest).actionGet();
         var transformConfig = getTransformResponse.getTransformConfigurations().get(0);
         assertThat(transformConfig.getDestination().getIndex(), equalTo("some-new-dest-index"));
+
+        deleteTransform(transformId);
     }
 
 }

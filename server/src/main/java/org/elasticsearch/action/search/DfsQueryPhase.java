@@ -89,10 +89,11 @@ class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();
+            ShardSearchRequest rewrittenRequest = rewriteShardSearchRequest(knnResults, dfsResult.getShardSearchRequest());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                rewriteShardSearchRequest(knnResults, dfsResult.getShardSearchRequest()),
+                rewrittenRequest,
                 dfs
             );
             final Transport.Connection connection;
@@ -109,6 +110,9 @@ class DfsQueryPhase extends SearchPhase {
                     protected void innerOnResponse(QuerySearchResult response) {
                         try {
                             response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            if (dfsResult.searchTimedOut()) {
+                                response.searchTimedOut(true);
+                            }
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(NAME, "", e);
@@ -174,7 +178,9 @@ class DfsQueryPhase extends SearchPhase {
                 source.knnSearch().get(i).getField(),
                 source.knnSearch().get(i).getQueryVector(),
                 source.knnSearch().get(i).getSimilarity(),
-                source.knnSearch().get(i).getFilterQueries()
+                source.knnSearch().get(i).getFilterQueries(),
+                dfsKnnResults.oversample(),
+                dfsKnnResults.k()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
@@ -182,7 +188,6 @@ class DfsQueryPhase extends SearchPhase {
             subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
             i++;
         }
-
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());
         request.source(source);
 
@@ -200,7 +205,8 @@ class DfsQueryPhase extends SearchPhase {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
-
+        Float[] oversampling = new Float[source.knnSearch().size()];
+        Integer[] k = new Integer[source.knnSearch().size()];
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
             if (dfsSearchResult.knnResults() != null) {
                 for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
@@ -211,14 +217,28 @@ class DfsQueryPhase extends SearchPhase {
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
+                    // this value will be consistent amongst all shards as we would have enabled/disabled oversampling
+                    // as part of the TransportSearchAction#adjustSearchType before reaching out to the shards
+                    oversampling[i] = knnResults.oversample();
+                    k[i] = knnResults.k();
                 }
             }
         }
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            int localK = k[i] != null ? k[i] : source.knnSearch().get(i).k();
+            int resultsToKeep = localK;
+            if (oversampling[i] != null && oversampling[i] >= 1) {
+                resultsToKeep = (int) Math.ceil(oversampling[i] * localK);
+            }
+            List<TopDocs> topDocsList = topDocsLists.get(i);
+            if (topDocsList.isEmpty()) {
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), new ScoreDoc[0], null, null));
+            } else {
+                TopDocs mergedTopDocs = TopDocs.merge(resultsToKeep, topDocsList.toArray(new TopDocs[0]));
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], localK));
+            }
         }
         return mergedResults;
     }

@@ -39,8 +39,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -80,8 +79,10 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -94,6 +95,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.LongStream;
 
@@ -103,8 +105,8 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
 public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
-    private static final int LOOKUP_SIZE = 1000;
-    private static final int LESS_THAN_VALUE = 40;
+    static final int LOOKUP_SIZE = 1000;
+    static final int LESS_THAN_VALUE = 40;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
@@ -136,9 +138,19 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     @Before
     public void buildLookupIndex() throws IOException {
         numberOfJoinColumns = 1 + randomInt(1); // 1 or 2 join columns
-        try (RandomIndexWriter writer = new RandomIndexWriter(random(), lookupIndexDirectory)) {
+        writeLookupIndex(random(), lookupIndexDirectory, operation, numberOfJoinColumns, LOOKUP_SIZE);
+    }
+
+    static void writeLookupIndex(
+        Random random,
+        Directory directory,
+        EsqlBinaryComparison.BinaryComparisonOperation operation,
+        int numberOfJoinColumns,
+        int lookupSize
+    ) throws IOException {
+        try (RandomIndexWriter writer = new RandomIndexWriter(random, directory)) {
             String suffix = (operation == null) ? "" : ("_" + "right");
-            for (int i = 0; i < LOOKUP_SIZE; i++) {
+            for (int i = 0; i < lookupSize; i++) {
                 List<IndexableField> fields = new ArrayList<>();
                 fields.add(new LongField("match0" + suffix, i, Field.Store.NO));
                 if (numberOfJoinColumns == 2) {
@@ -153,12 +165,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return createSimpleInput(blockFactory, size, numberOfJoinColumns, LOOKUP_SIZE);
+    }
+
+    static SourceOperator createSimpleInput(BlockFactory blockFactory, int size, int numberOfJoinColumns, int lookupSize) {
         if (numberOfJoinColumns == 1) {
-            return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> l % LOOKUP_SIZE));
+            return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> l % lookupSize));
         } else if (numberOfJoinColumns == 2) {
             return new TupleLongLongBlockSourceOperator(
                 blockFactory,
-                LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % LOOKUP_SIZE, l % LOOKUP_SIZE + 1))
+                LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % lookupSize, l % lookupSize + 1))
             );
         } else {
             throw new IllegalStateException("numberOfJoinColumns must be 1 or 2, got: " + numberOfJoinColumns);
@@ -172,13 +188,21 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
          * row count is the same. But lookup cuts into pages of length 256 so the
          * result is going to have more pages usually.
          */
+        assertLookupOutput(input, results, operation, numberOfJoinColumns);
+    }
+
+    static void assertLookupOutput(
+        List<Page> input,
+        List<Page> results,
+        EsqlBinaryComparison.BinaryComparisonOperation operation,
+        int numberOfJoinColumns
+    ) {
         int inputCount = input.stream().mapToInt(Page::getPositionCount).sum();
         int outputCount = results.stream().mapToInt(Page::getPositionCount).sum();
 
         if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
             assertThat(outputCount, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
         } else {
-            // For lookup join on non-equality, output count should be >= input count
             assertThat("Output count should be >= input count for left outer join", outputCount, greaterThanOrEqualTo(inputCount));
         }
 
@@ -215,7 +239,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
      * @param op the binary comparison operation (null means equality join)
      * @return true if the comparison condition is satisfied, false otherwise
      */
-    private boolean compare(long left, long right, EsqlBinaryComparison.BinaryComparisonOperation op) {
+    static boolean compare(long left, long right, EsqlBinaryComparison.BinaryComparisonOperation op) {
         if (op == null) {
             // field based join is the same as equals comparison
             op = EsqlBinaryComparison.BinaryComparisonOperation.EQ;
@@ -239,8 +263,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
         List<NamedExpression> loadFields = List.of(
-            new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
+            new FieldAttribute(
+                Source.EMPTY,
+                "lkwd",
+                new EsField("lkwd", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "lint",
+                new EsField("lint", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         List<MatchConfig> matchFields = new ArrayList<>();
@@ -289,11 +321,14 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             loadFields,
             Source.EMPTY,
             rightPlanWithOptionalPreJoinFilter,
-            joinOnExpression
+            joinOnExpression,
+            false,  // useStreamingOperator - testing non-streaming operator
+            QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
+            false // profile
         );
     }
 
-    private FragmentExec buildLessThanFilter(int value) {
+    static FragmentExec buildLessThanFilter(int value) {
         FieldAttribute filterAttribute = new FieldAttribute(
             Source.EMPTY,
             "lint",
@@ -326,7 +361,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
         String suffix = (operation == null) ? "" : ("_left");
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{f}#\\d+, lint\\{f}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
             // match_field=match<i>_left (index first, then suffix)
             sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
@@ -372,8 +407,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private LookupFromIndexService lookupService(DriverContext mainContext) {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
-        var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        registeredSettings.addAll(PlannerSettings.settings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -382,7 +418,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .build(),
-            new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
+            new ClusterSettings(Settings.EMPTY, registeredSettings)
         );
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
@@ -395,6 +431,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         return new LookupFromIndexService(
             clusterService,
             indicesService,
@@ -403,13 +440,19 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            plannerSettings,
+            null // ExchangeService only needed for streaming
         );
     }
 
     private ThreadPool threadPool() {
+        return createTestThreadPool(getTestClass());
+    }
+
+    static ThreadPool createTestThreadPool(Class<?> testClass) {
         return new TestThreadPool(
-            getTestClass().getSimpleName(),
+            testClass.getSimpleName(),
             new FixedExecutorBuilder(
                 Settings.EMPTY,
                 EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
@@ -439,9 +482,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
+        return createLookupShardContextFactory(operation, numberOfJoinColumns, lookupIndexDirectory);
+    }
+
+    static AbstractLookupService.LookupShardContextFactory createLookupShardContextFactory(
+        EsqlBinaryComparison.BinaryComparisonOperation operation,
+        int numberOfJoinColumns,
+        Directory lookupIndexDirectory
+    ) {
         return shardId -> {
-            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-            };
+            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
             String suffix = (operation == null) ? "" : ("_right");
             StringBuilder props = new StringBuilder();
             props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));
@@ -483,7 +533,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         // only test field based join and EQ to prevents timeouts in Ci
         if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
             super.testSimpleCircuitBreaking();

@@ -13,8 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -73,7 +73,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         description = """
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
-                Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
@@ -81,7 +81,12 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     )
     public Chunk(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "The input to chunk. The input can be a single-valued or multi-valued field. In the case of a multi-valued "
+                + "argument, each value is chunked separately."
+        ) Expression field,
         @MapParam(
             name = "chunking_settings",
             description = "Options to customize chunking behavior. Defaults to "
@@ -218,34 +223,44 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return chunkingSettings;
     }
 
-    @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, @Fixed ChunkingSettings chunkingSettings) {
-        String content = str.utf8ToString();
-        List<String> chunks = chunkText(content, chunkingSettings);
-        emitChunks(builder, chunks);
+    @Evaluator
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Position int position,
+        BytesRefBlock field,
+        @Fixed ChunkingSettings chunkingSettings
+    ) {
+        int valueCount = field.getValueCount(position);
+        if (valueCount == 0) {
+            builder.appendNull();
+            return;
+        }
+
+        int firstValueIndex = field.getFirstValueIndex(position);
+
+        // Collect all chunks from all values in the multi-value field
+        List<String> allChunks = new java.util.ArrayList<>();
+        for (int i = 0; i < valueCount; i++) {
+            BytesRef value = field.getBytesRef(firstValueIndex + i, new BytesRef());
+            String content = value.utf8ToString();
+            List<String> chunks = chunkText(content, chunkingSettings);
+            allChunks.addAll(chunks);
+        }
+
+        // Emit all chunks combined
+        emitChunks(builder, allChunks);
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Chunk chunk = (Chunk) o;
-        return Objects.equals(field(), chunk.field()) && Objects.equals(chunkingSettings(), chunk.chunkingSettings());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), chunkingSettings());
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ChunkingSettings chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
 
         if (chunkingSettings() != null) {
             chunkingSettings = toChunkingSettings((MapExpression) chunkingSettings());
         }
 
-        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), chunkingSettings);
+        var fieldEvaluator = toEvaluator.apply(field);
+        return new ChunkEvaluator.Factory(source(), fieldEvaluator, chunkingSettings);
     }
 
     private static ChunkingSettings toChunkingSettings(MapExpression map) {

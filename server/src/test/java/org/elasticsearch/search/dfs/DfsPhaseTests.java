@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -143,7 +144,8 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
@@ -196,12 +198,12 @@ public class DfsPhaseTests extends IndexShardTestCase {
 
             int k = 10;
             // run without profiling enabled
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher, null);
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, null, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
-            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher, null);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();

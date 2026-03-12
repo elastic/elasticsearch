@@ -34,16 +34,10 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  public ValuesBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      ValuesBytesRefAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesBytesRefGroupingAggregatorFunction(channels, ValuesBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

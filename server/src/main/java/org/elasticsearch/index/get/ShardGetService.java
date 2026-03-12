@@ -14,7 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
@@ -150,7 +149,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        MultiEngineGet mget
+        MultiEngineGet mget,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -163,7 +163,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             mget::get
         );
     }
@@ -222,39 +222,37 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } else {
                 missingMetric.inc(System.nanoTime() - now);
             }
-            if (getResult == null || getResult.isExists() == false) {
-                // during resharding, a coordinating node may route a get request to a shard that is the source of a split
-                // before the target shard has taken over that document, but by the time the request is processed on the
-                // source shard, handoff has occurred. If the get succeeds, this is fine - we block refreshes during this
-                // period so although indexing may have occured on the target shard, the source shard's copy is still valid
-                // because refresh hasn't happened. However, if the source shard doesn't have the document in this case, it
-                // may be that it is because the shard has deleted unowned documents after the split. Normally this shouldn't
-                // occur because we will delay deleting those documents for some grace period, but if it does happen we should
-                // fail the request rather than possibly incorrectly reporting that the document doesn't exist, when it may
-                // in fact be present on a different shard.
-                // We can defer this check until we know whether the response is missing, so that the common case doesn't
-                // have to resolve the current split shard summary. This way also means that a race between the get and handoff state
-                // can only cause us to throw an exception unnecessarily, rather than incorrectly returning a missing document.
-                final var indexMetadata = mapperService.getIndexSettings().getIndexMetadata();
-                final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
+            if (getResult == null || getResult.isExists() == false || realtime) {
                 if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
                     // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
                     return getResult;
                 }
+                // during resharding, a coordinating node may route a get request to a shard that is the source of a split
+                // before the target shard has taken over that document, but by the time the request is processed on the
+                // source shard, handoff has occurred. If a non-realtime get succeeds, this is fine - we block refreshes during this
+                // period so although the document may have been updated on the target shard, the source shard's copy is still valid
+                // because refresh hasn't happened. However, if the get is a realtime get, or if the source shard doesn't have the
+                // document (perhaps because the shard has deleted unowned documents after the split) then the answer may be
+                // incorrect. So, if the request's split shard count summary indicates that routing has changed since the request
+                // was formulated, we double check that the requested document still maps to this shard.
+                final var indexMetadata = mapperService.getIndexSettings().getIndexMetadata();
+                // For realtime get, correct results depend on index routing (the new shard may accept updates at handoff) and consult
+                // the index shard's translog.
+                // Regular search happens on the search shard and uses search routing.
+                final var currentSummary = realtime
+                    ? SplitShardCountSummary.forIndexing(indexMetadata, shardId().getId())
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId().getId());
                 if (splitShardCountSummary.compareTo(currentSummary) >= 0) {
                     // coordinator is current, so response is valid
                     return getResult;
                 }
                 // Otherwise, recompute the route of the requested document based on current metadata and fail the request if it
-                // doesn't map to this shard anymore, since delete unowned may have removed it by this point. This is conservative:
-                // the document may genuinely not have existed, but unless we can be certain that delete-unowned hasn't run yet
-                // (which is difficult, because the index shard may see the target move to done before the search shard) it is safer
-                // to fail the request.
+                // doesn't map to this shard anymore.
                 final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-                final var docShard = indexRouting.getShard(id, routing);
+                // see currentSummary above
+                final var docShard = realtime ? indexRouting.updateShard(id, routing) : indexRouting.getShard(id, routing);
                 if (docShard != shardId().getId()) {
-                    // XXX we may want a more specific exception type here
-                    throw new ElasticsearchStatusException("stale get request for document [" + id + "]", RestStatus.SERVICE_UNAVAILABLE);
+                    throw new StaleRequestException("stale get request for document [{}]", id);
                 } else {
                     return getResult;
                 }
@@ -272,7 +270,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long version,
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -285,7 +284,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             indexShard::getFromTranslog
         );
     }
@@ -623,9 +622,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         inferenceLoader.setNextReader(readerContext);
         List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
         if (values.size() == 1) {
-            var newSource = source.source();
-            newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-            return Source.fromMap(newSource, source.sourceContentType());
+            return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
         }
         return source;
     }

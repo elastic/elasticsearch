@@ -51,7 +51,9 @@ public interface ConfigurationAware extends ConfigurationFunction {
         false,
         0,
         0,
-        null
+        null,
+        null,
+        Map.of()
     );
 
     Configuration configuration();

@@ -1,0 +1,6 @@
+pr: 141496
+summary: Use standard logic for conflicting types in TS
+area: ES|QL
+type: bug
+issues:
+  - 141379

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
+    public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
     PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         super(start, end, startLine, startColumn, params);
@@ -433,26 +435,38 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (paramCount > metadata.arity().max()) {
             throw new ParsingException(source, message, name, metadata.arity().max(), paramCount);
         }
-
-        // child plan is always the first parameter
-        // TODO this is not the case for the quantile function as the first parameter is the quantile value
-        LogicalPlan child = params.stream().findFirst().map(param -> switch (param) {
-            case LogicalPlan plan -> plan;
-            case Literal literal -> new LiteralSelector(source, literal);
-            case Node n -> throw new IllegalStateException("Unexpected value: " + n);
-        }).orElse(null);
-
-        // PromQL expects early validation of the tree so let's do it here
-        PromqlDataType expectedInputType = metadata.functionType().inputType();
-        PromqlDataType actualInputType = PromqlPlan.getReturnType(child);
-        if (actualInputType != expectedInputType) {
-            throw new ParsingException(
-                source,
-                "expected type {} in call to function [{}], got {}",
-                expectedInputType,
-                name,
-                actualInputType
-            );
+        LogicalPlan child = null;
+        List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
+        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
+        for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
+            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
+            LogicalPlan providedParam = switch (params.get(i)) {
+                case LogicalPlan plan -> plan;
+                case Literal literal -> new LiteralSelector(source, literal);
+                case Node n -> throw new IllegalStateException("Unexpected value: " + n);
+            };
+            assert providedParam instanceof PromqlPlan;
+            PromqlDataType actualType = PromqlPlan.getType(providedParam);
+            PromqlDataType expectedType = expectedParam.type();
+            if (actualType != expectedType) {
+                if (expectedType == PromqlDataType.RANGE_VECTOR && providedParam instanceof InstantSelector selector) {
+                    providedParam = convertToRangeSelector(selector);
+                } else {
+                    throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+                }
+            }
+            if (expectedParam.child()) {
+                child = providedParam;
+            } else if (providedParam instanceof LiteralSelector literalSelector) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new ParsingException(
+                    source,
+                    "expected literal parameter in call to function [{}], got {}",
+                    name,
+                    providedParam.nodeName()
+                );
+            }
         }
 
         PromqlBaseParser.GroupingContext groupingContext = ctx.grouping();
@@ -477,12 +491,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }
-            plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
+            plan = new AcrossSeriesAggregate(source, child, name, extraParams, grouping, groupings);
         } else {
-            List<Expression> extraParams = params.stream()
-                .skip(1) // skip the first param (child)
-                .map(Expression.class::cast)
-                .toList();
             plan = switch (metadata.functionType()) {
                 case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
                     source,
@@ -495,6 +505,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(source, child, name, extraParams);
                 case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
                 case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
+                case SCALAR_CONVERSION -> new ScalarConversionFunction(source, child, name, extraParams);
                 case SCALAR -> new ScalarFunction(source, name);
                 default -> throw new ParsingException(
                     source,
@@ -506,6 +517,25 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
         //
         return plan;
+    }
+
+    /**
+     * In contrast to strict PromQL,
+     * we allow using instant vector selectors where range vectors are expected,
+     * by implicitly treating them as range vectors with a default range.
+     */
+    private static LogicalPlan convertToRangeSelector(InstantSelector selector) {
+        LogicalPlan providedParam;
+        providedParam = new RangeSelector(
+            selector.source(),
+            selector.child(),
+            selector.series(),
+            selector.labels(),
+            selector.labelMatchers(),
+            Literal.timeDuration(selector.source(), IMPLICIT_RANGE_PLACEHOLDER),
+            selector.evaluation()
+        );
+        return providedParam;
     }
 
     @Override

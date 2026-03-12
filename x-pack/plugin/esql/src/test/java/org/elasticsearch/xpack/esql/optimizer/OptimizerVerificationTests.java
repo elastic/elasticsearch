@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -242,14 +243,15 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         err = error("""
             FROM test
-            | RERANK language_code="test" ON languages WITH { "inference_id" : "reranking-inference-id" }
+            | EVAL language_code = languages
+            | RERANK "test" ON first_name WITH { "inference_id" : "reranking-inference-id" }
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(
             err,
             containsString(
                 "ENRICH with remote policy can't be executed after "
-                    + "[RERANK language_code=\"test\" ON languages WITH { \"inference_id\" : \"reranking-inference-id\" }]@2:3"
+                    + "[RERANK \"test\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }]@3:3"
             )
         );
 
@@ -335,6 +337,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 analyzer
             )
         );
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 1:25: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
 
         assertEquals(
             "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
@@ -406,6 +413,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
 
         err = error("""
             FROM test,remote:test
@@ -476,6 +488,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
 
         err = error("""
             FROM test

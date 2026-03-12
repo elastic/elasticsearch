@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -169,7 +171,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), randomFrom(IndexMode.values()));
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
                 0,
@@ -190,7 +192,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 () -> true,
                 null,
                 emptyMap(),
-                MapperMetrics.NOOP
+                null,
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -247,7 +251,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

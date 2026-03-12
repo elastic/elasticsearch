@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -28,6 +29,8 @@ import java.util.Map;
 
 public final class DfsSearchResult extends SearchPhaseResult {
 
+    private static final TransportVersion DFS_SEARCH_TIMED_OUT = TransportVersion.fromName("dfs_search_timed_out");
+
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
@@ -35,6 +38,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
     private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private boolean searchTimedOut;
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -55,6 +59,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
         searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
+            searchTimedOut = in.readBoolean();
+        }
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -93,6 +100,14 @@ public final class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public boolean searchTimedOut() {
+        return searchTimedOut;
+    }
+
+    public void searchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -126,6 +141,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(getShardSearchRequest());
         out.writeOptionalCollection(knnResults);
         out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
+            out.writeBoolean(searchTimedOut);
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

@@ -45,7 +45,8 @@ public abstract class ReindexChallengeRestIT extends StandardVersusLogsIndexMode
         reindexRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "source": {
-                    "index": "%s"
+                    "index": "%s",
+                    "size": 50
                 },
                 "dest": {
                   "index": "%s",

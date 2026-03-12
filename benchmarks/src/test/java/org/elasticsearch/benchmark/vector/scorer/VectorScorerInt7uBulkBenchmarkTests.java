@@ -49,6 +49,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -79,6 +80,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -110,6 +112,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -137,7 +140,6 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
                 .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-
                 .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

@@ -22,7 +22,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -67,10 +67,8 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
-    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
+    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
@@ -87,11 +85,7 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(
-            bigArrays,
-            ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_SIZE,
-            IdFieldMapper.NAME
-        );
+        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -101,7 +95,7 @@ public class PerFieldFormatSupplier {
             if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
                 return es812PostingsFormat;
             } else {
-                return Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+                return Elasticsearch93Lucene104Codec.DEFAULT_POSTINGS_FORMAT;
             }
         } else {
             // our own posting format using PFOR, used for logsdb and tsdb indices by default
@@ -126,7 +120,8 @@ public class PerFieldFormatSupplier {
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
-            mergingExecutorService
+            mergingExecutorService,
+            -1
         );
     }
 
@@ -148,6 +143,12 @@ public class PerFieldFormatSupplier {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof CompletionFieldMapper) {
                 return completionPostingsFormat;
+            }
+            if (mapper instanceof IdFieldMapper
+                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT)) {
+                // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
+                // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
+                return es812PostingsFormat;
             }
         }
 
@@ -195,9 +196,10 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
-                ? tsdbDocValuesFormatLargeNumericBlock
-                : tsdbDocValuesFormat;
+            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            boolean useLargeNumericBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
+            boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeNumericBlockSize, useLargeBinaryBlockSize);
         }
 
         return docValuesFormat;
@@ -227,14 +229,6 @@ public class PerFieldFormatSupplier {
             return false;
         }
         return EXCLUDE_MAPPER_TYPES.contains(getMapperType(fieldName));
-    }
-
-    private boolean isTimeSeriesModeIndex() {
-        return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
-    }
-
-    private boolean isLogsModeIndex() {
-        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
     String getMapperType(final String field) {

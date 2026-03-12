@@ -30,6 +30,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     private static final int VECTOR_DIMENSION = 10;
@@ -456,8 +458,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = randomVector(4096);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, 10f, null, null).boost(5.0f);
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10), response -> {
-            assertHitCount(response, 3);
-            assertEquals(3, response.getHits().getHits().length);
+            assertNotNull(response.getHits().getTotalHits());
+            assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(3L));
+            // depending on where the documents land we will get [3, 3 * oversample] results back
+            assertThat(response.getHits().getTotalHits().value(), lessThanOrEqualTo(3L * 3));
+            assertThat(response.getHits().getHits().length, greaterThanOrEqualTo(3));
+            // depending on where the documents land we will get [3, 3 * oversample] results back
+            assertThat(response.getHits().getHits().length, lessThanOrEqualTo(3 * 3));
             assertEquals(4096, response.getHits().getAt(0).field("vector").getValues().size());
         });
     }

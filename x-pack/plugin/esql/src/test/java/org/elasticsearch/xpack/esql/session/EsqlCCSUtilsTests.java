@@ -600,7 +600,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         String REMOTE1_ALIAS = "remote1";
         String REMOTE2_ALIAS = "remote2";
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
-        executionInfo.planningProfile().planning().start();
+        executionInfo.queryProfile().planning().start();
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
@@ -618,14 +618,14 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 EsqlExecutionInfo.Cluster.Status.RUNNING
             )
         );
-        assertNull(executionInfo.planningProfile().planning().timeTook());
+        assertNull(executionInfo.queryProfile().planning().timeTook());
         assertNull(executionInfo.overallTook());
 
         safeSleep(1);
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        assertThat(executionInfo.planningProfile().planning().timeTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(executionInfo.queryProfile().planning().timeTook().millis(), greaterThanOrEqualTo(0L));
         assertNull(executionInfo.overallTook());
 
         // only remote1 should be altered, since it is the only one marked as SKIPPED when passed into updateExecutionInfoAtEndOfPlanning
@@ -641,7 +641,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
         assertThat(remote1Cluster.getFailedShards(), equalTo(0));
         assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.planningProfile().planning().timeTook().millis()));
+        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.queryProfile().planning().timeTook().millis()));
 
         EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
         assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));

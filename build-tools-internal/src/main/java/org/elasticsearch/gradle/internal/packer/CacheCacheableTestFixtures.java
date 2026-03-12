@@ -91,6 +91,9 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                         } catch (NoSuchMethodException e) {
                             // Skip classes without a no-arg constructor - they are not meant to be cached directly
                             System.out.println("Skipping " + cacheableTestFixtureClazz.getName() + " (no no-arg constructor)");
+                        } catch (Exception e) {
+                            System.err.println("Failed caching" + cacheableTestFixtureClazz.getName() + ": " + e.getMessage());
+                            e.printStackTrace();
                         }
                     }
                 }

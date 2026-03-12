@@ -168,7 +168,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testInvalidCloseTo() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ field: 42 }");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
+        Throwable exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
 
         parser = createParser(YamlXContent.yamlXContent, "{ field: {  } }");
@@ -181,7 +181,12 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
-        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+        assertThat(exception.getMessage(), equalTo("value is missing"));
+
+        parser = createParser(YamlXContent.yamlXContent, "{ field: { value: \"foo\", error: 0.001 } }");
+        CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
+        exception = expectThrows(AssertionError.class, () -> closeToAssertion.doAssert(42, closeToAssertion.getExpectedValue()));
+        assertThat(exception.getMessage(), equalTo("Expected value should be a number, but was [foo], which is not a number"));
     }
 
     public void testExists() throws IOException {

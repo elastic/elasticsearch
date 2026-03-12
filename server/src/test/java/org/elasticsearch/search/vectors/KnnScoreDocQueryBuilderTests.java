@@ -69,7 +69,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             randomBoolean() ? "field" : null,
             randomBoolean() ? VectorData.fromFloats(randomVector(10)) : null,
             randomBoolean() ? randomFloat() : null,
-            filters
+            filters,
+            randomBoolean() ? randomFloat() : null,
+            randomBoolean() ? randomIntBetween(1, 100) : null
         );
     }
 
@@ -80,7 +82,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             "field",
             VectorData.fromFloats(new float[] { 1.0f, 2.0f }),
             null,
-            List.of()
+            List.of(),
+            null,
+            10
         );
         String expected = """
             {
@@ -99,7 +103,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 "query" : [
                   1.0,
                   2.0
-                ]
+                ],
+                "k" : 10
               }
             }""";
         assertEquals(expected, query.toString());
@@ -172,7 +177,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             randomBoolean() ? "field" : null,
             randomBoolean() ? VectorData.fromFloats(randomVector(10)) : null,
             randomBoolean() ? randomFloat() : null,
-            List.of()
+            List.of(),
+            null,
+            10
         );
         QueryRewriteContext context = randomBoolean()
             ? new InnerHitsRewriteContext(createSearchExecutionContext().getParserConfig(), System::currentTimeMillis)
@@ -198,7 +205,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             randomAlphaOfLength(10),
             VectorData.fromFloats(randomVector(10)),
             randomBoolean() ? randomFloat() : null,
-            filters
+            filters,
+            null,
+            10
         );
         queryBuilder.boost(randomFloat());
         queryBuilder.queryName(randomAlphaOfLength(10));
@@ -262,7 +271,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                     "field",
                     VectorData.fromFloats(randomVector(10)),
                     null,
-                    List.of()
+                    List.of(),
+                    null,
+                    10
                 );
                 Query query = queryBuilder.doToQuery(context);
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
@@ -311,7 +322,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                     "field",
                     VectorData.fromFloats(randomVector(10)),
                     null,
-                    List.of()
+                    List.of(),
+                    null,
+                    10
                 );
                 final Query query = queryBuilder.doToQuery(context);
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);

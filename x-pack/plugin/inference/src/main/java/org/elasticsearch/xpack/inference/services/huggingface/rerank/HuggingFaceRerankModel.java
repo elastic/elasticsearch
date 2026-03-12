@@ -43,8 +43,7 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
         );
     }
 
-    // Should only be used directly for testing
-    HuggingFaceRerankModel(
+    public HuggingFaceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -52,11 +51,15 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
         HuggingFaceRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public HuggingFaceRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
-            secrets
+            modelConfigurations,
+            modelSecrets,
+            (HuggingFaceRerankServiceSettings) modelConfigurations.getServiceSettings(),
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

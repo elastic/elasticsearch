@@ -54,7 +54,6 @@ import static org.elasticsearch.test.NeverMatcher.never;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -92,8 +91,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
      *
      * @param exchange the exchange
      * @param blobContents the entire blob contents (even if only a range was requested)
+     * @param contentLength the length of the response we're sending
      */
-    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents) {}
+    protected void addSuccessfulDownloadHeaders(HttpExchange exchange, byte[] blobContents, int contentLength) {}
 
     protected abstract String downloadStorageEndpoint(BlobContainer container, String blob);
 
@@ -140,10 +140,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             if (countDown.countDown()) {
                 final int rangeStart = getRangeStart(exchange);
                 assertThat(rangeStart, lessThan(bytes.length));
-                addSuccessfulDownloadHeaders(exchange, bytes);
+                int responseLength = bytes.length - rangeStart;
+                addSuccessfulDownloadHeaders(exchange, bytes, responseLength);
                 exchange.getResponseHeaders().add("Content-Type", bytesContentType());
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
-                exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, responseLength);
+                exchange.getResponseBody().write(bytes, rangeStart, responseLength);
                 exchange.close();
                 return;
             }
@@ -208,7 +209,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                     final int effectiveRangeEnd = Math.min(bytes.length - 1, rangeEnd);
                     final int length = (effectiveRangeEnd - rangeStart) + 1;
                     exchange.getResponseHeaders().add("Content-Type", bytesContentType());
-                    addSuccessfulDownloadHeaders(exchange, bytes);
+                    addSuccessfulDownloadHeaders(exchange, bytes, length);
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
                     exchange.getResponseBody().write(bytes, rangeStart, length);
                     exchange.close();
@@ -310,14 +311,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
-                if (stream instanceof RetryingInputStream<?> ris) {
-                    meaningfulProgressSize.set(ris.meaningfulProgressSize());
-                } else if (stream instanceof RetryingInputStreamUnwrappable rius) {
-                    final var wrapped = rius.unwrap();
-                    if (wrapped != null) {
-                        meaningfulProgressSize.set(wrapped.meaningfulProgressSize());
-                    }
-                }
+                meaningfulProgressSize.set(extractMeaningfulProgressSize(stream));
                 Streams.readFully(stream);
             }
         });
@@ -335,10 +329,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
         );
         assertEquals(maxRetries + meaningfulProgressRetries, exception.getSuppressed().length);
-    }
-
-    protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        return equalTo(maxRetries);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -370,20 +360,27 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
+
+        // A list to track response sizes, some streams (i.e. RetryingInputStream) allow more retries when meaningful amount of bytes
+        // is transferred in a single try. See below.
+        final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
+
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), interceptGetBlobRequest(exchange -> {
-            sendIncompleteContent(exchange, bytes);
+            retryContentSizes.add((long) sendIncompleteContent(exchange, bytes));
             if (alwaysFlushBody) {
                 exchange.getResponseBody().flush();
             }
             exchange.close();
         }, bytes));
 
+        final AtomicLong meaningfulProgressSize = new AtomicLong(Long.MAX_VALUE);
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", 0, 1)
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
             ) {
+                meaningfulProgressSize.set(extractMeaningfulProgressSize(stream));
                 Streams.readFully(stream);
             }
         });
@@ -400,7 +397,23 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
+        int meaningfulProgressRetries = Math.toIntExact(
+            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
+        );
+        assertEquals(Math.min(10, maxRetries + meaningfulProgressRetries), exception.getSuppressed().length);
+    }
+
+    private long extractMeaningfulProgressSize(InputStream stream) {
+        if (stream instanceof RetryingInputStream<?> ris) {
+            return ris.meaningfulProgressSize();
+        } else if (stream instanceof RetryingInputStreamUnwrappable rius) {
+            final var wrapped = rius.unwrap();
+            if (wrapped != null) {
+                return wrapped.meaningfulProgressSize();
+            }
+        }
+        // The passed stream is not a RetryingInputStream, so there is no concept of "meaningful progress"
+        return Long.MAX_VALUE;
     }
 
     protected static byte[] randomBlobContent() {
@@ -448,7 +461,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             length = bytes.length - rangeStart;
         }
         exchange.getResponseHeaders().add("Content-Type", bytesContentType());
-        addSuccessfulDownloadHeaders(exchange, bytes);
+        addSuccessfulDownloadHeaders(exchange, bytes, length);
         exchange.sendResponseHeaders(HttpStatus.SC_OK, length);
         int minSend = Math.min(0, length - 1);
         final int bytesToSend = randomIntBetween(minSend, length - 1);

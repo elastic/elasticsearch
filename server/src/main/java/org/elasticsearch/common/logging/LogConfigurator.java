@@ -158,6 +158,13 @@ public class LogConfigurator {
     }
 
     /**
+     * Sets the cluster name. This is called before logging is configured.
+     */
+    public static void setClusterName(String clusterName) {
+        ClusterNamePatternConverter.setClusterName(clusterName);
+    }
+
+    /**
      * Sets the node name. This is called before logging is configured if the
      * node name is set in elasticsearch.yml. Otherwise it is called as soon
      * as the node id is available.

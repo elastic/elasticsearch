@@ -88,6 +88,16 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         );
     }
 
+    public VoyageAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((VoyageAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
+        );
+    }
+
     private VoyageAIRerankModel(VoyageAIRerankModel model, VoyageAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }

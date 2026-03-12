@@ -130,6 +130,8 @@ setup:
   - match: { hits.hits.2._id: "2" }
 ---
 "Vector rescoring has same scoring as exact search for kNN section":
+  - requires:
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
 
@@ -186,9 +188,9 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 0.00001 }}
 
 ---
 "Test index configured rescore vector":

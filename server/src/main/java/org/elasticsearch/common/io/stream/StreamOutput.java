@@ -96,9 +96,11 @@ public abstract class StreamOutput extends OutputStream {
         this.version = version;
     }
 
-    public long position() throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    /**
+     * @return the current position of the stream, in bytes. Increases as data is written to the stream. If the stream is seekable then
+     *         the seek operation updates the current {@code position()}.
+     */
+    public abstract long position();
 
     /**
      * Writes a single byte.
@@ -1171,6 +1173,19 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
         writeCollection(list, StreamOutput::writeNamedWriteable);
+    }
+
+    /**
+     * Writes a possibly-{@code null} collection of {@link NamedWriteable} objects which can then be read using {@link
+     * StreamInput#readOptionalNamedWriteableCollectionAsList}.
+     */
+    public void writeOptionalNamedWriteableCollection(@Nullable Collection<? extends NamedWriteable> list) throws IOException {
+        if (list == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeCollection(list, StreamOutput::writeNamedWriteable);
+        }
     }
 
     /**

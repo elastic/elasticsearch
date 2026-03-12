@@ -105,7 +105,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     @Override
-    public PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
         Layout.Builder layout = source.layout.builder();
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
@@ -159,7 +163,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 blockFactory.newConstantIntVector(index, page.getPositionCount()),
                 blockFactory.newConstantIntVector(0, page.getPositionCount()),
                 blockFactory.newIntArrayVector(IntStream.range(0, page.getPositionCount()).toArray(), page.getPositionCount()),
-                true
+                DocVector.config().singleSegmentNonDecreasing(true)
             );
             var block = docVector.asBlock();
             index++;
@@ -236,6 +240,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
+        public boolean canProduceMoreDataWithoutExtraInput() {
+            return lastPage != null;
+        }
+
+        @Override
         public void close() {
 
         }
@@ -280,6 +289,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     case BlockResultMissing unused -> getNullsBlock(doc);
                     case BlockResultSuccess success -> success.block;
                 };
+            }
+            // For NULL-typed fields (unmapped fields with NULLIFY mode), return nulls
+            if (fa.dataType() == DataType.NULL) {
+                return (doc, copier) -> getNullsBlock(doc);
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
@@ -362,7 +375,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static void consumeIndexDoc(Consumer<DocBlock> indexDocConsumer, DocVector vector, @Nullable List<Integer> currentList) {
         if (currentList != null) {
-            try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
+            try (DocVector indexDocVector = vector.filter(false, currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
         }

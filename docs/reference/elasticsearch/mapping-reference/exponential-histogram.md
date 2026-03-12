@@ -59,10 +59,10 @@ Optionally, you can include precomputed summary statistics:
 When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
 If the histogram is empty (no positive/negative buckets and zero count is `0`), then `sum` must be `0.0` or omitted, and `min` and `max` must be omitted or `null`.
 
-::::{important}
+## Limitations
+
 - An `exponential_histogram` field is single-valued: one histogram per field per document. Nested arrays are not supported.
 - `exponential_histogram` fields are not searchable and do not support sorting.
-::::
 
 ## Use cases [exponential-histogram-use-cases]
 
@@ -76,6 +76,12 @@ In Query DSL, because the data is not indexed, you can use `exponential_histogra
 - [avg](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation
 - [value_count](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation
 - [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) aggregation
+- [min](/reference/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [max](/reference/aggregations/search-aggregations-metrics-max-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentiles](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [percentile ranks](/reference/aggregations/search-aggregations-metrics-percentile-rank-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [boxplot](/reference/aggregations/search-aggregations-metrics-boxplot-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
+- [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation {applies_to}`stack: ga 9.4`
 
 ## Synthetic `_source` [exponential-histogram-synthetic-source]
 

@@ -12,35 +12,34 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSlice}.
+ * {@link ExpressionEvaluator} implementation for {@link MvSlice}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvSliceBytesRefEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvSliceBytesRefEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
-  private final EvalOperator.ExpressionEvaluator start;
+  private final ExpressionEvaluator start;
 
-  private final EvalOperator.ExpressionEvaluator end;
+  private final ExpressionEvaluator end;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvSliceBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator end,
-      DriverContext driverContext) {
+  public MvSliceBytesRefEvaluator(Source source, ExpressionEvaluator field,
+      ExpressionEvaluator start, ExpressionEvaluator end, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.start = start;
@@ -127,28 +126,22 @@ public final class MvSliceBytesRefEvaluator implements EvalOperator.ExpressionEv
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    private final EvalOperator.ExpressionEvaluator.Factory start;
+    private final ExpressionEvaluator.Factory start;
 
-    private final EvalOperator.ExpressionEvaluator.Factory end;
+    private final ExpressionEvaluator.Factory end;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory start,
-        EvalOperator.ExpressionEvaluator.Factory end) {
+    public Factory(Source source, ExpressionEvaluator.Factory field,
+        ExpressionEvaluator.Factory start, ExpressionEvaluator.Factory end) {
       this.source = source;
       this.field = field;
       this.start = start;

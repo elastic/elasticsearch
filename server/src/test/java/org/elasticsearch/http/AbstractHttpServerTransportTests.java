@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
@@ -41,6 +42,7 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -1142,7 +1144,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private ActionModule getFakeActionModule(Set<RestHeaderDefinition> headersToCopy) {
-        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        SettingsModule settings = new SettingsModule(Settings.builder().put("path.home", createTempDir()).build());
         ActionPlugin copyHeadersPlugin = new ActionPlugin() {
             @Override
             public Collection<RestHeaderDefinition> getRestHeaders() {
@@ -1150,10 +1152,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
         };
         return new ActionModule(
-            settings.getSettings(),
+            TestEnvironment.newEnvironment(settings.getSettings()),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            null,
-            settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
             threadPool,
@@ -1169,6 +1169,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            CrossProjectModeDecider.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
     }

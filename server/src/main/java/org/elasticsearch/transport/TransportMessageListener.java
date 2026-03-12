@@ -12,8 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface TransportMessageListener {
 
-    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {
-    };
+    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
 
     /**
      * Called once a request is received

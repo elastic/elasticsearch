@@ -46,9 +46,14 @@ public class ESNextOSQVectorsScorer {
     protected final float[] upperIntervals;
     protected final int[] targetComponentSums;
     protected final float[] additionalCorrections;
+    private final byte[] scratch;
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
+        if (indexBits == 7) {
+            if (queryBits != 7) {
+                throw new IllegalArgumentException("Only symmetric 7-bit query supported for 7-bit index");
+            }
+        } else if (queryBits != 4 || (indexBits != 1 && indexBits != 2 && indexBits != 4)) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1, 2 or 4-bit index supported");
         }
         this.in = in;
@@ -61,6 +66,7 @@ public class ESNextOSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
+        this.scratch = indexBits == 7 ? new byte[dimensions] : null;
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -88,7 +94,15 @@ public class ESNextOSQVectorsScorer {
                 return quantized4BitScoreSymmetric(q);
             }
         }
+        if (indexBits == 7) {
+            return quantized7BitScore(q);
+        }
         throw new IllegalArgumentException("Only 1-bit index supported");
+    }
+
+    private long quantized7BitScore(byte[] q) throws IOException {
+        in.readBytes(scratch, 0, dimensions);
+        return VectorUtil.dotProduct(scratch, q);
     }
 
     private long quantized4BitScoreSymmetric(byte[] q) throws IOException {
@@ -174,6 +188,12 @@ public class ESNextOSQVectorsScorer {
             }
             throw new IllegalArgumentException("Only symmetric 4-bit query supported for 4-bit index");
         }
+        if (indexBits == 7) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = quantizeScore(q);
+            }
+            return;
+        }
     }
 
     /**
@@ -236,11 +256,36 @@ public class ESNextOSQVectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
+        return scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+    }
+
+    public float scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        assert bulkSize <= this.bulkSize : "supplied bulkSize > this scorer's bulkSize";
         quantizeScoreBulk(q, bulkSize, scores);
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);
         for (int i = 0; i < bulkSize; i++) {
-            targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
+            targetComponentSums[i] = in.readInt();
         }
         in.readFloats(additionalCorrections, 0, bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;

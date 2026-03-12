@@ -14,6 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,11 +24,14 @@ import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests that endpoints in reindex-management module are project-aware and behave as expected in multi-project environments. */
 public class ReindexManagementMultiProjectIT extends ESRestTestCase {
@@ -61,8 +65,11 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     }
 
     @After
-    public void removeNonDefaultProjects() throws IOException {
+    public void cleanup() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            // Cancel all running reindex tasks before deleting projects to avoid
+            // errors when tasks try to access project metadata after project deletion
+            cancelAllRunningReindexTasks();
             cleanUpProjects();
         }
     }
@@ -99,6 +106,68 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         assertThat("reindex is cancelled", response, allOf(hasEntry("cancelled", true), hasEntry("completed", true)));
 
         assertFalse(runningTaskExistsInProject(taskId, projectWithReindex));
+    }
+
+    public void testGettingReindexOnlyWorksForCorrectProject() throws Exception {
+        final String projectWithReindex = randomUniqueProjectId().id();
+        final String projectWithoutReindex = randomUniqueProjectId().id();
+
+        createProject(projectWithReindex);
+        createProject(projectWithoutReindex);
+        createPopulatedIndexInProject(SOURCE_INDEX, projectWithReindex);
+
+        final TaskId taskId = startAsyncThrottledReindexInProject(projectWithReindex);
+
+        assertTrue(runningTaskExistsInProject(taskId, projectWithReindex));
+        final Map<String, Object> response = getReindexInProject(taskId, projectWithReindex);
+        assertThat("reindex task is found", response, hasKey("id"));
+        assertThat("task id matches", response.get("id"), equalTo(taskId.toString()));
+        assertThat("task is not completed", response.get("completed"), equalTo(false));
+
+        final var gettingFromOtherProjectException = expectThrows(
+            ResponseException.class,
+            () -> getReindexInProject(taskId, projectWithoutReindex)
+        );
+        assertThat(gettingFromOtherProjectException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        final String reason = ObjectPath.createFromResponse(gettingFromOtherProjectException.getResponse()).evaluate("error.reason");
+        assertThat(reason, equalTo(Strings.format("task [%s] isn't running and hasn't stored its results", taskId)));
+
+        // assert the task is still running
+        assertTrue(runningTaskExistsInProject(taskId, projectWithReindex));
+    }
+
+    public void testListingReindexOnlyWorksForCorrectProject() throws Exception {
+        final String project1 = randomUniqueProjectId().id();
+        final String project2 = randomUniqueProjectId().id();
+
+        createProject(project1);
+        createProject(project2);
+        createPopulatedIndexInProject(SOURCE_INDEX, project1);
+        createPopulatedIndexInProject(SOURCE_INDEX, project2);
+
+        final TaskId taskId1 = startAsyncThrottledReindexInProject(project1);
+        final TaskId taskId2 = startAsyncThrottledReindexInProject(project2);
+
+        assertTrue(runningTaskExistsInProject(taskId1, project1));
+        assertTrue(runningTaskExistsInProject(taskId2, project2));
+
+        // List from project1 - should only return taskId1
+        final Map<String, Object> listResponse1 = listReindexInProject(project1);
+        assertThat("list response has reindex array", listResponse1, hasKey("reindex"));
+        assertThat("reindex is a list", listResponse1.get("reindex"), instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> reindexList1 = (List<Map<String, Object>>) listResponse1.get("reindex");
+        assertThat("project1 list contains exactly one task", reindexList1.size(), equalTo(1));
+        assertThat("project1 list contains taskId1", reindexList1.get(0).get("id"), equalTo(taskId1.toString()));
+
+        // List from project2 - should only return taskId2
+        final Map<String, Object> listResponse2 = listReindexInProject(project2);
+        assertThat("list response has reindex array", listResponse2, hasKey("reindex"));
+        assertThat("reindex is a list", listResponse2.get("reindex"), instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> reindexList2 = (List<Map<String, Object>>) listResponse2.get("reindex");
+        assertThat("project2 list contains exactly one task", reindexList2.size(), equalTo(1));
+        assertThat("project2 list contains taskId2", reindexList2.get(0).get("id"), equalTo(taskId2.toString()));
     }
 
     private static TaskId startAsyncThrottledReindexInProject(final String projectId) throws IOException {
@@ -173,10 +242,32 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         assertThat("bulk index didn't receive errors", bulkResult.get("errors"), equalTo(false));
     }
 
+    private static Map<String, Object> getReindexInProject(final TaskId taskId, final String projectId) throws IOException {
+        final Request request = new Request("GET", "/_reindex/" + taskId);
+        setRequestProjectId(request, projectId);
+        final Response response = assertOK(client().performRequest(request));
+        return entityAsMap(response);
+    }
+
+    private static Map<String, Object> listReindexInProject(final String projectId) throws IOException {
+        final Request request = new Request("GET", "/_reindex");
+        setRequestProjectId(request, projectId);
+        final Response response = assertOK(client().performRequest(request));
+        return entityAsMap(response);
+    }
+
     private static void setRequestProjectId(final Request request, final String projectId) {
         final RequestOptions.Builder options = request.getOptions().toBuilder();
         options.removeHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
         options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
         request.setOptions(options);
     }
+
+    private void cancelAllRunningReindexTasks() throws IOException {
+        final Request cancelRequest = new Request("POST", "/_tasks/_cancel");
+        cancelRequest.addParameter("actions", ReindexAction.NAME);
+        cancelRequest.addParameter("wait_for_completion", "true");
+        assertOK(adminClient().performRequest(cancelRequest));
+    }
+
 }

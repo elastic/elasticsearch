@@ -104,6 +104,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
@@ -212,6 +224,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
@@ -250,6 +274,8 @@
     "FROM employees\n| STATS count = COUNT(*) BY languages\n| SORT languages DESC",
     "ROW words=\"foo;bar;baz;qux;quux;foo\"\n| STATS word_count = COUNT(SPLIT(words, \";\"))",
     "ROW n=1\n| WHERE n < 0\n| STATS COUNT(n)",
+    "FROM employees\n| STATS\n    gte20 = COUNT(*) WHERE height >= 2,\n    lte18 = COUNT(*) WHERE height <= 1.8",
+    "ROW mv = [1, 2], n = NULL, t = TRUE, f = FALSE\n| STATS COUNT(mv), COUNT(n), COUNT(t), COUNT(f)",
     "ROW n=1\n| STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)"
   ],
   "preview" : false,

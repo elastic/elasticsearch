@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.refreshPointInTime;
 
 public class SearchHitCursor implements Cursor {
 
@@ -159,6 +160,8 @@ public class SearchHitCursor implements Cursor {
             closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
+            // Refresh the PIT ID with the new value returned in the response
+            refreshPointInTime(response, source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

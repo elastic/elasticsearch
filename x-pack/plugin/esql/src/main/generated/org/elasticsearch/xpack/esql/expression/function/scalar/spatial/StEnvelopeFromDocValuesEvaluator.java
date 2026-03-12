@@ -7,36 +7,40 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
+ * {@link ExpressionEvaluator} implementation for {@link StEnvelope}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StEnvelopeFromDocValuesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromDocValuesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encodedBlock;
+  private final ExpressionEvaluator encodedBlock;
+
+  private final SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StEnvelopeFromDocValuesEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
+  public StEnvelopeFromDocValuesEvaluator(Source source, ExpressionEvaluator encodedBlock,
+      SpatialEnvelopeResults<BytesRefBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +70,7 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
           continue position;
         }
         try {
-          StEnvelope.fromDocValues(result, p, encodedBlockBlock);
+          StEnvelope.fromDocValues(result, p, encodedBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,29 +92,28 @@ public final class StEnvelopeFromDocValuesEvaluator implements EvalOperator.Expr
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
+    private final ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, ExpressionEvaluator.Factory encodedBlock,
+        Function<DriverContext, SpatialEnvelopeResults<BytesRefBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StEnvelopeFromDocValuesEvaluator get(DriverContext context) {
-      return new StEnvelopeFromDocValuesEvaluator(source, encodedBlock.get(context), context);
+      return new StEnvelopeFromDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

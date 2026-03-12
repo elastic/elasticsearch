@@ -220,7 +220,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return columns;
     }
 
-    List<Page> pages() {
+    public List<Page> pages() {
         return pages;
     }
 
@@ -350,8 +350,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.startObject("profile"));
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
                 if (executionInfo != null) {
-                    b.field("query", executionInfo.overallTimeSpan());
-                    executionInfo.planningProfile().toXContent(b, p);
+                    executionInfo.queryProfile().toXContent(b, p);
                 }
                 return b;
             }));
@@ -468,6 +467,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         esqlResponse = new EsqlResponseImpl(this);
         return esqlResponse;
+    }
+
+    public long getRowCount() {
+        return pages.stream().mapToLong(Page::getPositionCount).sum();
     }
 
     public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {

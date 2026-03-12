@@ -18,13 +18,13 @@ null               | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m cost_change=(sum(idelta(network.cost[1m])))
 | SORT cost_change DESC, step DESC | LIMIT 10;
 
 cost_change:double | step:datetime
-null               | 2024-05-10T00:01:00.000Z
 18.625             | 2024-05-10T00:09:00.000Z
 15.25              | 2024-05-10T00:20:00.000Z
 9.75               | 2024-05-10T00:15:00.000Z
@@ -34,6 +34,7 @@ null               | 2024-05-10T00:01:00.000Z
 5.375              | 2024-05-10T00:17:00.000Z
 4.375              | 2024-05-10T00:08:00.000Z
 3.5                | 2024-05-10T00:10:00.000Z
+2.875              | 2024-05-10T00:00:00.000Z
 ;
 
 idelta_of_integer
@@ -54,14 +55,14 @@ null                | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_integer_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg(idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step | LIMIT 10;
 
 clients:double      | step:datetime
 -520.0              | 2024-05-10T00:00:00.000Z
-null                | 2024-05-10T00:01:00.000Z
 -248.5              | 2024-05-10T00:02:00.000Z
 -179.0              | 2024-05-10T00:03:00.000Z
 801.0               | 2024-05-10T00:04:00.000Z
@@ -70,6 +71,7 @@ null                | 2024-05-10T00:01:00.000Z
 -214.0              | 2024-05-10T00:07:00.000Z
 -97.33333333333333  | 2024-05-10T00:08:00.000Z
 -20.857142857142858 | 2024-05-10T00:09:00.000Z
+650.0               | 2024-05-10T00:10:00.000Z
 ;
 
 idelta_of_integer_grouping
@@ -91,22 +93,23 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 ;
 
 idelta_of_integer_grouping_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (idelta(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;
 
 clients:double | step:datetime            | cluster:keyword
 -520.0         | 2024-05-10T00:00:00.000Z | prod
-null           | 2024-05-10T00:00:00.000Z | staging
-null           | 2024-05-10T00:01:00.000Z | prod
-null           | 2024-05-10T00:01:00.000Z | qa
 -54.0          | 2024-05-10T00:02:00.000Z | prod
-null           | 2024-05-10T00:02:00.000Z | qa
 -443.0         | 2024-05-10T00:02:00.000Z | staging
-null           | 2024-05-10T00:03:00.000Z | prod
 93.0           | 2024-05-10T00:03:00.000Z | qa
 -315.0         | 2024-05-10T00:03:00.000Z | staging
+801.0          | 2024-05-10T00:04:00.000Z | qa
+-802.0         | 2024-05-10T00:05:00.000Z | prod
+224.0          | 2024-05-10T00:05:00.000Z | qa
+175.0          | 2024-05-10T00:06:00.000Z | qa
+59.5           | 2024-05-10T00:06:00.000Z | staging
 ;
 
 idelta_with_filtering
@@ -133,7 +136,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 ;
 
 idelta_with_filtering_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (idelta(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -187,7 +190,7 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 ;
 
 eval_on_idelta_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (idelta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
@@ -266,7 +269,7 @@ events:double | pod:keyword | time_bucket:datetime
 ;
 
 idelta_all_value_types_promql
-required_capability: promql_pre_tech_preview_v14
+required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m events=(sum by (pod) (idelta(events_received[10m])))
 | SORT events DESC, pod, step | LIMIT 10;

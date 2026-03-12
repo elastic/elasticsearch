@@ -60,7 +60,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -106,19 +105,16 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
 /**
@@ -251,7 +247,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
-            S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY) == Boolean.FALSE,
@@ -1501,12 +1496,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
     }
 
-    @Override
-    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        // some attempts make meaningful progress and do not count towards the max retry limit
-        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
-
     private void assertMetricsForOpeningStream() {
         final long numberOfOperations = getOperationMeasurements();
         // S3 client sdk internally also retries within the configured maxRetries for retryable errors.
@@ -1558,24 +1547,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private List<Measurement> getRetryStartedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_EVENT_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL)
         );
     }
 
     private List<Measurement> getRetryCompletedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_SUCCESS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL)
         );
     }
 
     private List<Measurement> getRetryHistogramMeasurements() {
         return recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, S3RepositoriesMetrics.METRIC_RETRY_ATTEMPTS_HISTOGRAM);
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM);
     }
 
     private Map<String, Object> metricAttributes(String action) {
-        return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
+        return Map.of(
+            "repo_type",
+            "s3",
+            "repo_name",
+            "repository",
+            "operation",
+            "GetObject",
+            "purpose",
+            "Indices",
+            "es_retry_action",
+            action
+        );
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {

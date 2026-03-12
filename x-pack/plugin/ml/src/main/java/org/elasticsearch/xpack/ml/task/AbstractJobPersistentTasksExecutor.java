@@ -49,6 +49,11 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     private static final Logger logger = LogManager.getLogger(AbstractJobPersistentTasksExecutor.class);
 
+    @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
     public static List<String> verifyIndicesPrimaryShardsAreActive(
         ClusterState clusterState,
         IndexNameExpressionResolver expressionResolver,

@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Scalb}.
+ * {@link ExpressionEvaluator} implementation for {@link Scalb}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbConstantIntEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator d;
+  private final ExpressionEvaluator d;
 
   private final int scaleFactor;
 
@@ -36,8 +36,8 @@ public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings;
 
-  public ScalbConstantIntEvaluator(Source source, EvalOperator.ExpressionEvaluator d,
-      int scaleFactor, DriverContext driverContext) {
+  public ScalbConstantIntEvaluator(Source source, ExpressionEvaluator d, int scaleFactor,
+      DriverContext driverContext) {
     this.source = source;
     this.d = d;
     this.scaleFactor = scaleFactor;
@@ -115,24 +115,19 @@ public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory d;
+    private final ExpressionEvaluator.Factory d;
 
     private final int scaleFactor;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory d, int scaleFactor) {
+    public Factory(Source source, ExpressionEvaluator.Factory d, int scaleFactor) {
       this.source = source;
       this.d = d;
       this.scaleFactor = scaleFactor;

@@ -16,32 +16,32 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
+ * {@link ExpressionEvaluator} implementation for {@link CIDRMatch}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CIDRMatchEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CIDRMatchEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator ip;
+  private final ExpressionEvaluator ip;
 
-  private final EvalOperator.ExpressionEvaluator[] cidrs;
+  private final ExpressionEvaluator[] cidrs;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
+  public CIDRMatchEvaluator(Source source, ExpressionEvaluator ip, ExpressionEvaluator[] cidrs,
+      DriverContext driverContext) {
     this.source = source;
     this.ip = ip;
     this.cidrs = cidrs;
@@ -76,7 +76,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += ip.baseRamBytesUsed();
-    for (EvalOperator.ExpressionEvaluator e : cidrs) {
+    for (ExpressionEvaluator e : cidrs) {
       baseRamBytesUsed += e.baseRamBytesUsed();
     }
     return baseRamBytesUsed;
@@ -160,25 +160,20 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory ip;
+    private final ExpressionEvaluator.Factory ip;
 
-    private final EvalOperator.ExpressionEvaluator.Factory[] cidrs;
+    private final ExpressionEvaluator.Factory[] cidrs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip,
-        EvalOperator.ExpressionEvaluator.Factory[] cidrs) {
+    public Factory(Source source, ExpressionEvaluator.Factory ip,
+        ExpressionEvaluator.Factory[] cidrs) {
       this.source = source;
       this.ip = ip;
       this.cidrs = cidrs;
@@ -186,7 +181,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public CIDRMatchEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
       return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context);
     }
 

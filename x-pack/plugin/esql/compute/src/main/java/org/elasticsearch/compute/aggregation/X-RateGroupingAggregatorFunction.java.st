@@ -564,16 +564,20 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
-        try (
-            var flushQueues = rawBuffer.prepareForFlush();
-            var rates = blockFactory.newDoubleBlockBuilder(positionCount);
-            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, bigArrays)
-        ) {
+        try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                var state = flushAndCombineState(flushQueues, group);
-                if (state != null) {
-                    flushedStates.put(group, state);
+                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                var flushQueue = flushQueues.getFlushQueue(group);
+                if (flushQueue != null) {
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates = bigArrays.grow(reducedStates, group + 1);
+                        reducedStates.set(group, state);
+                    }
+                    flushGroup(state, rawBuffer, flushQueue);
+                }
+                if (state != null && state.samples > 1 && state.intervals.length > 1) {
                     // combine intervals for the final evaluation
                     Interval[] intervals = state.intervals;
                     ArrayUtil.timSort(intervals);
@@ -586,15 +590,18 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     }
                 }
             }
+            if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                tsContext.computeAdjacentGroupIds();
+            }
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                var state = flushedStates.get(group);
+                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
 
                 final double rate;
                 if (state == null || state.samples == 0) {
                     rate = Double.NaN;
                 } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = computeRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
+                    rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
                 }
@@ -668,7 +675,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
-    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
+    private double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
         if (state.samples < 2) {
             return Double.NaN;
         }
@@ -687,14 +694,13 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
      * Computes the rate for a given group by interpolating boundary values with adjacent groups,
      * or extrapolating values at the time bucket boundaries.
      */
-    private static double computeRate(
-        LongObjectPagedHashMap<ReducedState> states,
+    private double computeRate(
         int group,
+        ReducedState state,
         TimeSeriesGroupingAggregatorEvaluationContext tsContext,
         boolean isRateOverTime,
         double dateFactor
     ) {
-        var state = states.get(group);
         final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
         final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
         final double firstValue;
@@ -703,7 +709,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         double lastTsSec = tbucketEnd;
 
         int previousGroupId = tsContext.previousGroupId(group);
-        var previousState = (previousGroupId >= 0) ? states.get(previousGroupId) : null;
+        var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
                 firstTsSec = state.intervals[0].t1 / dateFactor;
@@ -716,7 +722,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         int nextGroupId = tsContext.nextGroupId(group);
-        var nextState = (nextGroupId >= 0) ? states.get(nextGroupId) : null;
+        var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].t1 / dateFactor;

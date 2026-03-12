@@ -22,13 +22,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class SecureClusterStateSettingsTests extends ESTestCase {
 
-    private static final String JSON_SECRETS = Strings.format("""
+    private static final String FLAT_SECRETS = Strings.format("""
         {
           "file_secrets": {
             "foo": "%s"
@@ -39,18 +41,28 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
         }
         """, Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
 
-    private static final String JSON_DUPLICATE_KEYS = Strings.format("""
+    private static final String NESTED_SECRETS = Strings.format("""
         {
           "file_secrets": {
-            "foo": "%s"
+            "foo": {
+              "one": {
+                "a": "%s"
+              }
+            }
           },
           "string_secrets": {
-            "foo": "bar"
+            "goo": {
+              "one": {
+                "a": "oneA",
+                "b": "oneB"
+              },
+              "two": "two"
+            }
           }
         }
         """, Base64.getEncoder().encodeToString("bar".getBytes(StandardCharsets.UTF_8)));
 
-    private final SecureClusterStateSettings secureClusterStateSettings = getSecureClusterStateSettings(JSON_SECRETS);
+    private final SecureClusterStateSettings secureClusterStateSettings = getSecureClusterStateSettings(FLAT_SECRETS);
 
     public void testFromXContent() throws IOException {
         assertThat(secureClusterStateSettings.getSettingNames(), containsInAnyOrder("foo", "goo"));
@@ -59,7 +71,46 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
         assertThat(readString(secureClusterStateSettings.getFile("foo")), is("bar"));
         assertThat(readString(secureClusterStateSettings.getFile("goo")), is("baz"));
 
-        assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(JSON_DUPLICATE_KEYS));
+        // throw on duplicate key
+        var e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(FLAT_SECRETS.replace("goo", "foo")));
+        assertThat(rootCause(e), hasToString(containsString("Some secrets were defined as both string and file secrets: [foo]")));
+
+        // throw on unexpected JSON token (null)
+        e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(FLAT_SECRETS.replace("\"baz\"", "null")));
+        assertThat(rootCause(e), hasToString(containsString("unexpected token [VALUE_NULL]")));
+
+        // throw on unexpected JSON token (number)
+        e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(FLAT_SECRETS.replace("\"baz\"", "4")));
+        assertThat(rootCause(e), hasToString(containsString("unexpected token [VALUE_NUMBER]")));
+
+        // throw on unexpected JSON token (array)
+        e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(FLAT_SECRETS.replace("\"baz\"", "[]")));
+        assertThat(rootCause(e), hasToString(containsString("unexpected token [START_ARRAY]")));
+    }
+
+    private static Throwable rootCause(Throwable e) {
+        while (e.getCause() != null) {
+            e = e.getCause();
+        }
+        return e;
+    }
+
+    public void testFromNestedXContent() throws IOException {
+        SecureClusterStateSettings secrets = getSecureClusterStateSettings(NESTED_SECRETS);
+
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("foo.one.a", "goo.one.a", "goo.one.b", "goo.two"));
+        assertThat(secrets.getString("foo.one.a").toString(), is("bar"));
+        assertThat(secrets.getString("goo.one.a").toString(), is("oneA"));
+        assertThat(secrets.getString("goo.one.b").toString(), is("oneB"));
+        assertThat(secrets.getString("goo.two").toString(), is("two"));
+
+        // throw on duplicate key
+        var e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(NESTED_SECRETS.replace("goo", "foo")));
+        assertThat(rootCause(e), hasToString(containsString("Some secrets were defined as both string and file secrets: [foo.one.a]")));
+
+        // throw on structural duplicate
+        e = assertThrows(XContentParseException.class, () -> getSecureClusterStateSettings(NESTED_SECRETS.replace("two", "one.a")));
+        assertThat(rootCause(e), hasToString(containsString("Duplicate secret for key: goo.one.a")));
     }
 
     public void testCopyOf() {
@@ -72,12 +123,12 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
     }
 
     public void testEquals() {
-        var otherSecureClusterStateSettings = getSecureClusterStateSettings(JSON_SECRETS);
+        var otherSecureClusterStateSettings = getSecureClusterStateSettings(FLAT_SECRETS);
         assertThat(otherSecureClusterStateSettings, equalTo(secureClusterStateSettings));
 
         assertThat(otherSecureClusterStateSettings, not(equalTo(SecureClusterStateSettings.EMPTY)));
-        assertThat(getSecureClusterStateSettings(JSON_SECRETS.replace("baz", "baz2")), not(equalTo(secureClusterStateSettings)));
-        assertThat(getSecureClusterStateSettings(JSON_SECRETS.replace("foo", "fuu")), not(equalTo(secureClusterStateSettings)));
+        assertThat(getSecureClusterStateSettings(FLAT_SECRETS.replace("baz", "baz2")), not(equalTo(secureClusterStateSettings)));
+        assertThat(getSecureClusterStateSettings(FLAT_SECRETS.replace("foo", "fuu")), not(equalTo(secureClusterStateSettings)));
 
         otherSecureClusterStateSettings.close();
         assertThat(otherSecureClusterStateSettings, not(equalTo(secureClusterStateSettings)));

@@ -420,6 +420,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:approximation.Approximate stats with sample}
   issue: https://github.com/elastic/elasticsearch/issues/144022
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with stats where}
+  issue: https://github.com/elastic/elasticsearch/issues/144051
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/144066
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration {withOTel=true}
+  issue: https://github.com/elastic/elasticsearch/issues/144072
+- class: org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistryTests
+  method: testRegisteredFunctionHaveTests
+  issue: https://github.com/elastic/elasticsearch/issues/144076
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMMRLimitedInput
+  issue: https://github.com/elastic/elasticsearch/issues/144077
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/144078
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/144079
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testConcurrentSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/144080
+- class: org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeSerializationTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/144081
 
 # Examples:
 #

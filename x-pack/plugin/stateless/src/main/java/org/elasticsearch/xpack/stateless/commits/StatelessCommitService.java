@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -1189,6 +1190,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private volatile State state = State.RUNNING;
         private volatile boolean isDeletingIndex;
         private volatile boolean isDeleted;
+        // Stale BlobReference instances whose deletion is deferred while the shard is relocating. On relocation failure the
+        // deferred deletions are reprocessed; on success they are discarded because the new primary takes over.
+        private final AtomicReference<List<BlobReference>> deferredStaleBlobDeletions = new AtomicReference<>(null);
         // map BCC generations to BCC blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> primaryTermAndGenToBlobReference = new ConcurrentHashMap<>();
 
@@ -2386,6 +2390,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxGenerationToUpload = toWaitFor;
                 assert state == State.RUNNING;
                 state = State.RELOCATING;
+                final var old = deferredStaleBlobDeletions.getAndSet(List.of());
+                assert old == null : "found non-null deferred stale blob deletions before relocating " + old;
             }
 
             addListenerForUploadedGeneration(toWaitFor, listener);
@@ -2420,6 +2426,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 } else {
                     listenersToFail = Collections.emptyList();
                 }
+                assert state == State.CLOSED : "unexpected state: " + state;
+                final var deferred = deferredStaleBlobDeletions.getAndSet(null);
+                assert deferred != null : "deferred stale blob deletions should have been initialized";
+                // Discard deferred deletions since the new primary will take over
             }
 
             ActionListener.onFailure(listenersToFail, new UnavailableShardsException(shardId, "shard relocated"));
@@ -2434,6 +2444,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     assert state == State.RELOCATING;
                     maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
+                    final var deferred = deferredStaleBlobDeletions.getAndSet(null);
+                    assert deferred != null : "deferred stale blob deletions should have been initialized";
+                    deferred.forEach(BlobReference::clearResources);
                 }
             }
         }
@@ -3078,18 +3091,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             protected void closeInternal() {
+                // If deferredStaleBlobDeletions is non-null, the shard is relocating and blob deletion should be deferred
+                final var deferred = deferredStaleBlobDeletions.accumulateAndGet(null, (existing, ignored) -> {
+                    if (existing == null) {
+                        return null;
+                    }
+                    return CollectionUtils.appendToCopyNoNullElements(existing, this);
+                });
+
+                if (deferred != null) {
+                    logger.trace(() -> format("[%s] deferring stale blob deletion for %s", shardId, primaryTermAndGeneration));
+                    return;
+                }
+
                 // Do not clear resources if the shard is closed but not deleted
-                // TODO: Instead of Closed, we should consider prevent deletion on RELOCATING, i.e. commits released
-                // between beginning of relocation and completion should not be deleted by the old primary. Ideally,
-                // these deletions should be deferred so that if relocation fails, the old primary can process them again.
-                // Today, this is not an issue since no commit needed by the new primary can reach here during this period.
-                // But we should consider making it more robust to be future proof.
                 if (isClosed() && isDeletingIndex == false) {
                     return;
                 }
                 // The shard is either NOT closed or the index is being deleted (which implies shard closed)
                 // It is possible that the shard closes right after the above check. Such a request is surely
                 // received _before_ the shard is marked as closed so that it is OK to proceed.
+                clearResources();
+            }
+
+            private void clearResources() {
                 logger.trace(() -> format("%s cleared all references to %s", shardId, primaryTermAndGeneration));
                 final BlobReference released = this;
                 internalFiles.forEach(fileName -> {

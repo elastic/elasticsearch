@@ -1251,8 +1251,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), is("SUM(does_not_exist1) + s0 + s1"));
 
         var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(4));
-        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist2", "does_not_exist3", "does_not_exist1", "s0")));
+        assertThat(eval.fields(), hasSize(3));
+        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist2", "does_not_exist3", "does_not_exist1")));
         eval.fields().forEach(a -> assertThat(as(as(a, Alias.class).child(), Literal.class).dataType(), is(DataType.NULL)));
 
         var relation = as(eval.child(), EsRelation.class);

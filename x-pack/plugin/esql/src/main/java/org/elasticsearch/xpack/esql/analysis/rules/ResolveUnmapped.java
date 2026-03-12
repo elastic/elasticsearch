@@ -105,6 +105,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     /**
      * The method introduces {@code EVAL missing_field = NULL}-equivalent into the plan, on top of the source, for every attribute in
+     * {@code unresolved}. It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
      * {@code unresolved}.
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
@@ -159,18 +160,19 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * Update the Fork's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
      */
     private static Fork patchFork(Fork fork) {
-        List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-        boolean childrenChanged = false;
-        for (var child : fork.children()) {
-            Holder<Boolean> patched = new Holder<>(false);
-            var transformed = child.transformDown(n -> patched.get() == false && n instanceof Project, n -> {
-                patched.set(true);
-                return patchForkProject((Project) n);
-            });
-            childrenChanged |= transformed != child;
-            newChildren.add(transformed);
-        }
-        return childrenChanged ? fork.withSubPlans(newChildren) : fork;
+        Holder<Boolean> changed = new Holder<>(false);
+        Fork transformed = (Fork) fork.transformDownSkipBranch((plan, skip) -> {
+            if (plan instanceof Project project) {
+                skip.set(true); // process top Project only (Fork-injected)
+                plan = patchForkProject(project);
+                if (plan != project) {
+                    changed.set(Boolean.TRUE);
+                }
+            }
+            return plan;
+        });
+
+        return changed.get() ? transformed.refreshOutput() : fork;
     }
 
     /**

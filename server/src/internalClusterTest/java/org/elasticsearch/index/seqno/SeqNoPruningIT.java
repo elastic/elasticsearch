@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -84,7 +85,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         );
 
         // waits for retention leases to advance past all docs
-        assertRetentionLeasesAdvanced(indexName, totalDocs);
+        assertRetentionLeasesAdvanced(client(), indexName, totalDocs);
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -268,7 +269,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         final long newMaxSeqNo = indicesAdmin().prepareStats(indexName).get().getShards()[0].getSeqNoStats().getMaxSeqNo();
 
         // wait for all retention leases to advance past all docs
-        assertRetentionLeasesAdvanced(indexName, newMaxSeqNo + 1);
+        assertRetentionLeasesAdvanced(client(), indexName, newMaxSeqNo + 1);
 
         forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -282,30 +283,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
 
         assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs + docsPerBatch);
         assertShardsHaveSeqNoDocValues(indexName, false, 1);
-    }
-
-    /**
-     * Waits for all retention leases on all copies of the given index to have their retaining sequence number
-     * equal to the expected value.
-     */
-    private static void assertRetentionLeasesAdvanced(String indexName, long expectedRetainingSeqNo) throws Exception {
-        assertBusy(() -> {
-            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (var indexService : indicesServices) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (var indexShard : indexService) {
-                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                                assertThat(
-                                    "retention lease [" + lease.id() + "] should have advanced",
-                                    lease.retainingSequenceNumber(),
-                                    equalTo(expectedRetainingSeqNo)
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        });
     }
 
     public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
@@ -363,7 +340,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
             greaterThan(1L)
         );
 
-        assertRetentionLeasesAdvanced(indexName, totalDocs);
+        assertRetentionLeasesAdvanced(client(), indexName, totalDocs);
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertNoFailures(forceMerge);

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex.paginatedhitsource;
+package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,7 +19,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.paginatedhitsource.SearchFailureTests.randomException;
+import static org.elasticsearch.index.reindex.SearchFailureTests.randomException;
 
 public class SearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
     SearchFailureWireSerialisationTests.SearchFailureWrapper> {

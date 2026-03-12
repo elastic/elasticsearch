@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex.paginatedhitsource;
+package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Response;

@@ -417,6 +417,166 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testSubqueryOnly() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM
+                (FROM languages
+                 | WHERE does_not_exist::LONG > 1)
+            """, STAGES);
+    }
+
+    public void testDoubleSubqueryOnly() throws Exception {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runTestsNullifyOnly("""
+            FROM
+                (FROM languages
+                 | WHERE does_not_exist1::LONG > 1),
+                (FROM sample_data
+                 | WHERE does_not_exist1::DOUBLE > 10.)
+            """, STAGES);
+    }
+
+    public void testDoubleSubqueryOnlyWithTopFilterAndNoMain() throws Exception {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runTestsNullifyOnly("""
+            FROM
+                (FROM languages
+                 | WHERE does_not_exist1::LONG > 1),
+                (FROM sample_data
+                 | WHERE does_not_exist1::DOUBLE > 10.)
+            | WHERE does_not_exist2::LONG < 100
+            """, STAGES);
+    }
+
+    public void testSubqueryAndMainQuery() throws Exception {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runTestsNullifyOnly("""
+            FROM employees,
+                (FROM languages
+                 | WHERE does_not_exist1::LONG > 1)
+            | WHERE does_not_exist2::LONG < 10 AND emp_no > 0
+            """, STAGES);
+    }
+
+    public void testSubqueryMix() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM
+                (FROM employees
+                 | EVAL emp_no_plus = emp_no_foo::LONG + 1
+                 | WHERE emp_no < 10003)
+            | KEEP emp_no*
+            | SORT emp_no, emp_no_plus
+            """, STAGES);
+    }
+
+    public void testSubqueryMixWithDropPattern() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM
+                (FROM employees
+                 | EVAL emp_no_plus = emp_no_foo::LONG + 1
+                 | WHERE emp_no < 10003)
+            | DROP *_name
+            | SORT emp_no, emp_no_plus
+            """, STAGES);
+    }
+
+    public void testSubqueryAfterUnionAllOfStats() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM
+                (FROM employees
+                 | STATS c = COUNT(*) BY does_not_exist)
+            | SORT does_not_exist
+            """, STAGES);
+    }
+
+    public void testSubqueryAfterUnionAllOfStatsAndMain() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees,
+                (FROM employees | STATS c = count(*))
+            | SORT does_not_exist
+            """, STAGES);
+    }
+
+    public void testSubquerysWithMainAndSameOptional() throws Exception {
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+        runTestsNullifyOnly("""
+            FROM employees,
+                (FROM languages
+                 | WHERE does_not_exist1::LONG > 1),
+                (FROM languages
+                 | WHERE does_not_exist1::LONG > 2)
+            | WHERE does_not_exist2::LONG < 10 AND emp_no > 0 OR does_not_exist1::LONG < 11
+            """, STAGES);
+    }
+
+    public void testSubquerysMixAndLookupJoinNullify() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees,
+                (FROM languages
+                 | WHERE language_code > 10
+                 | RENAME language_name as languageName),
+                (FROM sample_data
+                | STATS max(@timestamp)),
+                (FROM employees
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+            | STATS count(*) BY emp_no, language_code, does_not_exist2
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """, STAGES);
+    }
+
+    public void testSubquerysMixAndLookupJoinLoad() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees,
+                (FROM languages
+                 | WHERE language_code > 10
+                 | RENAME language_name as languageName),
+                (FROM sample_data
+                | STATS max(@timestamp)),
+                (FROM employees
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+            | STATS count(*) BY emp_no, language_code, does_not_exist2
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """, STAGES);
+    }
+
+    public void testSubquerysWithMainAndStatsOnly() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees, // adding a "main" index/pattern makes does_not_exist2 & 3 resolved (compared to the same query above, w/o it)
+                (FROM languages
+                 | STATS c = COUNT(*) BY emp_no, does_not_exist1),
+                (FROM languages
+                 | STATS a = AVG(salary))
+            | WHERE does_not_exist2::LONG < 10
+            | EVAL x = does_not_exist3
+            """, STAGES);
+    }
+
     public void testPartiallyMappedField() throws Exception {
         runTests("""
             FROM sample_data, partial_mapping_sample_data

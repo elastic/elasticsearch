@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -227,7 +227,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     new EsqlFunctionRegistry(),
                     CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
-                    new EnrichResolution(),
+                    AnalyzerTestUtils.defaultEnrichResolution(),
                     InferenceResolution.EMPTY,
                     transportVersion,
                     statement.setting(UNMAPPED_FIELDS)

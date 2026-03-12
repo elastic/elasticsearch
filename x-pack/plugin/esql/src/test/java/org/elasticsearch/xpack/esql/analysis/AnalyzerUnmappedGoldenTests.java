@@ -346,6 +346,29 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testForkBranchesWithDifferentSchemas() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | WHERE first_name == "Chris" AND does_not_exist1::LONG > 5
+            | EVAL does_not_exist2 IS NULL
+            | FORK (WHERE emp_no > 3 | SORT does_not_exist3 | LIMIT 7 )
+                   (WHERE emp_no > 2 | EVAL xyz = does_not_exist4::KEYWORD )
+                   (DISSECT first_name "%{d} %{e} %{f}"
+                    | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE
+                    | EVAL xyz = "abc")
+            """, STAGES);
+    }
+
+    public void testForkBranchesAfterStats2ndBranch() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | WHERE does_not_exist1 IS NULL
+            | FORK (STATS c = COUNT(*))
+                   (STATS d = AVG(salary) BY does_not_exist2)
+            | SORT does_not_exist2
+            """, STAGES);
+    }
+
     public void testFuse() throws Exception {
         runTestsNullifyOnly("""
             FROM employees METADATA _score, _index, _id
@@ -379,6 +402,21 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | EVAL x = COALESCE(does_not_exist::LONG, emp_no, 0)
             | KEEP emp_no, x
             """);
+    }
+
+    public void testEnrich() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | EVAL x = does_not_exist::KEYWORD
+            | ENRICH languages ON x
+            """, STAGES);
+    }
+
+    public void testSemanticText() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | WHERE KNN(does_not_exist, [0, 1, 2])
+            """, STAGES);
     }
 
     public void testTBucketGroupByUnmapped() throws Exception {

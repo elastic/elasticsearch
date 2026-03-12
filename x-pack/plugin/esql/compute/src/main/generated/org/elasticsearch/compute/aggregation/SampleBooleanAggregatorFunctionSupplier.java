@@ -34,13 +34,13 @@ public final class SampleBooleanAggregatorFunctionSupplier implements Aggregator
   @Override
   public SampleBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleBooleanAggregatorFunction.create(driverContext, channels, limit);
+    return new SampleBooleanAggregatorFunction(driverContext, channels, limit);
   }
 
   @Override
   public SampleBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SampleBooleanGroupingAggregatorFunction.create(channels, driverContext, limit);
+    return new SampleBooleanGroupingAggregatorFunction(channels, driverContext, limit);
   }
 
   @Override

@@ -39,16 +39,11 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
 
   private final List<Integer> channels;
 
-  public SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidPointAggregator.CentroidState state) {
+  SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialCentroidCartesianPointDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointDocValuesAggregator.initSingle());
+    this.state = SpatialCentroidCartesianPointDocValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

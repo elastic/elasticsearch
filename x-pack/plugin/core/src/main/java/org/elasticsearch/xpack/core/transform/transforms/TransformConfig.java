@@ -81,8 +81,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
     }
 
-    private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TransformConfig, ParserContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TransformConfig, ParserContext> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
 
     private final String id;
@@ -109,11 +109,12 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
     }
 
-    private static ConstructingObjectParser<TransformConfig, String> createParser(boolean lenient) {
-        ConstructingObjectParser<TransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient, (args, optionalId) -> {
+    private static ConstructingObjectParser<TransformConfig, ParserContext> createParser(boolean lenient) {
+        ConstructingObjectParser<TransformConfig, ParserContext> parser = new ConstructingObjectParser<>(NAME, lenient, (args, context) -> {
             String id = (String) args[0];
 
             // if the id has been specified in the body and the path, they must match
+            var optionalId = context.optionalTransformId();
             if (id == null) {
                 id = optionalId;
             } else if (optionalId != null && id.equals(optionalId) == false) {
@@ -178,7 +179,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         });
 
         parser.declareString(optionalConstructorArg(), TransformField.ID);
-        parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), TransformField.SOURCE);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> SourceConfig.fromXContent(p, lenient, c.transformParsingContext()),
+            TransformField.SOURCE
+        );
         parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), TransformField.DESTINATION);
         parser.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
         parser.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
@@ -561,8 +566,14 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         return Strings.toString(this, true, true);
     }
 
-    public static TransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId, boolean lenient) {
-        return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
+    public static TransformConfig fromXContent(
+        final XContentParser parser,
+        @Nullable final String optionalTransformId,
+        boolean lenient,
+        TransformParsingContext transformParsingContext
+    ) {
+        var context = new ParserContext(optionalTransformId, transformParsingContext);
+        return lenient ? LENIENT_PARSER.apply(parser, context) : STRICT_PARSER.apply(parser, context);
     }
 
     /**
@@ -883,4 +894,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             );
         }
     }
+
+    private record ParserContext(String optionalTransformId, TransformParsingContext transformParsingContext) {}
 }

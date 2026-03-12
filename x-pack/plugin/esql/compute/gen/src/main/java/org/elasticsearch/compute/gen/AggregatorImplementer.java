@@ -180,7 +180,7 @@ public class AggregatorImplementer {
         builder.addSuperinterface(AGGREGATOR_FUNCTION);
         builder.addField(
             FieldSpec.builder(LIST_AGG_FUNC_DESC, "INTERMEDIATE_STATE_DESC", Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer(initInterState())
+                .initializer(initIntermediateStateDescription())
                 .build()
         );
 
@@ -216,7 +216,7 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private CodeBlock initInterState() {
+    private CodeBlock initIntermediateStateDescription() {
         CodeBlock.Builder builder = CodeBlock.builder();
         builder.add("List.of(");
         boolean addComma = false;

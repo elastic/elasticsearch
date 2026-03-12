@@ -184,7 +184,7 @@ public class GroupingAggregatorImplementer {
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION);
         builder.addField(
             FieldSpec.builder(LIST_AGG_FUNC_DESC, "INTERMEDIATE_STATE_DESC", Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                .initializer(initInterState())
+                .initializer(initIntermediateStateDescription())
                 .build()
         );
         builder.addField(aggState.type(), "state", Modifier.PRIVATE, Modifier.FINAL);
@@ -218,7 +218,7 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private CodeBlock initInterState() {
+    private CodeBlock initIntermediateStateDescription() {
         CodeBlock.Builder builder = CodeBlock.builder();
         builder.add("List.of(");
         boolean addComma = false;

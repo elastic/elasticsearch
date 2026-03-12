@@ -33,7 +33,7 @@ public class ViewResolutionServiceTests extends ESTestCase {
                 clusterState.projectState(ProjectId.DEFAULT),
                 new String[] { "missing" },
                 IndicesOptions.builder()
-                    .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true))
+                    .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
                     .concreteTargetOptions(ERROR_WHEN_UNAVAILABLE_TARGETS)
                     .build(),
                 null

@@ -1472,3 +1472,18 @@ m:double | pod:keyword | bucket:datetime
 10.875   | THREE       | 2024-05-10T00:20:00.000Z
 10.75    | TWO         | 2024-05-10T00:20:00.000Z
 ;
+
+bareFieldWithBucketAndLimitZero
+required_capability: fix_limit_zero_in_stats_by_all
+required_capability: metrics_group_by_all
+TS k8s | STATS network.cost BY bucket = bucket(@timestamp, 1h) | LIMIT 0;
+
+network.cost:double | _timeseries:keyword | bucket:datetime
+;
+
+rateWithBucketAndLimitZero
+required_capability: fix_limit_zero_in_stats_by_all
+TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@timestamp, 1h) | LIMIT 0;
+
+max_rate:double | bucket:datetime
+;

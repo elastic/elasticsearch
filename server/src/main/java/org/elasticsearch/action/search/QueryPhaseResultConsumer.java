@@ -406,6 +406,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             toConsume = null;
         } finally {
             releaseAggs(toConsume);
+            if (lastMerge != null && lastMerge.reducedAggs() != null) {
+                Releasables.close(lastMerge.reducedAggs());
+            }
         }
         if (lastMerge != null) {
             processedShards.addAll(lastMerge.processedShards);
@@ -456,24 +459,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     return aggs;
                 }
             });
-            Iterator<InternalAggregations> localMapped = Iterators.map(localPartialResults, r -> {
-                try (r) {
-                    return r.expand();
-                }
-            });
+            // Caller (reduce() or partialReduce()) owns and closes local/remote refs; we only expand
+            Iterator<InternalAggregations> localMapped = Iterators.map(localPartialResults, r -> r.expand());
             Iterator<InternalAggregations> remoteMapped = Iterators.map(remotePartialResults, r -> {
-                try (r) {
-                    InternalAggregations aggs = r.expand();
-                    reduceContext.addTopHitsFromAggregationTree(aggs, false);
-                    return aggs;
-                }
+                InternalAggregations aggs = r.expand();
+                reduceContext.addTopHitsFromAggregationTree(aggs, false);
+                return aggs;
             });
             Iterator<InternalAggregations> combined = Iterators.concat(localMapped, remoteMapped, toConsumeMapped);
             return InternalAggregations.topLevelReduce(combined, resultSetSize, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
-            localPartialResults.forEachRemaining(Releasable::close);
-            remotePartialResults.forEachRemaining(Releasable::close);
         }
     }
 

@@ -30,6 +30,7 @@ testClusters.configureEach {
   module ':modules:parent-join'
   module ':modules:lang-painless'
   module ':modules:rest-root'
+  module ':modules:codecs-common'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }

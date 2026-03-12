@@ -219,6 +219,13 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<ByteSizeValue> UPLOAD_PREWARM_MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.blob_cache_warming.upload_prewarm_max_size",
+        ByteSizeValue.ofMb(16),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -231,6 +238,7 @@ public class SharedBlobCacheWarmingService {
     private volatile int minSearchPower;
     private volatile boolean searchOfflineWarmingEnabled;
     private volatile TimeValue boostWindow;
+    private volatile long maxUploadPrewarmSize;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -265,75 +273,89 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING, value -> this.minSearchPower = value);
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
         clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> this.searchOfflineWarmingEnabled = value);
+        clusterSettings.initializeAndWatch(UPLOAD_PREWARM_MAX_SIZE_SETTING, value -> this.maxUploadPrewarmSize = value.getBytes());
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
         assert vbcc.isFrozen();
         long totalSizeInBytes = vbcc.getTotalSizeInBytes();
-        cacheService.maybeFetchRegion(
-            new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
-            0,
-            // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
-            // fully utilize each region. So we just pass it with a value that cover the current region.
-            totalSizeInBytes,
-            (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
-                completionListener,
-                () -> {
-                    assert streamFactory == null : streamFactory;
-                    try (OutputStream output = new OutputStream() {
+        long warmSize = Math.min(totalSizeInBytes, maxUploadPrewarmSize);
+        var cacheKey = new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName());
+        int endingRegion = cacheService.getEndingRegion(warmSize);
+        int regionSize = cacheService.getRegionSize();
 
-                        private final ByteBuffer byteBuffer = writeBuffer.get();
-                        private int bytesFlushed = 0;
+        try (var listeners = new RefCountingListener(listener.map(ignored -> null))) {
+            for (int region = 0; region <= endingRegion; region++) {
+                final long regionOffset = (long) region * regionSize;
+                cacheService.maybeFetchRegion(
+                    cacheKey,
+                    region,
+                    // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
+                    // fully utilize each region. So we just pass it with a value that covers the current region.
+                    totalSizeInBytes,
+                    (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener
+                        .completeWith(completionListener, () -> {
+                            assert streamFactory == null : streamFactory;
+                            try (OutputStream output = new OutputStream() {
 
-                        @Override
-                        public void write(int b) throws IOException {
-                            byteBuffer.put((byte) b);
-                            if (byteBuffer.hasRemaining() == false) {
-                                doFlush(false);
-                            }
-                        }
+                                private final ByteBuffer byteBuffer = writeBuffer.get();
+                                private int bytesFlushed = 0;
 
-                        @Override
-                        public void write(byte[] b, int off, int len) throws IOException {
-                            int toWrite = len;
-                            while (toWrite > 0) {
-                                int toPut = Math.min(byteBuffer.remaining(), toWrite);
-                                byteBuffer.put(b, off + (len - toWrite), toPut);
-                                toWrite -= toPut;
-                                if (byteBuffer.hasRemaining() == false) {
-                                    doFlush(false);
+                                @Override
+                                public void write(int b) throws IOException {
+                                    byteBuffer.put((byte) b);
+                                    if (byteBuffer.hasRemaining() == false) {
+                                        doFlush(false);
+                                    }
                                 }
-                            }
-                        }
 
-                        // We don't override the flush method as we only want to do cache aligned flushes - when the buffer is full or on
-                        // close.
-                        private void doFlush(boolean closeFlush) throws IOException {
-                            int position = byteBuffer.position();
-                            var bytesCopied = SharedBytes.copyBufferToCacheFileAligned(channel, bytesFlushed + channelPos, byteBuffer);
-                            bytesFlushed += bytesCopied;
-                            assert closeFlush || bytesCopied == position : bytesCopied + " != " + position;
-                            assert closeFlush || position % SharedBytes.PAGE_SIZE == 0;
-                            assert position > 0;
-                        }
+                                @Override
+                                public void write(byte[] b, int off, int len) throws IOException {
+                                    int toWrite = len;
+                                    while (toWrite > 0) {
+                                        int toPut = Math.min(byteBuffer.remaining(), toWrite);
+                                        byteBuffer.put(b, off + (len - toWrite), toPut);
+                                        toWrite -= toPut;
+                                        if (byteBuffer.hasRemaining() == false) {
+                                            doFlush(false);
+                                        }
+                                    }
+                                }
 
-                        @Override
-                        public void close() throws IOException {
-                            if (byteBuffer.position() > 0) {
-                                doFlush(true);
+                                // We don't override the flush method as we only want to do cache aligned flushes - when the buffer is
+                                // full or on close.
+                                private void doFlush(boolean closeFlush) throws IOException {
+                                    int position = byteBuffer.position();
+                                    var bytesCopied = SharedBytes.copyBufferToCacheFileAligned(
+                                        channel,
+                                        bytesFlushed + channelPos,
+                                        byteBuffer
+                                    );
+                                    bytesFlushed += bytesCopied;
+                                    assert closeFlush || bytesCopied == position : bytesCopied + " != " + position;
+                                    assert closeFlush || position % SharedBytes.PAGE_SIZE == 0;
+                                    assert position > 0;
+                                }
+
+                                @Override
+                                public void close() throws IOException {
+                                    if (byteBuffer.position() > 0) {
+                                        doFlush(true);
+                                    }
+                                    assert byteBuffer.position() == 0;
+                                    progressUpdater.accept(bytesFlushed);
+                                }
+                            }) {
+                                long absolutePos = regionOffset + relativePos;
+                                vbcc.getBytesByRange(absolutePos, Math.toIntExact(Math.min(len, totalSizeInBytes - regionOffset)), output);
+                                return null;
                             }
-                            assert byteBuffer.position() == 0;
-                            progressUpdater.accept(bytesFlushed);
-                        }
-                    }) {
-                        vbcc.getBytesByRange(relativePos, Math.toIntExact(Math.min(len, totalSizeInBytes)), output);
-                        return null;
-                    }
-                }
-            ),
-            uploadPrewarmFetchExecutor,
-            listener.map(b -> null)
-        );
+                        }),
+                    uploadPrewarmFetchExecutor,
+                    listeners.acquire().map(b -> null)
+                );
+            }
+        }
     }
 
     public void warmCacheForMerge(

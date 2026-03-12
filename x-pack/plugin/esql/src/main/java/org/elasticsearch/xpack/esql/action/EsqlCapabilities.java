@@ -2263,6 +2263,11 @@ public class EsqlCapabilities {
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
          * Fix for the STATS BY ALL with LIMIT 0.
          * https://github.com/elastic/elasticsearch/issues/144024
          */

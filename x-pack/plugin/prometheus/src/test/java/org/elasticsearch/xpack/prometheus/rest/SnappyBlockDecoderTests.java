@@ -11,23 +11,27 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.BytesRefRecycler;
+import org.junit.After;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class SnappyBlockDecoderTests extends ESTestCase {
 
-    private final SnappyBlockDecoder decoder = new SnappyBlockDecoder(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+    private final SnappyBlockDecoder decoder = new SnappyBlockDecoder(recycler);
+
+    @After
+    public void closeRecycler() {
+        recycler.close();
+    }
 
     public void testDecodeLiteralOnly() throws IOException {
         byte[] original = randomByteArrayOfLength(between(1, 1000));
@@ -48,12 +52,14 @@ public class SnappyBlockDecoderTests extends ESTestCase {
     }
 
     public void testDecodeRejectsOversizedOutput() {
-        byte[] original = randomByteArrayOfLength(200);
+        int length = between(10, 1000);
+        byte[] original = randomByteArrayOfLength(length);
         byte[] compressed = snappyEncode(original);
+        int maxSize = between(1, length - 1);
 
         var ex = expectThrows(Exception.class, () -> {
-            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), 100)) {
-                // should not reach here
+            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), maxSize)) {
+                fail("expected exception for input of length " + length + " with maxSize " + maxSize);
             }
         });
         assertTrue(ex.getMessage().contains("exceeds maximum"));
@@ -92,7 +98,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         byte[] garbage = new byte[] { 10, (byte) 0xFF };
         expectThrows(IOException.class, () -> {
             try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(garbage), () -> {}), 1024)) {
-                // should not reach here
+                fail("expected IOException for malformed input");
             }
         });
     }
@@ -100,7 +106,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
     public void testDecodeEmptyInput() {
         expectThrows(IOException.class, () -> {
             try (var result = decoder.process(new ReleasableBytesReference(BytesArray.EMPTY, () -> {}), 1024)) {
-                // should not reach here
+                fail("expected IOException for empty input");
             }
         });
     }
@@ -109,7 +115,9 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         for (int size : new int[] { 1, 15, 16, 60, 61, 255, 256, 4096, 16384 }) {
             byte[] original = randomByteArrayOfLength(size);
             byte[] compressed = snappyEncode(original);
-            try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size + 1024)) {
+            try (
+                var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)
+            ) {
                 assertEquals(size, result.length());
                 assertArrayEquals("failed for size " + size, original, BytesReference.toBytes(result));
             }
@@ -137,7 +145,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         int size = 32 * 1024 + between(1, 1000);
         byte[] original = randomByteArrayOfLength(size);
         byte[] compressed = snappyEncode(original);
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size + 1024)) {
+        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), size)) {
             assertEquals(size, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -158,7 +166,9 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             System.arraycopy(pattern, 0, original, prefixLen + i * pattern.length, pattern.length);
         }
         byte[] compressed = snappyEncode(original);
-        try (var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), totalSize + 1024)) {
+        try (
+            var result = decoder.process(new ReleasableBytesReference(new BytesArray(compressed), () -> {}), totalSize + between(0, 1024))
+        ) {
             assertEquals(totalSize, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -178,7 +188,7 @@ public class SnappyBlockDecoderTests extends ESTestCase {
             new BytesArray(compressed, split2, compressed.length - split2)
         );
 
-        try (var result = decoder.process(new ReleasableBytesReference(composite, () -> {}), original.length + 1024)) {
+        try (var result = decoder.process(new ReleasableBytesReference(composite, () -> {}), original.length + between(0, 1024))) {
             assertEquals(original.length, result.length());
             assertArrayEquals(original, BytesReference.toBytes(result));
         }
@@ -253,6 +263,12 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         assertDecodesHandCraftedLiteral(length, 62);
     }
 
+    public void testDecodeLiteralLengthCase63() throws IOException {
+        // Case 63: 4 extra bytes encode the literal length
+        int length = between(1, 1000);
+        assertDecodesHandCraftedLiteral(length, 63);
+    }
+
     private void assertDecodesHandCraftedLiteral(int length, int caseNum) throws IOException {
         byte[] data = randomByteArrayOfLength(length);
         var buf = new ByteArrayOutputStream();
@@ -295,11 +311,11 @@ public class SnappyBlockDecoderTests extends ESTestCase {
     }
 
     public void testDecodeReleasesResourcesOnError() {
-        var openPages = new AtomicInteger();
-        var trackingDecoder = getTrackingDecoder(openPages);
+        var trackingRecycler = new MockBytesRefRecycler();
+        var trackingDecoder = new SnappyBlockDecoder(trackingRecycler);
 
         // Stream claims 40000 bytes but only provides a 20000-byte literal.
-        // The decoder allocates 2 pages for the literal, then fails on the length mismatch.
+        // The decoder allocates pages for the literal, then fails on the length mismatch.
         byte[] literal = randomByteArrayOfLength(20000);
         var buf = new ByteArrayOutputStream();
         writeVarint(buf, 40000);
@@ -316,43 +332,137 @@ public class SnappyBlockDecoderTests extends ESTestCase {
         byte[] compressed = buf.toByteArray();
         expectThrows(IOException.class, () -> {
             try (var result = trackingDecoder.process(releasable(compressed), 40000)) {
-                fail("should not reach here");
+                fail("expected IOException for truncated stream");
             }
         });
-        assertEquals("all allocated pages should be released on error", 0, openPages.get());
+        trackingRecycler.close();
     }
 
-    private static SnappyBlockDecoder getTrackingDecoder(AtomicInteger openPages) {
-        Recycler<BytesRef> tracking = new Recycler<>() {
-            @Override
-            public V<BytesRef> obtain() {
-                openPages.incrementAndGet();
-                BytesRef ref = new BytesRef(new byte[pageSize()], 0, pageSize());
-                return new V<>() {
-                    @Override
-                    public BytesRef v() {
-                        return ref;
-                    }
+    public void testDecodeLiteralExceedsDeclaredLength() {
+        // Preamble claims 5 bytes, but the literal tag says 10 bytes
+        var buf = new ByteArrayOutputStream();
+        writeVarint(buf, 5);
+        buf.write(9 << 2); // literal tag, val=9, length=10
+        buf.write(new byte[10], 0, 10);
 
-                    @Override
-                    public boolean isRecycled() {
-                        return false;
-                    }
-
-                    @Override
-                    public void close() {
-                        openPages.decrementAndGet();
-                    }
-                };
+        byte[] compressed = buf.toByteArray();
+        var ex = expectThrows(IOException.class, () -> {
+            try (var result = decoder.process(releasable(compressed), 1024)) {
+                fail();
             }
+        });
+        assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
+    }
 
-            @Override
-            public int pageSize() {
-                return 16384;
+    public void testDecodeCopyExceedsDeclaredLength() {
+        // Preamble claims 6 bytes, literal writes 5, then a copy tries to write 4 more
+        var buf = new ByteArrayOutputStream();
+        writeVarint(buf, 6);
+        buf.write(4 << 2); // literal tag, val=4, length=5
+        buf.write(new byte[5], 0, 5);
+        // COPY_1_BYTE_OFFSET: length=4, offset=5
+        buf.write(0x01); // length = 4 + ((0x01 & 0x1C) >> 2) = 4
+        buf.write(5);
+
+        byte[] compressed = buf.toByteArray();
+        var ex = expectThrows(IOException.class, () -> {
+            try (var result = decoder.process(releasable(compressed), 1024)) {
+                fail();
             }
-        };
+        });
+        assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
+    }
 
-        return new SnappyBlockDecoder(tracking);
+    public void testDecodeSnappyBomb() {
+        // A small compressed payload that claims a huge uncompressed length (just under maxSize)
+        // but the actual tags try to produce even more output than declared.
+        // Preamble declares 100 bytes, a single 1-byte literal, then a run-length copy
+        // with offset=1 and length=60 that fills to 61, then another copy pushing past 100.
+        var buf = new ByteArrayOutputStream();
+        writeVarint(buf, 100);
+        buf.write(0 << 2); // literal tag, val=0, length=1
+        buf.write(0x42);
+        // COPY_2_BYTE_OFFSET: length = 1 + ((tag >> 2) & 0x3F), offset in next 2 bytes
+        // length=64 (max for this tag type), offset=1 (run-length expansion)
+        buf.write(0x02 | (63 << 2)); // COPY_2_BYTE_OFFSET, length = 1 + 63 = 64
+        buf.write(1); // offset low
+        buf.write(0); // offset high
+        // Now written=65. Another copy of 64 would push to 129, exceeding declared 100.
+        buf.write(0x02 | (63 << 2));
+        buf.write(1);
+        buf.write(0);
+
+        byte[] compressed = buf.toByteArray();
+        var ex = expectThrows(IOException.class, () -> {
+            try (var result = decoder.process(releasable(compressed), 1024)) {
+                fail();
+            }
+        });
+        assertTrue(ex.getMessage(), ex.getMessage().contains("would exceed declared uncompressed length"));
+    }
+
+    public void testDecodeInvalidCopyOffsetZero() {
+        // COPY_2_BYTE_OFFSET with offset=0 triggers "invalid copy offset" error
+        var buf = new ByteArrayOutputStream();
+        writeVarint(buf, 10);
+        buf.write(4 << 2); // literal tag, val=4, length=5
+        buf.write(new byte[5], 0, 5);
+        buf.write(0x02 | (4 << 2)); // COPY_2_BYTE_OFFSET, length=5
+        buf.write(0); // offset low byte
+        buf.write(0); // offset high byte
+
+        byte[] compressed = buf.toByteArray();
+        var ex = expectThrows(IOException.class, () -> {
+            try (var result = decoder.process(releasable(compressed), 10)) {
+                fail("expected IOException for zero copy offset");
+            }
+        });
+        assertTrue(ex.getMessage(), ex.getMessage().contains("invalid copy offset"));
+    }
+
+    public void testDecodeCopyOffsetExceedsWritten() {
+        // COPY_1_BYTE_OFFSET with offset=5 but only 2 bytes written so far
+        var buf = new ByteArrayOutputStream();
+        writeVarint(buf, 10);
+        buf.write(1 << 2); // literal tag, val=1, length=2
+        buf.write(new byte[2], 0, 2);
+        buf.write(0x01); // COPY_1_BYTE_OFFSET, length=4, offset_high=0
+        buf.write(5); // offset low byte
+
+        byte[] compressed = buf.toByteArray();
+        var ex = expectThrows(IOException.class, () -> {
+            try (var result = decoder.process(releasable(compressed), 10)) {
+                fail("expected IOException for offset exceeding written bytes");
+            }
+        });
+        assertTrue(ex.getMessage(), ex.getMessage().contains("exceeds decoded bytes"));
+    }
+
+    public void testDecodeTruncatedVarintPreamble() throws IOException {
+        // Varint byte 0x80 has continuation bit set but no following byte.
+        // The partial value is 0, so the decoder treats it as an empty block.
+        byte[] truncated = new byte[] { (byte) 0x80 };
+        try (var result = decoder.process(releasable(truncated), 1024)) {
+            assertEquals(0, result.length());
+        }
+    }
+
+    public void testDecodeTrailingDataAfterBlock() throws IOException {
+        // Valid compressed block with trailing bytes after the complete block.
+        // Exercises the out.written < uncompressedLength loop exit condition.
+        byte[] original = randomByteArrayOfLength(between(1, 100));
+        byte[] compressed = snappyEncode(original);
+        int trailingLen = between(1, 10);
+        byte[] withTrailing = new byte[compressed.length + trailingLen];
+        System.arraycopy(compressed, 0, withTrailing, 0, compressed.length);
+        for (int i = compressed.length; i < withTrailing.length; i++) {
+            withTrailing[i] = randomByte();
+        }
+
+        try (var result = decoder.process(releasable(withTrailing), original.length)) {
+            assertEquals(original.length, result.length());
+            assertArrayEquals(original, BytesReference.toBytes(result));
+        }
     }
 
     private static ReleasableBytesReference releasable(byte[] data) {

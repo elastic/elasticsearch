@@ -49,9 +49,11 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         /**
          * Post-processes the accumulated request body (e.g. decompression).
          *
-         * @param body the accumulated raw body
-         * @param maxSize the maximum permitted size for the result
-         * @return the post-processed body; must not exceed {@code maxSize}
+         * @param body The accumulated raw body to process.
+         *             Unless the post-processor returns the same reference, it is responsible for closing it.
+         *             The caller must not use this reference after this method returns.
+         * @param maxSize The maximum permitted size for the result.
+         * @return The post-processed body. Must not exceed {@code maxSize}. The caller is responsible for closing the returned reference.
          * @throws IOException on processing failure
          */
         ReleasableBytesReference process(ReleasableBytesReference body, long maxSize) throws IOException;
@@ -116,10 +118,7 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         }
 
         accumulatedSize += chunk.length();
-        try {
-            assertBelowLimit();
-        } catch (Exception e) {
-            closeOnFailure(channel, e, chunk);
+        if (failIfAboveLimit(channel, chunk)) {
             return;
         }
 
@@ -142,10 +141,12 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
 
             try {
                 fullBody = bodyPostProcessor.process(fullBody, maxRequestSize);
-                accumulatedSize = fullBody.length();
-                assertBelowLimit();
             } catch (Exception e) {
                 closeOnFailure(channel, e, fullBody);
+                return;
+            }
+            accumulatedSize = fullBody.length();
+            if (failIfAboveLimit(channel, fullBody)) {
                 return;
             }
 
@@ -158,13 +159,22 @@ public class IndexingPressureAwareContentAggregator implements BaseRestHandler.R
         }
     }
 
-    private void assertBelowLimit() {
+    /**
+     * @return {@code true} if the limit was exceeded and failure handling was performed, otherwise {@code false}.
+     */
+    private boolean failIfAboveLimit(RestChannel channel, Releasable releasable) {
         if (accumulatedSize > maxRequestSize) {
-            throw new ElasticsearchStatusException(
-                "request body too large, max [" + maxRequestSize + "] bytes",
-                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            closeOnFailure(
+                channel,
+                new ElasticsearchStatusException(
+                    "request body too large, max [" + maxRequestSize + "] bytes",
+                    RestStatus.REQUEST_ENTITY_TOO_LARGE
+                ),
+                releasable
             );
+            return true;
         }
+        return false;
     }
 
     private void closeOnFailure(RestChannel channel, Exception e, Releasable releasable) {

@@ -39,7 +39,9 @@ import java.util.ArrayList;
 /**
  * Decodes a Snappy block-compressed request body directly into recycled 16 KiB pages.
  * <p>
- * This is a fork of {@code io.netty.handler.codec.compression.Snappy} adapted to operate
+ * This is a fork of
+ * <a href="https://github.com/netty/netty/blob/netty-4.1.130.Final/codec/src/main/java/io/netty/handler/codec/compression/Snappy.java">
+ * {@code io.netty.handler.codec.compression.Snappy}</a> adapted to operate
  * on a {@link BytesReference} input (via {@link StreamInput}, zero-copy across chunks) and
  * recycled pages for output, following the same approach as
  * {@code org.elasticsearch.transport.Lz4TransportDecompressor}.
@@ -65,10 +67,8 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
 
     @Override
     public ReleasableBytesReference process(ReleasableBytesReference body, long maxSize) throws IOException {
-        try {
+        try (body) {
             return decode(body.streamInput(), maxSize);
-        } finally {
-            body.close();
         }
     }
 
@@ -104,7 +104,7 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
             return ReleasableBytesReference.empty();
         }
 
-        var out = new PagedOutput(recycler);
+        var out = new PagedOutput(recycler, uncompressedLength);
         try {
             while (in.available() > 0 && out.written < uncompressedLength) {
                 int tag = readUByte(in);
@@ -193,11 +193,13 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
         private final Recycler<BytesRef> recycler;
         private final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>();
         private final int pageSize;
+        private final int uncompressedLength;
         int written;
 
-        PagedOutput(Recycler<BytesRef> recycler) {
+        PagedOutput(Recycler<BytesRef> recycler, int uncompressedLength) {
             this.recycler = recycler;
             this.pageSize = recycler.pageSize();
+            this.uncompressedLength = uncompressedLength;
         }
 
         private void ensurePage() {
@@ -211,6 +213,7 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
          * output pages (literal copy, no intermediate buffer).
          */
         void writeLiteral(StreamInput in, int length) throws IOException {
+            validateOutputLength(length);
             int remaining = length;
             while (remaining > 0) {
                 ensurePage();
@@ -230,17 +233,34 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
          * Copies {@code length} bytes from {@code backOffset} bytes behind the write position,
          * handling the overlap case where {@code backOffset < length} (run-length repetition).
          */
-        void selfCopy(int backOffset, int length) {
+        void selfCopy(int backOffset, int length) throws IOException {
+            validateOutputLength(length);
             int srcPos = written - backOffset;
             if (backOffset >= length) {
                 bulkCopy(srcPos, length);
             } else {
                 int remaining = length;
+                // Each iteration doubles the copyable region: after copying backOffset bytes,
+                // the destination now contains those bytes too, extending the available source.
+                int copyable = backOffset;
                 while (remaining > 0) {
-                    int toCopy = Math.min(remaining, backOffset);
+                    int toCopy = Math.min(remaining, copyable);
                     bulkCopy(srcPos, toCopy);
                     remaining -= toCopy;
+                    copyable += toCopy;
                 }
+            }
+        }
+
+        private void validateOutputLength(int length) throws IOException {
+            // widen to long to avoid integer overflow
+            if ((long) written + length > uncompressedLength) {
+                throw new IOException(
+                    "snappy: output of "
+                        + ((long) written + length)
+                        + " bytes would exceed declared uncompressed length of "
+                        + uncompressedLength
+                );
             }
         }
 
@@ -273,9 +293,8 @@ public final class SnappyBlockDecoder implements IndexingPressureAwareContentAgg
 
         /** Assembles the written pages into a {@link ReleasableBytesReference}. */
         ReleasableBytesReference toBytesReference() {
-            if (pages.isEmpty()) {
-                return ReleasableBytesReference.empty();
-            }
+            assert pages.isEmpty() == false
+                : "toBytesReference() should only be called when uncompressedLength > 0, so at least one page must exist";
             if (pages.size() == 1) {
                 Recycler.V<BytesRef> page = pages.getFirst();
                 BytesRef ref = page.v();

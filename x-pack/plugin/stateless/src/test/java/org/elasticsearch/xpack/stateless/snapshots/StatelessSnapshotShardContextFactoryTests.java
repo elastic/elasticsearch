@@ -337,7 +337,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         final var indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         final var shardGeneration = ShardGeneration.newGeneration();
-        final var shardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+        final var shardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration, randomLongBetween(1, Long.MAX_VALUE));
         return new TestHarness(stateless, shardId, indexShard, indexCommit, closed, shardGeneration, shardSnapshotStatus);
     }
 }

@@ -19,6 +19,7 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -46,6 +47,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -361,29 +365,85 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private DataType convertParquetTypeToEsql(Type parquetType) {
         if (parquetType.isPrimitive() == false) {
-            return DataType.UNSUPPORTED; // Complex types not yet supported
+            return convertGroupTypeToEsql(parquetType.asGroupType());
         }
         PrimitiveType primitive = parquetType.asPrimitiveType();
         LogicalTypeAnnotation logical = primitive.getLogicalTypeAnnotation();
 
         return switch (primitive.getPrimitiveTypeName()) {
             case BOOLEAN -> DataType.BOOLEAN;
-            case INT32 -> logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation ? DataType.DATETIME : DataType.INTEGER;
-            case INT64 -> logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ? DataType.DATETIME : DataType.LONG;
+            case INT32 -> {
+                if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+                    yield DataType.DATETIME;
+                } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
+                    yield DataType.DOUBLE;
+                }
+                yield DataType.INTEGER;
+            }
+            case INT64 -> {
+                if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                    yield DataType.DATETIME;
+                } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
+                    yield DataType.DOUBLE;
+                }
+                yield DataType.LONG;
+            }
+            case INT96 -> DataType.DATETIME;
             case FLOAT, DOUBLE -> DataType.DOUBLE;
             case BINARY, FIXED_LEN_BYTE_ARRAY -> {
-                // Check for STRING logical type
-                if (logical instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
-                    yield DataType.KEYWORD;
+                if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
+                    yield DataType.DOUBLE;
                 }
-                // Default binary to keyword
+                if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+                    yield DataType.DOUBLE;
+                }
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;
         };
     }
 
+    /**
+     * Handles Parquet group types. Supports LIST of primitives by extracting the element type.
+     */
+    private DataType convertGroupTypeToEsql(GroupType groupType) {
+        LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation && groupType.getFieldCount() == 1) {
+            GroupType repeatedGroup = groupType.getType(0).asGroupType();
+            if (repeatedGroup.getFieldCount() == 1) {
+                Type elementType = repeatedGroup.getType(0);
+                if (elementType.isPrimitive()) {
+                    return convertParquetTypeToEsql(elementType);
+                }
+            }
+        }
+        return DataType.UNSUPPORTED;
+    }
+
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+    private static final long NANOS_PER_MILLI = 1_000_000L;
+    /** Julian day number for Unix epoch (1970-01-01). */
+    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
+
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
+
+    /**
+     * Formats a 16-byte UUID in big-endian layout as the standard 8-4-4-4-12 hex string.
+     */
+    static String formatUuid(byte[] bytes) {
+        if (bytes == null || bytes.length < 16) {
+            throw new IllegalArgumentException("UUID requires 16 bytes, got " + (bytes == null ? "null" : bytes.length));
+        }
+        StringBuilder sb = new StringBuilder(36);
+        for (int i = 0; i < 16; i++) {
+            sb.append(HEX[(bytes[i] >> 4) & 0xF]);
+            sb.append(HEX[bytes[i] & 0xF]);
+            if (i == 3 || i == 5 || i == 7 || i == 9) {
+                sb.append('-');
+            }
+        }
+        return sb.toString();
+    }
 
     /**
      * Column-at-a-time Parquet iterator. Uses {@link ColumnReadStoreImpl} and {@link ColumnReader}
@@ -435,11 +495,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 ColumnDescriptor desc = descByName.get(attr.name());
                 if (desc != null) {
+                    LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
                     columnInfos[i] = new ColumnInfo(
                         desc,
                         desc.getPrimitiveType().getPrimitiveTypeName(),
                         attr.dataType(),
-                        desc.getMaxDefinitionLevel()
+                        desc.getMaxDefinitionLevel(),
+                        desc.getMaxRepetitionLevel(),
+                        logicalType
                     );
                 }
             }
@@ -520,13 +583,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead) {
+            if (info.maxRepLevel > 0) {
+                return readListColumn(cr, info, rowsToRead);
+            }
             return switch (info.esqlType) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel, rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel, rowsToRead);
                 case LONG -> readLongColumn(cr, info.maxDefLevel, rowsToRead);
-                case DOUBLE -> readDoubleColumn(cr, info.parquetType, info.maxDefLevel, rowsToRead);
-                case KEYWORD, TEXT -> readBytesRefColumn(cr, info.maxDefLevel, rowsToRead);
-                case DATETIME -> readDatetimeColumn(cr, info.parquetType, info.maxDefLevel, rowsToRead);
+                case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
+                case KEYWORD, TEXT -> readBytesRefColumn(cr, info, rowsToRead);
+                case DATETIME -> readDatetimeColumn(cr, info, rowsToRead);
                 default -> {
                     skipValues(cr, rowsToRead);
                     yield blockFactory.newConstantNullBlock(rowsToRead);
@@ -588,13 +654,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
         }
 
-        private Block readDoubleColumn(ColumnReader cr, PrimitiveType.PrimitiveTypeName pType, int maxDef, int rows) {
+        private Block readDoubleColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            LogicalTypeAnnotation logical = info.logicalType;
+            if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
+                return readDecimalAsDoubleColumn(cr, info, decimal.getScale(), rows);
+            }
+            if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+                return readFloat16Column(cr, info.maxDefLevel, rows);
+            }
             double[] values = new double[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
-            boolean isFloat = pType == PrimitiveType.PrimitiveTypeName.FLOAT;
+            boolean isFloat = info.parquetType == PrimitiveType.PrimitiveTypeName.FLOAT;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
                     isNull[i] = true;
                     noNulls = false;
                 } else {
@@ -605,11 +678,54 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
         }
 
-        private Block readBytesRefColumn(ColumnReader cr, int maxDef, int rows) {
+        private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
+            double[] values = new double[rows];
+            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    BigInteger unscaled = switch (info.parquetType) {
+                        case INT32 -> BigInteger.valueOf(cr.getInteger());
+                        case INT64 -> BigInteger.valueOf(cr.getLong());
+                        case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
+                        default -> throw new IllegalStateException("Unexpected DECIMAL backing type: " + info.parquetType);
+                    };
+                    values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
+            double[] values = new double[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    byte[] bytes = cr.getBinary().getBytes();
+                    short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
+                    values[i] = Float.float16ToFloat(float16Bits);
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private Block readBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            boolean isUuid = info.logicalType instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
             try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
                 for (int i = 0; i < rows; i++) {
-                    if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
                         builder.appendNull();
+                    } else if (isUuid) {
+                        builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())));
                     } else {
                         builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
                     }
@@ -619,23 +735,333 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
 
-        private Block readDatetimeColumn(ColumnReader cr, PrimitiveType.PrimitiveTypeName pType, int maxDef, int rows) {
+        private Block readDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            if (info.parquetType == PrimitiveType.PrimitiveTypeName.INT96) {
+                return readInt96TimestampColumn(cr, info.maxDefLevel, rows);
+            }
             long[] values = new long[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean[] isNull = info.maxDefLevel > 0 ? new boolean[rows] : null;
             boolean noNulls = true;
-            boolean isDate = pType == PrimitiveType.PrimitiveTypeName.INT32;
+            boolean isDate = info.parquetType == PrimitiveType.PrimitiveTypeName.INT32;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (info.maxDefLevel > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel) {
                     isNull[i] = true;
                     noNulls = false;
                 } else if (isDate) {
                     values[i] = cr.getInteger() * MILLIS_PER_DAY;
                 } else {
-                    values[i] = cr.getLong();
+                    long raw = cr.getLong();
+                    values[i] = convertTimestampToMillis(raw, info.logicalType);
                 }
                 cr.consume();
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        private static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
+            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+                return switch (ts.getUnit()) {
+                    case MILLIS -> raw;
+                    case MICROS -> raw / 1_000;
+                    case NANOS -> raw / 1_000_000;
+                };
+            }
+            return raw;
+        }
+
+        /**
+         * Converts a Parquet INT96 value (12 bytes: 8 bytes nanos-of-day LE + 4 bytes Julian day LE)
+         * to epoch milliseconds.
+         */
+        private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
+            long[] values = new long[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    Binary bin = cr.getBinary();
+                    ByteBuffer buf = ByteBuffer.wrap(bin.getBytes()).order(ByteOrder.LITTLE_ENDIAN);
+                    long nanosOfDay = buf.getLong();
+                    int julianDay = buf.getInt();
+                    long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
+                    values[i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+        }
+
+        /**
+         * Reads a LIST column using repetition levels to determine list boundaries,
+         * producing multi-valued ESQL blocks. Handles null lists, empty lists, and
+         * null elements within lists correctly.
+         */
+        private Block readListColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            DataType elementType = info.esqlType;
+            int maxDef = info.maxDefLevel;
+            return switch (elementType) {
+                case INTEGER -> readListIntColumn(cr, maxDef, rows);
+                case LONG -> readListLongColumn(cr, maxDef, rows);
+                case DOUBLE -> readListDoubleColumn(cr, maxDef, rows);
+                case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows);
+                case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows);
+                case DATETIME -> readListDatetimeColumn(cr, info, rows);
+                default -> {
+                    skipListValues(cr, maxDef, rows);
+                    yield blockFactory.newConstantNullBlock(rows);
+                }
+            };
+        }
+
+        /**
+         * Skips all Parquet values for the given number of rows in a LIST column,
+         * respecting repetition levels to consume entire lists per row.
+         */
+        private static void skipListValues(ColumnReader cr, int maxDef, int rows) {
+            for (int row = 0; row < rows; row++) {
+                cr.consume();
+                while (cr.getCurrentRepetitionLevel() > 0) {
+                    cr.consume();
+                }
+            }
+        }
+
+        private Block readListIntColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newIntBlockBuilder(rows)) {
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendInt(cr.getInteger());
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendInt(cr.getInteger());
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendInt(cr.getInteger());
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block readListLongColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendLong(cr.getLong());
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendLong(cr.getLong());
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendLong(cr.getLong());
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block readListDoubleColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendDouble(cr.getDouble());
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendDouble(cr.getDouble());
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendDouble(cr.getDouble());
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block readListBooleanColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newBooleanBlockBuilder(rows)) {
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendBoolean(cr.getBoolean());
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendBoolean(cr.getBoolean());
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendBoolean(cr.getBoolean());
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows) {
+            try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block readListDatetimeColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+                int maxDef = info.maxDefLevel;
+                for (int row = 0; row < rows; row++) {
+                    int def = cr.getCurrentDefinitionLevel();
+                    if (def >= maxDef) {
+                        builder.beginPositionEntry();
+                        builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                        cr.consume();
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                            }
+                            cr.consume();
+                        }
+                        builder.endPositionEntry();
+                    } else {
+                        cr.consume();
+                        boolean hasValues = false;
+                        while (cr.getCurrentRepetitionLevel() > 0) {
+                            if (cr.getCurrentDefinitionLevel() >= maxDef) {
+                                if (hasValues == false) {
+                                    builder.beginPositionEntry();
+                                    hasValues = true;
+                                }
+                                builder.appendLong(convertTimestampToMillis(cr.getLong(), info.logicalType));
+                            }
+                            cr.consume();
+                        }
+                        if (hasValues) {
+                            builder.endPositionEntry();
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                }
+                return builder.build();
+            }
         }
 
         private static void skipValues(ColumnReader cr, int rows) {
@@ -664,7 +1090,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ColumnDescriptor descriptor,
         PrimitiveType.PrimitiveTypeName parquetType,
         DataType esqlType,
-        int maxDefLevel
+        int maxDefLevel,
+        int maxRepLevel,
+        LogicalTypeAnnotation logicalType
     ) {}
 
     /**

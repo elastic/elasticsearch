@@ -71,7 +71,7 @@ public class RetryingHttpSender implements RequestSender {
     }
 
     private static class AlreadyLoggedException extends RuntimeException {
-        public AlreadyLoggedException(Exception e) {
+        AlreadyLoggedException(Exception e) {
             super(e);
         }
 

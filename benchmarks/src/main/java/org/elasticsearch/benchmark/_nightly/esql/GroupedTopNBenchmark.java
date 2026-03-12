@@ -84,15 +84,8 @@ public class GroupedTopNBenchmark {
                 for (String topCount : GroupedTopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
                     for (String groupCount : GroupedTopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0]
                         .value()) {
-                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0]
-                            .value()) {
-                            run(
-                                data,
-                                Integer.parseInt(topCount),
-                                Integer.parseInt(groupCount),
-                                gk,
-                                SELF_TEST_PAGES
-                            );
+                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0].value()) {
+                            run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
                         }
                     }
                 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+
 /**
  * Basic scalar implementations of similarity operations.
  * <p>
@@ -76,5 +78,45 @@ class ScalarOperations {
             total += ((packedByte & 0xFF) >> 4) * unpacked1;
         }
         return total;
+    }
+
+    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+
+    private static float int4ReconstructDotProduct(
+        int rawDot,
+        int dims,
+        OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections
+    ) {
+        float ax = nodeCorrections.lowerInterval();
+        float lx = (nodeCorrections.upperInterval() - ax) * FOUR_BIT_SCALE;
+        float ay = queryCorrections.lowerInterval();
+        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
+        float x1 = nodeCorrections.quantizedComponentSum();
+        float y1 = queryCorrections.quantizedComponentSum();
+        return ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
+    }
+
+    static float applyInt4DotProductCorrections(
+        int rawDot,
+        int dims,
+        OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float centroidDP
+    ) {
+        float score = int4ReconstructDotProduct(rawDot, dims, nodeCorrections, queryCorrections);
+        score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
+        return (1f + Math.clamp(score, -1, 1)) / 2f;
+    }
+
+    static float applyInt4EuclideanCorrections(
+        int rawDot,
+        int dims,
+        OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections
+    ) {
+        float score = int4ReconstructDotProduct(rawDot, dims, nodeCorrections, queryCorrections);
+        score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
+        return 1 / (1f + Math.max(score, 0f));
     }
 }

@@ -39,6 +39,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.int4Quant
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104ScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104Scorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4DotProductCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyInt4EuclideanCorrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
@@ -60,8 +62,6 @@ public class VectorScorerInt4Benchmark {
     static {
         Utils.configureBenchmarkLogging();
     }
-
-    private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     @Param({ "96", "768", "1024" })
     public int dims;
@@ -89,15 +89,7 @@ public class VectorScorerInt4Benchmark {
             byte[] packed = values.vectorValue(node);
             int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
             var nodeCorrections = values.getCorrectiveTerms(node);
-            float ax = nodeCorrections.lowerInterval();
-            float lx = (nodeCorrections.upperInterval() - ax) * FOUR_BIT_SCALE;
-            float ay = queryCorrections.lowerInterval();
-            float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-            float x1 = nodeCorrections.quantizedComponentSum();
-            float y1 = queryCorrections.quantizedComponentSum();
-            float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
-            score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - values.getCentroidDP();
-            return (1f + Math.clamp(score, -1, 1)) / 2f;
+            return applyInt4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, values.getCentroidDP());
         }
 
         @Override
@@ -129,15 +121,7 @@ public class VectorScorerInt4Benchmark {
             byte[] packed = values.vectorValue(node);
             int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
             var nodeCorrections = values.getCorrectiveTerms(node);
-            float ax = nodeCorrections.lowerInterval();
-            float lx = (nodeCorrections.upperInterval() - ax) * FOUR_BIT_SCALE;
-            float ay = queryCorrections.lowerInterval();
-            float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-            float x1 = nodeCorrections.quantizedComponentSum();
-            float y1 = queryCorrections.quantizedComponentSum();
-            float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
-            score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
-            return 1 / (1f + Math.max(score, 0f));
+            return applyInt4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
         }
 
         @Override
@@ -177,19 +161,10 @@ public class VectorScorerInt4Benchmark {
                 byte[] packed = values.vectorValue(node);
                 int rawDot = dotProductI4SinglePacked(queryQuantized, packed);
                 var nodeCorrections = values.getCorrectiveTerms(node);
-                float ax = nodeCorrections.lowerInterval();
-                float lx = (nodeCorrections.upperInterval() - ax) * FOUR_BIT_SCALE;
-                float ay = queryCorrections.lowerInterval();
-                float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-                float x1 = nodeCorrections.quantizedComponentSum();
-                float y1 = queryCorrections.quantizedComponentSum();
-                float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
                 if (sim == VectorSimilarityFunction.EUCLIDEAN) {
-                    score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
-                    return 1 / (1f + Math.max(score, 0f));
+                    return applyInt4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
                 } else {
-                    score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
-                    return (1f + Math.clamp(score, -1, 1)) / 2f;
+                    return applyInt4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP);
                 }
             }
         };

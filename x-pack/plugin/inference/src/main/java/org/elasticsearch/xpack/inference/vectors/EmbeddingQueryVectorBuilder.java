@@ -83,6 +83,14 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 inferenceStrings.add(InferenceString.PARSER.apply(parser, null));
             }
+
+            if (inferenceStrings.isEmpty()) {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "Must provide at least one value in " + INPUT_FIELD.getPreferredName()
+                );
+            }
+
             return new InferenceStringGroup(inferenceStrings);
         }
         throw new XContentParseException(parser.getTokenLocation(), "Unsupported token [" + token + "]");

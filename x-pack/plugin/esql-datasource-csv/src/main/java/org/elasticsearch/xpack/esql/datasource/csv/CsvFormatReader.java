@@ -349,11 +349,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
-        if (context.firstSplit() == false) {
+        List<Attribute> effectiveSchema;
+        if (context.firstSplit()) {
+            effectiveSchema = null;
+        } else {
             reader.readLine();
+            effectiveSchema = resolvedSchema;
         }
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), resolvedSchema, effective);
+        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), effectiveSchema, effective);
     }
 
     @Override

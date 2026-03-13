@@ -11,6 +11,7 @@ package fixture.aws.sts;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.TimeValue;
 import org.junit.rules.ExternalResource;
 
@@ -44,7 +45,8 @@ public class AwsStsHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort();
     }
 
     public void stop(int delay) {

@@ -12,6 +12,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,8 +48,8 @@ public class RemoteViewNotSupportedException extends ElasticsearchException {
 
     private static String message(List<String> views) {
         String exclusions = views.stream().map(v -> {
-            int colon = v.indexOf(':');
-            return v.substring(0, colon + 1) + "-" + v.substring(colon + 1);
+            String[] clusterAndIndex = RemoteClusterAware.splitIndexName(v);
+            return clusterAndIndex[0] + ":-" + clusterAndIndex[1];
         }).collect(Collectors.joining(","));
         return "ES|QL queries with remote views are not supported. Matched "
             + views

@@ -599,8 +599,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 }
 
                 @Override
-                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
-                    throws EngineException {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
                     flushesInitiated.incrementAndGet();
                     super.flushHoldingLock(force, waitIfOngoing, listener);
                 }

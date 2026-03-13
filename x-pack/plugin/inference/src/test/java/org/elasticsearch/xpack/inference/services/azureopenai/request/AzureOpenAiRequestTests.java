@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsFactory;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
 import org.junit.After;
 import org.junit.Before;
 

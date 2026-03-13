@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public interface AzureOpenAiServiceSettings {

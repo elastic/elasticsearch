@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.oauth;
+package org.elasticsearch.xpack.inference.services.azureopenai.oauth2;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;

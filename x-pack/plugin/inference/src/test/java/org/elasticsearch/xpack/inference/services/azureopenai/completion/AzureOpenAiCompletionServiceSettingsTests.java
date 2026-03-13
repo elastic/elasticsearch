@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
@@ -21,9 +22,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiCompletionServiceSettings> {
+public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiCompletionServiceSettings> {
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {
         var resourceName = randomAlphaOfLength(8);
@@ -91,5 +93,22 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
         }
 
         return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings);
+    }
+
+    @Override
+    protected AzureOpenAiCompletionServiceSettings mutateInstanceForVersion(
+        AzureOpenAiCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        if (version.supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
+            return instance;
+        }
+
+        return new AzureOpenAiCompletionServiceSettings(
+            instance.resourceName(),
+            instance.deploymentId(),
+            instance.apiVersion(),
+            instance.rateLimitSettings()
+        );
     }
 }

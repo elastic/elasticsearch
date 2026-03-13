@@ -23,7 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -31,8 +31,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 
 public final class AzureOpenAiSecretsFactory {

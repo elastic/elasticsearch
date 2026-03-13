@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
 public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, AzureOpenAiServiceSettings {
 

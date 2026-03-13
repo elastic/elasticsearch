@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;

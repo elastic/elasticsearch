@@ -51,13 +51,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -151,8 +154,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
             TaskInfo serialized = copyWriteable(taskInfo, oldRegistry, TaskInfo::from, previousVersion);
             assertThat(serialized.status(), instanceOf(RawTaskStatus.class));
-            assertThat(((RawTaskStatus) serialized.status()).toMap().get("request_id"), equalTo(task.getExecutionId().getEncoded()));
-            assertThat(((RawTaskStatus) serialized.status()).toMap().get("keep_alive"), equalTo("1h"));
+            Map<String, Object> statusMap = ((RawTaskStatus) serialized.status()).toMap();
+            assertThat(statusMap, allOf(hasEntry("request_id", task.getExecutionId().getEncoded()), hasEntry("keep_alive", "1h")));
         }
     }
 

@@ -34,6 +34,7 @@ public class Clusters {
             .module("repository-gcs")
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
+            .setting("logger.org.elasticsearch.xpack.esql", "TRACE")
             .setting("xpack.license.self_generated.type", "trial")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")

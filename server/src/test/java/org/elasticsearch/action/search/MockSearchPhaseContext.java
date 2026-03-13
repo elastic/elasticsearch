@@ -10,12 +10,15 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -27,6 +30,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -61,7 +66,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
-            (clusterAlias, nodeId) -> null,
+            (clusterAlias, nodeId) -> createMockConnection(nodeId),
             null,
             null,
             Runnable::run,
@@ -80,6 +85,77 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
+    }
+
+    private static Transport.Connection createMockConnection(String nodeId) {
+        return new Transport.Connection() {
+            @Override
+            public void incRef() {
+                // Mock implementation - no-op for tests
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                return true;  // Always succeed for mock
+            }
+
+            @Override
+            public boolean decRef() {
+                return false;  // Never actually release for mock
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return true;  // Always has references for mock
+            }
+
+            @Override
+            public DiscoveryNode getNode() {
+                return new DiscoveryNode(
+                    nodeId,                                          // nodeName
+                    nodeId,                                          // nodeId
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),  // address
+                    Collections.emptyMap(),                          // attributes
+                    Collections.emptySet(),                          // roles
+                    null                                             // versionInfo (null = use current)
+                );
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                // Mock implementation - not needed for these tests
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+                // Mock implementation - not needed for tests
+            }
+
+            @Override
+            public void addRemovedListener(ActionListener<Void> listener) {
+                // Mock implementation - not needed for tests
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;  // Never closed for mock
+            }
+
+            @Override
+            public void close() {
+                // Mock implementation - no-op for tests
+            }
+
+            @Override
+            public void onRemoved() {
+                // Mock implementation - no-op for tests
+            }
+        };
     }
 
     public void assertNoFailure() {

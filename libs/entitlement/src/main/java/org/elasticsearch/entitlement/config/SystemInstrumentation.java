@@ -46,8 +46,8 @@ public class SystemInstrumentation implements InstrumentationConfig {
         builder.on(Runtime.class, rule -> {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingVoid(Runtime::halt, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
-            rule.callingVoid(Runtime::addShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.calling(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+            rule.callingVoid(Runtime::addShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.calling(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturn(false);
             rule.callingVoid(Runtime::load, String.class)
                 .enforce((_, path) -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
                 .elseThrowNotEntitled();

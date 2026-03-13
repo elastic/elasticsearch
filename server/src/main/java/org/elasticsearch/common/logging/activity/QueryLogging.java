@@ -39,10 +39,6 @@ public interface QueryLogging {
     String QUERY_LOGGER_NAME = "elasticsearch.querylog";
 
     /**
-     * Is this querying other clusters?
-     */
-    String QUERY_FIELD_IS_CCS = ES_QUERY_FIELDS_PREFIX + "is_ccs";
-    /**
      * Did this query come from another cluster?
      */
     String QUERY_FIELD_IS_REMOTE = ES_QUERY_FIELDS_PREFIX + "is_remote";
@@ -50,4 +46,12 @@ public interface QueryLogging {
      * How many remote clusters were involved in this query?
      */
     String QUERY_FIELD_REMOTE_COUNT = ES_QUERY_FIELDS_PREFIX + "remote_count";
+    /**
+     * List of remote clusters involved in this query.
+     */
+    String QUERY_FIELD_REMOTES = ES_QUERY_FIELDS_PREFIX + "remotes";
+    /**
+     * Counts of the statuses of the clusters - successful, skipped, failed, etc.
+     */
+    String QUERY_FIELD_REMOTE_STATUS = ES_QUERY_FIELDS_PREFIX + "clusters.";
 }

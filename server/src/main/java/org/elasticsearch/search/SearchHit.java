@@ -73,6 +73,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     static final float DEFAULT_SCORE = Float.NaN;
     private float score;
 
+    /**
+     * ToXContent param key that, when set to {@code true}, causes {@code _seq_no} and {@code _primary_term} to be
+     * emitted even when they hold sentinel (unassigned) values. Used for indices with sequence numbers disabled.
+     */
+    public static final String SEQ_NO_PRIMARY_TERM_PARAMS_KEY = "seq_no_primary_term";
+
     static final int NO_RANK = -1;
     private int rank;
 
@@ -832,7 +838,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             builder.field(Fields._VERSION, version);
         }
 
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || params.paramAsBoolean(SEQ_NO_PRIMARY_TERM_PARAMS_KEY, false)) {
             builder.field(Fields._SEQ_NO, seqNo);
             builder.field(Fields._PRIMARY_TERM, primaryTerm);
         }

@@ -426,7 +426,11 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(SelectableChannel.class, rule -> {
             rule.calling(SelectableChannel::register, Selector.class, Integer.class)
                 .enforce(() -> Policies.outboundNetworkAccess().and(Policies.inboundNetworkAccess()))
-                .elseThrow(e -> new ClosedChannelException());
+                .elseThrow(e -> {
+                    var ex = new ClosedChannelException();
+                    ex.initCause(e);
+                    return ex;
+                });
         });
 
         builder.on(AsynchronousChannelProvider.class, rule -> {
@@ -576,7 +580,11 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 }
 
                 return check;
-            }).elseThrow(e -> new ClosedChannelException());
+            }).elseThrow(e -> {
+                var ex = new ClosedChannelException();
+                ex.initCause(e);
+                return ex;
+            });
             rule.calling(AbstractSelectableChannel::register, Selector.class, Integer.class).enforce((_, _, ops) -> {
                 CheckMethod check = Policies.empty();
                 if ((ops & SelectionKey.OP_CONNECT) != 0) {
@@ -587,7 +595,11 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 }
 
                 return check;
-            }).elseThrow(e -> new ClosedChannelException());
+            }).elseThrow(e -> {
+                var ex = new ClosedChannelException();
+                ex.initCause(e);
+                return ex;
+            });
         });
 
     }

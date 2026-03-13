@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
@@ -112,7 +114,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     public void testValidateIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = "test-inference-id-1";
+        final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
@@ -133,7 +135,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = "test-inference-id-2";
+        final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
@@ -152,6 +154,20 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         // Filter out null/empty values from params we didn't set to make comparison easier
         Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+    }
+
+    public void testSetDefaultBBQIndexOptionsWithInvalidElementType() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String inferenceFieldName = "inference_field";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        downgradeLicenseAndRestartCluster();
+
+        IndexOptions indexOptions = new ExtendedDenseVectorIndexOptions(null, DenseVectorFieldMapper.ElementType.BYTE);
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions))
+        );
+        assertThat(e.getMessage(), containsString("[element_type] cannot be [byte] when using index type [bbq_hnsw]"));
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {

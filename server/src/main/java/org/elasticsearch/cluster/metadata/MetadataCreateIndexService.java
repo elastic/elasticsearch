@@ -631,6 +631,7 @@ public class MetadataCreateIndexService {
      * @param currentState the current state to base the new state off of
      * @param request the create index request
      * @param silent a boolean for whether logging should be at a lower or higher level
+     * @param rerouteBehavior controls whether allocation reroute() is trigger after index creation
      * @param sourceMetadata when recovering from an existing index, metadata that should be copied to the new index
      * @param temporaryIndexMeta metadata for the new index built from templates, source metadata, and request settings
      * @param mappings a list of all mapping definitions to apply, in order

@@ -235,7 +235,7 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final DocIdAndSeqNo result = lookup.lookupSeqNo(term, leaf, loadSeqNo);
+            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, loadSeqNo);
             if (result != null) {
                 return result;
             }

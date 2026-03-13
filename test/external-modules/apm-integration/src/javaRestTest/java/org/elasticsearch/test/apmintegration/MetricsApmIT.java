@@ -91,10 +91,10 @@ public class MetricsApmIT extends ESRestTestCase {
             if (withOTel) {
                 clusterSettings.get(null).put("telemetry.otel.metrics.interval", "1s");
                 clusterSettings.get(null)
-                    .put("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + recordingApmServer.getPort() + "/v1/metrics");
+                    .put("telemetry.otel.metrics.endpoint", "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics");
             } else {
                 clusterSettings.get(null).put("telemetry.agent.metrics_interval", "1s");
-                clusterSettings.get(null).put("telemetry.agent.server_url", "http://127.0.0.1:" + recordingApmServer.getPort());
+                clusterSettings.get(null).put("telemetry.agent.server_url", "http://" + recordingApmServer.getHttpAddress());
             }
             cluster.restart(false);
             closeClients();

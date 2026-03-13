@@ -97,7 +97,7 @@ You should consider retrieving `_source` instead of individual fields when:
 - You have nested objects or arrays that you want to preserve in their original structure.
 
 
-  You probably want to avoid retrieving `_source` when:
+You might want to avoid retrieving `_source` when:
 - Your fields are stored as [doc_values](/reference/elasticsearch/mapping-reference/doc-values.md). `doc_values` access is faster than _`source`.
 - Your index uses [synthetic source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source). Accessing _`source` in synthetic source mode has a performance penalty.
 - The text fields you need are [stored fields](/reference/elasticsearch/mapping-reference/mapping-store.md).

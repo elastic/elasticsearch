@@ -9,6 +9,16 @@ setup:
             number_of_replicas: 0
           mappings:
             properties:
+              range:
+                type: date
+                script:
+                  source: |
+                    for (def dt : doc['timestamp']){
+                      emit(dt.plus(params.days,ChronoUnit.DAYS).toEpochMilli());
+                      if(params.days > 1){
+                        emit(dt.plus(params.days-1,ChronoUnit.DAYS).toEpochMilli());
+                      }
+                    }
               tomorrow:
                 type: date
                 script:
@@ -108,8 +118,12 @@ setup:
       search:
         index: sensor
         body:
+          query:
+            range:
+              gte: "{{start_date}}"
+              lte: "{{end_date}}"
           sort: timestamp
-          fields: [tomorrow, tomorrow_from_source, the_past, all_week, formatted_tomorrow]
+          fields: [tomorrow, tomorrow_from_source, the_past, all_week, formatted_tomorrow, range]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.tomorrow: ["2018-01-19T17:41:34.000Z"] }
   - match: {hits.hits.0.fields.tomorrow_from_source: ["2018-01-19T17:41:34.000Z"] }
@@ -124,6 +138,7 @@ setup:
         - 2018-01-23T17:41:34.000Z
         - 2018-01-24T17:41:34.000Z
   - match: {hits.hits.0.fields.formatted_tomorrow: [2018-01-19] }
+  - match: {hits.hits.0.fields.range: [1516729294000, 1516642894000, 1516556494000, 1516470094000, 1516383694000, "2018-01-18T17:41:34.000Z"]}
 
 ---
 "docvalue_fields":

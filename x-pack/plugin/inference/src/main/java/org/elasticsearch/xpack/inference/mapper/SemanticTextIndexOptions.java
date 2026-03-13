@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
@@ -136,27 +135,21 @@ public class SemanticTextIndexOptions implements ToXContent {
         IndexVersion indexVersion,
         boolean experimentalFeaturesEnabled
     ) {
-        try {
-            DenseVectorFieldMapper.ElementType elementType = null;
-            String elementTypeStr = XContentMapValues.nodeStringValue(
-                map.remove(ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD.getPreferredName())
-            );
-            if (elementTypeStr != null) {
-                elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
-            }
-
-            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = parseBaseDenseVectorIndexOptionsFromMap(
-                fieldName,
-                map,
-                indexVersion,
-                experimentalFeaturesEnabled
-            );
-            return elementType != null
-                ? new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
-                : denseVectorIndexOptions;
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
+        DenseVectorFieldMapper.ElementType elementType = null;
+        String elementTypeStr = XContentMapValues.nodeStringValue(
+            map.remove(ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD.getPreferredName())
+        );
+        if (elementTypeStr != null) {
+            elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
         }
+
+        DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = parseBaseDenseVectorIndexOptionsFromMap(
+            fieldName,
+            map,
+            indexVersion,
+            experimentalFeaturesEnabled
+        );
+        return elementType != null ? new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType) : denseVectorIndexOptions;
     }
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions parseBaseDenseVectorIndexOptionsFromMap(
@@ -188,10 +181,6 @@ public class SemanticTextIndexOptions implements ToXContent {
     }
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {
-        try {
-            return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
-        } catch (Exception exc) {
-            throw new ElasticsearchException(exc);
-        }
+        return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
     }
 }

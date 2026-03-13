@@ -2319,7 +2319,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
-        var innerClause = e.getCause().getCause().getCause().getCause();
+        var innerClause = e.getCause().getCause().getCause();
         assertThat(innerClause.getMessage(), containsString("[tokens_freq_ratio_threshold] must be between [1] and [100], got 1000.0"));
     }
 

@@ -623,7 +623,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             // only doing a merge without updating the actual #mapper field, no need to synchronize
-            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
+            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, this.mapper);
             return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
         } else {
             // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
@@ -639,8 +639,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
-        long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
-        if (this.mapper == null) {
+        return mergeBuilders(incomingBuilder, reason, this.mapper);
+    }
+
+    private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason, DocumentMapper currentMapper) {
+        long newFieldsBudget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason);
+        if (currentMapper == null) {
             try {
                 return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
             } catch (MapperParsingException e) {
@@ -649,7 +653,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
-        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         return buildMapping(existingBuilder, reason);
     }

@@ -247,7 +247,7 @@ You can create a service that mimics the Elastic GeoIP endpoint. You can then ge
 
 :::{note}
 You can bind any host port to nginx default port (http 80) for public access.
-Ngix must [autoindex](https://nginx.org/en/docs/http/ngx_http_autoindex_module.html) files on its root folder to serve.
+Nginx must [autoindex](https://nginx.org/en/docs/http/ngx_http_autoindex_module.html) files in its root folder to serve them.
 ::: 
 
 5. Specify the service’s endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.

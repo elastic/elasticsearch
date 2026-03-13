@@ -11,7 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -63,7 +63,7 @@ public final class UnpackDimension extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(resultType)) {
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case BYTES_REF -> ctx -> new UnpackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.unpackBytesValues(ctx, block)

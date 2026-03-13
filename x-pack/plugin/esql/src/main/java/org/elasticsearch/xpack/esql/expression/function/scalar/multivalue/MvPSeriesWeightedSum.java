@@ -14,7 +14,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -119,7 +119,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 ctx -> new CompensatedSum(),
                 (Double) p.fold(toEvaluator.foldCtx())
             );
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

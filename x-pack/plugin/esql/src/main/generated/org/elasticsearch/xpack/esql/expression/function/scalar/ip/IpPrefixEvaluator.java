@@ -16,26 +16,26 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IpPrefix}.
+ * {@link ExpressionEvaluator} implementation for {@link IpPrefix}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class IpPrefixEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IpPrefixEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator ip;
+  private final ExpressionEvaluator ip;
 
-  private final EvalOperator.ExpressionEvaluator prefixLengthV4;
+  private final ExpressionEvaluator prefixLengthV4;
 
-  private final EvalOperator.ExpressionEvaluator prefixLengthV6;
+  private final ExpressionEvaluator prefixLengthV6;
 
   private final BytesRef scratch;
 
@@ -43,9 +43,8 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings;
 
-  public IpPrefixEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator prefixLengthV4,
-      EvalOperator.ExpressionEvaluator prefixLengthV6, BytesRef scratch,
+  public IpPrefixEvaluator(Source source, ExpressionEvaluator ip,
+      ExpressionEvaluator prefixLengthV4, ExpressionEvaluator prefixLengthV6, BytesRef scratch,
       DriverContext driverContext) {
     this.source = source;
     this.ip = ip;
@@ -175,20 +174,19 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory ip;
+    private final ExpressionEvaluator.Factory ip;
 
-    private final EvalOperator.ExpressionEvaluator.Factory prefixLengthV4;
+    private final ExpressionEvaluator.Factory prefixLengthV4;
 
-    private final EvalOperator.ExpressionEvaluator.Factory prefixLengthV6;
+    private final ExpressionEvaluator.Factory prefixLengthV6;
 
     private final Function<DriverContext, BytesRef> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip,
-        EvalOperator.ExpressionEvaluator.Factory prefixLengthV4,
-        EvalOperator.ExpressionEvaluator.Factory prefixLengthV6,
+    public Factory(Source source, ExpressionEvaluator.Factory ip,
+        ExpressionEvaluator.Factory prefixLengthV4, ExpressionEvaluator.Factory prefixLengthV6,
         Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.ip = ip;

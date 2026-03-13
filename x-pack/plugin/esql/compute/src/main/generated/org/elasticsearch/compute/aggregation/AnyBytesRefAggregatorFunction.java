@@ -33,16 +33,10 @@ public final class AnyBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public AnyBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AnyBytesRefAggregator.SingleState state) {
+  AnyBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AnyBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AnyBytesRefAggregatorFunction(driverContext, channels, AnyBytesRefAggregator.initSingle(driverContext));
+    this.state = AnyBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

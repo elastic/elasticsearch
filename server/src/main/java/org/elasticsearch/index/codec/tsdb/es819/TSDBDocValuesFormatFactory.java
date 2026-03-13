@@ -23,7 +23,8 @@ public final class TSDBDocValuesFormatFactory {
     static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = ES819TSDBDocValuesFormat.getInstance(true);
 
     static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT = new ES819Version3TSDBDocValuesFormat();
-    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(true);
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(false, true);
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(true, false);
 
     private TSDBDocValuesFormatFactory() {}
 
@@ -31,16 +32,26 @@ public final class TSDBDocValuesFormatFactory {
      * Creates and returns a DocValuesFormat instance based on the specified index version
      * and whether to use a large numeric block size.
      *
-     * @param indexCreatedVersion the version of the index being created, which determines
-     *                            the applicable DocValuesFormat version.
-     * @param useLargeBlockSize   a boolean flag indicating whether to use a large numeric block size.
+     * @param indexCreatedVersion     the version of the index being created, which determines
+     *                                the applicable DocValuesFormat version.
+     * @param useLargeNumericBlockSize       a boolean flag indicating whether to use a large numeric block size.
+     * @param useLargeBinaryBlockSize a boolean flag indicating whether to use a large binary block size.
      * @return the appropriate DocValuesFormat instance based on the index version and block size selection.
      */
-    public static DocValuesFormat createDocValuesFormat(IndexVersion indexCreatedVersion, boolean useLargeBlockSize) {
+    public static DocValuesFormat createDocValuesFormat(
+        IndexVersion indexCreatedVersion,
+        boolean useLargeNumericBlockSize,
+        boolean useLargeBinaryBlockSize
+    ) {
         if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
-            return useLargeBlockSize ? ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_3_TSDB_DOC_VALUES_FORMAT;
+            if (useLargeBinaryBlockSize) {
+                // At this stage, we don't need large numeric blocks if large binary block is requested:
+                assert useLargeNumericBlockSize == false;
+                return ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK;
+            }
+            return useLargeNumericBlockSize ? ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_3_TSDB_DOC_VALUES_FORMAT;
         } else {
-            return useLargeBlockSize ? ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_2_TSDB_DOC_VALUES_FORMAT;
+            return useLargeNumericBlockSize ? ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_2_TSDB_DOC_VALUES_FORMAT;
         }
     }
 }

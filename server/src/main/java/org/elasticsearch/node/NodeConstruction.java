@@ -102,6 +102,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -160,6 +161,7 @@ import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
+import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -189,6 +191,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -216,6 +219,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
@@ -246,6 +250,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -746,6 +751,10 @@ class NodeConstruction {
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
+        MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
+        UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
+            p -> p.createUserAgentParserRegistry(environment)
+        ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -754,7 +763,8 @@ class NodeConstruction {
             analysisRegistry,
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
-            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService
@@ -1011,6 +1021,8 @@ class NodeConstruction {
             }
         };
 
+        final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1038,7 +1050,8 @@ class NodeConstruction {
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver,
-            remoteTransportClient
+            remoteTransportClient,
+            crossProjectModeDecider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1079,14 +1092,13 @@ class NodeConstruction {
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
+        modules.bindToInstance(CrossProjectModeDecider.class, crossProjectModeDecider);
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
             environment,
             clusterModule.getIndexNameExpressionResolver(),
-            namedWriteableRegistry,
-            settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
             threadPool,
@@ -1102,6 +1114,7 @@ class NodeConstruction {
             buildReservedProjectStateHandlers(reservedStateHandlerProviders, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
+            crossProjectModeDecider,
             projectResolver
         );
         modules.add(actionModule);
@@ -1160,6 +1173,7 @@ class NodeConstruction {
             telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
+            crossProjectModeDecider,
             projectResolver
         );
         transportServiceRef.set(transportService);
@@ -1260,6 +1274,7 @@ class NodeConstruction {
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
+        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry());
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
@@ -1367,6 +1382,7 @@ class NodeConstruction {
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
+            b.bind(SystemMetrics.class).toInstance(systemMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

@@ -9,10 +9,10 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesBooleanGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesIntGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesLongGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
@@ -25,10 +25,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
         List<BiFunction<List<Integer>, DriverContext, GroupingAggregatorFunction>> functions = List.of(
-            ValuesBooleanGroupingAggregatorFunction::create,
-            ValuesIntGroupingAggregatorFunction::create,
-            ValuesLongGroupingAggregatorFunction::create,
-            ValuesBytesRefGroupingAggregatorFunction::create,
+            (channels, ctx) -> new ValuesBooleanAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesIntAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesLongAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
             DimensionValuesByteRefGroupingAggregatorFunction::new
         );
         for (var fn : functions) {

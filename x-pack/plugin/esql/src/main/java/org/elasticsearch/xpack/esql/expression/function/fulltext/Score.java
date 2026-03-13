@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -83,7 +83,7 @@ public class Score extends Function implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         ScoreOperator.ExpressionScorer.Factory scorerFactory = ScoreMapper.toScorer(children().getFirst(), toEvaluator.shardContexts());
         return driverContext -> new ScorerEvaluatorFactory(scorerFactory).get(driverContext);
     }
@@ -114,17 +114,15 @@ public class Score extends Function implements EvaluatorMapper {
         return new Score(source, query);
     }
 
-    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory)
-        implements
-            EvalOperator.ExpressionEvaluator.Factory {
+    private record ScorerEvaluatorFactory(ScoreOperator.ExpressionScorer.Factory scoreFactory) implements ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ScorerEvaluator(scoreFactory.get(context));
         }
     }
 
-    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements EvalOperator.ExpressionEvaluator {
+    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScorerEvaluator.class);
 
         @Override

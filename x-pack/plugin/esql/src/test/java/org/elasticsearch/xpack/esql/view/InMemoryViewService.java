@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.indexSettings;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.view.ViewResolver.MAX_VIEW_DEPTH_SETTING;
 
 /**
@@ -70,7 +72,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService);
+        super(clusterService, TEST_FUNCTION_REGISTRY, TEST_PARSER);
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }

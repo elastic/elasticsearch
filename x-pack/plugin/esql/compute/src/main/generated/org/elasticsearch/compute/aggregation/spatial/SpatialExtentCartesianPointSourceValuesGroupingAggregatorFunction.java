@@ -42,16 +42,11 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
 
   private final DriverContext driverContext;
 
-  public SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      SpatialExtentGroupingState state, DriverContext driverContext) {
+  SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = SpatialExtentCartesianPointSourceValuesAggregator.initGrouping();
     this.driverContext = driverContext;
-  }
-
-  public static SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianPointSourceValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

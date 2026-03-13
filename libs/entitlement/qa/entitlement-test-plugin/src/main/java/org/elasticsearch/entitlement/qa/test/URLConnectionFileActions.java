@@ -22,12 +22,14 @@ class URLConnectionFileActions {
 
     private static <R> R callJdkFileConnection(CheckedFunction<URLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createFileURLConnection();
+        // Be sure we got the connection implementation we want
         assert conn.getClass().getSimpleName().equals("FileURLConnection");
         return connectionFunction.apply(conn);
     }
 
     private static <R> R callJarConnection(CheckedFunction<JarURLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createJarURLConnection();
+        // Be sure we got the connection implementation we want
         assert JarURLConnection.class.isAssignableFrom(conn.getClass());
         return connectionFunction.apply((JarURLConnection) conn);
     }

@@ -84,6 +84,7 @@ class URLConnectionNetworkActions {
 
     private static <R> R callJdkHttpConnection(CheckedFunction<HttpURLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createHttpURLConnection();
+        // Be sure we got the connection implementation we want
         assert HttpURLConnection.class.isAssignableFrom(conn.getClass());
         try {
             return connectionFunction.apply((HttpURLConnection) conn);
@@ -97,6 +98,7 @@ class URLConnectionNetworkActions {
 
     private static <R> R callJdkHttpsConnection(CheckedFunction<HttpsURLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createHttpsURLConnection();
+        // Be sure we got the connection implementation we want
         assert HttpsURLConnection.class.isAssignableFrom(conn.getClass());
         try {
             return connectionFunction.apply((HttpsURLConnection) conn);
@@ -110,6 +112,7 @@ class URLConnectionNetworkActions {
 
     private static <R> R callJdkFtpConnection(CheckedFunction<URLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createFtpURLConnection();
+        // Be sure we got the connection implementation we want
         assert conn.getClass().getSimpleName().equals("FtpURLConnection");
         try {
             return connectionFunction.apply(conn);
@@ -123,6 +126,7 @@ class URLConnectionNetworkActions {
 
     private static <R> R callJdkMailToConnection(CheckedFunction<URLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createMailToURLConnection();
+        // Be sure we got the connection implementation we want
         assert conn.getClass().getSimpleName().equals("MailToURLConnection");
         try {
             return connectionFunction.apply(conn);

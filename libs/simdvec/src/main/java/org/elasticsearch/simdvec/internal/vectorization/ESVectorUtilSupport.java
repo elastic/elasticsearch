@@ -65,7 +65,7 @@ public interface ESVectorUtilSupport {
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
-    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
+    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, int bit);
 
     void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
 

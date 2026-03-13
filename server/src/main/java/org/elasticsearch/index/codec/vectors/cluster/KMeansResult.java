@@ -18,6 +18,7 @@ public class KMeansResult {
     private float[][] centroids;
     private final int[] assignments;
     private int[] soarAssignments;
+    private NeighborHood[] neighborhoods;
     public static KMeansResult EMPTY = new KMeansResult(new float[0][], new int[0], new int[0]) {
         @Override
         public float[] getCentroid(int vectorOrdinal) {
@@ -79,5 +80,13 @@ public class KMeansResult {
 
     public int[] soarAssignments() {
         return soarAssignments;
+    }
+
+    public NeighborHood[] neighborhoods() {
+        return neighborhoods;
+    }
+
+    void setNeighborhoods(NeighborHood[] neighborhoods) {
+        this.neighborhoods = neighborhoods;
     }
 }

@@ -832,7 +832,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
+    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, int bits) {
         float nSteps = ((1 << bits) - 1);
         float invStep = nSteps / (upperInterval - lowInterval);
         int sumQuery = 0;

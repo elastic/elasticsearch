@@ -30,7 +30,9 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.CentroidOrdering;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -291,7 +293,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         if (logger.isDebugEnabled()) {
-            printClusterQualityStatistics(assignmentsByCluster);
+            printClusterQualityStatistics(assignmentsByCluster, loadCentroids(centroidSupplier, fieldInfo.getVectorDimension()));
         }
 
         return new CentroidOffsetAndLength(offsets.build(), lengths.build());
@@ -462,7 +464,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
 
             if (logger.isDebugEnabled()) {
-                printClusterQualityStatistics(assignmentsByCluster);
+                printClusterQualityStatistics(assignmentsByCluster, loadCentroids(centroidSupplier, fieldInfo.getVectorDimension()));
             }
             return new CentroidOffsetAndLength(offsets.build(), lengths.build());
         } finally {
@@ -470,7 +472,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    private static void printClusterQualityStatistics(int[][] clusters) {
+    private static void printClusterQualityStatistics(int[][] clusters, float[][] centroids) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
         float mean = 0;
@@ -498,6 +500,72 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             Math.sqrt(variance),
             variance
         );
+        printCentroidOrdinalQuality(centroids);
+    }
+
+    private static void printCentroidOrdinalQuality(float[][] centroids) {
+        if (centroids == null || centroids.length < 2) {
+            return;
+        }
+        try {
+            int n = centroids.length;
+            int k = Math.min(32, n - 1);
+            NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(centroids, k);
+            long count = 0L;
+            double meanDelta = 0.0;
+            double meanDistance = 0.0;
+            double m2Delta = 0.0;
+            double m2Distance = 0.0;
+            double cov = 0.0;
+            for (int i = 0; i < n; i++) {
+                int[] neighbors = neighborhoods[i].neighbors();
+                for (int neighbor : neighbors) {
+                    if (neighbor == i) {
+                        continue;
+                    }
+                    double delta = Math.abs(i - neighbor);
+                    double distance = Math.sqrt(ESVectorUtil.squareDistance(centroids[i], centroids[neighbor]));
+                    count++;
+                    double deltaDelta = delta - meanDelta;
+                    meanDelta += deltaDelta / count;
+                    double deltaDistance = distance - meanDistance;
+                    meanDistance += deltaDistance / count;
+                    m2Delta += deltaDelta * (delta - meanDelta);
+                    m2Distance += deltaDistance * (distance - meanDistance);
+                    cov += deltaDelta * (distance - meanDistance);
+                }
+            }
+            double varianceDelta = count > 1 ? m2Delta / (count - 1) : 0.0;
+            double varianceDistance = count > 1 ? m2Distance / (count - 1) : 0.0;
+            double correlation = 0.0;
+            if (varianceDelta > 0.0 && varianceDistance > 0.0) {
+                correlation = (cov / (count - 1)) / Math.sqrt(varianceDelta * varianceDistance);
+            }
+            double adjacentMean = 0.0;
+            for (int i = 0; i < n - 1; i++) {
+                adjacentMean += ESVectorUtil.dotProduct(centroids[i], centroids[i + 1]);
+            }
+            adjacentMean /= (n - 1);
+            logger.debug(
+                "Centroid ordinal locality: edges={} meanOrdinalDelta={} meanNeighborDistance={} corrOrdinalDistance={} adjOrdinalDistance={}",
+                count,
+                meanDelta,
+                meanDistance,
+                correlation,
+                adjacentMean
+            );
+        } catch (IOException e) {
+            logger.debug("Unable to compute centroid ordinal locality stats", e);
+        }
+    }
+
+    private static float[][] loadCentroids(CentroidSupplier centroidSupplier, int dimension) throws IOException {
+        float[][] centroids = new float[centroidSupplier.size()][dimension];
+        for (int i = 0; i < centroids.length; i++) {
+            float[] centroid = centroidSupplier.centroid(i);
+            centroids[i] = Arrays.copyOf(centroid, centroid.length);
+        }
+        return centroids;
     }
 
     @Override
@@ -784,7 +852,19 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
-        return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
+        CentroidOrdering.Result reordered = CentroidOrdering.reorder(
+            fieldInfo.getVectorDimension(),
+            centroids,
+            assignments,
+            soarAssignments,
+            kMeansResult.neighborhoods()
+        );
+        return new CentroidAssignments(
+            fieldInfo.getVectorDimension(),
+            reordered.centroids(),
+            reordered.assignments(),
+            reordered.overspillAssignments()
+        );
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

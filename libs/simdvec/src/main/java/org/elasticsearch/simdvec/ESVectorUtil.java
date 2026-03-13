@@ -335,16 +335,16 @@ public class ESVectorUtil {
      * @param destination the array to store the result
      * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
      * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
-     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     * @param bit the number of bits to use for quantization, must be between 0 and 32
      *
      * @return return the sum of all the elements of the resulting quantized vector.
      */
-    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, int bit) {
         if (vector.length > destination.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
         }
-        if (bit <= 0 || bit > Byte.SIZE) {
-            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        if (bit <= 0 || bit >= Integer.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 32, but was: " + bit);
         }
         return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }

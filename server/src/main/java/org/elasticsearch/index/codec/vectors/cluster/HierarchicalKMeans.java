@@ -14,6 +14,7 @@ import org.apache.lucene.search.TaskExecutor;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
@@ -111,6 +112,11 @@ public class HierarchicalKMeans {
      * @throws IOException is thrown if vectors is inaccessible
      */
     public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize) throws IOException {
+        return cluster(vectors, targetSize, null);
+    }
+
+    public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize, Consumer<NeighborHood[]> neighborhoodsConsumer)
+        throws IOException {
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
         }
@@ -137,7 +143,12 @@ public class HierarchicalKMeans {
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), localSampleSize);
-            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda, neighborhoods -> {
+                kMeansIntermediate.setNeighborhoods(neighborhoods);
+                if (neighborhoodsConsumer != null) {
+                    neighborhoodsConsumer.accept(neighborhoods);
+                }
+            });
         }
         return kMeansIntermediate;
     }

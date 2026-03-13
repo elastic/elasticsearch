@@ -29,12 +29,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-public record NeighborHood(int[] neighbors, float maxIntraDistance) {
+public record NeighborHood(int[] neighbors, float[] distances, float maxIntraDistance) {
 
     private static final int M = 8;
     private static final int EF_CONSTRUCTION = 150;
 
-    static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
+    static final NeighborHood EMPTY = new NeighborHood(new int[0], new float[0], Float.POSITIVE_INFINITY);
 
     public static NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
         assert centers.length > clustersPerNeighborhood;
@@ -89,12 +89,18 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             }
             // consume the queue into the neighbors array and get the maximum intra-cluster distance
             int[] neighbors = new int[queue.size()];
+            float[] neighborScores = new float[queue.size()];
             float maxIntraDistance = queue.topScore();
             int iter = 0;
             while (queue.size() > 0) {
-                neighbors[neighbors.length - ++iter] = queue.pop();
+                long encoded = queue.popRaw();
+                float score = queue.decodeScore(encoded);
+                int node = queue.decodeNodeId(encoded);
+                int idx = neighbors.length - ++iter;
+                neighbors[idx] = node;
+                neighborScores[idx] = score;
             }
-            neighborhoods[i] = new NeighborHood(neighbors, maxIntraDistance);
+            neighborhoods[i] = new NeighborHood(neighbors, neighborScores, maxIntraDistance);
         }
         return neighborhoods;
     }
@@ -162,10 +168,12 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             }
             final float minScore = scoreDocs[len - 1].score;
             final int[] neighbors = new int[len];
+            final float[] neighborScores = new float[len];
             for (int j = 0; j < len; j++) {
                 neighbors[j] = scoreDocs[j].doc;
+                neighborScores[j] = (1f / scoreDocs[j].score) - 1;
             }
-            neighborhoods[i] = new NeighborHood(neighbors, (1f / minScore) - 1);
+            neighborhoods[i] = new NeighborHood(neighbors, neighborScores, (1f / minScore) - 1);
         }
     }
 

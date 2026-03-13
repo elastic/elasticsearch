@@ -207,6 +207,7 @@ public class ServerProcessBuilder {
     ) throws InterruptedException, IOException {
 
         var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
+        builder.environment().clear();
         builder.environment().putAll(environment);
         setWorkingDir(builder, workingDir);
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);

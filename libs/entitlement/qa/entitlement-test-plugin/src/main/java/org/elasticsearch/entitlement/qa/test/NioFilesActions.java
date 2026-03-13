@@ -224,10 +224,9 @@ class NioFilesActions {
         Files.getFileStore(file);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String checkFilesGetFileAttributeView() {
-        Files.getFileAttributeView(readFile(), FileOwnerAttributeView.class);
-        return "true";
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedDefaultNull = true)
+    static FileOwnerAttributeView checkFilesGetFileAttributeView() {
+        return Files.getFileAttributeView(readFile(), FileOwnerAttributeView.class);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
@@ -278,22 +277,19 @@ class NioFilesActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsSymbolicLink() {
-        Files.isSymbolicLink(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsSymbolicLink() {
+        return Files.isSymbolicLink(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsDirectory() {
-        Files.isDirectory(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsDirectory() {
+        return Files.isDirectory(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsRegularFile() {
-        Files.isRegularFile(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsRegularFile() {
+        return Files.isRegularFile(readFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
@@ -312,34 +308,29 @@ class NioFilesActions {
         Files.size(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesExists() {
-        Files.exists(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesExists() {
+        return Files.exists(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesNotExists() {
-        Files.notExists(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesNotExists() {
+        return Files.notExists(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsReadable() {
-        Files.isReadable(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsReadable() {
+        return Files.isReadable(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsWriteable() {
-        Files.isWritable(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsWritable() {
+        return Files.isWritable(readFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String checkFilesIsExecutable() {
-        Files.isExecutable(readFile());
-        return "true";
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean checkFilesIsExecutable() {
+        return Files.isExecutable(readFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)

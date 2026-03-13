@@ -53,11 +53,12 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
     public RestGetBuiltinPrivilegesAction(
         Settings settings,
         XPackLicenseState licenseState,
-        GetBuiltinPrivilegesResponseTranslator responseTranslator
+        GetBuiltinPrivilegesResponseTranslator responseTranslator,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(settings, licenseState);
         this.responseTranslator = responseTranslator;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

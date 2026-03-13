@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -43,8 +42,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
-
-    public static final EsqlParser INSTANCE = new EsqlParser();
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
@@ -102,10 +99,6 @@ public class EsqlParser {
         this.config = config;
     }
 
-    private EsqlParser() { // when default, use the INSTANCE member
-        this(new EsqlConfig());
-    }
-
     // testing utility
     public LogicalPlan parseQuery(String query) {
         return parseQuery(query, new QueryParams());
@@ -113,7 +106,7 @@ public class EsqlParser {
 
     // testing utility
     public LogicalPlan parseQuery(String query, QueryParams params) {
-        return parseQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY));
+        return parseQuery(query, params, new PlanTelemetry(config.functionRegistry()), new InferenceSettings(Settings.EMPTY));
     }
 
     // testing utility
@@ -131,7 +124,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY), null);
+        return createStatement(query, params, new PlanTelemetry(config.functionRegistry()), new InferenceSettings(Settings.EMPTY), null);
     }
 
     // testing utility
@@ -140,7 +133,7 @@ public class EsqlParser {
             query,
             params,
             new SettingsValidationContext(false, config.isDevVersion()), // TODO: wire CPS in
-            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new PlanTelemetry(config.functionRegistry()),
             new InferenceSettings(Settings.EMPTY)
         );
     }

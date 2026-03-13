@@ -411,6 +411,7 @@ import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -453,6 +454,7 @@ public class ActionModule extends AbstractModule {
     private final ActionFilters actionFilters;
     private final IncrementalBulkService bulkService;
     private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -482,6 +484,7 @@ public class ActionModule extends AbstractModule {
         List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers,
         RestExtension restExtension,
         IncrementalBulkService bulkService,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         this.settings = env.settings();
@@ -492,6 +495,7 @@ public class ActionModule extends AbstractModule {
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
         this.projectResolver = projectResolver;
+        this.crossProjectModeDecider = crossProjectModeDecider;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -932,7 +936,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
-        registerHandler.accept(new RestResolveIndexAction(settings));
+        registerHandler.accept(new RestResolveIndexAction(crossProjectModeDecider));
 
         registerHandler.accept(new RestIndexAction(clusterService, projectResolver));
         registerHandler.accept(new CreateHandler(clusterService, projectResolver));
@@ -941,18 +945,22 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
         registerHandler.accept(new RestDeleteAction());
-        registerHandler.accept(new RestCountAction(settings));
+        registerHandler.accept(new RestCountAction(crossProjectModeDecider));
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
         registerHandler.accept(new RestBulkAction(settings, clusterSettings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings));
+        registerHandler.accept(
+            new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, crossProjectModeDecider)
+        );
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
-        registerHandler.accept(new RestOpenPointInTimeAction(settings));
+        registerHandler.accept(new RestOpenPointInTimeAction(crossProjectModeDecider));
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
+        registerHandler.accept(
+            new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature, crossProjectModeDecider)
+        );
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -970,7 +978,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptContextAction());
         registerHandler.accept(new RestGetScriptLanguageAction());
 
-        registerHandler.accept(new RestFieldCapabilitiesAction(settings));
+        registerHandler.accept(new RestFieldCapabilitiesAction(crossProjectModeDecider));
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
@@ -998,7 +1006,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesAction(projectResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings));
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(crossProjectModeDecider));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
         registerHandler.accept(new RestCatRecoveryAction());
         registerHandler.accept(new RestHealthAction());
@@ -1024,7 +1032,8 @@ public class ActionModule extends AbstractModule {
         ActionPlugin.RestHandlersServices restHandlersServices = new ActionPlugin.RestHandlersServices(
             settings,
             restController,
-            projectResolver
+            projectResolver,
+            crossProjectModeDecider
         );
 
         for (ActionPlugin plugin : actionPlugins) {

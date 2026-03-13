@@ -42,17 +42,12 @@ public final class DerivIntGroupingAggregatorFunction implements GroupingAggrega
 
   private final boolean dateNanos;
 
-  public DerivIntGroupingAggregatorFunction(List<Integer> channels,
-      DerivDoubleAggregator.GroupingState state, DriverContext driverContext, boolean dateNanos) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  DerivIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      boolean dateNanos) {
     this.dateNanos = dateNanos;
-  }
-
-  public static DerivIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, boolean dateNanos) {
-    return new DerivIntGroupingAggregatorFunction(channels, DerivIntAggregator.initGrouping(driverContext, dateNanos), driverContext, dateNanos);
+    this.channels = channels;
+    this.state = DerivIntAggregator.initGrouping(driverContext, dateNanos);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

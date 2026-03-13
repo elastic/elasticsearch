@@ -17,6 +17,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
@@ -51,6 +53,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -261,7 +264,11 @@ public class RestShardsAction extends AbstractCatAction {
             "sparse_vector.value_count",
             "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
-
+        table.addCell("tier_preference", "alias:tp;desc:preference for the tier of the index");
+        table.addCell(
+            "node.role",
+            "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only"
+        );
         table.endHeaders();
         return table;
     }
@@ -431,6 +438,21 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
             table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
+            table.addCell(
+                Optional.ofNullable(
+                    getOrNull(
+                        state.getState().metadata().findIndex(shard.index()).orElse(null),
+                        IndexMetadata::getSettings,
+                        s -> s.get("index.routing.allocation.include._tier_preference")
+                    )
+                ).orElse("")
+            );
+            table.addCell(
+                Optional.ofNullable(shard.currentNodeId())
+                    .map(id -> state.getState().nodes().get(id))
+                    .map(DiscoveryNode::getRoleAbbreviationString)
+                    .orElse("-")
+            );
             table.endRow();
         }
 

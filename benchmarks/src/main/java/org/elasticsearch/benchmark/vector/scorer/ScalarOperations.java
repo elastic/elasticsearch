@@ -121,7 +121,7 @@ class ScalarOperations {
             // Ensure that 'score' (a normalized dot product) is in [-1,1]. The computed value may be out
             // of bounds as a result of quantization loss.
             score = Math.clamp(score, -1, 1);
-            return (1f + score) / 2f;
+            return VectorUtil.normalizeToUnitInterval(score);
         }
     }
 }

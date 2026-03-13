@@ -126,9 +126,6 @@ public class VectorScorerInt4Benchmark {
 
     @Benchmark
     public float scoreQuery() throws IOException {
-        if (queryScorer == null) {
-            return 0f;
-        }
         return queryScorer.score(1);
     }
 }

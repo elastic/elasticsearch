@@ -175,9 +175,6 @@ public class VectorScorerInt4BulkBenchmark {
 
     @Benchmark
     public float[] scoreQueryMultipleRandom() throws IOException {
-        if (queryScorer == null) {
-            return scores;
-        }
         int v = 0;
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
@@ -209,9 +206,6 @@ public class VectorScorerInt4BulkBenchmark {
 
     @Benchmark
     public float[] scoreQueryMultipleRandomBulk() throws IOException {
-        if (queryScorer == null) {
-            return scores;
-        }
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
             System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);

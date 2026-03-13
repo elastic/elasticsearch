@@ -87,6 +87,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -250,6 +252,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         List<Object> components = new ArrayList<>(
@@ -260,8 +263,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     getLicenseState(),
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
-                    settings,
-                    dataSourceModule
+                    services.crossProjectModeDecider(),
+                    dataSourceModule,
+                    functionRegistry,
+                    parser
                 ),
                 new ExchangeService(
                     services.clusterService().getSettings(),
@@ -276,7 +281,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
             components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
-            components.add(new ViewService(services.clusterService(), functionRegistry));
+            components.add(new ViewService(services.clusterService(), functionRegistry, parser));
         }
         return components;
     }

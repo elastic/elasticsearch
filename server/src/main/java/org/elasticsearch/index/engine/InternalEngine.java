@@ -1041,7 +1041,11 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup();
             final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
-                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), op.uid(), loadSeqNo);
+                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                    searcher.getIndexReader(),
+                    op.uid(),
+                    loadSeqNo
+                );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {

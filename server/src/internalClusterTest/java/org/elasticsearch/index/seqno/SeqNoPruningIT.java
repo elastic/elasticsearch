@@ -40,7 +40,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class SeqNoPruningIT extends ESIntegTestCase {
 

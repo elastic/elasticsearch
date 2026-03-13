@@ -66,6 +66,11 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
+    public String nodeString(NodeStringFormat format) {
+        return nodeName() + "[" + namedSubqueries.keySet() + "]";
+    }
+
+    @Override
     public int hashCode() {
         // Standard Map.hashCode() uses sum of (key ^ value) per entry, which is separable:
         // swapping values between keys can produce the same sum. Instead, we use multiplication

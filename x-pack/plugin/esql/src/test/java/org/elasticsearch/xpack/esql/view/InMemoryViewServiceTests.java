@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
@@ -943,27 +944,113 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    // --- Behavioral test: views inside subqueries ---
+    // --- Behavioral test: views combined with subqueries ---
 
     public void testViewInsideSubqueryIsResolved() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addView("my_view", "FROM emp | WHERE emp.age > 30");
         // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
         LogicalPlan plan = query("FROM emp2, (FROM my_view)");
         assertThat(plan, instanceOf(UnionAll.class));
-        assertFalse("Parser should produce plain UnionAll, not ViewUnionAll", plan instanceof ViewUnionAll);
+        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
 
         // ViewResolver should recurse into the plain UnionAll and resolve my_view
         LogicalPlan rewritten = replaceViews(plan);
-        // The top-level UnionAll stays plain (parser-produced), but my_view inside is resolved
-        assertThat(rewritten, instanceOf(UnionAll.class));
-        assertFalse("Top-level UnionAll should remain plain after view resolution", rewritten instanceof ViewUnionAll);
+        // The top-level UnionAll should be replaced by ViewUnionAll because it contains a named subquery from the resolved view
+        assertThat("Top-level UnionAll should be re-written to ViewUnionAll with view name", rewritten, instanceOf(ViewUnionAll.class));
         // After resolution, the subquery's UnresolvedRelation[my_view] should become
         // the view definition: FROM emp | WHERE emp.age > 30
         List<LogicalPlan> children = rewritten.children();
         assertThat(children.size(), equalTo(2));
         // One child should match the resolved view definition, the other should be emp2
         assertThat(children, containsInAnyOrder(matchesPlan(query("FROM emp | WHERE emp.age > 30")), matchesPlan(query("FROM emp2"))));
+    }
+
+    public void testSubqueryInsideViewIsResolved() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("my_view", "FROM emp1, (FROM emp3 | WHERE emp.age > 35) | WHERE emp.age > 30");
+        // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
+        LogicalPlan plan = query("FROM emp2, (FROM my_view)");
+        assertThat(plan, instanceOf(UnionAll.class));
+        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
+
+        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        LogicalPlan rewritten = replaceViews(plan);
+        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat("Top-level UnionAll should be re-written to ViewUnionAll with view name", rewritten, instanceOf(ViewUnionAll.class));
+        // After resolution, the subquery's UnresolvedRelation[my_view] should become
+        // the view definition: FROM emp1 | WHERE emp.age > 30
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children.size(), equalTo(2));
+        // One child should match the resolved view definition, the other should be emp2
+        assertThat(
+            children,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1, (FROM emp3 | WHERE emp.age > 35) | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp2"))
+            )
+        );
+    }
+
+    public void testViewNamedInUnionAll() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("my_view1", "FROM emp1 | WHERE emp.age > 30");
+        addView("my_view2", "FROM emp2 | WHERE emp.age > 30");
+        // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
+        LogicalPlan plan = query("FROM (FROM my_view1), (FROM my_view2)");
+        assertThat(plan, instanceOf(UnionAll.class));
+        assertThat("Parser should produce plain UnionAll, not ViewUnionAll", plan, not(instanceOf(ViewUnionAll.class)));
+
+        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        LogicalPlan rewritten = replaceViews(plan);
+        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
+        assertThat(
+            "Top-level UnionAll should changed to include view names after view resolution",
+            rewritten,
+            instanceOf(ViewUnionAll.class)
+        );
+        // The names should match the correct sub-plans
+        ViewUnionAll namedUnionAll = (ViewUnionAll) rewritten;
+        for (Map.Entry<String, LogicalPlan> entry : namedUnionAll.namedSubqueries().entrySet()) {
+            if (entry.getKey().equals("my_view1")) {
+                assertThat(entry.getValue(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
+            } else if (entry.getKey().equals("my_view2")) {
+                assertThat(entry.getValue(), matchesPlan(query("FROM emp2 | WHERE emp.age > 30")));
+            } else {
+                fail("Unexpected named sub-plan: " + entry);
+            }
+        }
+    }
+
+    public void testIndexCompactionWithNestedNamedSubqueries() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("my_view1", "FROM emp1 | WHERE emp.age > 30");
+        addView("my_view2", "FROM emp2, my_view1");
+        addView("my_view3", "FROM emp3, my_view2");
+        addView("my_view4", "FROM emp4, my_view3");
+        LogicalPlan plan = query("FROM emp5, my_view4");
+        assertThat(plan, instanceOf(UnresolvedRelation.class));
+
+        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        LogicalPlan rewritten = replaceViews(plan);
+        // The top-level UnionAll is replaced by a ViewUnionAll as a result of compacting the nested subqueries
+        assertThat(
+            "Top-level UnionAll should changed to include view names after view resolution",
+            rewritten,
+            instanceOf(ViewUnionAll.class)
+        );
+        // The names should match the correct sub-plans
+        ViewUnionAll namedUnionAll = (ViewUnionAll) rewritten;
+        for (Map.Entry<String, LogicalPlan> entry : namedUnionAll.namedSubqueries().entrySet()) {
+            if (entry.getKey() == null) {
+                assertThat(entry.getValue(), matchesPlan(query("FROM emp5, emp4, emp3, emp2")));
+            } else if (entry.getKey().equals("my_view1")) {
+                assertThat(entry.getValue(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
+            } else {
+                fail("Unexpected named sub-plan: " + entry);
+            }
+        }
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan) {

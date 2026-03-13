@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.querylog;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
@@ -83,7 +84,7 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
             .values()
             .stream()
             .flatMap(
-                cluster -> Arrays.stream(cluster.getIndexExpression().split(","))
+                cluster -> Arrays.stream(Strings.splitStringByCommaToArray(cluster.getIndexExpression()))
                     .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
             )
             .toArray(String[]::new);
@@ -92,7 +93,7 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
     // CCS stuff
 
     @Override
-    public Map<String, String> remoteClusters() {
+    public Map<String, String> getClusters() {
         if (response == null) {
             return Map.of();
         }

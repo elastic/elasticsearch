@@ -144,7 +144,7 @@ public class SearchLogContext extends ActivityLoggerContext implements QueryLogg
     }
 
     @Override
-    public Map<String, String> remoteClusters() {
+    public Map<String, String> getClusters() {
         if (response == null) {
             return Map.of();
         }

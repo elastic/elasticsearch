@@ -21,9 +21,9 @@ import java.util.stream.Collectors;
  */
 public interface QueryLoggerContext {
     /**
-     * Map cluster->status
+     * Map cluster->status (for now).
      */
-    default Map<String, String> remoteClusters() {
+    default Map<String, String> getClusters() {
         return Map.of();
     }
 

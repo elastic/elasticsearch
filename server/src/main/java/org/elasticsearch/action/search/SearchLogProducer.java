@@ -77,7 +77,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             }
         }
 
-        var clusters = context.remoteClusters();
+        var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);
         if (remotes.isEmpty() == false) {
             msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);

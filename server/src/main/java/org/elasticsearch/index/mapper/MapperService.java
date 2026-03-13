@@ -614,35 +614,41 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return doMerge(type, reason, mappingSourceAsMap);
     }
 
+    /**
+     * Check to see if a mapping update would cause a change to the existing mappings if it were applied.
+     *
+     * @param update the update to check
+     */
+    public boolean isNoOpUpdate(CompressedXContent update) {
+        DocumentMapper existing = documentMapper();
+        if (existing == null) {
+            return false;
+        }
+        MappingBuilder updateBuilder = mappingParser.parseToBuilder(
+            SINGLE_MAPPING_NAME,
+            MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
+            MappingParser.convertToMap(update)
+        );
+        Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, existing);
+        return mapping.toCompressedXContent().equals(existing.mappingSource());
+    }
+
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
+        assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingBuilder incomingBuilder;
         try {
             incomingBuilder = mappingParser.parseToBuilder(type, reason, mappingSourceAsMap);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
-        if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
-            // only doing a merge without updating the actual #mapper field, no need to synchronize
-            final DocumentMapper currentMapper = this.mapper;
-            Mapping mapping = mergeBuilders(
-                mappingParser,
-                indexSettings,
-                incomingBuilder,
-                MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
-                currentMapper
-            );
-            return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
-        } else {
-            // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
-            // TODO: can we even have concurrent updates here?
-            synchronized (this) {
-                final DocumentMapper currentMapper = this.mapper;
-                Mapping mapping = mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, currentMapper);
-                DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-                this.mapper = newMapper;
-                assert assertSerialization(newMapper, reason);
-                return newMapper;
-            }
+        // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
+        // TODO: can we even have concurrent updates here?
+        synchronized (this) {
+            Mapping mapping = mergeBuilders(incomingBuilder, reason);
+            DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+            this.mapper = newMapper;
+            assert assertSerialization(newMapper, reason);
+            return newMapper;
         }
     }
 

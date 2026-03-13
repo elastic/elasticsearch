@@ -61,20 +61,38 @@ public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer defaultAnalyzer() {
         return analyzer(analyzerDefaultMapping());
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer expandedDefaultAnalyzer() {
         return analyzer(expandedDefaultIndexResolution());
     }
 
-    /** Simplest analyzer with a single index, which must be valid */
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution) {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
-    /** Analyzer with a single index and {@code @timestamp} bounds from a query DSL filter. */
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, TimestampBounds timestampBounds) {
         return analyzer(
             indexResolutions(indexResolution),
@@ -87,23 +105,47 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    /** Simple analyzer with multiple indexes, which may also be invalid */
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), TEST_VERIFIER, TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution) {
         return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return analyzer(indexResolution, defaultLookupResolution(), verifier);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
         return analyzer(indexResolution, lookupResolution, defaultEnrichResolution(), verifier);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         IndexResolution indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -113,6 +155,11 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions(indexResolution), lookupResolution, enrichResolution, verifier, TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
@@ -123,6 +170,11 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, UNMAPPED_FIELDS.defaultValue());
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
@@ -134,6 +186,11 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, unmappedResolution, null);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,

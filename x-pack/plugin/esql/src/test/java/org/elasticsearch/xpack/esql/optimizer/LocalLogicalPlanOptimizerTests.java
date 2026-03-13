@@ -111,23 +111,18 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -619,16 +614,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         EsIndex index = EsIndexGenerator.esIndex("large", large, Map.of("large", IndexMode.STANDARD));
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(index),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        var analyzer = analyzer().addIndex(index).buildAnalyzer();
 
         var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
@@ -2472,16 +2458,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
         );
 
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(test),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        return analyzer().addIndex(test).buildAnalyzer();
     }
 
     public static EsRelation relation() {
@@ -2490,18 +2467,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     private static Analyzer analyzerWithNullifyMode() {
         EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(test),
-                Map.of(),
-                emptyPolicyResolution(),
-                emptyInferenceResolution(),
-                UnmappedResolution.NULLIFY
-            ),
-            TEST_VERIFIER
-        );
+        return analyzer().unmappedResolution(UnmappedResolution.NULLIFY).addIndex(test).buildAnalyzer();
     }
 
     private LogicalPlan planWithNullify(String query) {

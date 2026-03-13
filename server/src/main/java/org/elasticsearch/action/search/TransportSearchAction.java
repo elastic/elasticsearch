@@ -1244,13 +1244,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && localExpressions.indices().isEmpty() == false;
                 });
                 if (hasAnyResolvedIndices) {
-                    participatingLinkedProjects.put(
-                        entry.getKey(),
-                        new OriginalIndices(
-                            originalResolvedIndices.getRemoteClusterIndices().get(entry.getKey()).indices(),
-                            resolutionIdxOpts
-                        )
-                    );
+                    participatingLinkedProjects.put(entry.getKey(), originalResolvedIndices.getRemoteClusterIndices().get(entry.getKey()));
                 }
             }
 

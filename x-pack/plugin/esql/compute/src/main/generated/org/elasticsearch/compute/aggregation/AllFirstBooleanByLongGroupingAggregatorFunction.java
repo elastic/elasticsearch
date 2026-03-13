@@ -36,16 +36,11 @@ public final class AllFirstBooleanByLongGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public AllFirstBooleanByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstBooleanByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstBooleanByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstBooleanByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstBooleanByLongGroupingAggregatorFunction(channels, AllFirstBooleanByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstBooleanByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

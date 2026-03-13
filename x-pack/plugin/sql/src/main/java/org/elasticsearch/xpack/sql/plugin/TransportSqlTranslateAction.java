@@ -47,7 +47,8 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         ThreadPool threadPool,
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
-        SqlLicenseChecker sqlLicenseChecker
+        SqlLicenseChecker sqlLicenseChecker,
+        CrossProjectModeDecider cpsDecider
     ) {
         super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -57,7 +58,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
-        this.cpsDecider = new CrossProjectModeDecider(settings);
+        this.cpsDecider = cpsDecider;
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -48,6 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -108,7 +108,7 @@ public class VerifierTests extends ESTestCase {
         k8s = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, "k8s"), getIndexResult),
                 defaultLookupResolution(),
                 new EnrichResolution(),
@@ -2797,7 +2797,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
-        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
+        fullTextAnalyzer.analyze(TEST_PARSER.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -2976,11 +2976,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+            equalTo(
+                "1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+            equalTo("1:42: [from] and [to] in [tbucket(3, \"2023-01-01T00:00:00Z\")] must both be provided or both omitted")
         );
         assertThat(
             error(
@@ -3009,6 +3012,13 @@ public class VerifierTests extends ESTestCase {
                 containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(100)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: numeric bucket count in [tbucket(100)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
+            )
+        );
     }
 
     public void testFuse() {
@@ -3882,6 +3892,13 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testLimitByNotEnabled() {
+        assertThat(error("""
+            FROM test
+            | LIMIT 5 BY languages
+            """, defaultAnalyzer, VerificationException.class), containsString("LIMIT BY is not yet supported"));
+    }
+
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }
@@ -3899,7 +3916,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer, Object... params) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)));
+        analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)));
     }
 
     private static QueryParams toQueryParams(Object... params) {
@@ -3935,7 +3952,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)))
+            () -> analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)))
         );
         assertThat(e, instanceOf(exception));
 

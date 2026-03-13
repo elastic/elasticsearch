@@ -48,6 +48,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static final int NUM_CANDS_LIMIT = 10_000;
     public static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
     public static final float MINIMUM_OVERSAMPLE_FOR_TOP_K_RESCORING = 1f;
+    private static final boolean DEFAULT_OPTIMIZED_RESCORING = true;
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -136,7 +137,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     float boost = DEFAULT_BOOST;
     InnerHitBuilder innerHitBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
-    private boolean optimizedRescoring = true;
+    private boolean optimizedRescoring = DEFAULT_OPTIMIZED_RESCORING;
 
     private static final RescoreVectorBuilder NO_RESCORING = new RescoreVectorBuilder(0);
 
@@ -533,7 +534,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
             : null;
         var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
-            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
+            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).rescoreVector()
             : null;
         return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : null;
     }
@@ -625,8 +626,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (rescoreVectorBuilder != null) {
             builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
-        builder.field(OPTIMIZED_RESCORING_FIELD.getPreferredName(), optimizedRescoring);
-
+        if (optimizedRescoring != DEFAULT_OPTIMIZED_RESCORING) {
+            builder.field(OPTIMIZED_RESCORING_FIELD.getPreferredName(), optimizedRescoring);
+        }
         return builder;
     }
 
@@ -668,7 +670,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
         private RescoreVectorBuilder rescoreVectorBuilder;
-        private boolean optimizedRescoring = true;
+        private boolean optimizedRescoring = DEFAULT_OPTIMIZED_RESCORING;
 
         public Builder addFilterQueries(List<QueryBuilder> filterQueries) {
             Objects.requireNonNull(filterQueries);

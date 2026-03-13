@@ -1522,9 +1522,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return rescoreVector;
         }
 
-        public RescoreVector getRescoreVector() {
-            return rescoreVector;
-        }
     }
 
     public enum VectorIndexType {

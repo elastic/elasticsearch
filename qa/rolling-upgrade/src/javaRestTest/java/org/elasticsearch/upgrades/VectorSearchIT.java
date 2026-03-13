@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.SearchFeatures.DFS_KNN_RESCORE_ON_SHARDS;
+import static org.elasticsearch.search.SearchFeatures.DFS_KNN_RESCORE_TOP_K;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -746,7 +746,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         );
         assumeFalse(
             "testing compatibility between upgrades, so old clusters shouldn't have the current feature",
-            oldClusterHasFeature(DFS_KNN_RESCORE_ON_SHARDS)
+            oldClusterHasFeature(DFS_KNN_RESCORE_TOP_K)
         );
         if (isOldCluster()) {
             String mapping = """

@@ -20,12 +20,10 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
@@ -59,6 +57,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.hamcrest.Matchers.anyOf;
@@ -69,13 +69,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
-    protected final EsqlParser parser = EsqlParser.INSTANCE;
-
     private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
     static InMemoryViewService viewService;
     static InMemoryViewResolver viewResolver;
-    PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+    PlanTelemetry telemetry = new PlanTelemetry(TEST_FUNCTION_REGISTRY);
     QueryParams queryParams = new QueryParams();
     ProjectId projectId = ProjectId.DEFAULT;
 
@@ -659,12 +657,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
     }
 
-    public void testCircularViewInMultiSource() {
+    public void testNonCircularViewInMultiSource() {
         addView("view_a", "FROM emp");
         addView("view_b", "FROM view_c");
         addView("view_c", "FROM view_a");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a, view_b")));
-        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        // view_b -> view_c -> view_a -> emp is a valid chain, not circular.
+        // view_a appearing as both a direct source and a transitive dependency of view_b is fine.
+        assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM emp,emp")));
     }
 
     public void testCircularViewWithPipes() {
@@ -716,6 +715,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_2", "FROM emp");
         LogicalPlan plan = query("FROM v_1");
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+    }
+
+    public void testWildcardNonCircularReferenceFromViewSibling() {
+        addIndex("idx_otel");
+        addIndex("idx_otel_linux");
+        addView("wired_otel", "FROM idx_otel, wired_otel_linux");
+        addView("wired_otel_linux", "FROM idx_otel_linux");
+        addView("wired_otel_query", "FROM wired_otel");
+
+        LogicalPlan plan = query("FROM wired_otel_*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM idx_otel_linux,idx_otel_linux,idx_otel")));
     }
 
     public void testModifiedViewDepth() {
@@ -981,7 +991,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query, String viewName) {
-        return parser.parseView(
+        return TEST_PARSER.parseView(
             query,
             queryParams,
             new SettingsValidationContext(false, false),
@@ -1068,6 +1078,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     LogicalPlan query(String e, QueryParams params) {
-        return parser.parseQuery(e, params);
+        return TEST_PARSER.parseQuery(e, params);
     }
 }

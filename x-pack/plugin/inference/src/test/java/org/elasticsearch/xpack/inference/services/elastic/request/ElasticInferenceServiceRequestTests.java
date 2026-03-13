@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 
 import java.net.URI;
@@ -33,7 +34,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             new ElasticInferenceServiceRequestMetadata(productOrigin, null, null),
             new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
         );
-        var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
 
         assertThat(httpRequest.httpRequestBase().getHeaders(HttpHeaders.AUTHORIZATION).length, equalTo(1));
         assertThat(httpRequest.httpRequestBase().getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
@@ -44,7 +45,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
             new ElasticInferenceServiceRequestMetadata(productOrigin, null, null)
         );
-        var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
         // Make sure the product origin header only exists once
@@ -57,7 +58,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
             new ElasticInferenceServiceRequestMetadata(null, productUseCase, null)
         );
-        var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
 
         // Make sure the product use case header only exists once
@@ -70,7 +71,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
             new ElasticInferenceServiceRequestMetadata(null, null, esVersion)
         );
-        var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_ES_VERSION);
 
         // Make sure the product use case header only exists once

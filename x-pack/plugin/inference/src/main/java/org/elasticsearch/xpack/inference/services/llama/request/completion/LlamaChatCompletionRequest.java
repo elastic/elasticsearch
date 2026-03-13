@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.llama.request.completion;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -45,13 +46,8 @@ public class LlamaChatCompletionRequest implements Request {
         this.model = Objects.requireNonNull(model);
     }
 
-    /**
-     * Returns the chat input for this request.
-     *
-     * @return the chat input containing the messages and parameters
-     */
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -65,7 +61,7 @@ public class LlamaChatCompletionRequest implements Request {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

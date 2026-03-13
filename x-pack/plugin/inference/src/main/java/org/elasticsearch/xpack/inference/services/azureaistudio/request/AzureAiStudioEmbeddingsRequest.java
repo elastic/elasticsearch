@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,7 +42,7 @@ public class AzureAiStudioEmbeddingsRequest extends AzureAiStudioRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         var user = embeddingsModel.getTaskSettings().user();
@@ -58,7 +59,7 @@ public class AzureAiStudioEmbeddingsRequest extends AzureAiStudioRequest {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         setAuthHeader(httpPost, embeddingsModel);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

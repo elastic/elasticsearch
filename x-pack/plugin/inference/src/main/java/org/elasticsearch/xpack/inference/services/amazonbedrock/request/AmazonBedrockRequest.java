@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
@@ -40,8 +41,8 @@ public abstract class AmazonBedrockRequest implements Request {
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
      */
     @Override
-    public final HttpRequest createHttpRequest() {
-        throw new UnsupportedOperationException("Amazon Bedrock does not use Http Requests");
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
+        listener.onFailure(new UnsupportedOperationException("Amazon Bedrock does not use Http Requests"));
     }
 
     /**

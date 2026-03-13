@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -71,7 +72,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var input = List.of(new InferenceStringGroup("input text"));
 
         var request = createRequest(taskType, input, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -122,7 +123,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         );
 
         var request = createRequest(taskType, inputs, InputType.SEARCH);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -145,7 +146,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var input = List.of(new InferenceStringGroup("input text"));
 
         var request = createRequest(randomFrom(TEXT_EMBEDDING, EMBEDDING), input, InputType.UNSPECIFIED);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -189,7 +190,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
-            var httpRequest = request.createHttpRequest();
+            var httpRequest = RequestTests.getHttpRequestSync(request);
 
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -215,7 +216,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
             );
 
-            var httpRequest = request.createHttpRequest();
+            var httpRequest = RequestTests.getHttpRequestSync(request);
 
             assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
             var httpPost = (HttpPost) httpRequest.httpRequestBase();

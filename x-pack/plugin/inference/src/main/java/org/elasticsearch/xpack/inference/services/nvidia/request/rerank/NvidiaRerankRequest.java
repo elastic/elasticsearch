@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.rerank;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -40,7 +41,7 @@ public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerank
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,7 +53,7 @@ public record NvidiaRerankRequest(String query, List<String> input, NvidiaRerank
 
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

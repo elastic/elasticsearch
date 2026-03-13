@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
@@ -39,7 +40,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
     }
 
     @Override
-    public final HttpRequest createHttpRequest() {
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
@@ -61,7 +62,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
 
         request = authApplier.apply(request);
 
-        return new HttpRequest(request, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(request, getInferenceEntityId()));
     }
 
     protected abstract HttpRequestBase createHttpRequestBase();

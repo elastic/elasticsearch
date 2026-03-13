@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -40,7 +41,7 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         var httpPost = createHttpPost();
         var requestEntity = Strings.toString(new GoogleAiStudioCompletionRequestEntity(input.getInputs()));
 
@@ -48,7 +49,7 @@ public class GoogleAiStudioCompletionRequest implements GoogleAiStudioRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     private HttpPost createHttpPost() {

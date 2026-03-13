@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -39,7 +40,7 @@ public class AnthropicChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,7 +53,7 @@ public class AnthropicChatCompletionRequest implements Request {
         httpPost.setHeader(AnthropicRequestUtils.createAuthBearerHeader(account.apiKey()));
         httpPost.setHeader(createVersionHeader());
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

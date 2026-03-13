@@ -29,7 +29,16 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
 
     private final RoutingChangesObserver routingChangesObserver;
+    private final RoutingNodes routingNodes;
 
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState cluster state before rerouting
+     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     */
     MutableRoutingAllocation(
         AllocationDeciders deciders,
         RoutingNodes routingNodes,
@@ -41,6 +50,15 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
         this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
     }
 
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState cluster state before rerouting
+     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     */
     MutableRoutingAllocation(
         AllocationDeciders deciders,
         RoutingNodes routingNodes,
@@ -50,7 +68,11 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
         long currentNanoTime,
         boolean isSimulating
     ) {
-        super(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, isSimulating);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, isSimulating);
+        if (routingNodes == null || routingNodes.isReadOnly()) {
+            throw new IllegalArgumentException("Must provide a mutable routing nodes instance");
+        }
+        this.routingNodes = routingNodes;
         this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
             isSimulating
                 ? new RoutingChangesObserver[] {
@@ -65,6 +87,18 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
                     resizeSourceIndexUpdater,
                     new ShardChangesObserver() }
         );
+    }
+
+    /**
+     * Get current routing nodes
+     * @return routing nodes
+     */
+    @Override
+    public RoutingNodes routingNodes() {
+        if (routingNodes != null) {
+            return routingNodes;
+        }
+        return super.routingNodes();
     }
 
     public RoutingAllocation mutableCloneForSimulation() {

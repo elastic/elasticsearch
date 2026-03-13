@@ -47,9 +47,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     protected final AllocationDeciders deciders;
 
-    @Nullable
-    protected final RoutingNodes routingNodes;
-
     protected final ClusterState clusterState;
 
     protected ClusterInfo clusterInfo;
@@ -79,14 +76,13 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     /**
      * Creates a new {@link RoutingAllocation}
      * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
      * @param clusterState cluster state before rerouting
+     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
      */
     RoutingAllocation(
         AllocationDeciders deciders,
-        @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
@@ -94,7 +90,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         boolean isSimulating
     ) {
         this.deciders = deciders;
-        this.routingNodes = routingNodes;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
@@ -173,9 +168,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * @return routing nodes
      */
     public RoutingNodes routingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
-        }
         return clusterState.getRoutingNodes();
     }
 

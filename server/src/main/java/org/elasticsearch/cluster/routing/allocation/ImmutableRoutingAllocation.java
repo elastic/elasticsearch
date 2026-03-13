@@ -18,6 +18,13 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 final class ImmutableRoutingAllocation extends RoutingAllocation {
 
+    /**
+     * Creates a new {@link ImmutableRoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param clusterState cluster state before rerouting
+     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     */
     ImmutableRoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
@@ -25,7 +32,7 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        super(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
     }
 
     @Override

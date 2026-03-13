@@ -957,7 +957,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdCorrectSettings() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -979,7 +978,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdDefaultValueTrue() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
             IndexVersion.current()
@@ -1000,7 +998,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdDefaultValueFalse() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
@@ -1018,7 +1015,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
@@ -1047,7 +1043,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
@@ -1085,7 +1080,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()

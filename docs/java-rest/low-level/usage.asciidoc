@@ -206,6 +206,12 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-reques
 https://hc.apache.org/httpcomponents-client-4.5.x/current/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  allows to set)
 
+[[java-rest-low-usage-initialization-proxy]]
+==== Using a proxy
+
+When running Elasticsearch behind a proxy, you will need to configure the
+low level REST client this way:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client-config-callback]
@@ -215,6 +221,14 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
+If you are running Elasticsearch behind a reverse proxy which has a path
+prefix, you will need to configure the low level REST client this way:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client-config-reverse-proxy]
+--------------------------------------------------
+<1> Set the path prefix to use to access Elasticsearch
 
 [[java-rest-low-usage-requests]]
 === Performing requests

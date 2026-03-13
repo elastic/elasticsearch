@@ -296,7 +296,8 @@ setup:
   - lte: { hits.hits.0._score: 2.0 }
   - lte: { hits.hits.1._score: 2.0 }
   - lte: { hits.hits.2._score: 2.0 }
-  # Document ordering is non-deterministic when scores are equal
+  # Document ordering is non-deterministic because all results are equally good lexical matches and a mock inference
+  # service that generates fake embeddings is used for semantic matches
   - contains: { hits.hits: { _id: "1" } }
   - contains: { hits.hits: { _id: "2" } }
   - contains: { hits.hits: { _id: "3" } }

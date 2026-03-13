@@ -33,7 +33,7 @@ public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
                 values
             )
         ) {
-            EncodedTDigest.CentroidIterator tDigest = new ExponentialHistogramToTDigestConverter().convertLazy(
+            EncodedTDigest.CentroidIterator tDigest = ExponentialHistogramToTDigestConverter.convert(
                 input.scale(),
                 input.negativeBuckets().iterator(),
                 input.zeroBucket(),
@@ -69,7 +69,7 @@ public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
             .zeroBucket(ZeroBucket.create(0.0, 5))
             .build();
 
-        EncodedTDigest.CentroidIterator converted = new ExponentialHistogramToTDigestConverter().convertLazy(
+        EncodedTDigest.CentroidIterator converted = ExponentialHistogramToTDigestConverter.convert(
             input.scale(),
             input.negativeBuckets().iterator(),
             input.zeroBucket(),

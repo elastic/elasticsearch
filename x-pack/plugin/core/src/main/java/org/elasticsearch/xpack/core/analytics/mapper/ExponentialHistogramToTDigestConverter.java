@@ -17,7 +17,7 @@ import java.util.List;
 
 public class ExponentialHistogramToTDigestConverter {
 
-    public EncodedTDigest.CentroidIterator convertLazy(int scale, BucketIterator negative, ZeroBucket zeroBucket, BucketIterator positive) {
+    public static EncodedTDigest.CentroidIterator convert(int scale, BucketIterator negative, ZeroBucket zeroBucket, BucketIterator positive) {
         List<Double> negativeBucketCenters;
         List<Long> negativeBucketCounts;
         if (negative.hasNext()) {

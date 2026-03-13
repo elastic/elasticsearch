@@ -70,6 +70,20 @@ public interface IndexSettingProvider {
     default void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {}
 
     /**
+     * Called before the mappings for an index are updated.
+     * This method can be used to provide additional index settings for updated mappings generation.
+     *
+     * @param indexMetadata      The index metadata for the index being updated
+     * @param requestSource      The request source for the mapping update request
+     * @param additionalSettings A settings builder to which additional settings can be added
+     */
+    default void preUpdateMappings(
+        IndexMetadata indexMetadata,
+        CompressedXContent requestSource,
+        Settings.Builder additionalSettings
+    ) {}
+
+    /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.
      */
     record Parameters(ClusterService clusterService, CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {

@@ -11,6 +11,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +23,9 @@ import java.util.Set;
  * This keeps all heuristic definitions in one place, separate from the feature code that uses them.
  */
 public final class DefaultModelChoiceHeuristics {
+    public enum Feature {
+        SEMANTIC_TEXT
+    }
 
     /**
      * Heuristic for {@code semantic_text} fields.
@@ -29,7 +33,7 @@ public final class DefaultModelChoiceHeuristics {
      * Priority 1: multilingual dense (text_embedding) model, newest release date wins.
      * Priority 2: english sparse (sparse_embedding) model, newest release date wins.
      */
-    static final ModelChoiceHeuristics SEMANTIC_TEXT = ModelChoiceHeuristics.forFeature("semantic_text")
+    static final ModelChoiceHeuristics SEMANTIC_TEXT = ModelChoiceHeuristics.forFeature(Feature.SEMANTIC_TEXT.name().toLowerCase())
         .priority(1)
         .filterByTaskType(TaskType.TEXT_EMBEDDING)
         .filterByProperty("multilingual")
@@ -52,9 +56,9 @@ public final class DefaultModelChoiceHeuristics {
      * semantic_text heuristic to choose the best one.
      *
      * @param modelRegistry the model registry to query for available endpoints
-     * @return the selected inference endpoint ID, or empty if no suitable endpoint is found
+     * @return the selected inference ID, or empty if no suitable endpoint is found
      */
-    public static Optional<String> selectSemanticTextEndpoint(ModelRegistry modelRegistry) {
+    public static Optional<String> selectSemanticTextInferenceId(ModelRegistry modelRegistry) {
         Set<String> allIds = modelRegistry.getInferenceIds();
         if (allIds.isEmpty()) {
             return Optional.empty();

@@ -176,7 +176,7 @@ public class MetadataMappingService {
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices
-        ) {
+        ) throws IOException {
             MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             Metadata.Builder builder = Metadata.builder(currentState.metadata());
             boolean updated = false;
@@ -186,11 +186,50 @@ public class MetadataMappingService {
                 final ProjectMetadata projectMetadata = currentState.metadata().projectFor(index);
                 final IndexMetadata indexMetadata = projectMetadata.index(index);
                 final MapperService mapperService = indexMapperServices.get(index);
+                boolean updatedPreMappingSettings = false;
+
+                // Allow index setting providers to update settings based on the mapping update request
+                // before we merge the new mappings, so that they can influence the mapping merge process if necessary.
+                final Settings.Builder additionalPreMappingIndexSettings = Settings.builder();
+                for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
+                    Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
+                    provider.preUpdateMappings(indexMetadata, request.source(), newAdditionalSettingsBuilder);
+                    if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
+                        Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
+                        MetadataCreateIndexService.validateAdditionalSettings(
+                            provider,
+                            newAdditionalSettings,
+                            additionalPreMappingIndexSettings
+                        );
+                        additionalPreMappingIndexSettings.put(newAdditionalSettings);
+                        updatedPreMappingSettings = true;
+                    }
+                }
+
+                final DocumentMapper mergedMapper;
+                if (updatedPreMappingSettings) {
+                    // Pre-mapping settings changed, so we need a mapper service that reflects the new settings.
+                    // The existing mapperService was created with the original index settings and cannot be
+                    // updated in place, so we use a temporary index service built from the updated metadata.
+                    final Settings.Builder preMappingUpdatedIndexSettingsBuilder = Settings.builder();
+                    preMappingUpdatedIndexSettingsBuilder.put(indexMetadata.getSettings());
+                    preMappingUpdatedIndexSettingsBuilder.put(additionalPreMappingIndexSettings.build());
+                    IndexMetadata.Builder preMappingIndexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+                    preMappingIndexMetadataBuilder.settings(preMappingUpdatedIndexSettingsBuilder.build());
+                    IndexMetadata preMappingIndexMetadata = preMappingIndexMetadataBuilder.build();
+
+                    mergedMapper = indicesService.withTempIndexService(preMappingIndexMetadata, tempIndexService -> {
+                        MapperService tempMapperService = tempIndexService.mapperService();
+                        tempMapperService.merge(preMappingIndexMetadata, MergeReason.MAPPING_RECOVERY);
+                        return tempMapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
+                    });
+                } else {
+                    mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
+                }
 
                 CompressedXContent existingSource = mapperService.documentMapper() != null
                     ? mapperService.documentMapper().mappingSource()
                     : null;
-                DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
                 // If the mapping source is the same after merging, then we have no real update, so we skip modifying this index.
                 if (updatedSource.equals(existingSource)) {
@@ -199,20 +238,16 @@ public class MetadataMappingService {
                 logMappingResult(index, existingSource, updatedSource, mergedMapper.type());
 
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-                // Mapping updates on a single type may have side-effects on other types so we need to
-                // update mapping metadata on all types
-                DocumentMapper docMapper = mapperService.documentMapper();
-                if (docMapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(docMapper));
-                    indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
-                }
-                boolean updatedSettings = false;
+                indexMetadataBuilder.putMapping(new MappingMetadata(mergedMapper));
+                indexMetadataBuilder.putInferenceFields(mergedMapper.mappers().inferenceFields());
+
+                boolean updatedSettings = updatedPreMappingSettings;
                 final Settings.Builder additionalIndexSettings = Settings.builder();
                 indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
                     .mappingsUpdatedVersion(IndexVersion.current());
                 for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
                     Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
-                    provider.onUpdateMappings(indexMetadata, docMapper, newAdditionalSettingsBuilder);
+                    provider.onUpdateMappings(indexMetadata, mergedMapper, newAdditionalSettingsBuilder);
                     if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
                         Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
                         MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
@@ -223,6 +258,7 @@ public class MetadataMappingService {
                 if (updatedSettings) {
                     final Settings.Builder indexSettingsBuilder = Settings.builder();
                     indexSettingsBuilder.put(indexMetadata.getSettings());
+                    indexSettingsBuilder.put(additionalPreMappingIndexSettings.build());
                     indexSettingsBuilder.put(additionalIndexSettings.build());
                     indexMetadataBuilder.settings(indexSettingsBuilder.build());
                     indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());

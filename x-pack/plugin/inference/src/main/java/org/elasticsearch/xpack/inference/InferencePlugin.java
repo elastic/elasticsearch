@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -111,6 +112,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceIdSettingProvider;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
@@ -852,6 +854,11 @@ public class InferencePlugin extends Plugin
         if (registry != null) {
             registry.onNodeStarted();
         }
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(new SemanticTextInferenceIdSettingProvider(getModelRegistry(), parameters.mapperServiceFactory()));
     }
 
     @Override

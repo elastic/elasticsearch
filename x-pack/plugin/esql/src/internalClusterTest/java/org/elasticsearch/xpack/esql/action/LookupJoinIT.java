@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -57,6 +58,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
@@ -448,13 +451,28 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         List<String> warnings = capturedWarnings.get();
         assertNotNull("Warnings should not be null", warnings);
 
+        List<String> warningValues = warnings.stream().map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false)).toList();
+
         // Filter warnings for the LOOKUP JOIN multi-value warning
-        List<String> lookupJoinWarnings = warnings.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
+        List<String> lookupJoinWarnings = warningValues.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
 
         assertThat(
-            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warnings,
+            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warningValues,
             lookupJoinWarnings.size(),
             greaterThanOrEqualTo(1)
+        );
+
+        // Verify the source location is correctly propagated (not Line -1:-1 / empty expression).
+        // The LOOKUP JOIN is on line 4, column 3 of the query (after "| ").
+        assertThat(
+            "Warning should contain correct source location, got: " + warningValues,
+            warningValues,
+            hasItem(startsWith("Line 4:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] failed"))
+        );
+        assertThat(
+            "Warning should contain correct source location, got: " + warningValues,
+            warningValues,
+            hasItem(startsWith("Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"))
         );
     }
 }

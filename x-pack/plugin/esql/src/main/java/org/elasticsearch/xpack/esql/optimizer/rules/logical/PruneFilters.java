@@ -49,7 +49,7 @@ public class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
         return PruneEmptyPlans.skipPlan(filter);
     }
 
-    static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
+    private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
         if (binaryLogic instanceof Or or) {
             boolean nullLeft = Expressions.isGuaranteedNull(or.left());
             boolean nullRight = Expressions.isGuaranteedNull(or.right());

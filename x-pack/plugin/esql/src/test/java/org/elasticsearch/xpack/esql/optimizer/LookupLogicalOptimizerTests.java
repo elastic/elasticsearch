@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -92,7 +91,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
         LogicalPlan plan = optimizeLookupLogicalPlan("FROM test | LOOKUP JOIN test_lookup ON emp_no", TEST_SEARCH_STATS);
 
         Project project = as(plan, Project.class);
-        assertThat(project.child(), instanceOf(ParameterizedQuery.class));
+        ParameterizedQuery pq = as(project.child(), ParameterizedQuery.class);
+        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
     }
 
     /**
@@ -109,7 +109,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
 
         Project project = as(plan, Project.class);
         Filter filter = as(project.child(), Filter.class);
-        assertThat(filter.child(), instanceOf(ParameterizedQuery.class));
+        ParameterizedQuery pq = as(filter.child(), ParameterizedQuery.class);
+        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
     }
 
     /**
@@ -160,7 +161,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
-        as(eval.child(), ParameterizedQuery.class);
+        ParameterizedQuery pq = as(eval.child(), ParameterizedQuery.class);
+        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
     }
 
     /**
@@ -183,7 +185,8 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
             """, stats);
 
         Project project = as(plan, Project.class);
-        assertThat(project.child(), instanceOf(ParameterizedQuery.class));
+        ParameterizedQuery pq = as(project.child(), ParameterizedQuery.class);
+        assertFalse("Expected emptyResult=false on ParameterizedQuery", pq.emptyResult());
     }
 
     /**

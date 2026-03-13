@@ -118,6 +118,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         ParameterizedQueryExec paramQuery = as(fieldExtract.child(), ParameterizedQueryExec.class);
 
         assertThat(paramQuery.query(), nullValue());
+        assertThat(paramQuery.emptyResult(), is(false));
         assertThat(fieldExtract.attributesToExtract().isEmpty(), is(false));
     }
 
@@ -141,6 +142,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         QueryBuilder query = paramQuery.query();
         assertNotNull("Expected filter to be pushed to ParameterizedQueryExec", query);
         assertThat(query.toString(), containsString("language_name"));
+        assertThat(paramQuery.emptyResult(), is(false));
     }
 
     /**
@@ -162,6 +164,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         ParameterizedQueryExec paramQuery = as(fieldExtract.child(), ParameterizedQueryExec.class);
 
         assertThat(paramQuery.query(), nullValue());
+        assertThat(paramQuery.emptyResult(), is(false));
         assertThat(filter.condition().toString(), containsString("LENGTH"));
     }
 
@@ -184,6 +187,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         assertNotNull("Expected pushable filter on ParameterizedQueryExec", paramQuery.query());
         assertThat(paramQuery.query().toString(), containsString("language_name"));
+        assertThat(paramQuery.emptyResult(), is(false));
         assertThat(filter.condition().toString(), containsString("LENGTH"));
     }
 
@@ -213,6 +217,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // language_name == "English" (pushable ON right-only filter) is pushed to query
         assertNotNull("Expected pushable ON filter on ParameterizedQueryExec", paramQuery.query());
         assertThat(paramQuery.query().toString(), containsString("language_name"));
+        assertThat(paramQuery.emptyResult(), is(false));
 
         // joinOnConditions is the left-right join key comparison
         assertNotNull("Expected join on conditions", paramQuery.joinOnConditions());
@@ -264,6 +269,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         assertNotNull("Expected filter pushed through EvalExec to ParameterizedQueryExec", paramQuery.query());
         assertThat(paramQuery.query().toString(), containsString("language_name"));
+        assertThat(paramQuery.emptyResult(), is(false));
     }
 
     /**
@@ -289,6 +295,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         EvalExec eval = as(project.child(), EvalExec.class);
         ParameterizedQueryExec paramQuery = as(eval.child(), ParameterizedQueryExec.class);
         assertThat("Filter should have been pruned, no query on ParameterizedQueryExec", paramQuery.query(), nullValue());
+        assertThat(paramQuery.emptyResult(), is(false));
     }
 
     /**
@@ -338,6 +345,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         FieldExtractExec fieldExtract = as(project.child(), FieldExtractExec.class);
         ParameterizedQueryExec paramQuery = as(fieldExtract.child(), ParameterizedQueryExec.class);
         assertThat(paramQuery.query(), nullValue());
+        assertThat(paramQuery.emptyResult(), is(false));
     }
 
     /**
@@ -360,6 +368,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         FieldExtractExec extract0 = as(project0.child(), FieldExtractExec.class);
         ParameterizedQueryExec paramQuery0 = as(extract0.child(), ParameterizedQueryExec.class);
         assertThat(paramQuery0.query(), nullValue());
+        assertThat(paramQuery0.emptyResult(), is(false));
 
         // Inner join (test_lookup) is found second
         PhysicalPlan testPlan = plans.get(1);
@@ -367,6 +376,7 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         FieldExtractExec extract1 = as(project1.child(), FieldExtractExec.class);
         ParameterizedQueryExec paramQuery1 = as(extract1.child(), ParameterizedQueryExec.class);
         assertThat(paramQuery1.query(), nullValue());
+        assertThat(paramQuery1.emptyResult(), is(false));
     }
 
     private PhysicalPlan optimizeLookupPlan(String esql) {

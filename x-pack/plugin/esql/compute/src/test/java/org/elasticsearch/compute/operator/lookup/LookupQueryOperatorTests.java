@@ -131,14 +131,14 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
 
             @Override
             public String describe() {
-                return "LookupQueryOperator[maxPageSize=256]";
+                return "LookupQueryOperator[maxPageSize=256, emptyResult=false]";
             }
         };
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("LookupQueryOperator[maxPageSize=256]");
+        return equalTo("LookupQueryOperator[maxPageSize=256, emptyResult=false]");
     }
 
     @Override
@@ -326,6 +326,48 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
 
                 operator.finish();
             }
+        }
+    }
+
+    /**
+     * Test that when emptyResult=true the operator discards all input pages without producing output.
+     */
+    public void testEmptyResultDiscardsInput() {
+        DriverContext driverContext = driverContext();
+        QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+        try (
+            LookupQueryOperator operator = new LookupQueryOperator(
+                driverContext.blockFactory(),
+                LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings(),
+                true
+            )
+        ) {
+            assertTrue("Should need input initially", operator.needsInput());
+            assertFalse("Should not be finished before finish() is called", operator.isFinished());
+
+            // Feed multiple pages with terms that would normally match
+            for (int p = 0; p < 3; p++) {
+                try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(10)) {
+                    for (int i = 0; i < 10; i++) {
+                        builder.appendBytesRef(new BytesRef("term-" + i));
+                    }
+                    operator.addInput(new Page(builder.build()));
+                }
+
+                assertNull("Should never produce output when emptyResult=true", operator.getOutput());
+                assertFalse("Should not be able to produce more data", operator.canProduceMoreDataWithoutExtraInput());
+                assertTrue("Should still need input (not finished)", operator.needsInput());
+            }
+
+            operator.finish();
+            assertTrue("Should be finished after finish()", operator.isFinished());
+            assertNull("Should return null after finish()", operator.getOutput());
         }
     }
 

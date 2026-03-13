@@ -186,19 +186,19 @@ public class DfsPhase {
         if (source == null || source.knnSearch().isEmpty()) {
             return;
         }
-
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        // KnnSearchBuilder::toQueryBuilder might disable rescoring for the underlying KnnVectorQueryBuilder
+        List<KnnVectorQueryBuilder> knnQueries = knnSearch.stream().map(knn -> knn.toQueryBuilder(searchExecutionContext)).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
-        knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
+        knnQueries.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
-            for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
-                knnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
+            for (KnnVectorQueryBuilder queryBuilder : knnQueries) {
+                queryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
             }
         }
-        List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
+        List<DfsKnnResults> knnResults = new ArrayList<>(knnQueries.size());
         final long afterQueryTime;
         final long beforeQueryTime = System.nanoTime();
         var opsListener = context.indexShard().getSearchOperationListener();
@@ -209,12 +209,14 @@ public class DfsPhase {
             context.searcher().addQueryCancellation(timeoutRunnable);
         }
         try {
-            for (int i = 0; i < knnSearch.size(); i++) {
-                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+            for (int i = 0; i < knnQueries.size(); i++) {
+                KnnVectorQueryBuilder knnQuery = knnQueries.get(i);
+                String knnField = knnQuery.getFieldName();
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
-
+                Query query = searchExecutionContext.toQuery(knnQuery).query();
+                int k = knnSearch.get(i).k();
+                Float oversampling = knnSearch.get(i).getOversampleFactor(searchExecutionContext);
+                knnResults.add(singleKnnSearch(query, k, oversampling, context.getProfilers(), context.searcher(), knnNestedPath));
                 // Re-throw so the catch block below can handle KNN timeout consistently.
                 if (context.searcher().timeExceeded()) {
                     context.searcher().throwTimeExceededException();
@@ -243,10 +245,17 @@ public class DfsPhase {
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
-        throws IOException {
+    static DfsKnnResults singleKnnSearch(
+        Query knnQuery,
+        int k,
+        Float oversample,
+        Profilers profilers,
+        ContextIndexSearcher searcher,
+        String nestedPath
+    ) throws IOException {
+        int docsToCollect = oversample != null && oversample >= 1 ? (int) Math.ceil(k * oversample) : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
-            k,
+            docsToCollect,
             null,
             Integer.MAX_VALUE
         );
@@ -273,6 +282,6 @@ public class DfsPhase {
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());
         }
-        return new DfsKnnResults(nestedPath, topDocs.scoreDocs);
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs, oversample, k);
     }
 }

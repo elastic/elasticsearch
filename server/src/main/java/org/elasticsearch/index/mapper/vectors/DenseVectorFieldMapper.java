@@ -487,8 +487,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public enum ElementType {
         BYTE,
-        FLOAT,
-        BFLOAT16,
+        FLOAT {
+            @Override
+            public boolean supportsRescore() {
+                return true;
+            }
+        },
+        BFLOAT16 {
+            @Override
+            public boolean supportsRescore() {
+                return true;
+            }
+        },
         BIT;
 
         public static ElementType fromString(String name) {
@@ -498,6 +508,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
+        }
+
+        public boolean supportsRescore() {
+            return false;
         }
     }
 
@@ -1486,7 +1500,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract boolean isFlat();
     }
 
-    abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
+    public abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
         final RescoreVector rescoreVector;
         final Float confidenceInterval;
 
@@ -1507,6 +1521,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public RescoreVector rescoreVector() {
             return rescoreVector;
         }
+
     }
 
     public enum VectorIndexType {
@@ -3005,8 +3020,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
-        private boolean needsRescore(Float rescoreOversample) {
-            return rescoreOversample != null && rescoreOversample > 0 && isQuantized();
+        public boolean needsRescore(Float rescoreOversample) {
+            return getElementType().supportsRescore() && rescoreOversample != null && rescoreOversample >= 1 && isQuantized();
         }
 
         private boolean isQuantized() {

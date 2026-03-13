@@ -1439,7 +1439,7 @@ public class TransportSearchActionTests extends ESTestCase {
             source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, 10f, null, null)));
             searchRequest.source(source);
 
-            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean(), (t) -> true);
             assertEquals(SearchType.DFS_QUERY_THEN_FETCH, searchRequest.searchType());
         }
         {
@@ -1449,7 +1449,7 @@ public class TransportSearchActionTests extends ESTestCase {
             source.suggest(new SuggestBuilder().addSuggestion("field", new TermSuggestionBuilder("value")));
             searchRequest.source(source);
 
-            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean(), (t) -> true);
             assertFalse(searchRequest.requestCache());
             assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
@@ -1457,7 +1457,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // Single-shard searches should always use QUERY_THEN_FETCH in absence of kNN search
             SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
 
-            TransportSearchAction.adjustSearchType(searchRequest, true);
+            TransportSearchAction.adjustSearchType(searchRequest, true, (t) -> true);
             assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
     }

@@ -21,8 +21,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.SearchFeatures.DFS_KNN_RESCORE_TOP_K;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -39,6 +43,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
     private static final String HNSW_BIT_INDEX_NAME = "hnsw_bit_vector_index";
     private static final String FLAT_BIT_INDEX_NAME = "flat_bit_vector_index";
+    private static final String DFS_KNN_RESCORE_INDEX_NAME = "dfs_knn_rescore_vector_index";
 
     // TODO: replace these with proper test features
     private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
@@ -47,6 +52,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
     private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
     private static final String BIT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.15.0";
+    private static final String DFS_KNN_RESCORE_TEST_FEATURE = "dfs_knn_rescore_test_feature";
 
     public void testBitVectors() throws Exception {
         assumeTrue("Bit vector search is not supported on this version", oldClusterHasFeature(BIT_VECTOR_SEARCH_TEST_FEATURE));
@@ -731,6 +737,80 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             (double) hits.get(0).get("_score"),
             closeTo(0.9934857, 0.005)
         );
+    }
+
+    public void testQuantizedKnnSearchWithRescoringDuringUpgrade() throws Exception {
+        assumeTrue(
+            "lazy rescoring for knn DFS searches requires quantized vector search",
+            oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
+        );
+        assumeFalse(
+            "testing compatibility between upgrades, so old clusters shouldn't have the current feature",
+            oldClusterHasFeature(DFS_KNN_RESCORE_TOP_K)
+        );
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "int8_hnsw"
+                      }
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+                """;
+            createIndex(
+                DFS_KNN_RESCORE_INDEX_NAME,
+                Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build(),
+                mapping
+            );
+            for (int i = 0; i < 30; i++) {
+                Request indexRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_doc/" + i);
+                indexRequest.setJsonEntity(String.format("""
+                    {
+                      "vector": [%s, 0, 0],
+                      "value": %s
+                    }
+                    """, i, i));
+                client().performRequest(indexRequest);
+            }
+            client().performRequest(new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_refresh"));
+        }
+        Request searchRequest = new Request("POST", "/" + DFS_KNN_RESCORE_INDEX_NAME + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+              "knn": {
+                "field": "vector",
+                "query_vector": [1, 0, 0],
+                "k": 3,
+                "num_candidates": 30,
+                "rescore_vector": {
+                  "oversample": 2.0
+                }
+              }
+            }
+            """);
+
+        Map<String, Object> response = search(searchRequest);
+
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+        assertThat(hits, notNullValue());
+        if (false == isUpgradedCluster()) {
+            assertThat(hits.size(), equalTo(3));
+            assertThat(hits.getFirst().get("_id"), equalTo("1"));
+        } else {
+            // this awaits fix so that we still fetch only k results at the end despite overrsampling
+            assertThat(hits.size(), greaterThanOrEqualTo(3));
+            assertThat(hits.size(), lessThanOrEqualTo(6));
+        }
     }
 
     private void index64DimVectors(String indexName) throws Exception {

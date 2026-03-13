@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -61,7 +62,7 @@ public class ElasticInferenceServiceAuthorizationModel {
         String baseEisUrl
     ) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
-        return createInternal(responseEntity.getAuthorizedEndpoints(), components);
+        return createInternal(responseEntity.authorizedEndpoints(), components);
     }
 
     private static ElasticInferenceServiceAuthorizationModel createInternal(
@@ -130,11 +131,10 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
         try {
-            var kibanaConnectorName = authorizedEndpoint.displayName();
             return new EndpointMetadata(
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
-                new EndpointMetadata.Display(kibanaConnectorName)
+                Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE)
             );
         } catch (IllegalArgumentException e) {
             logger.atWarn()

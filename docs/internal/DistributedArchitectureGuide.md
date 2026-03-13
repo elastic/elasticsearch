@@ -1778,7 +1778,7 @@ with Elasticsearch-specific customizations:
   identical across segments are [interned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/DeduplicatingFieldInfosFormat.java#L50)
   so they share a single object in memory, reducing heap usage on indices with many segments.
 - For time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the `AbstractTSDBSyntheticIdCodec`
-  codec [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
+  [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
   the `_id` inverted index and stored field to disk. The `_id` field is still declared as indexed, but
   [SyntheticIdField](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java)
   produces an empty token stream so no postings are actually written on flush.
@@ -1794,7 +1794,6 @@ mechanism loads the codec that originally wrote each segment.
 #### Segment Merges
 
 [MergePolicyConfig]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/MergePolicyConfig.java
-[ElasticsearchMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ElasticsearchMergeScheduler.java
 [ThreadPoolMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeScheduler.java
 [SoftDeletesPolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/SoftDeletesPolicy.java
 [PrunePostingsMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/PrunePostingsMergePolicy.java

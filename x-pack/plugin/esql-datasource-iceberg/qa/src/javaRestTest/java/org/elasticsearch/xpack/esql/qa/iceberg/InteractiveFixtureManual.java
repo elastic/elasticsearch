@@ -80,13 +80,10 @@ public class InteractiveFixtureManual extends ESRestTestCase {
     /** Fixed port for Elasticsearch */
     private static final int ES_PORT = 9200;
 
-    /** Fixed port for S3/HTTP fixture */
-    private static final int S3_FIXTURE_PORT = 9345;
-
     private static final PrintStream out = stderr();
 
     /** S3 HTTP fixture serving test data on fixed port */
-    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture(S3_FIXTURE_PORT);
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     /** Elasticsearch cluster with S3 fixture for interactive testing on fixed port */
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

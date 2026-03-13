@@ -140,17 +140,13 @@ import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
-import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -159,23 +155,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.getResourceStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -236,8 +231,6 @@ public class CsvTests extends ESTestCase {
 
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
-
-    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final String fileName;
     private final String groupName;
@@ -453,19 +446,6 @@ public class CsvTests extends ESTestCase {
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
-        }
-    }
-
-    private static void assumeTrueLogging(String message, boolean condition) {
-        assumeFalseLogging(message, condition == false);
-    }
-
-    private static void assumeFalseLogging(String message, boolean condition) {
-        try {
-            assumeFalse(message, condition);
-        } catch (AssumptionViolatedException ave) {
-            LOGGER.info("skipping test: " + ave.getMessage());
-            throw ave;
         }
     }
 
@@ -1118,89 +1098,5 @@ public class CsvTests extends ESTestCase {
             }));
         }
         return coordinatorSplits;
-    }
-
-    /**
-     * Returns a template resolver that maps CSV dataset names (e.g. "employees") to file:// URLs
-     * for datasets in CSV_DATASET that have a data file. Unknown template names return null.
-     * <p>
-     * Paths are resolved lazily on first use per template and cached. For jar resources, temp files
-     * use a file-specific prefix; if a file matching that prefix already exists, it is reused.
-     */
-    public static Function<String, String> csvFileTemplateResolver() {
-        ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
-        return templateName -> {
-            CsvTestsDataLoader.TestDataset dataset = CSV_DATASET.get(templateName);
-            if (dataset == null || dataset.dataFileName() == null) {
-                throw new IllegalArgumentException("Failed to resolve CSV path for dataset [" + templateName + "]");
-            }
-            return cache.computeIfAbsent(templateName, k -> {
-                try {
-                    return resolveCsvFilePathLazy("/data/" + dataset.dataFileName());
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to resolve CSV path for dataset [" + templateName + "]", e);
-                }
-            });
-        };
-    }
-
-    private static String resolveCsvFilePathLazy(String resourcePath) throws IOException {
-        URL resource = CsvTestsDataLoader.class.getResource(resourcePath);
-        if (resource == null) {
-            throw new IllegalStateException("Cannot find resource " + resourcePath);
-        }
-        String protocol = resource.getProtocol();
-        if ("file".equals(protocol)) {
-            return normalizeFileUri(resource.toExternalForm());
-        }
-        if ("jar".equals(protocol)) {
-            String fileName = PathUtils.get(resourcePath).getFileName().toString();
-            String prefix = CsvTests.class.getCanonicalName() + "-" + fileName + "-";
-            Path tempDir = PathUtils.get(System.getProperty("java.io.tmpdir"));
-            try (var stream = Files.newDirectoryStream(tempDir, prefix + "*")) {
-                var iterator = stream.iterator();
-                if (iterator.hasNext()) {
-                    Path existing = iterator.next();
-                    return normalizeFileUri(existing.toUri().toURL().toExternalForm());
-                }
-            }
-            Path tempFile = createTempFile(tempDir, prefix, ".csv");
-            try (InputStream in = getResourceStream(resourcePath)) {
-                Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return normalizeFileUri(tempFile.toUri().toURL().toExternalForm());
-        }
-        throw new IllegalStateException("Unsupported resource protocol: " + protocol);
-    }
-
-    private static Path createTempFile(Path tempDir, String prefix, String suffix) throws IOException {
-        Path tempFile = Files.createTempFile(tempDir, prefix, suffix);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                Files.deleteIfExists(tempFile);
-            } catch (IOException ignored) {
-                // Best-effort cleanup on shutdown
-            }
-        }));
-        return tempFile;
-    }
-
-    private static String normalizeFileUri(String uri) {
-        if (uri != null && uri.startsWith("file:/") && uri.startsWith("file:///") == false) {
-            return "file://" + uri.substring(5);
-        }
-        return uri;
-    }
-
-    public static String substituteTemplates(String query, Function<String, String> templateResolver) {
-        Matcher matcher = TEMPLATE_PATTERN.matcher(query);
-        StringBuilder result = new StringBuilder();
-        while (matcher.find()) {
-            String templateName = matcher.group(1);
-            String replacement = templateResolver.apply(templateName);
-            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
-        }
-        matcher.appendTail(result);
-        return result.toString();
     }
 }

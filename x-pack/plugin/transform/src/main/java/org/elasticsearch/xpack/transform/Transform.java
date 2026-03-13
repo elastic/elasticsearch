@@ -39,7 +39,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -223,9 +222,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        var settings = restHandlersServices.settings();
         var transformParsingContext = new TransformParsingContext(
-            new CrossProjectModeDecider(settings).crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
         );
         return Arrays.asList(
             new RestPutTransformAction(transformParsingContext),
@@ -280,7 +278,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
 
-        var crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        var crossProjectModeDecider = services.crossProjectModeDecider();
         var transformParsingContext = new TransformParsingContext(
             crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
         );
@@ -319,7 +317,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var transformNode = new TransformNode(clusterStateListener);
 
         transformServices.set(
-            new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode, crossProjectModeDecider)
+            new TransformServices(
+                configManager,
+                checkpointService,
+                auditor,
+                scheduler,
+                transformNode,
+                crossProjectModeDecider,
+                projectId -> false
+            )
         );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());

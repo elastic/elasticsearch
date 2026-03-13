@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -69,6 +70,6 @@ public class PluginTestUtil {
     }
 
     public static ActionPlugin.RestHandlersServices emptyRestHandlersServices() {
-        return new ActionPlugin.RestHandlersServices(Settings.EMPTY, null, null);
+        return new ActionPlugin.RestHandlersServices(Settings.EMPTY, null, null, CrossProjectModeDecider.NOOP);
     }
 }

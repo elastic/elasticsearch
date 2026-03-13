@@ -341,10 +341,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json");
-        this.airportsCityBoundaries = makeTestDataSource(
-            "airports_city_boundaries",
-            "mapping-airport_city_boundaries.json"
-        );
+        this.airportsCityBoundaries = makeTestDataSource("airports_city_boundaries", "mapping-airport_city_boundaries.json");
         this.airportsCityBoundariesNoPointDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
@@ -360,10 +357,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "mapping-airport_city_boundaries.json",
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary", "location", "city_location")
         );
-        this.cartesianMultipolygons = makeTestDataSource(
-            "cartesian_multipolygons",
-            "mapping-cartesian_multipolygons.json"
-        );
+        this.cartesianMultipolygons = makeTestDataSource("cartesian_multipolygons", "mapping-cartesian_multipolygons.json");
         this.cartesianMultipolygonsNoDocValues = makeTestDataSource(
             "cartesian_multipolygons_no_doc_values",
             "mapping-cartesian_multipolygons_no_doc_values.json",

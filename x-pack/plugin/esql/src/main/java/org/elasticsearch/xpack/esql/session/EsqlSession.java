@@ -725,7 +725,6 @@ public class EsqlSession {
         if (metrics == null || viewResolution.viewQueries().isEmpty()) {
             return;
         }
-        // If any views were used, increment the views metric
         metrics.inc(FeatureMetric.VIEWS);
     }
 

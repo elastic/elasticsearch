@@ -847,16 +847,12 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testSubqueryTelemetry() {
         Row innerPlan = new Row(Source.EMPTY, List.of());
 
-        // A named Subquery represents a view - it should be excluded from plan traversal telemetry
-        // Views are counted separately via EsqlSession.gatherViewMetrics (ad-hoc approach)
         Subquery view = new Subquery(Source.EMPTY, innerPlan, "my_view");
         BitSet viewBitSet = new BitSet();
         FeatureMetric.set(view, viewBitSet);
-        // Named Subqueries are excluded, so no metrics should be set
         assertFalse("VIEWS should not be set for named Subquery (counted ad-hoc)", viewBitSet.get(VIEWS.ordinal()));
         assertFalse("SUBQUERY should not be set for named Subquery", viewBitSet.get(FeatureMetric.SUBQUERY.ordinal()));
 
-        // An unnamed Subquery represents an inline subquery (not a view)
         Subquery subquery = new Subquery(Source.EMPTY, innerPlan);
         BitSet subqueryBitSet = new BitSet();
         FeatureMetric.set(subquery, subqueryBitSet);

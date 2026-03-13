@@ -124,7 +124,11 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
     private static void sendFailureResponse(RestChannel channel, Exception e) {
         logger.debug("OTLP request failed", e);
         try {
-            Status status = Status.newBuilder().setMessage(e.getMessage()).build();
+            // Per the OTLP spec, Status.code is not used over HTTP: "the server MAY omit Status.code field.
+            // The clients are not expected to alter their behavior based on Status.code field".
+            // The HTTP status code in the response is what drives client retry behavior.
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            Status status = Status.newBuilder().setMessage(message).build();
             channel.sendResponse(new RestResponse(ExceptionsHelper.status(e), CONTENT_TYPE_PROTOBUF, new BytesArray(status.toByteArray())));
         } catch (Exception sendException) {
             sendException.addSuppressed(e);

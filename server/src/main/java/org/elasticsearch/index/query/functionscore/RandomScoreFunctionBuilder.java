@@ -136,7 +136,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             // DocID-based random score generation
             return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
         } else {
-            final String fieldName = Objects.requireNonNullElse(field, SeqNoFieldMapper.NAME);
+            final String fieldName = field(context);
             if (context.isFieldMapped(fieldName) == false) {
                 if (context.hasMappings() == false) {
                     // no mappings: the index is empty anyway
@@ -153,6 +153,20 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                 context.getForField(context.getFieldType(fieldName), MappedFieldType.FielddataOperation.SEARCH)
             );
         }
+    }
+
+    private String field(SearchExecutionContext context) {
+        if (field != null) {
+            return field;
+        }
+        if (context.getIndexSettings().sequenceNumbersDisabled()) {
+            throw new IllegalArgumentException(
+                "random_score requires a [field] parameter when [index.disable_sequence_numbers] is [true] on index ["
+                    + context.index()
+                    + "]"
+            );
+        }
+        return SeqNoFieldMapper.NAME;
     }
 
     private static int hash(long value) {

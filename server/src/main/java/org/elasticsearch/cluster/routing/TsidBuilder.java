@@ -252,7 +252,7 @@ public class TsidBuilder {
      * @return a BytesRef containing the TSID
      * @throws IllegalArgumentException if no dimensions have been added
      */
-    private BytesRef buildLegacyTsid() {
+    public BytesRef buildLegacyTsid() {
         int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
         byte[] hash = new byte[1 + numberOfValues + 16];
         int index = 0;

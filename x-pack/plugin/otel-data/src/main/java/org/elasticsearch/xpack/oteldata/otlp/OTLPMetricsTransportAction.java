@@ -18,14 +18,10 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +52,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
-    private final ClusterService clusterService;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -72,7 +67,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -84,9 +78,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         if (context.totalDataPoints() == 0) {
             return context;
         }
-        ProjectState projectState = clusterService.state().projectState(ProjectId.DEFAULT);
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
-        context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectState));
+        context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
         return context;
     }
 
@@ -102,26 +95,19 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     private void addIndexRequest(
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
-        DataPointGroupingContext.DataPointGroup dataPointGroup,
-        ProjectState projectState
+        DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
             var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
-            var indexName = dataPointGroup.targetIndex().index();
-            IndexMetadata indexMetadata = projectState.metadata().index(indexName);
-            if (indexMetadata == null) {
-                throw new IndexNotFoundException(indexName);
-            }
             BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
                 xContentBuilder,
                 dataPointGroup,
                 dynamicTemplates,
-                dynamicTemplateParams,
-                indexMetadata.getCreationVersion()
+                dynamicTemplateParams
             );
             bulkRequestBuilder.add(
-                new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE)
+                new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     .tsid(tsid)

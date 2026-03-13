@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -69,11 +70,25 @@ public class IndicesOptionsTests extends ESTestCase {
             StreamInput streamInput = output.bytes().streamInput();
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(streamInput);
 
-            IndicesOptions expected = IndicesOptions.builder(indicesOptions)
-                .indexAbstractionOptions(IndexAbstractionOptions.builder(indicesOptions.indexAbstractionOptions()).resolveViews(false))
-                .build();
-            assertThat(indicesOptions2, equalTo(expected));
+            assertThat(indicesOptions2, equalTo(indicesOptions));
         }
+    }
+
+    public void testSerializationResolveViewsDroppedBeforeSupportVersion() throws Exception {
+        IndicesOptions indicesOptions = IndicesOptions.builder()
+            .wildcardOptions(WildcardOptions.builder().matchOpen(true).matchClosed(false))
+            .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveViews(true))
+            .build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndicesOptions.INDICES_OPTIONS_RESOLVE_VIEWS));
+        indicesOptions.writeIndicesOptions(output);
+
+        StreamInput streamInput = output.bytes().streamInput();
+        streamInput.setTransportVersion(output.getTransportVersion());
+        IndicesOptions deserialized = IndicesOptions.readIndicesOptions(streamInput);
+
+        assertFalse(deserialized.indexAbstractionOptions().resolveViews());
     }
 
     public void testFromOptions() {

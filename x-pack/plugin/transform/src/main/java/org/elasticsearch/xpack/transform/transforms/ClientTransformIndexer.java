@@ -178,7 +178,7 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportBulkAction.TYPE,
@@ -258,7 +258,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             DeleteByQueryAction.INSTANCE,
@@ -299,7 +299,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
@@ -515,7 +515,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportClosePointInTimeAction.TYPE,
@@ -557,7 +557,7 @@ class ClientTransformIndexer extends TransformIndexer {
         }
 
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportOpenPointInTimeAction.TYPE,
@@ -627,7 +627,7 @@ class ClientTransformIndexer extends TransformIndexer {
         logger.trace("searchRequest: [{}]", searchRequest);
 
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            transformConfig.headers().allHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             TransportSearchAction.TYPE,
@@ -653,7 +653,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     namedPits.remove(name);
                     originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
-                        transformConfig.getHeaders(),
+                        transformConfig.headers().allHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,
@@ -672,7 +672,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     namedPits.remove(name);
                     originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
-                        transformConfig.getHeaders(),
+                        transformConfig.headers().allHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         TransportSearchAction.TYPE,

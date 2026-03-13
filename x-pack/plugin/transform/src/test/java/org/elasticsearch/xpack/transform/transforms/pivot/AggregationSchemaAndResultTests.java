@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
@@ -149,7 +150,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(
                 client,
-                emptyMap(),
+                TransformHeaders.EMPTY,
                 "my-transform",
                 SettingsConfig.EMPTY,
                 pivotConfig,
@@ -229,7 +230,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(
                 client,
-                emptyMap(),
+                TransformHeaders.EMPTY,
                 "my-transform",
                 SettingsConfig.EMPTY,
                 pivotConfig,

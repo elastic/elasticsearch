@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -89,7 +90,7 @@ public class Pivot extends AbstractCompositeAggFunction {
     @Override
     public void deduceMappings(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         String transformId,
         SourceConfig sourceConfig,
         final ActionListener<Map<String, String>> listener

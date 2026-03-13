@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
@@ -124,7 +125,7 @@ public interface Function {
      */
     void deduceMappings(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         String transformId,
         SourceConfig sourceConfig,
         ActionListener<Map<String, String>> listener
@@ -144,7 +145,7 @@ public interface Function {
     void preview(
         Client client,
         @Nullable TimeValue timeout,
-        Map<String, String> headers,
+        TransformHeaders headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
         int numberOfRows,
@@ -193,7 +194,7 @@ public interface Function {
      */
     void validateQuery(
         Client client,
-        Map<String, String> headers,
+        TransformHeaders headers,
         SourceConfig sourceConfig,
         @Nullable TimeValue timeout,
         ActionListener<Boolean> listener

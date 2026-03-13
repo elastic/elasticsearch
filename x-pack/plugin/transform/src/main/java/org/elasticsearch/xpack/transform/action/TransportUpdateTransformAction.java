@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Respo
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHeaders;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
@@ -138,7 +139,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         }
 
         TransformConfigUpdate update = request.getUpdate();
-        update.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
+        update.setHeaders(TransformHeaders.fromMap(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState)));
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX

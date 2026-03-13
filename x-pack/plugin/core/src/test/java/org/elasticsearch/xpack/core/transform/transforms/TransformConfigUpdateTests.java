@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -118,10 +117,10 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
         assertFalse("null update does not change headers", update.changesHeaders(config));
 
-        update.setHeaders(config.getHeaders());
+        update.setHeaders(config.headers());
         assertFalse("equal update does not change headers", update.changesHeaders(config));
 
-        Map<String, String> newHeaders = Map.of("new-key", "new-value");
+        TransformHeaders newHeaders = TransformHeaders.fromMap(Map.of("new-key", "new-value"));
         update.setHeaders(newHeaders);
         assertTrue("true update changes headers", update.changesHeaders(config));
     }
@@ -147,7 +146,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomSyncConfig(),
-            Collections.singletonMap("key", "value"),
+            TransformHeaders.fromMap(Map.of("key", "value")),
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
@@ -187,7 +186,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             retentionPolicyConfig
         );
 
-        Map<String, String> headers = Collections.singletonMap("foo", "bar");
+        TransformHeaders headers = TransformHeaders.fromMap(Map.of("foo", "bar"));
         update.setHeaders(headers);
         TransformConfig updatedConfig = update.apply(config);
 
@@ -200,7 +199,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         // We only check for the existence of new entries. The map can also contain the old (random) entries.
         assertThat(updatedConfig.getMetadata(), equalTo(newMetadata));
         assertThat(updatedConfig.getRetentionPolicyConfig(), equalTo(retentionPolicyConfig));
-        assertThat(updatedConfig.getHeaders(), equalTo(headers));
+        assertThat(updatedConfig.headers(), equalTo(headers));
         assertThat(updatedConfig.getVersion(), equalTo(TransformConfigVersion.CURRENT));
     }
 
@@ -245,7 +244,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomSyncConfig(),
-            Collections.singletonMap("key", "value"),
+            TransformHeaders.fromMap(Map.of("key", "value")),
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
@@ -333,7 +332,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomSyncConfig(),
-            Collections.singletonMap("key", "value"),
+            TransformHeaders.fromMap(Map.of("key", "value")),
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),

@@ -181,7 +181,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
-    public static TransformConfig randomTransformConfigWithHeaders(Map<String, String> headers) {
+    public static TransformConfig randomTransformConfigWithHeaders(TransformHeaders headers) {
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
@@ -346,7 +346,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             instance.getDestination(),
             instance.getFrequency(),
             instance.getSyncConfig(),
-            instance.getHeaders(),
+            instance.headers(),
             instance.getPivotConfig(),
             instance.getLatestConfig(),
             instance.getDescription(),
@@ -368,8 +368,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return TO_XCONTENT_PARAMS;
     }
 
-    private static Map<String, String> randomHeaders() {
-        return Map.of("key", "value");
+    private static TransformHeaders randomHeaders() {
+        return TransformHeaders.fromMap(Map.of("key", "value"));
     }
 
     public void testDefaultMatchAll() throws IOException {

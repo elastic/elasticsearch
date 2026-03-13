@@ -184,7 +184,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                 deleteDestIndexRequest.ackTimeout(timeout);
                 deleteDestIndexRequest.setParentTask(parentTaskId);
                 executeWithHeadersAsync(
-                    config.getHeaders(),
+                    config.headers().allHeaders(),
                     TRANSFORM_ORIGIN,
                     client,
                     TransportDeleteIndexAction.TYPE,
@@ -208,7 +208,14 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
         GetAliasesRequest request = new GetAliasesRequest(timeout, destIndex);
         request.setParentTask(parentTaskId);
-        executeWithHeadersAsync(config.getHeaders(), TRANSFORM_ORIGIN, client, GetAliasesAction.INSTANCE, request, responseListener);
+        executeWithHeadersAsync(
+            config.headers().allHeaders(),
+            TRANSFORM_ORIGIN,
+            client,
+            GetAliasesAction.INSTANCE,
+            request,
+            responseListener
+        );
     }
 
     private static void findDestinationIndexInAliases(GetAliasesResponse aliases, String destIndex, ActionListener<String> listener) {

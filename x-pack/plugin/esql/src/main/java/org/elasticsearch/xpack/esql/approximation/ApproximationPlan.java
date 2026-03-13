@@ -229,14 +229,14 @@ public class ApproximationPlan {
         // The keys are the IDs of the fields that have buckets. Confidence intervals are computed
         // for these fields at the end of the computation. They map to the list of buckets for
         // that field.
-        Map<NameId, List<Alias>> fieldBuckets = new HashMap<>();
+        Map<NameId, List<Attribute>> fieldBuckets = new HashMap<>();
 
         // For each rounded expression, also keep track of the not rounded expression.
         // These are used when a division between two rounded expressions is encountered.
         // This results in more accurate values, because no round-off errors occur in
         // the numerator and denominator. The most common use case is AVG, which
         // is rewritten to AVG::double = SUM::double / COUNT::long.
-        Map<NameId, NamedExpression> notRoundedExpressions = new HashMap<>();
+        Map<NameId, Attribute> notRoundedExpressions = new HashMap<>();
 
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
@@ -265,7 +265,7 @@ public class ApproximationPlan {
         Set<Attribute> dropAttributes = Stream.concat(
             fieldBuckets.values().stream().flatMap(List::stream),
             notRoundedExpressions.values().stream()
-        ).map(NamedExpression::toAttribute).collect(Collectors.toSet());
+        ).collect(Collectors.toSet());
 
         List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
         keepAttributes.removeAll(dropAttributes);
@@ -300,8 +300,8 @@ public class ApproximationPlan {
      */
     private static LogicalPlan sampleCorrectedAggregateAndBuckets(
         Aggregate aggregate,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> notRoundedExpressions
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Map<NameId, Attribute> notRoundedExpressions
     ) {
         Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY);
 
@@ -335,8 +335,8 @@ public class ApproximationPlan {
                 continue;
             }
 
-            Alias aggAlias = (Alias) aggOrKey;
-            AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
+            Alias agg = (Alias) aggOrKey;
+            AggregateFunction aggFn = (AggregateFunction) agg.child();
 
             // Double-precision version of the aggregate function if needed, so that
             // sample correction (dividing by the sample probability) on data nodes
@@ -347,7 +347,7 @@ public class ApproximationPlan {
                 aggFn = new CountApproximate(count.source(), count.field(), count.filter(), count.window());
                 needsTruncation = true;
             } else if (aggFn instanceof Sum sum && sum.dataType().isWholeNumber()) {
-                Alias doubleField = new Alias(Source.EMPTY, aggAlias.name() + "$double", new ToDouble(Source.EMPTY, sum.field()));
+                Alias doubleField = new Alias(Source.EMPTY, agg.name() + "$double", new ToDouble(Source.EMPTY, sum.field()));
                 preEvals.add(doubleField);
                 aggFn = new Sum(sum.source(), doubleField.toAttribute(), sum.filter(), sum.window(), sum.summationMode());
                 needsTruncation = true;
@@ -355,20 +355,20 @@ public class ApproximationPlan {
                 needsTruncation = false;
             }
 
-            projections.add(aggAlias.toAttribute());
+            projections.add(agg.toAttribute());
             if (needsTruncation) {
-                Alias approxAlias = new Alias(Source.EMPTY, aggAlias.name() + "$approx", aggFn);
-                notRoundedExpressions.put(aggAlias.id(), approxAlias);
-                postEvals.add(aggAlias.replaceChild(new ToLong(Source.EMPTY, approxAlias.toAttribute())));
-                aggAlias = approxAlias;
+                Alias approxAgg = new Alias(Source.EMPTY, agg.name() + "$approx", aggFn);
+                notRoundedExpressions.put(agg.id(), approxAgg.toAttribute());
+                postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, approxAgg.toAttribute())));
+                agg = approxAgg;
             }
-            originalAggregates.add(aggAlias);
+            originalAggregates.add(agg);
 
             if (Approximation.SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
                 // For the supported single-valued aggregations, add buckets with sampled
                 // values, that will be used to compute a confidence interval.
                 // For multivalued aggregations, confidence intervals do not make sense.
-                List<Alias> buckets = new ArrayList<>();
+                List<Attribute> buckets = new ArrayList<>();
                 for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                     for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
                         Expression bucketIdFilter = new Equals(
@@ -381,46 +381,45 @@ public class ApproximationPlan {
                             ),
                             Literal.integer(Source.EMPTY, bucketId)
                         );
-                        Expression bucket = aggFn.withFilter(
-                            aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
-                        );
-                        Alias bucketAlias = new Alias(
+                        Alias bucket = new Alias(
                             Source.EMPTY,
                             aggOrKey.name() + "$bucket$" + (trialId * BUCKET_COUNT + bucketId),
-                            bucket
+                            aggFn.withFilter(
+                                aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
+                            )
                         );
 
                         if (needsTruncation) {
-                            Alias approxBucketAlias = new Alias(Source.EMPTY, bucketAlias.name() + "$approx", bucketAlias.child());
-                            notRoundedExpressions.put(bucketAlias.id(), approxBucketAlias);
-                            postEvals.add(bucketAlias.replaceChild(new ToLong(Source.EMPTY, approxBucketAlias.toAttribute())));
-                            bucketAlias = approxBucketAlias;
+                            Alias approxBucket = new Alias(Source.EMPTY, bucket.name() + "$approx", bucket.child());
+                            notRoundedExpressions.put(bucket.id(), approxBucket.toAttribute());
+                            postEvals.add(bucket.replaceChild(new ToLong(Source.EMPTY, approxBucket.toAttribute())));
+                            bucket = approxBucket;
                         }
-                        bucketAggregates.add(bucketAlias);
+                        bucketAggregates.add(bucket);
 
                         if (aggFn instanceof Count) {
                             // COUNT returns 0 for no data, but confidence computation needs NULL.
-                            bucketAlias = new Alias(
+                            bucket = new Alias(
                                 Source.EMPTY,
-                                bucketAlias.name(),
+                                bucket.name(),
                                 new Case(
                                     Source.EMPTY,
-                                    new Equals(Source.EMPTY, bucketAlias.toAttribute(), Literal.fromDouble(Source.EMPTY, 0.0)),
-                                    List.of(Literal.NULL, bucketAlias.toAttribute())
+                                    new Equals(Source.EMPTY, bucket.toAttribute(), Literal.fromDouble(Source.EMPTY, 0.0)),
+                                    List.of(Literal.NULL, bucket.toAttribute())
                                 )
                             );
-                            postEvals.add(bucketAlias);
+                            postEvals.add(bucket);
                         }
-                        buckets.add(bucketAlias);
-                        projections.add(bucketAlias.toAttribute());
+                        buckets.add(bucket.toAttribute());
+                        projections.add(bucket.toAttribute());
                     }
                 }
                 fieldBuckets.put(aggOrKey.id(), buckets);
             }
         }
 
-        List<NamedExpression> aggregates = Stream.concat(originalAggregates.stream(), bucketAggregates.stream())
-            .collect(Collectors.toList());
+        List<NamedExpression> aggregates = new ArrayList<>(originalAggregates);
+        aggregates.addAll(bucketAggregates);
 
         Alias sampleSize = null;
         if (aggregate.groupings().isEmpty() == false) {
@@ -472,8 +471,8 @@ public class ApproximationPlan {
      */
     private static LogicalPlan planIncludingBuckets(
         LogicalPlan plan,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> notRoundedExpressions
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Map<NameId, Attribute> notRoundedExpressions
     ) {
         return switch (plan) {
             case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
@@ -491,8 +490,8 @@ public class ApproximationPlan {
      */
     private static LogicalPlan evalIncludingBuckets(
         Eval eval,
-        Map<NameId, List<Alias>> fieldBuckets,
-        Map<NameId, NamedExpression> notRoundedExpressions
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Map<NameId, Attribute> notRoundedExpressions
     ) {
         List<Alias> fields = new ArrayList<>(eval.fields());
         for (Alias field : eval.fields()) {
@@ -503,18 +502,22 @@ public class ApproximationPlan {
             }
             // If any of the field's dependencies has buckets, create buckets for this field as well.
             if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
-                List<Alias> buckets = new ArrayList<>();
+                List<Attribute> buckets = new ArrayList<>();
                 for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
                     final int finalBucketId = bucketId;
-                    Expression bucket = field.child()
-                        .transformDown(
-                            e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
-                                ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
-                                : e
-                        );
-                    buckets.add(new Alias(Source.EMPTY, field.name() + "$" + bucketId, bucket));
+                    Alias bucket = new Alias(
+                        Source.EMPTY,
+                        field.name() + "$bucket$" + bucketId,
+                        field.child()
+                            .transformDown(
+                                e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
+                                    ? fieldBuckets.get(ne.id()).get(finalBucketId)
+                                    : e
+                            )
+                    );
+                    fields.add(bucket);
+                    buckets.add(bucket.toAttribute());
                 }
-                fields.addAll(buckets);
                 fieldBuckets.put(field.id(), buckets);
             }
         }
@@ -524,19 +527,15 @@ public class ApproximationPlan {
             Alias field = fields.get(i);
             fields.set(i, field.replaceChild(field.child().transformUp(e -> {
                 if (e instanceof Div div && div.dataType().isRationalNumber()) {
-                    NamedExpression notRoundedLhs = div.left() instanceof NamedExpression left
-                        ? notRoundedExpressions.get(left.id())
-                        : null;
-                    NamedExpression notRoundedRhs = div.right() instanceof NamedExpression right
-                        ? notRoundedExpressions.get(right.id())
-                        : null;
+                    Attribute notRoundedLhs = div.left() instanceof NamedExpression left ? notRoundedExpressions.get(left.id()) : null;
+                    Attribute notRoundedRhs = div.right() instanceof NamedExpression right ? notRoundedExpressions.get(right.id()) : null;
                     if (notRoundedLhs == null && notRoundedRhs == null) {
                         return div;
                     } else {
                         return new Div(
                             div.source(),
-                            notRoundedLhs != null ? notRoundedLhs.toAttribute() : div.left(),
-                            notRoundedRhs != null ? notRoundedRhs.toAttribute() : div.right(),
+                            notRoundedLhs != null ? notRoundedLhs : div.left(),
+                            notRoundedRhs != null ? notRoundedRhs : div.right(),
                             div.dataType()
                         );
                     }
@@ -553,7 +552,7 @@ public class ApproximationPlan {
      * For PROJECT, if it renames a field with buckets, add the renamed field
      * to the map of fields with buckets.
      */
-    private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Alias>> fieldBuckets) {
+    private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Attribute>> fieldBuckets) {
         for (NamedExpression projection : project.projections()) {
             if (projection instanceof Alias alias
                 && alias.child() instanceof NamedExpression named
@@ -569,9 +568,7 @@ public class ApproximationPlan {
                 if (projections == null) {
                     projections = new ArrayList<>(project.projections());
                 }
-                for (Alias bucket : fieldBuckets.get(projection.id())) {
-                    projections.add(bucket.toAttribute());
-                }
+                projections.addAll(fieldBuckets.get(projection.id()));
             }
         }
         if (projections != null) {
@@ -585,7 +582,7 @@ public class ApproximationPlan {
      * do anything and the buckets of the expanded field are the same as those
      * of the target field.
      */
-    private static LogicalPlan mvExpandIncludingBuckets(MvExpand mvExpand, Map<NameId, List<Alias>> fieldBuckets) {
+    private static LogicalPlan mvExpandIncludingBuckets(MvExpand mvExpand, Map<NameId, List<Attribute>> fieldBuckets) {
         if (fieldBuckets.containsKey(mvExpand.target().id())) {
             fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
         }
@@ -605,7 +602,7 @@ public class ApproximationPlan {
      */
     private static List<Alias> getConfidenceIntervals(
         LogicalPlan logicalPlan,
-        Map<NameId, List<Alias>> fieldBuckets,
+        Map<NameId, List<Attribute>> fieldBuckets,
         double confidenceLevel
     ) {
         Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
@@ -617,7 +614,7 @@ public class ApproximationPlan {
         List<Alias> confidenceIntervalsAndCertified = new ArrayList<>();
         for (Attribute output : logicalPlan.output()) {
             if (fieldBuckets.containsKey(output.id())) {
-                List<Alias> buckets = fieldBuckets.get(output.id());
+                List<Attribute> buckets = fieldBuckets.get(output.id());
                 // Collect a multivalued expression with all bucket values, and pass that to the
                 // confidence interval computation. Whenever the bucket value is null, replace it
                 // by NaN, because multivalued fields cannot have nulls.
@@ -628,7 +625,7 @@ public class ApproximationPlan {
                 // https://github.com/elastic/elasticsearch/issues/141383
                 Expression bucketsMv = null;
                 for (int i = 0; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
-                    Expression bucket = buckets.get(i).toAttribute();
+                    Expression bucket = buckets.get(i);
                     if (output.dataType() != DataType.DOUBLE) {
                         bucket = new ToDouble(Source.EMPTY, bucket);
                     }

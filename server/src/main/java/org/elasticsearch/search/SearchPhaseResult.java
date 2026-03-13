@@ -9,8 +9,10 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -30,11 +32,15 @@ import java.io.IOException;
  */
 public abstract class SearchPhaseResult extends TransportResponse {
 
+    public static final TransportVersion SEARCH_PHASE_BYTES_READ = TransportVersion.fromName("search_phases_bytes_read");
+
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
+    private DirectoryMetrics directoryMetrics;
+    private long bytesRead;
 
     protected SearchPhaseResult() {}
 
@@ -122,6 +128,14 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
         this.rescoreDocIds = rescoreDocIds;
+    }
+
+    public long getBytesRead() {
+        return bytesRead;
+    }
+
+    public void setBytesRead(long bytesRead) {
+        this.bytesRead = bytesRead;
     }
 
     @Override

@@ -42,6 +42,7 @@ public final class FullTextFunctionGenerator {
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
             if ("limit".equals(cmd.commandName())
+                || "limit_by".equals(cmd.commandName())
                 || "stats".equals(cmd.commandName())
                 || "inline stats".equals(cmd.commandName())
                 || "change_point".equals(cmd.commandName())

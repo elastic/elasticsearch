@@ -767,8 +767,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     public void testRemoteViewFailsQuery() throws IOException {
-        assumeTrue("views not supported on remote cluster",
-            capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions")));
+        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions")));
         try (RestClient remoteClient = remoteClusterClient()) {
             Request putView = new Request("PUT", "/_query/view/test-remote-view");
             putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");

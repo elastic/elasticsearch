@@ -15,7 +15,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
@@ -28,6 +32,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -37,13 +43,28 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        ElasticInferenceServiceRateLimitServiceSettings {
+        ElasticInferenceServiceRateLimitServiceSettings,
+        ToXContentObject {
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
+
+    public static ConstructingObjectParser<ElasticInferenceServiceSparseEmbeddingsServiceSettings, Void> createParser(
+        ConfigurationParseContext context
+    ) {
+        var parser = new ConstructingObjectParser<ElasticInferenceServiceSparseEmbeddingsServiceSettings, Void>(
+            NAME,
+            context == ConfigurationParseContext.PERSISTENT ? true : false,
+            args -> new ElasticInferenceServiceSparseEmbeddingsServiceSettings((String) args[0], (Integer) args[1], (Integer) args[2])
+        );
+        parser.declareString(constructorArg(), new ParseField(MODEL_ID));
+        parser.declareInt(optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS));
+        parser.declareInt(optionalConstructorArg(), new ParseField(MAX_BATCH_SIZE));
+        return parser;
+    }
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
@@ -105,6 +126,22 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         } else {
             this.maxBatchSize = null;
         }
+    }
+
+    @Override
+    public ValidationException validate() {
+        ValidationException validationException = new ValidationException();
+        if (maxInputTokens != null && maxInputTokens <= 0) {
+            validationException.addValidationError(
+                InferenceUtils.mustBeAPositiveIntegerErrorMessage(MAX_INPUT_TOKENS, ModelConfigurations.SERVICE_SETTINGS, maxInputTokens)
+            );
+        }
+        if (maxBatchSize != null && maxBatchSize <= 0) {
+            validationException.addValidationError(
+                InferenceUtils.mustBeAPositiveIntegerErrorMessage(MAX_BATCH_SIZE, ModelConfigurations.SERVICE_SETTINGS, maxBatchSize)
+            );
+        }
+        return validationException;
     }
 
     @Override

@@ -274,10 +274,8 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         try {
             ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), context.parser());
             BytesRef normalizedValue = normalizeTemporalityAsBytes(parser.text());
-            context.doc().addWithKey(
-                fieldType().name(),
-                new KeywordFieldMapper.KeywordField(fieldType().name(), normalizedValue, fieldType)
-            );
+            context.doc()
+                .addWithKey(fieldType().name(), new KeywordFieldMapper.KeywordField(fieldType().name(), normalizedValue, fieldType));
 
             assert fieldType().isDimension();
             context.getRoutingFields().addString(fieldType().name(), normalizedValue);

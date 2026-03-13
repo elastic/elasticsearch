@@ -42,14 +42,6 @@ public interface QueryLoggerContext {
      */
     String[] getIndices();
 
-    default int getRemoteCount(Map<String, String> clusters) {
-        return Math.clamp(
-            (int) clusters.keySet().stream().filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false).count(),
-            0,
-            Integer.MAX_VALUE
-        );
-    }
-
     default Collection<String> getRemoteClusterAliases(Map<String, String> clusters) {
         return clusters.keySet().stream().filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false).toList();
     }

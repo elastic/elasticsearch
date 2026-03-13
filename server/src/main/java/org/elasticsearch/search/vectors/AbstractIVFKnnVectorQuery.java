@@ -49,9 +49,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     // Two-Signal Model constants for dynamic visit ratio
-    private static final float V_MIN = 0.005f;
-    private static final float V_MAX = 0.05f;
-    private static final double LOG1P_R_MAX = Math.log1p(100.0);
+    private static final float V_MIN = 0.003f;
+    private static final float V_MAX = 0.04f;
+    private static final double LOG1P_R_MAX = Math.log1p(10.0);
     private static final double LOG1P_K_MAX = Math.log1p(10_000.0);
     private static final double RATIO_WEIGHT = 0.85;
     private static final double K_WEIGHT = 0.15;
@@ -136,7 +136,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
             double r = (double) numCands / Math.max(k, 1);
-            double z = RATIO_WEIGHT * logScale(r, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
+            double z = RATIO_WEIGHT * logScale(r - 1.0, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
             visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
         } else {
             visitRatio = providedVisitRatio;

@@ -1685,6 +1685,7 @@ Elasticsearch supports a two-major-version compatibility window for index data. 
 major version (N) or the previous major version (N-1) are fully supported for reading and writing. The minimum
 index version for this full support is defined by
 [IndexVersions.MINIMUM_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L268).
+Note that Lucene [enforces similar constraints](https://github.com/apache/lucene/issues/10708).
 
 Indices created in the penultimate major version (N-2), i.e. older than `MINIMUM_COMPATIBLE` but at or above
 [IndexVersions.MINIMUM_READONLY_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L269),
@@ -1734,12 +1735,61 @@ of several file types, each responsible for a different data structure:
 | `.vec`, `.vex`, `.vem` | KNN vector data and graph (HNSW or other ANN structure). |
 | `.kdm`, `.kdi`, `.kdd` | Points / BKD tree (numeric range queries, geo). |
 
+Check out the
+Lucene [documentation](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/package-summary.html)
+for more details on each of those specific files.
+
 The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
 `segments_N+1` as the active commit point, making the new set of segments visible. The old segment files are removed
 once no reader [holds a reference](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef())
 to them.
 
 #### Codecs
+
+[PerFieldMapperCodec]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldMapperCodec.java
+[Mapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/Mapper.java
+[PerFieldFormatSupplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldFormatSupplier.java
+[CodecService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java
+[TSDBSyntheticIdPostingsFormat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdPostingsFormat.java
+[TSDBSyntheticIdStoredFieldsReader]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdStoredFieldsReader.java
+
+Lucene's [codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
+lets each field type choose its own on-disk format. A codec is a bundle of format implementations: one for postings,
+one for stored fields, one for doc values, one for vectors, etc.
+
+Elasticsearch ships its own codec stack, managed by the [CodecService] class. It extends the current Lucene codec
+(e.g. [Lucene104Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/Lucene104Codec.html))
+with Elasticsearch-specific customizations:
+
+- Stored fields compression: Lucene's default LZ4/DEFLATE is [replaced](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L64)
+  with ZSTD (see `Zstd814StoredFieldsFormat`) for better compression ratios.
+  Users can also set `index.codec: best_compression` on an index to switch to a higher-compression ZSTD mode
+  (`Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION`), trading indexing throughput for smaller on-disk stored
+  fields. See this blog
+  [post](https://www.elastic.co/search-labs/blog/improve-elasticsearch-performance-best-compression) for more details.
+- The [PerFieldMapperCodec] delegates postings, doc values, and KNN vector format selection
+  to each field's [Mapper], allowing field types to choose specialized formats (See the [PerFieldFormatSupplier] for
+  specific examples).
+- The [DeduplicateFieldInfosCodec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L115)
+  [wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L93)
+  codecs registered in `CodecService` to
+  deduplicate [FieldInfos](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/FieldInfo.html)
+  metadata objects loaded from each segment's `.fnm` file. Field names, attribute keys, and attribute maps that are
+  identical across segments are [interned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/DeduplicatingFieldInfosFormat.java#L50)
+  so they share a single object in memory, reducing heap usage on indices with many segments.
+- TSDB synthetic `_id`: for time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the
+  codec [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
+  the `_id` inverted index and stored field to disk. The `_id` field is still declared as indexed, but
+  [SyntheticIdField](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java)
+  produces an empty token stream so no postings are actually written on flush.
+  At read time, the [TSDBSyntheticIdPostingsFormat] reconstructs postings from `_tsid`, `@timestamp`, and
+  `_ts_routing_hash` doc values, and the [TSDBSyntheticIdStoredFieldsReader] synthesizes `_id` stored-field values on
+  the fly from the same doc values. This reduces disk usage and I/O for high-cardinality time-series indices.
+
+As the [IndexVersion](#index-version) advances with each Lucene upgrade, new codec implementations are
+introduced (e.g. [Elasticsearch92Lucene103Codec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/Elasticsearch92Lucene103Codec.java)). Older segments written by previous codecs remain readable
+because Lucene's [SPI](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ServiceLoader.html)
+mechanism loads the codec that originally wrote each segment.
 
 #### Segment Merges
 

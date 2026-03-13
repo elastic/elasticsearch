@@ -211,6 +211,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testInlineStats() throws Exception {
+        runTests("""
+            FROM employees
+            | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
+            """);
+    }
+
     public void testInlineStatsMixed() throws Exception {
         runTests("""
             FROM employees

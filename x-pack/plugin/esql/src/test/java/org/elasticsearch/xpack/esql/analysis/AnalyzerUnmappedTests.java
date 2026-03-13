@@ -227,6 +227,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
+    // Known issue: https://github.com/elastic/elasticsearch/issues/141827.
     public void testFailLookupJoinWithoutCast() {
         String query = """
             FROM test
@@ -353,6 +354,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
      */
     public void testMetadataFieldDeclaredNullify() {
+        // This isn't gilded since it would just create a bunch of clutter due to nesting.
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var plan = analyzeStatement(setUnmappedNullify("FROM test METADATA " + field + " | KEEP " + field));
 
@@ -376,6 +378,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
      */
     public void testMetadataFieldDeclaredLoad() {
+        // This isn't gilded since it would just create a bunch of clutter due to nesting.
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var plan = analyzeStatement(setUnmappedLoad("FROM test METADATA " + field + " | KEEP " + field));
 

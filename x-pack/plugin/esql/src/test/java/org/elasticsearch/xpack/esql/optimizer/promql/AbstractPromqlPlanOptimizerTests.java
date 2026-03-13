@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -35,6 +34,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -58,7 +59,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         tsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, "k8s"), timeSeriesIndex),
                 emptyMap(),
                 enrichResolution,
@@ -82,7 +83,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");
-        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        var analyzed = tsAnalyzer.analyze(TEST_PARSER.parseQuery(query));
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));
         if (allowEmptyReferences) {

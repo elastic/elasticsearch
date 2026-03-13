@@ -1,0 +1,10 @@
+area: Mapping
+issues:
+ - 142544
+ - 142964
+ - 142410
+ - 143884
+ - 142477
+pr: 144040
+summary: Drop deprecation warnings when updating a mapping in the cluster state applier
+type: bug

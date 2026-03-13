@@ -1253,6 +1253,15 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
     }
 
+    public void testDisableDefaultIndex() throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
+    }
+
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("norms", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));

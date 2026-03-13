@@ -261,7 +261,10 @@ public class CsvTests extends ESTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-        return SpecReader.readScriptSpec(urls, specParser());
+        // CsvTests infrastructure is being replaced by org.elasticsearch.xpack.esql.CsvIT, please consider using it instead.
+        // This one will be eventually removed but for now it is limited to only a single test case.
+        // in order to save build pipeline test execution time while allowing running select specs locally.
+        return SpecReader.readScriptSpec(urls, specParser()).subList(0, 1);
     }
 
     @Before

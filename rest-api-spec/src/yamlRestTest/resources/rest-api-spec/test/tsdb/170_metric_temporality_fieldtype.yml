@@ -1,0 +1,169 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              temporality:
+                type: metric_temporality
+                ignore_malformed: true
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: object_test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: object
+                properties:
+                  temporality:
+                    type: metric_temporality
+                    ignore_malformed: true
+
+---
+"Metric temporality supports keyword-style queries":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "temporality": "delta" }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "temporality": "cumulative" }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "temporality": "DELTA" }'
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              temporality: delta
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms:
+              temporality: [ delta, cumulative ]
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              temporality: cu
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              temporality: d*
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort:
+            - temporality: asc
+          query:
+            exists:
+              field: temporality
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
+
+---
+"Metric temporality accepts known values":
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "temporality": "DELTA" }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "temporality": "cumulative" }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "temporality": null }'
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            temporality_values:
+              terms:
+                field: temporality
+                order:
+                  _key: asc
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.temporality_values.buckets: 2 }
+  - match: { aggregations.temporality_values.buckets.0.key: "cumulative" }
+  - match: { aggregations.temporality_values.buckets.0.doc_count: 1 }
+  - match: { aggregations.temporality_values.buckets.1.key: "delta" }
+  - match: { aggregations.temporality_values.buckets.1.doc_count: 1 }
+
+---
+"Metric temporality ignore_malformed skips malformed value":
+  - do:
+      index:
+        index: test
+        id: "4"
+        refresh: true
+        body:
+          temporality: gauge
+          other: ok
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: temporality
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              other: ok
+  - match: { hits.total.value: 1 }
+
+---
+"Metric temporality rejects multiple values even with ignore_malformed":
+  - do:
+      catch: /doesn't support indexing multiple values for the same field in the same document/
+      index:
+        index: test
+        body:
+          temporality: [ "delta", "cumulative" ]
+
+---
+"Metric temporality rejects subfield in array of objects even with ignore_malformed":
+  - do:
+      catch: /doesn't support indexing multiple values for the same field in the same document/
+      index:
+        index: object_test
+        body:
+          metric:
+            - { temporality: "delta" }
+            - { temporality: "cumulative" }
+

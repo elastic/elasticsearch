@@ -41,6 +41,12 @@ dependencies {
   clusterModules project(':modules:data-streams')
 }
 
+def restTestBlacklist = []
+if (buildParams.snapshotBuild == false) {
+  // metric_temporality field type is behind a feature flag
+  restTestBlacklist.addAll(['tsdb/170_metric_temporality_fieldtype/*'])
+}
+
 tasks.register('enforceYamlTestConvention').configure {
   def tree = fileTree('src/main/resources/rest-api-spec/test')
   doLast {
@@ -52,6 +58,10 @@ tasks.register('enforceYamlTestConvention').configure {
 
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
+}
+
+tasks.named("yamlRestTest").configure {
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
 }
 
 tasks.named("yamlRestCompatTestTransform").configure ({ task ->

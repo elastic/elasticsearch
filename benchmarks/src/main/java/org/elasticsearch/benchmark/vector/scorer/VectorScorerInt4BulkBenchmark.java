@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -42,12 +41,9 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4QuantizedVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4ScalarQueryScorer;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4DotProductCorrections;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4EuclideanCorrections;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4ScalarScorer;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.unpackNibbles;
 
 /**
  * Benchmark that compares bulk scoring of int4 packed-nibble quantized vectors:
@@ -82,70 +78,6 @@ public class VectorScorerInt4BulkBenchmark {
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
-
-    private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
-        private byte[] queryUnpacked;
-        private OptimizedScalarQuantizer.QuantizationResult queryCorrections;
-        private final int dims;
-
-        ScalarDotProduct(QuantizedByteVectorValues values) {
-            this.values = values;
-            this.dims = values.dimension();
-        }
-
-        @Override
-        public float score(int node) throws IOException {
-            byte[] packed = values.vectorValue(node);
-            int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
-            var nodeCorrections = values.getCorrectiveTerms(node);
-            return applyI4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, values.getCentroidDP());
-        }
-
-        @Override
-        public int maxOrd() {
-            return values.size();
-        }
-
-        @Override
-        public void setScoringOrdinal(int node) throws IOException {
-            byte[] packed = values.vectorValue(node);
-            queryUnpacked = unpackNibbles(packed, dims);
-            queryCorrections = values.getCorrectiveTerms(node);
-        }
-    }
-
-    private static class ScalarEuclidean implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
-        private byte[] queryUnpacked;
-        private OptimizedScalarQuantizer.QuantizationResult queryCorrections;
-        private final int dims;
-
-        ScalarEuclidean(QuantizedByteVectorValues values) {
-            this.values = values;
-            this.dims = values.dimension();
-        }
-
-        @Override
-        public float score(int node) throws IOException {
-            byte[] packed = values.vectorValue(node);
-            int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
-            var nodeCorrections = values.getCorrectiveTerms(node);
-            return applyI4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
-        }
-
-        @Override
-        public int maxOrd() {
-            return values.size();
-        }
-
-        @Override
-        public void setScoringOrdinal(int node) throws IOException {
-            byte[] packed = values.vectorValue(node);
-            queryUnpacked = unpackNibbles(packed, dims);
-            queryCorrections = values.getCorrectiveTerms(node);
-        }
-    }
 
     private float[] scores;
     private int[] ordinals;
@@ -191,7 +123,7 @@ public class VectorScorerInt4BulkBenchmark {
     }
 
     void setup(VectorData vectorData) throws IOException {
-        VectorSimilarityFunction sim = function.function();
+        VectorSimilarityFunction similarityFunction = function.function();
         var values = vectorData.values;
 
         numVectorsToScore = vectorData.numVectorsToScore;
@@ -202,17 +134,13 @@ public class VectorScorerInt4BulkBenchmark {
 
         switch (implementation) {
             case SCALAR:
-                scorer = switch (sim) {
-                    case DOT_PRODUCT, COSINE -> new ScalarDotProduct(values);
-                    case EUCLIDEAN -> new ScalarEuclidean(values);
-                    case MAXIMUM_INNER_PRODUCT -> throw new IllegalArgumentException("MIP not implemented for scalar int4 benchmark");
-                };
-                queryScorer = createI4ScalarQueryScorer(values, sim, vectorData.queryVector);
+                scorer = createI4ScalarScorer(values, similarityFunction);
+                queryScorer = createI4ScalarQueryScorer(values, similarityFunction, vectorData.queryVector);
                 break;
             case LUCENE:
-                scorer = lucene104ScoreSupplier(values, sim).scorer();
+                scorer = lucene104ScoreSupplier(values, similarityFunction).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = lucene104Scorer(values, sim, vectorData.queryVector);
+                    queryScorer = lucene104Scorer(values, similarityFunction, vectorData.queryVector);
                 }
                 break;
         }

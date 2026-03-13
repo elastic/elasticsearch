@@ -9,8 +9,12 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+
+import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /**
  * Basic scalar implementations of similarity operations.
@@ -83,11 +87,13 @@ class ScalarOperations {
         return total;
     }
 
-    private static float applyI4CommonCorrections(
+    public static float applyI4Corrections(
         int rawDot,
         int dims,
         OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float centroidDP,
+        VectorSimilarityFunction similarityFunction
     ) {
         float ax = nodeCorrections.lowerInterval();
         float lx = (nodeCorrections.upperInterval() - ax) * FOUR_BIT_SCALE;
@@ -95,29 +101,27 @@ class ScalarOperations {
         float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
         float x1 = nodeCorrections.quantizedComponentSum();
         float y1 = queryCorrections.quantizedComponentSum();
-        return ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
-    }
 
-    static float applyI4DotProductCorrections(
-        int rawDot,
-        int dims,
-        OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-        float centroidDP
-    ) {
-        float score = applyI4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
-        score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
-        return (1f + Math.clamp(score, -1, 1)) / 2f;
-    }
+        float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawDot;
 
-    static float applyI4EuclideanCorrections(
-        int rawDot,
-        int dims,
-        OptimizedScalarQuantizer.QuantizationResult nodeCorrections,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections
-    ) {
-        float score = applyI4CommonCorrections(rawDot, dims, nodeCorrections, queryCorrections);
-        score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
-        return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
+        // For euclidean, we need to invert the score and apply the additional correction, which is
+        // assumed to be the squared l2norm of the centroid centered vectors.
+        if (similarityFunction == EUCLIDEAN) {
+            score = queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - 2 * score;
+            // Ensure that 'score' (the squared euclidean distance) is non-negative. The computed value
+            // may be negative as a result of quantization loss.
+            return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
+        } else {
+            // For cosine and max inner product, we need to apply the additional correction, which is
+            // assumed to be the non-centered dot-product between the vector and the centroid
+            score += queryCorrections.additionalCorrection() + nodeCorrections.additionalCorrection() - centroidDP;
+            if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                return VectorUtil.scaleMaxInnerProductScore(score);
+            }
+            // Ensure that 'score' (a normalized dot product) is in [-1,1]. The computed value may be out
+            // of bounds as a result of quantization loss.
+            score = Math.clamp(score, -1, 1);
+            return (1f + score) / 2f;
+        }
     }
 }

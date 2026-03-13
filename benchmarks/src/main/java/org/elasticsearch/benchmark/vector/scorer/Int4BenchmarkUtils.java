@@ -15,15 +15,16 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4DotProductCorrections;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4EuclideanCorrections;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.applyI4Corrections;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProductI4SinglePacked;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.unpackNibbles;
 
 public class Int4BenchmarkUtils {
 
@@ -106,6 +107,41 @@ public class Int4BenchmarkUtils {
         }
     }
 
+    private static class ScalarScorer implements UpdateableRandomVectorScorer {
+        private final QuantizedByteVectorValues values;
+        private final int dims;
+        private final VectorSimilarityFunction similarityFunction;
+
+        private byte[] queryUnpacked;
+        private OptimizedScalarQuantizer.QuantizationResult queryCorrections;
+
+        ScalarScorer(QuantizedByteVectorValues values, VectorSimilarityFunction similarityFunction) {
+            this.values = values;
+            this.dims = values.dimension();
+            this.similarityFunction = similarityFunction;
+        }
+
+        @Override
+        public float score(int node) throws IOException {
+            byte[] packed = values.vectorValue(node);
+            int rawDot = dotProductI4SinglePacked(queryUnpacked, packed);
+            var nodeCorrections = values.getCorrectiveTerms(node);
+            return applyI4Corrections(rawDot, dims, nodeCorrections, queryCorrections, values.getCentroidDP(), similarityFunction);
+        }
+
+        @Override
+        public int maxOrd() {
+            return values.size();
+        }
+
+        @Override
+        public void setScoringOrdinal(int node) throws IOException {
+            byte[] packed = values.vectorValue(node);
+            queryUnpacked = unpackNibbles(packed, dims);
+            queryCorrections = values.getCorrectiveTerms(node);
+        }
+    }
+
     static QuantizedByteVectorValues createI4QuantizedVectorValues(int dims, byte[][] packedVectors) {
         var random = ThreadLocalRandom.current();
         var correctiveTerms = new OptimizedScalarQuantizer.QuantizationResult[packedVectors.length];
@@ -125,16 +161,26 @@ public class Int4BenchmarkUtils {
         return new InMemoryInt4QuantizedByteVectorValues(dims, packedVectors, correctiveTerms, centroid, centroidDP);
     }
 
-    static RandomVectorScorer createI4ScalarQueryScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
-        throws IOException {
+    static UpdateableRandomVectorScorer createI4ScalarScorer(
+        QuantizedByteVectorValues values,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        return new ScalarScorer(values, similarityFunction);
+    }
+
+    static RandomVectorScorer createI4ScalarQueryScorer(
+        QuantizedByteVectorValues values,
+        VectorSimilarityFunction similarityFunction,
+        float[] queryVector
+    ) throws IOException {
         int dims = values.dimension();
         OptimizedScalarQuantizer quantizer = values.getQuantizer();
         float[] centroid = values.getCentroid();
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding = values.getScalarEncoding();
 
         byte[] queryQuantized = new byte[encoding.getDiscreteDimensions(dims)];
-        float[] queryCopy = Arrays.copyOf(queryVec, queryVec.length);
-        if (sim == VectorSimilarityFunction.COSINE) {
+        float[] queryCopy = Arrays.copyOf(queryVector, queryVector.length);
+        if (similarityFunction == VectorSimilarityFunction.COSINE) {
             VectorUtil.l2normalize(queryCopy);
         }
         var queryCorrections = quantizer.scalarQuantize(queryCopy, queryQuantized, encoding.getQueryBits(), centroid);
@@ -146,11 +192,7 @@ public class Int4BenchmarkUtils {
                 byte[] packed = values.vectorValue(node);
                 int rawDot = dotProductI4SinglePacked(queryQuantized, packed);
                 var nodeCorrections = values.getCorrectiveTerms(node);
-                if (sim == VectorSimilarityFunction.EUCLIDEAN) {
-                    return applyI4EuclideanCorrections(rawDot, dims, nodeCorrections, queryCorrections);
-                } else {
-                    return applyI4DotProductCorrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP);
-                }
+                return applyI4Corrections(rawDot, dims, nodeCorrections, queryCorrections, centroidDP, similarityFunction);
             }
         };
     }

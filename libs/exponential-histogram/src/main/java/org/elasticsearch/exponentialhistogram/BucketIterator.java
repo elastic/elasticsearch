@@ -57,7 +57,7 @@ public interface BucketIterator {
     long peekIndex();
 
     /**
-     * Moves the iterator to the next, non-empty bucket.l.
+     * Moves the iterator to the next, non-empty bucket.
      */
     void advance();
 

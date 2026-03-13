@@ -141,9 +141,15 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
+        return apmJvmOptions(settings, secrets, logsDir, tmpdir, System.getProperty("user.dir"));
+    }
+
+    // for testing
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir, String installDir)
+        throws UserException, IOException {
         boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
 
-        final Path agentJar = findAgentJar();
+        final Path agentJar = findAgentJar(installDir);
 
         if (agentJar == null) {
             return List.of();
@@ -321,11 +327,6 @@ class APMJvmOptions {
      * @throws IOException if a problem occurs reading the filesystem
      */
     @Nullable
-    private static Path findAgentJar() throws IOException, UserException {
-        return findAgentJar(System.getProperty("user.dir"));
-    }
-
-    // package private for testing
     static Path findAgentJar(String installDir) throws IOException, UserException {
         final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 

@@ -42,28 +42,23 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-@SuppressForbidden(reason = "Need to change value of system property to cover all the scenarios")
 public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;
     private Path agentPath;
-    private String userDir;
     private String otelMetricsEnabled;
 
     @Before
     public void setup() throws IOException, UserException {
-        userDir = System.getProperty("user.dir");
         otelMetricsEnabled = System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
         installDir = makeFakeAgentJar();
         agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
-        System.setProperty("user.dir", installDir.toAbsolutePath().toString());
-        System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
+        clearSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 
     @After
     public void cleanup() throws IOException {
         Files.delete(agentPath);
-        restoreSystemProperty(userDir, "user.dir");
         restoreSystemProperty(otelMetricsEnabled, OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 
@@ -160,7 +155,8 @@ public class APMJvmOptionsTests extends ESTestCase {
                 .build(),
             null,
             createTempDir(),
-            tempDir
+            tempDir,
+            installDir.toAbsolutePath().toString()
         );
 
         assertFalse(options.isEmpty());
@@ -171,13 +167,14 @@ public class APMJvmOptionsTests extends ESTestCase {
     }
 
     public void testAPMAgentMetricsDisabledWhenOtelMetricsEnabled() throws Exception {
-        System.setProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
+        setSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
         Path tempDir = createTempDir();
         List<String> options = APMJvmOptions.apmJvmOptions(
             Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
             null,
             createTempDir(),
-            tempDir
+            tempDir,
+            installDir.toAbsolutePath().toString()
         );
 
         assertFalse(options.isEmpty());
@@ -209,12 +206,21 @@ public class APMJvmOptionsTests extends ESTestCase {
         return tempFile.getParent();
     }
 
-    @SuppressForbidden(reason = "Uses System.setProperty")
-    private void restoreSystemProperty(String value, String key) {
+    @SuppressForbidden(reason = "sets system property for test scenario")
+    private static void setSystemProperty(String key, String value) {
+        System.setProperty(key, value);
+    }
+
+    @SuppressForbidden(reason = "clears system property for test setup/teardown")
+    private static void clearSystemProperty(String key) {
+        System.clearProperty(key);
+    }
+
+    private static void restoreSystemProperty(String value, String key) {
         if (value == null) {
-            System.clearProperty(key);
+            clearSystemProperty(key);
         } else {
-            System.setProperty(key, value);
+            setSystemProperty(key, value);
         }
     }
 }

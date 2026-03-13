@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
-public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
+public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final TransportVersion AZURE_OPENAI_OAUTH_SETTINGS = TransportVersion.fromName("azure_openai_oauth_settings");
 
@@ -51,14 +51,14 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
     private final OAuth2Settings oauth2Settings;
     private final String tenantId;
 
-    public static AzureOpenAiOAuthSettings fromMap(Map<String, Object> map, ValidationException validationException) {
+    public static AzureOpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         var hasFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
 
         if (hasFields) {
-            return new AzureOpenAiOAuthSettings(oauth2ServiceSettings, tenantId);
+            return new AzureOpenAiOAuth2Settings(oauth2ServiceSettings, tenantId);
         }
 
         return null;
@@ -103,12 +103,12 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         return true;
     }
 
-    AzureOpenAiOAuthSettings(OAuth2Settings oauth2Settings, String tenantId) {
+    AzureOpenAiOAuth2Settings(OAuth2Settings oauth2Settings, String tenantId) {
         this.oauth2Settings = Objects.requireNonNull(oauth2Settings);
         this.tenantId = Objects.requireNonNull(tenantId);
     }
 
-    public AzureOpenAiOAuthSettings(StreamInput in) throws IOException {
+    public AzureOpenAiOAuth2Settings(StreamInput in) throws IOException {
         this.oauth2Settings = new OAuth2Settings(in);
         this.tenantId = in.readString();
     }
@@ -125,7 +125,7 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         return oauth2Settings.getScopes();
     }
 
-    public AzureOpenAiOAuthSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+    public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var updated = fromMapForUpdate(serviceSettings, oauth2Settings, validationException);
 
@@ -133,7 +133,7 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
 
         validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
 
-        return new AzureOpenAiOAuthSettings(updated.oauth2Settings(), tenantIdToUpdate);
+        return new AzureOpenAiOAuth2Settings(updated.oauth2Settings(), tenantIdToUpdate);
     }
 
     private static UpdateSettings fromMapForUpdate(

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.REQUIRED_FIELDS_DESCRIPTION;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 
 public final class AzureOpenAiSecretsFactory {

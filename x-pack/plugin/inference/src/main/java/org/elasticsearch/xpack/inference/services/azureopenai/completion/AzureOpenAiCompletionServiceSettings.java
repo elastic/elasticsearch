@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
 public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, AzureOpenAiServiceSettings {
 
@@ -83,7 +83,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             context
         );
 
-        var oAuthSettings = AzureOpenAiOAuthSettings.fromMap(map, validationException);
+        var oAuthSettings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         return new AzureOpenAiCompletionServiceSettings.CommonFields(
             resourceName,
@@ -99,7 +99,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         String deploymentId,
         String apiVersion,
         RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuthSettings oauthSettings
+        @Nullable AzureOpenAiOAuth2Settings oauthSettings
     ) {}
 
     private final String resourceName;
@@ -107,7 +107,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     private final String apiVersion;
 
     private final RateLimitSettings rateLimitSettings;
-    private final AzureOpenAiOAuthSettings oAuthSettings;
+    private final AzureOpenAiOAuth2Settings oAuthSettings;
 
     public AzureOpenAiCompletionServiceSettings(
         String resourceName,
@@ -123,7 +123,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         String deploymentId,
         String apiVersion,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuthSettings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
     ) {
         this.resourceName = resourceName;
         this.deploymentId = deploymentId;
@@ -138,7 +138,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         apiVersion = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
         oAuthSettings = in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)
-            ? in.readOptionalWriteable(AzureOpenAiOAuthSettings::new)
+            ? in.readOptionalWriteable(AzureOpenAiOAuth2Settings::new)
             : null;
     }
 
@@ -168,7 +168,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         return apiVersion;
     }
 
-    public AzureOpenAiOAuthSettings oAuth2Settings() {
+    public AzureOpenAiOAuth2Settings oAuth2Settings() {
         return oAuthSettings;
     }
 

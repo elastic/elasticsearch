@@ -25,7 +25,7 @@ import java.util.Objects;
  */
 public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpenAiCompletionModel> {
 
-    public final ThreadPool threadPool;
+    private final ThreadPool threadPool;
 
     public AzureOpenAiCompletionModelCreator(ThreadPool threadPool) {
         this.threadPool = Objects.requireNonNull(threadPool);

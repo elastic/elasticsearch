@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
@@ -105,7 +105,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
-        var oAuthSettings = AzureOpenAiOAuthSettings.fromMap(map, validationException);
+        var oAuthSettings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -147,7 +147,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuthSettings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
     ) {}
 
     private final CommonFields fields;
@@ -187,7 +187,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuthSettings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
     ) {
         this(
             new CommonFields(
@@ -216,7 +216,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                 in.readOptionalEnum(SimilarityMeasure.class),
                 new RateLimitSettings(in),
                 in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)
-                    ? in.readOptionalWriteable(AzureOpenAiOAuthSettings::new)
+                    ? in.readOptionalWriteable(AzureOpenAiOAuth2Settings::new)
                     : null
             )
         );
@@ -263,7 +263,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         return fields.similarity();
     }
 
-    public AzureOpenAiOAuthSettings oAuth2Settings() {
+    public AzureOpenAiOAuth2Settings oAuth2Settings() {
         return fields.oAuthSettings();
     }
 

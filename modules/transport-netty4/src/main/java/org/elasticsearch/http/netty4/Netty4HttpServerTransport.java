@@ -19,11 +19,14 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -417,21 +420,39 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
 
-            ch.pipeline()
-                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
-                .addLast("encoder", new HttpResponseEncoder() {
-                    @Override
-                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
-                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                        if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                            assert netty4FullHttpResponse.content().isReadable() == false;
-                            return true;
-                        }
-                        return super.isContentAlwaysEmpty(msg);
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor() { // this handles request body decompression
+                private String currentUri;
+
+                @Override
+                protected void decode(ChannelHandlerContext ctx, HttpObject msg, java.util.List<Object> out) throws Exception {
+                    if (msg instanceof HttpRequest request) {
+                        currentUri = request.uri();
                     }
-                })
-                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+                    super.decode(ctx, msg, out);
+                }
+
+                @Override
+                protected EmbeddedChannel newContentDecoder(String contentEncoding) throws Exception {
+                    if (currentUri != null && currentUri.startsWith("/_prometheus") && "snappy".equalsIgnoreCase(contentEncoding)) {
+                        // Prometheus remote write uses raw Snappy block format, not the framed
+                        // format that Netty's SnappyFrameDecoder expects. Skip auto-decompression
+                        // and let the application layer handle it.
+                        return null;
+                    }
+                    return super.newContentDecoder(contentEncoding);
+                }
+            }).addLast("encoder", new HttpResponseEncoder() {
+                @Override
+                protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                    // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                    // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                    if (msg instanceof Netty4FullHttpResponse netty4FullHttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                        assert netty4FullHttpResponse.content().isReadable() == false;
+                        return true;
+                    }
+                    return super.isContentAlwaysEmpty(msg);
+                }
+            }).addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
 
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {

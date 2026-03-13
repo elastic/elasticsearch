@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/144066
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration {withOTel=true}
-  issue: https://github.com/elastic/elasticsearch/issues/144072
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012

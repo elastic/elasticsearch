@@ -24,6 +24,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ALLOW_LEADING_WILDCARD_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZE_WILDCARD_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_FIELD_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ENABLE_POSITION_INCREMENTS_FIELD;
@@ -73,7 +74,8 @@ public class QueryStringQuery extends Query {
         entry(
             TYPE_FIELD.getPreferredName(),
             (qb, obj) -> qb.type(MultiMatchQueryBuilder.Type.parse((String) obj, LoggingDeprecationHandler.INSTANCE))
-        )
+        ),
+        entry(BOOST_FIELD.getPreferredName(), (qb, obj) -> qb.boost((Float) obj))
     );
 
     private final String query;

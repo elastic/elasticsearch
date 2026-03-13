@@ -12,29 +12,11 @@ package org.elasticsearch.action.admin.indices.resolve;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.action.ResolvedIndexExpressions;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.*;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -53,28 +35,13 @@ import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidato
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -639,12 +606,15 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
                     .delegateFailureAndWrap((l, responses) -> {
                         Map<String, Response> linkedProjectsResponses = new HashMap<>();
+                        Map<String, Exception> linkedProjectExceptions = new HashMap<>();
                         for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responses) {
                             String projectName = entry.getKey();
                             SearchPlanningPhaseResolutionResult result = entry.getValue();
 
                             if (result.response() instanceof ResolveIndexAction.Response response) {
                                 linkedProjectsResponses.put(projectName, response);
+                            } else if (result.error() != null) {
+                                linkedProjectExceptions.put(projectName, result.error());
                             }
                         }
 
@@ -653,7 +623,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 originalIndicesOptions,
                                 request.getProjectRouting(),
                                 localResolvedIndexExpressions,
-                                getResolvedExpressionsByRemote(linkedProjectsResponses)
+                                getResolvedExpressionsByRemote(linkedProjectsResponses),
+                                linkedProjectExceptions
                             );
 
                             if (ex != null) {
@@ -733,6 +704,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         originalIndicesOptions,
                         request.getProjectRouting(),
                         localResolvedIndexExpressions,
+                        Map.of(),
                         Map.of()
                     );
                     if (ex != null) {

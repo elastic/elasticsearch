@@ -17,7 +17,7 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder.KNN_DFS_RESCORING_TOP_K_ON_SHARDS;
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.KNN_DFS_RESCORING_TOP_K_ON_SHARDS;
 
 public class DfsKnnResults implements Writeable {
     private final String nestedPath;

@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,6 +60,7 @@ public class ServerLauncherTests extends ESTestCase {
     private Path tempDir;
     private ByteArrayOutputStream capturedStderr;
     private PrintStream originalErr;
+    private volatile ServerProcess activeServer;
 
     @FunctionalInterface
     private interface ServerBehavior {
@@ -173,9 +175,17 @@ public class ServerLauncherTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         try {
-            System.setErr(originalErr);
+            ServerProcess server = activeServer;
+            if (server != null) {
+                activeServer = null;
+                server.stop();
+            }
         } finally {
-            super.tearDown();
+            try {
+                System.setErr(originalErr);
+            } finally {
+                super.tearDown();
+            }
         }
     }
 
@@ -212,6 +222,12 @@ public class ServerLauncherTests extends ESTestCase {
         }
     }
 
+    private ServerProcess startServer(LaunchDescriptor d, Function<ProcessBuilder, Process> processStarter) throws Exception {
+        ServerProcess server = launcher.startServer(d, processStarter);
+        activeServer = server;
+        return server;
+    }
+
     public void testProcessBuilder() throws Exception {
         AtomicReference<ProcessBuilder> capturedPb = new AtomicReference<>();
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of(), List.of(), Map.of(), false, new byte[0]);
@@ -221,7 +237,7 @@ public class ServerLauncherTests extends ESTestCase {
             }
             stdin.read();
         };
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb.set(pb);
             return createMock(d, behavior);
         });
@@ -229,21 +245,21 @@ public class ServerLauncherTests extends ESTestCase {
         assertThat(capturedPb.get().redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
         assertThat(capturedPb.get().redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
         assertThat(capturedPb.get().directory().toString(), equalTo(workingDir.toString()));
-        assertThat(getCapturedStderr(), containsString("stderr message"));
         server.stop();
+        assertThat(getCapturedStderr(), containsString("stderr message"));
     }
 
     public void testPid() throws Exception {
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of(), List.of(), Map.of(), true, new byte[0]);
         ServerBehavior behavior = (stdin, stderr, exitCode) -> stdin.read();
-        ServerProcess server = launcher.startServer(d, pb -> createMock(d, behavior));
+        ServerProcess server = startServer(d, pb -> createMock(d, behavior));
         assertThat(server.pid(), equalTo(MOCK_PID));
         server.stop();
     }
 
     public void testStartError() throws Exception {
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of(), List.of(), Map.of(), false, new byte[0]);
-        Exception e = expectThrows(UncheckedIOException.class, () -> launcher.startServer(d, pb -> {
+        Exception e = expectThrows(UncheckedIOException.class, () -> startServer(d, pb -> {
             throw new UncheckedIOException(new IOException("something went wrong"));
         }));
         assertThat(e.getCause().getMessage(), equalTo("something went wrong"));
@@ -252,7 +268,7 @@ public class ServerLauncherTests extends ESTestCase {
     public void testEnvPassthrough() throws Exception {
         ProcessBuilder[] capturedPb = new ProcessBuilder[1];
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of(), List.of(), Map.of("MY_ENV", "foo"), false, new byte[0]);
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });
@@ -271,7 +287,7 @@ public class ServerLauncherTests extends ESTestCase {
             false,
             new byte[0]
         );
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });
@@ -283,7 +299,7 @@ public class ServerLauncherTests extends ESTestCase {
     public void testEnvCleared() throws Exception {
         ProcessBuilder[] capturedPb = new ProcessBuilder[1];
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of(), List.of(), Map.of("SOME_VAR", "value"), false, new byte[0]);
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });
@@ -296,7 +312,7 @@ public class ServerLauncherTests extends ESTestCase {
     public void testCommandLineSysprops() throws Exception {
         ProcessBuilder[] capturedPb = new ProcessBuilder[1];
         LaunchDescriptor d = descriptor("/usr/bin/java", List.of("-Dfoo1=bar", "-Dfoo2=baz"), List.of(), Map.of(), false, new byte[0]);
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });
@@ -316,7 +332,7 @@ public class ServerLauncherTests extends ESTestCase {
             false,
             new byte[0]
         );
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });
@@ -333,7 +349,7 @@ public class ServerLauncherTests extends ESTestCase {
             }
             assertThat(stdin.read(), equalTo(-1));
         };
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             mockRef.set(createMock(d, behavior));
             return mockRef.get();
         });
@@ -355,7 +371,7 @@ public class ServerLauncherTests extends ESTestCase {
             assertThat(b, equalTo((int) ServerProcess.SERVER_SHUTDOWN_MARKER));
         };
         MockServerProcess mock = createMock(d, behavior);
-        ServerProcess server = launcher.startServer(d, pb -> mock);
+        ServerProcess server = startServer(d, pb -> mock);
         mainReady.countDown();
         server.stop();
         assertThat(mock.serverThread.isDone(), is(true));
@@ -373,7 +389,7 @@ public class ServerLauncherTests extends ESTestCase {
             }
         };
         MockServerProcess mock = createMock(d, behavior);
-        ServerProcess server = launcher.startServer(d, pb -> mock);
+        ServerProcess server = startServer(d, pb -> mock);
         CompletableFuture<Integer> exitFuture = CompletableFuture.supplyAsync(() -> {
             ProcessUtil.nonInterruptibleVoid(mainReady::await);
             try {
@@ -401,7 +417,7 @@ public class ServerLauncherTests extends ESTestCase {
             exitCode.set(-9);
         };
         MockServerProcess mock = createMock(d, behavior);
-        ServerProcess server = launcher.startServer(d, pb -> mock);
+        ServerProcess server = startServer(d, pb -> mock);
         mainExit.countDown();
         int exitCode = server.waitFor();
         assertThat(exitCode, equalTo(-9));
@@ -421,7 +437,7 @@ public class ServerLauncherTests extends ESTestCase {
             false,
             new byte[0]
         );
-        ServerProcess server = launcher.startServer(d, pb -> {
+        ServerProcess server = startServer(d, pb -> {
             capturedPb[0] = pb;
             return createMock(d, (stdin, stderr, exitCode) -> stdin.read());
         });

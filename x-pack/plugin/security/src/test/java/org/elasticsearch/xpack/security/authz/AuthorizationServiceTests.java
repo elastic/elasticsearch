@@ -361,6 +361,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -373,8 +374,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
     }
 
@@ -1344,6 +1344,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -1356,8 +1357,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1409,6 +1409,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -1421,8 +1422,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1957,6 +1957,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             anonymousUser,
             null,
             Collections.emptySet(),
@@ -1969,8 +1970,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2012,6 +2012,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -2024,8 +2025,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3555,6 +3555,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(Settings.EMPTY),
             engine,
             Collections.emptySet(),
@@ -3567,8 +3568,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3720,6 +3720,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(Settings.EMPTY),
             engine,
             Collections.emptySet(),
@@ -3732,8 +3733,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            projectRoutingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

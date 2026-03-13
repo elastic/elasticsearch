@@ -1042,6 +1042,7 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+        final Executor authorizationExecutor = buildRoleBuildingExecutor(threadPool, settings);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,
@@ -1055,7 +1056,7 @@ public class Security extends Plugin
             projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
-            buildThrottledExecutor("build_roles", threadPool, settings),
+            authorizationExecutor,
             new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -1164,6 +1165,7 @@ public class Security extends Plugin
             auditTrailService,
             failureHandler,
             threadPool,
+            authorizationExecutor,
             anonymousUser,
             getAuthorizationEngine(),
             requestInterceptors,
@@ -1176,8 +1178,7 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            buildThrottledExecutor("check_privileges", threadPool, settings)
+            projectRoutingResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1462,9 +1463,9 @@ public class Security extends Plugin
         return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
-    private static Executor buildThrottledExecutor(String name, ThreadPool threadPool, Settings settings) {
+    private static Executor buildRoleBuildingExecutor(ThreadPool threadPool, Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(name, allocatedProcessors, threadPool.generic());
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("build_roles", allocatedProcessors, threadPool.generic());
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {
@@ -1479,7 +1480,7 @@ public class Security extends Plugin
                     abstractRunnable.onFailure(e);
                 }
                 // should be impossible, GENERIC pool doesn't reject anything
-                logger.error(() -> "unexpected failure running [" + r + "]", e);
+                logger.error("unexpected failure running " + r, e);
                 assert false : new AssertionError("unexpected failure running " + r, e);
             }
         });

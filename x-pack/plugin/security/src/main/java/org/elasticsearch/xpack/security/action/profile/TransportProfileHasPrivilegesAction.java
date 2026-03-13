@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -67,7 +66,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             transportService,
             actionFilters,
             ProfileHasPrivilegesRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            authorizationService.getAuthorizationExecutor()
         );
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;

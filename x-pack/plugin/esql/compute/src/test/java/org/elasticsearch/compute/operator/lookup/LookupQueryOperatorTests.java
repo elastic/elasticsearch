@@ -124,7 +124,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    false
                 );
             }
 
@@ -180,7 +181,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(noMatchDirectory.reader)),
                     0,
                     noMatchDirectory.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    false
                 )
             ) {
                 // Create input with non-matching terms
@@ -237,7 +239,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                false
             )
         ) {
             // Create input with many matching terms
@@ -283,7 +286,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                false
             )
         ) {
             // Mix of matching and non-matching terms

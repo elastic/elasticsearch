@@ -1014,7 +1014,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1114,7 +1114,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1298,6 +1298,7 @@ public class LocalExecutionPlanner {
             .fileSet(fileSet)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
+            .parsingParallelism(context.queryPragmas().parsingParallelism())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

@@ -44,6 +44,11 @@ class EmptyExponentialHistogram extends AbstractExponentialHistogram implements 
         }
 
         @Override
+        public CopyableBucketIterator reverseIterator() {
+            return EMPTY_ITERATOR;
+        }
+
+        @Override
         public OptionalLong maxBucketIndex() {
             return OptionalLong.empty();
         }

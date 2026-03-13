@@ -26,6 +26,7 @@ class BucketArrayIterator implements CopyableBucketIterator {
     private final int scale;
     private final long[] bucketCounts;
     private final long[] bucketIndices;
+    private final int direction;
 
     private int currentSlot;
     private final int limit;
@@ -36,11 +37,12 @@ class BucketArrayIterator implements CopyableBucketIterator {
         this.bucketIndices = bucketIndices;
         this.currentSlot = startSlot;
         this.limit = limit;
+        this.direction = startSlot <= limit ? 1 : -1;
     }
 
     @Override
     public boolean hasNext() {
-        return currentSlot < limit;
+        return currentSlot != limit;
     }
 
     @Override
@@ -58,7 +60,7 @@ class BucketArrayIterator implements CopyableBucketIterator {
     @Override
     public void advance() {
         ensureEndNotReached();
-        currentSlot++;
+        currentSlot += direction;
     }
 
     @Override

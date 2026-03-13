@@ -24,9 +24,15 @@ public record IndexWithCount(long index, long count) {
 
     public static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
         return new ExponentialHistogram.Buckets() {
+
             @Override
             public CopyableBucketIterator iterator() {
-                return new Iterator(bucketIndices, scale, 0);
+                return new Iterator(bucketIndices, scale, 0, 1);
+            }
+
+            @Override
+            public CopyableBucketIterator reverseIterator() {
+                return new Iterator(bucketIndices, scale, bucketCount() - 1, -1);
             }
 
             @Override
@@ -35,6 +41,11 @@ public record IndexWithCount(long index, long count) {
                     return OptionalLong.empty();
                 }
                 return OptionalLong.of(bucketIndices.get(bucketIndices.size() - 1).index);
+            }
+
+            @Override
+            public int bucketCount() {
+                return bucketIndices.size();
             }
 
             @Override
@@ -57,16 +68,18 @@ public record IndexWithCount(long index, long count) {
         private final List<IndexWithCount> buckets;
         private final int scale;
         private int position;
+        private final int direction;
 
-        Iterator(List<IndexWithCount> buckets, int scale, int position) {
+        Iterator(List<IndexWithCount> buckets, int scale, int position, int direction) {
             this.buckets = buckets;
             this.scale = scale;
             this.position = position;
+            this.direction = direction;
         }
 
         @Override
         public boolean hasNext() {
-            return position < buckets.size();
+            return direction == 1 ? position < buckets.size() : position >= 0;
         }
 
         @Override
@@ -81,7 +94,7 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public void advance() {
-            position++;
+            position += direction;
         }
 
         @Override
@@ -91,7 +104,7 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public CopyableBucketIterator copy() {
-            return new Iterator(buckets, scale, position);
+            return new Iterator(buckets, scale, position, direction);
         }
     }
 }

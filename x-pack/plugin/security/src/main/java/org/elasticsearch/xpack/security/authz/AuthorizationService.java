@@ -155,7 +155,6 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
-    private final Executor executor;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -182,7 +181,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        Executor privilegeCheckExecutor
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -196,7 +196,6 @@ public class AuthorizationService {
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
-        this.executor = threadPool.generic();
         this.securityContext = new SecurityContext(settings, this.threadContext);
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
@@ -205,7 +204,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            privilegeCheckExecutor
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
@@ -225,21 +225,20 @@ public class AuthorizationService {
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        SubscribableListener
-
-            .<AuthorizationInfo>newForked(l -> authorizationEngine.resolveAuthorizationInfo(subject, l))
-
-            .<AuthorizationEngine.PrivilegesCheckResult>andThen(
-                executor,
-                threadContext,
-                (l, authorizationInfo) -> authorizationEngine.checkPrivileges(
-                    authorizationInfo,
-                    privilegesToCheck,
-                    applicationPrivilegeDescriptors,
-                    l
-                )
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                        authorizationInfo,
+                        privilegesToCheck,
+                        applicationPrivilegeDescriptors,
+                        wrapPreservingContext(delegateListener, threadContext)
+                    )
+                ),
+                threadContext
             )
-            .addListener(listener);
+        );
     }
 
     public void retrieveUserPrivileges(

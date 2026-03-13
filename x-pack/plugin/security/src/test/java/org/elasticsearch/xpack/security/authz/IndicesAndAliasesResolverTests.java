@@ -406,8 +406,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     fieldPermissionsCache,
                     null,
                     RESTRICTED_INDICES,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    null,
                     ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }

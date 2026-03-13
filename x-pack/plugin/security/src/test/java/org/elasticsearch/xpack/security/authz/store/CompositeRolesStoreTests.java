@@ -732,6 +732,57 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
+    public void testShouldForkRoleBuilding() {
+        final ClusterService clusterService = mock(ClusterService.class);
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            clusterService,
+            mock(RoleProviders.class),
+            mock(NativePrivilegeStore.class),
+            new ThreadContext(SECURITY_ENABLED_SETTINGS),
+            mock(),
+            cache,
+            mock(ApiKeyService.class),
+            mock(ServiceAccountService.class),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            buildBitsetCache(),
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            mock()
+        );
+
+        assertFalse(compositeRolesStore.shouldForkRoleBuilding(Set.of()));
+        assertFalse(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(
+                        rd -> rd.isUsingDocumentOrFieldLevelSecurity() || rd.hasApplicationPrivileges(),
+                        RoleDescriptorTestHelper::randomRoleDescriptor
+                    )
+                )
+            )
+        );
+
+        assertTrue(compositeRolesStore.shouldForkRoleBuilding(generateRoleDescriptors(101))); // RD count above threshold
+        assertTrue(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(
+                        rd -> false == rd.isUsingDocumentOrFieldLevelSecurity(),
+                        RoleDescriptorTestHelper::randomRoleDescriptor
+                    )
+                )
+            )
+        );
+        assertTrue(
+            compositeRolesStore.shouldForkRoleBuilding(
+                Set.of(
+                    randomValueOtherThanMany(rd -> false == rd.hasApplicationPrivileges(), RoleDescriptorTestHelper::randomRoleDescriptor)
+                )
+            )
+        );
+    }
+
     private static Set<RoleDescriptor> generateRoleDescriptors(int numRoleDescriptors) {
         Set<RoleDescriptor> roleDescriptors = new HashSet<>();
         for (int i = 0; i < numRoleDescriptors; i++) {
@@ -959,13 +1010,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             null,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role role = future.actionGet();
 
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(
                 new IndexMetadata.Builder("test").settings(
                     Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
@@ -974,7 +1023,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), projectMetadata, cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getProject(), cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -1080,8 +1129,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             privilegeStore,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role role = future.actionGet();
@@ -2872,21 +2919,24 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], equalTo("cross_cluster"));
 
         // Smoke-test for authorization
-        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
-            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), true)
+        final Metadata indexMetadata = Metadata.builder()
+            .put(IndexMetadata.builder("index1").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(IndexVersion.current(), 1, 1)))
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
+                .isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), projectMetadata, emptyCache).isGranted(),
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
+                .isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), projectMetadata, emptyCache).isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getProject(), emptyCache)
+                .isGranted(),
             is(false)
         );
     }
@@ -3647,10 +3697,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    public void testForkOnAsyncRoleResolve() {
-        final RoleDescriptor expectedRoleDescriptor = RoleDescriptorTestHelper.builder().allowRestriction(false).build();
-        final AtomicReference<ActionListener<RoleRetrievalResult>> capturedCallback = new AtomicReference<>();
-        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = capturedCallback::set;
+    public void testForkOnExpensiveRole() {
+        final RoleDescriptor expectedRoleDescriptor = randomValueOtherThanMany(
+            rd -> false == rd.hasApplicationPrivileges(),
+            // skip workflow restrictions since these can produce empty, nameless roles
+            () -> RoleDescriptorTestHelper.builder().allowRestriction(false).build()
+        );
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
+            callback.onResponse(RoleRetrievalResult.success(Set.of(expectedRoleDescriptor)));
+        };
         final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
             Collections.emptyList()
         );
@@ -3658,15 +3713,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, List.of(expectedRoleDescriptor.getName()), future);
-        assertFalse(future.isDone());
-        capturedCallback.get().onResponse(RoleRetrievalResult.success(Set.of(expectedRoleDescriptor)));
         assertThat(future.actionGet().names(), equalTo(new String[] { expectedRoleDescriptor.getName() }));
 
         verify(mockRoleBuildingExecutor, times(1)).execute(any());
     }
 
-    public void testNoForkOnSyncRoleResolve() {
-        final RoleDescriptor expectedRoleDescriptor = RoleDescriptorTestHelper.builder().allowRestriction(false).build();
+    public void testDoNotForkOnInexpensiveRole() {
+        final RoleDescriptor expectedRoleDescriptor = randomValueOtherThanMany(
+            rd -> rd.isUsingDocumentOrFieldLevelSecurity() || rd.hasApplicationPrivileges(),
+            // skip workflow restrictions since these can produce empty, nameless roles
+            () -> RoleDescriptorTestHelper.builder().allowRestriction(false).build()
+        );
         final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
             callback.onResponse(RoleRetrievalResult.success(Set.of(expectedRoleDescriptor)));
         };
@@ -4041,8 +4098,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             privilegeStore,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         return future.actionGet();

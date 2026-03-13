@@ -14,9 +14,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -78,7 +77,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -108,15 +107,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -162,7 +159,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(
@@ -178,7 +175,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), containsInAnyOrder("an-index", "another-index"));
@@ -200,7 +197,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(
@@ -216,7 +213,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -227,7 +224,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -255,7 +252,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -287,15 +284,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -336,7 +331,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -375,15 +370,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(authorizedIndices, IndexComponentSelector.DATA, "a1", "a2", "aaaaaa", "b", "ab");
@@ -425,7 +418,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -464,8 +457,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
@@ -474,7 +465,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(
@@ -520,7 +511,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -550,8 +541,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
@@ -560,7 +549,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(
@@ -604,7 +593,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
         String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -634,15 +623,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(authorizedIndices, IndexComponentSelector.DATA, "a1", "a2", "aaaaaa");
@@ -683,7 +670,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
         String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+        Metadata metadata = Metadata.builder()
             .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -715,8 +702,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new FieldPermissionsCache(Settings.EMPTY),
             null,
             RESTRICTED_INDICES,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            null,
             future
         );
         Role roles = future.actionGet();
@@ -725,7 +710,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            projectMetadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(

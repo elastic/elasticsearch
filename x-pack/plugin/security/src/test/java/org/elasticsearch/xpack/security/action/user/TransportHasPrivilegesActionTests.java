@@ -11,12 +11,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -61,17 +59,13 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         when(context.getAuthentication()).thenReturn(authentication);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
 
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
             new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
-            context,
-            threadPool
+            context
         );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -107,17 +101,13 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         when(context.getAuthentication()).thenReturn(authentication);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
 
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
             new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
-            context,
-            threadPool
+            context
         );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -165,17 +155,13 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).checkPrivileges(any(), any(), anyCollection(), anyActionListener());
 
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final var action = new TransportHasPrivilegesAction(
             transportService,
             new ActionFilters(Set.of()),
             authorizationService,
             privilegeStore,
-            context,
-            threadPool
+            context
         );
 
         final String username = randomAlphaOfLengthBetween(5, 10);

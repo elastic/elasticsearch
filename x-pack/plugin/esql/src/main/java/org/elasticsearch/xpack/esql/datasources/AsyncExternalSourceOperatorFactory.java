@@ -16,6 +16,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -397,14 +398,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                 );
                             } else {
                                 StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                                boolean skipFirstLine = false;
+                                boolean firstSplit = true;
                                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                                 if (fileSplit.offset() > 0) {
                                     obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                                    boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                                    skipFirstLine = isFirstSplit == false;
+                                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                                 }
-                                pages = formatReader.readSplit(obj, cols, batchSize, skipFirstLine, lastSplit, attributes, errorPolicy);
+                                FormatReadContext ctx = FormatReadContext.builder()
+                                    .projectedColumns(cols)
+                                    .batchSize(batchSize)
+                                    .rowLimit(FormatReader.NO_LIMIT)
+                                    .errorPolicy(errorPolicy)
+                                    .firstSplit(firstSplit)
+                                    .lastSplit(lastSplit)
+                                    .build();
+                                pages = formatReader.read(obj, ctx);
                             }
                             try (pages) {
                                 int consumed = drainPagesWithBudget(pages, buffer, injector);
@@ -450,12 +458,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             batchSize,
                             parsingParallelism,
                             executor,
-                            attributes,
                             errorPolicy
                         );
                     } else {
                         int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
-                        pages = formatReader.read(obj, projectedColumns, batchSize, fileBudget, errorPolicy);
+                        FormatReadContext ctx = FormatReadContext.builder()
+                            .projectedColumns(projectedColumns)
+                            .batchSize(batchSize)
+                            .rowLimit(fileBudget)
+                            .errorPolicy(errorPolicy)
+                            .build();
+                        pages = formatReader.read(obj, ctx);
                     }
                     try (pages) {
                         int consumed = drainPagesWithBudget(pages, buffer, injector);
@@ -480,20 +493,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        formatReader.readAsync(
-            storageObject,
-            projectedColumns,
-            batchSize,
-            rowLimit,
-            errorPolicy,
-            executor,
-            ActionListener.wrap(iterator -> {
-                consumePagesInBackground(iterator, buffer, driverContext, injector);
-            }, e -> {
-                buffer.onFailure(e);
-                driverContext.removeAsyncAction();
-            })
-        );
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(batchSize)
+            .rowLimit(rowLimit)
+            .errorPolicy(errorPolicy)
+            .build();
+        formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+            consumePagesInBackground(iterator, buffer, driverContext, injector);
+        }, e -> {
+            buffer.onFailure(e);
+            driverContext.removeAsyncAction();
+        }));
     }
 
     private void startSyncWrapperRead(
@@ -514,11 +525,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         batchSize,
                         parsingParallelism,
                         executor,
-                        attributes,
                         errorPolicy
                     );
                 } else {
-                    pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit, errorPolicy);
+                    FormatReadContext ctx = FormatReadContext.builder()
+                        .projectedColumns(projectedColumns)
+                        .batchSize(batchSize)
+                        .rowLimit(rowLimit)
+                        .errorPolicy(errorPolicy)
+                        .build();
+                    pages = formatReader.read(storageObject, ctx);
                 }
                 consumePages(pages, buffer, injector);
             } catch (Exception e) {

@@ -1,16 +1,30 @@
 flattened root fields
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
 | SORT @timestamp ASC
 | LIMIT 2
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported            
-2020-01-01T00:02:48.461Z | null                   | null
-2020-01-01T00:07:43.000Z | null                   | null
+@timestamp:date          | attributes:keyword                                                                                                     | resource.attributes:keyword
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}"                                                            | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}"
+2020-01-01T00:07:43.000Z | "{""event"":{""module"":""nginx""},""input"":{""type"":""log""},""nginx"":{""error"":{""connection_id"":""184896""}}}" | "{""agent"":{""id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}}"
+;
+
+// ----------------------------------------------------
+flattened KEEP root field
+required_capability: load_flattened_field
+
+FROM flattened_otel_logs
+| KEEP @timestamp, resource.attributes
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date          | resource.attributes:keyword
+2020-01-01T00:02:48.461Z | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}"
+2020-01-01T00:07:43.000Z | "{""agent"":{""id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}}"
+2020-01-01T00:31:18.303Z | "{""agent"":{""id"":""8a161b55-80d0-4ba3-afc8-31d5e15fc51c"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.109"",""172.17.0.1"",""fe80::4001:aff:fee0:6d""],""name"":""elasticsearch-ci-immutable-sles-15-1599243844262984968""}}"
 ;
 
 // ----------------------------------------------------
@@ -98,9 +112,9 @@ FROM flattened_otel_logs
 | SORT @timestamp ASC
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
-2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
-2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+@timestamp:date          | attributes:keyword                                          | resource.attributes:keyword                                                                                                        | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}" | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | "{""ecs"":{""version"":""1.4.0""}}"                         | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
 ;
 
 // ----------------------------------------------------
@@ -115,9 +129,9 @@ FROM flattened_otel_logs
 | SORT @timestamp ASC
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
-2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
-2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+@timestamp:date          | attributes:keyword                                          | resource.attributes:keyword                                                                                                        | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}" | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | "{""ecs"":{""version"":""1.4.0""}}"                         | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
 ;
 
 // ----------------------------------------------------

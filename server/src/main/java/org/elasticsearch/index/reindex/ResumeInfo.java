@@ -26,6 +26,7 @@ import java.util.Optional;
  * Holds resume state information for a {@link BulkByScrollTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
  * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
  * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
+ * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
  * <p>
  * Note: For sliced tasks, resume info must include all slices, including those that are already completed. This ensures that the final
  * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried
@@ -33,22 +34,12 @@ import java.util.Optional;
  * <p>
  * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
  */
-public record ResumeInfo(
-    @Nullable RelocationOrigin relocationOrigin,
-    @Nullable WorkerResumeInfo worker,
-    @Nullable Map<Integer, SliceStatus> slices
-) implements Writeable {
+public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices)
+    implements
+        Writeable {
 
-    // todo(szy): remove and update tests after getting reviewer buy-in around approach
-    public ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
-        this(null, worker, slices);
-    }
-
-    public ResumeInfo(
-        @Nullable RelocationOrigin relocationOrigin,
-        @Nullable WorkerResumeInfo worker,
-        @Nullable Map<Integer, SliceStatus> slices
-    ) {
+    public ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
+        this.relocationOrigin = Objects.requireNonNull(relocationOrigin, "relocation origin cannot be null");
         if (worker == null && (slices == null || slices.size() < 2)) {
             throw new IllegalArgumentException("resume info requires a worker resume info or at minimum two slices");
         }
@@ -57,7 +48,6 @@ public record ResumeInfo(
         }
         this.worker = worker;
         this.slices = slices != null ? Map.copyOf(slices) : null;
-        this.relocationOrigin = relocationOrigin;
     }
 
     public ResumeInfo(StreamInput in) throws IOException {
@@ -70,9 +60,6 @@ public record ResumeInfo(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (relocationOrigin == null) {
-            throw new IllegalStateException("relocation origin should be set when serializing");
-        }
         out.writeWriteable(relocationOrigin);
         out.writeOptionalNamedWriteable(worker);
         out.writeOptionalMap(slices, StreamOutput::writeVInt, (o, v) -> v.writeTo(o));

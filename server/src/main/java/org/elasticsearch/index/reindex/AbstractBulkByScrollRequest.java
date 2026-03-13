@@ -480,7 +480,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             ResumeInfo resumeInfo = this.getResumeInfo().get();
             int sliceId = request.getSearchRequest().source().slice().getId();
             if (resumeInfo.isSliceCompleted(sliceId) == false) {
-                request.setResumeInfo(new ResumeInfo(resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
+                request.setResumeInfo(new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
             }
         }
 
@@ -496,7 +496,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public Task createTask(TaskId id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new BulkByScrollTask(
             id,
             type,

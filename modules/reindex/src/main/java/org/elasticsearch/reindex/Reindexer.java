@@ -59,7 +59,6 @@ import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
-import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
@@ -143,7 +142,7 @@ public class Reindexer {
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
         final ActionListener<Void> initListener = listener.delegateFailure((l, v) -> {
-            initTaskForRelocationIfEnabled(task, request);
+            initTaskForRelocationIfEnabled(task);
             l.onResponse(v);
         });
         BulkByPaginatedSearchParallelizationHelper.initTaskState(task, request, client, initListener);
@@ -372,14 +371,7 @@ public class Reindexer {
                 );
                 return;
             }
-            // create ResumeInfo with task status and relocation origin (take from request if it was already relocated, otherwise create)
-            final ResumeInfo responseResumeInfo = response.getTaskResumeInfo().get();
-            final ResumeInfo.RelocationOrigin requestOrigin = request.getResumeInfo()
-                .map(r -> Objects.requireNonNull(r.relocationOrigin(), "relocation origin should be set if resume info is present"))
-                .orElseGet(
-                    () -> new ResumeInfo.RelocationOrigin(new TaskId(clusterService.localNode().getId(), task.getId()), task.getStartTime())
-                );
-            request.setResumeInfo(new ResumeInfo(requestOrigin, responseResumeInfo.worker(), responseResumeInfo.slices()));
+            request.setResumeInfo(response.getTaskResumeInfo().get());
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
                 final var relocatedException = new TaskRelocatedException();
@@ -398,7 +390,7 @@ public class Reindexer {
         });
     }
 
-    private void initTaskForRelocationIfEnabled(final BulkByScrollTask task, final ReindexRequest request) {
+    private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {

@@ -37,16 +37,14 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     public void createTask() {
         slices = between(2, 50);
         task = new BulkByScrollTask(
-            1,
+            new TaskId(randomAlphaOfLength(10), 1),
             "test_type",
             "test_action",
             "test",
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap(),
             false,
-            randomBoolean()
-                ? null
-                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+            randomBoolean() ? null : randomOrigin()
         );
         task.setWorkerCount(slices);
         taskState = task.getLeaderState();
@@ -269,16 +267,14 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
     private static BulkByScrollTask createRelocationLeaderTask(final int sliceCount) {
         final BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
             true,
-            randomBoolean()
-                ? null
-                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+            randomBoolean() ? null : randomOrigin()
         );
         task.setWorkerCount(sliceCount);
         task.requestRelocation();
@@ -320,13 +316,20 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             List.of(),
             List.of(),
             false,
-            new ResumeInfo(workerResumeInfo, null)
+            new ResumeInfo(randomOrigin(), workerResumeInfo, null)
         );
     }
 
     private static BulkByScrollResponse completedSliceResponse(final int sliceId) {
         final var sliceStatus = statusForSlice(sliceId);
         return new BulkByScrollResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false);
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return new ResumeInfo.RelocationOrigin(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
     }
 
     private <T> ActionListener<T> neverCalled() {

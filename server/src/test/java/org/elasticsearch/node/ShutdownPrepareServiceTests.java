@@ -23,7 +23,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
     public void testMaybeRequestRelocationForBulkByScroll_nonRelocatableLeader() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomInt(),
+            randomTaskId(),
             "transport",
             "test:action/name",
             "description",
@@ -39,7 +39,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
     public void testMaybeRequestRelocationForBulkByScroll_relocatableLeader() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomInt(),
+            randomTaskId(),
             "transport",
             "test:action/name",
             "description",
@@ -55,7 +55,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
     public void testMaybeRequestRelocationForBulkByScroll_nonRelocatableWorker() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomInt(),
+            randomTaskId(),
             "transport",
             "test:action/name",
             "description",
@@ -71,7 +71,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
 
     public void testMaybeRequestRelocationForBulkByScroll_relocatableWorker() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomInt(),
+            randomTaskId(),
             "transport",
             "test:action/name",
             "description",
@@ -89,6 +89,11 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         Task task = new Task(randomInt(), "transport", "test:action/name", "description", new TaskId("localNode", randomLong()), Map.of());
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
         // No assertion, just check it doesn't blow up
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+
     }
 
     private static ResumeInfo.RelocationOrigin randomOrigin() {

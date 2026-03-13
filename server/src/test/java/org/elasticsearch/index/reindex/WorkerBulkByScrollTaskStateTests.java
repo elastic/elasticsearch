@@ -41,7 +41,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
     @Before
     public void createTask() {
         task = new BulkByScrollTask(
-            1,
+            new TaskId(randomAlphaOfLength(10), 1),
             "test_type",
             "test_action",
             "test",

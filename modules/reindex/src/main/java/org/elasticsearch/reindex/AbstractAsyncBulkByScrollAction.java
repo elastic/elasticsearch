@@ -570,7 +570,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     worker.getStatus(),
                     remoteVersion
                 );
-                final ResumeInfo resumeInfo = new ResumeInfo(workerResumeInfo, null);
+                final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
                 // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
                 // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
                 // its own combined status from it to serialize to .tasks index.

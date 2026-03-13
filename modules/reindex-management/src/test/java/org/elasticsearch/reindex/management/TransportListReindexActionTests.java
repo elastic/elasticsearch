@@ -81,7 +81,7 @@ public class TransportListReindexActionTests extends ESTestCase {
 
     private static TaskInfo taskInfo(final TaskId taskId) {
         final boolean cancellable = randomBoolean();
-        final boolean cancelled = cancellable ? randomBoolean() : false;
+        final boolean cancelled = cancellable && randomBoolean();
         return new TaskInfo(
             taskId,
             randomAlphanumericOfLength(10),

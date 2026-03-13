@@ -50,7 +50,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
     public void createTask() {
         slices = between(2, 50);
         task = new BulkByScrollTask(
-            1,
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             "test_type",
             "test_action",
             "test",

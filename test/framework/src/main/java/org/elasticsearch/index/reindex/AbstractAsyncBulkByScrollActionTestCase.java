@@ -29,7 +29,7 @@ public abstract class AbstractAsyncBulkByScrollActionTestCase<
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
         task = new BulkByScrollTask(
-            1,
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             "test",
             "test",
             "test",

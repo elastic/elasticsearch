@@ -179,7 +179,7 @@ public class ReindexerTests extends ESTestCase {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final long parentTaskId = 99;
         final BulkByScrollTask leaderTask = new BulkByScrollTask(
-            parentTaskId,
+            new TaskId(randomAlphaOfLength(10), parentTaskId),
             "test_type",
             "test_action",
             "test",
@@ -312,13 +312,13 @@ public class ReindexerTests extends ESTestCase {
             List.of(),
             List.of(),
             false,
-            new ResumeInfo(workerResumeInfo, null)
+            new ResumeInfo(randomOrigin(), workerResumeInfo, null)
         );
     }
 
     private static BulkByScrollTask createNonSlicedWorkerTask() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -333,7 +333,7 @@ public class ReindexerTests extends ESTestCase {
 
     private static BulkByScrollTask createSliceWorkerTask() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -348,7 +348,7 @@ public class ReindexerTests extends ESTestCase {
 
     private static BulkByScrollTask createLeaderTask() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -362,7 +362,16 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {
-        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true, randomOrigin());
+        return new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), 987),
+            "test_type",
+            "test_action",
+            "test",
+            parentTaskId,
+            Collections.emptyMap(),
+            true,
+            randomOrigin()
+        );
     }
 
     private static Reindexer reindexerWithRelocation() {
@@ -390,29 +399,15 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private static Reindexer reindexerWithRelocationAndMetrics(final ReindexMetrics metrics) {
-        return new Reindexer(
-            mock(ClusterService.class),
-            mock(ProjectResolver.class),
-            mock(Client.class),
-            mock(ThreadPool.class),
-            mock(ScriptService.class),
-            mock(ReindexSslConfig.class),
-            metrics,
-            mock(TransportService.class),
-            mock(ReindexRelocationNodePicker.class),
-            // Will default REINDEX_PIT_SEARCH_FEATURE to false
-            mock(FeatureService.class)
-        );
-    }
-
     private static ReindexRequest reindexRequest() {
         return new ReindexRequest();
     }
 
     private static ResumeInfo.RelocationOrigin randomOrigin() {
-        return randomBoolean()
-            ? null
-            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong());
+        return new ResumeInfo.RelocationOrigin(randomTaskId(), randomNonNegativeLong());
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

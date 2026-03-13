@@ -174,7 +174,7 @@ public class LeaderBulkByScrollTaskState {
         if (allJobsCompletedThereforeNoNeedForRelocation) {
             return Optional.empty();
         }
-        final var resumeInfo = new ResumeInfo(null, sliceResumeInfoMap);
+        final var resumeInfo = new ResumeInfo(task.relocationOrigin(), null, sliceResumeInfoMap);
         // this response is a local carrier for resumeInfo only — for higher-level code to handle relocation and then discard.
         // the status for the task that's serialized into the .tasks index is taken from the leader state.
         return Optional.of(

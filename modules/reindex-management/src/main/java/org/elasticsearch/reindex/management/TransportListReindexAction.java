@@ -92,28 +92,27 @@ public class TransportListReindexAction extends TransportTasksProjectAction<Task
         assert task instanceof BulkByScrollTask : "task should be a BulkByScrollTask";
         TaskInfo info = task.taskInfo(clusterService.localNode().getId(), request.getDetailed());
         if (task instanceof final BulkByScrollTask bbs) {
-            final ResumeInfo.RelocationOrigin origin = bbs.getRelocationOrigin().orElse(null);
-            if (origin != null) {
-                final TaskId originalId = origin.originalTaskId();
-                final long originalStartMillis = origin.originalStartTimeMillis();
-                final long adjustedRunningTimeNanos = info.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
-                    info.startTime() - originalStartMillis
-                );
-                info = new TaskInfo(
-                    originalId,
-                    info.type(),
-                    originalId.getNodeId(),
-                    info.action(),
-                    info.description(),
-                    info.status(),
-                    originalStartMillis,
-                    adjustedRunningTimeNanos,
-                    info.cancellable(),
-                    info.cancelled(),
-                    info.parentTaskId(),
-                    info.headers()
-                );
-            }
+            final ResumeInfo.RelocationOrigin origin = bbs.relocationOrigin();
+            final TaskId originalId = origin.originalTaskId();
+            final long originalStartMillis = origin.originalStartTimeMillis();
+            final long adjustedRunningTimeNanos = info.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
+                info.startTime() - originalStartMillis
+            );
+            // is a NOP (doesn't change anything) unless relocated
+            info = new TaskInfo(
+                originalId,
+                info.type(),
+                originalId.getNodeId(),
+                info.action(),
+                info.description(),
+                info.status(),
+                originalStartMillis,
+                adjustedRunningTimeNanos,
+                info.cancellable(),
+                info.cancelled(),
+                info.parentTaskId(),
+                info.headers()
+            );
         }
         listener.onResponse(info);
     }

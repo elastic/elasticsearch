@@ -87,6 +87,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
         var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSizeBytes, false);
 
+        // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats
         var bodyPostProcessor = "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))
             ? new SnappyBlockDecoder(recycler)
             : IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP;

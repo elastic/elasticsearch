@@ -149,7 +149,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             expectedTsidBuilder.addStringDimension("attributes.operation", "test");
             expectedTsidBuilder.addStringDimension("attributes.environment", "production");
             expectedTsidBuilder.addStringDimension("unit", "{test}");
-            assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid()));
+            assertThat(tsid, equalTo(expectedTsidBuilder.buildLegacyTsid()));
 
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.network.packets", Map.of("unit", "{test}")));

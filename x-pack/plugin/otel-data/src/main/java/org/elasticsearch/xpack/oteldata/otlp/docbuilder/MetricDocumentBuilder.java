@@ -86,7 +86,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         builder.endObject();
         TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
-        return tsidBuilder.buildTsid();
+        return tsidBuilder.buildLegacyTsid();
     }
 
 }

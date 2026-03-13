@@ -100,7 +100,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testRenameEval() throws Exception {
+    public void testEvalAfterRename() throws Exception {
         runTests("""
             FROM employees
             | RENAME emp_no AS employee_number
@@ -246,7 +246,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testStatsAggFiltering() throws Exception {
+    public void testAggsFiltering() throws Exception {
         runTests("""
             FROM employees
             | STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0
@@ -258,6 +258,23 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees
             | STATS c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100,
                     c2 = COUNT(*) WHERE does_not_exist3 IS NULL
+            """);
+    }
+
+    public void testStatsAggAndAliasedShadowingGroupOverExpression() throws Exception {
+        runTests("""
+            FROM languages
+            | WHERE language_code == 1
+            | STATS c = COUNT(*) + language_code
+                    BY language_code = does_not_exist1::INTEGER + does_not_exist2::INTEGER + language_code, language_name
+            """);
+    }
+
+    public void testStatsAggAndAliasedShadowingGroup() throws Exception {
+        runTests("""
+            FROM languages
+            | WHERE language_code == 1
+            | STATS c = COUNT(*) BY language_code = does_not_exist, language_name
             """);
     }
 
@@ -647,6 +664,109 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
+            """);
+    }
+
+    public void testForkBranchesAfterStats1stBranch() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | WHERE does_not_exist1 IS NULL
+            | FORK (STATS c = COUNT(*) BY does_not_exist2)
+                   (STATS d = AVG(salary))
+            | SORT does_not_exist2
+            """, STAGES);
+    }
+
+    public void testKqlWithUnmappedFieldInEval() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | WHERE kql("first_name: test")
+            | EVAL x = does_not_exist_field + 1
+            """, STAGES);
+    }
+
+    public void testQstrAfterSortWithUnmappedField() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | SORT first_name
+            | WHERE qstr("first_name: test")
+            | EVAL x = does_not_exist_field + 1
+            """, STAGES);
+    }
+
+    public void testForkWithRow() throws Exception {
+        runTestsNullifyOnly("""
+            ROW a = 1
+            | FORK (where true)
+            | WHERE a == 1
+            | KEEP bar
+            """, STAGES);
+    }
+
+    public void testForkWithFrom() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | FORK (where foo != 84) (where true)
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            | eval y = coalesce(bar, baz)
+            """, STAGES);
+    }
+
+    public void testForkWithUnmappedStatsEvalKeep() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | keep emp_no
+            | FORK (where true | mv_expand emp_no)
+            | stats emp_no = count(*)
+            | eval x = least(emp_no, 52, 60)
+            | keep emp_no
+            """, STAGES);
+    }
+
+    public void testForkWithUnmappedStatsEvalKeepTwoBranches() throws Exception {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+        runTestsNullifyOnly("""
+            FROM employees
+            | keep emp_no
+            | FORK (where true | mv_expand emp_no) (where true | SAMPLE 0.5)
+            | stats emp_no = count(*)
+            | eval x = least(emp_no, 52, 60)
+            | keep emp_no
+            """, STAGES);
+    }
+
+    public void testForkWithRowCoalesceAndDrop() throws Exception {
+        runTestsNullifyOnly("""
+            ROW a = 12::long
+            | fork (where true)
+            | eval x = Coalesce(a, 5)
+            | drop a
+            """, STAGES);
+    }
+
+    public void testDoNotResolveUnmappedFieldPresentInChildren() throws Exception {
+        runTestsNullifyOnly("""
+            ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
+            | SORT millis ASC
+            | WHERE millis < "2000-01-01"
+            | EVAL nanos = MV_MIN(nanos)
+            """, STAGES);
+    }
+
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() throws Exception {
+        runTestsNullifyOnly("""
+            ROW x = 1
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+            """, STAGES);
+    }
+
+    public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL entity.id = "foo"
+            | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
             """);
     }
 

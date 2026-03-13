@@ -3945,17 +3945,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTrangeWithUnmappedTimestampNullify() {
-        verificationFailure(
-            setUnmappedNullify("FROM test | WHERE trange(1 hour)"),
-            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        verificationFailure(setUnmappedNullify("FROM test | WHERE trange(1 hour)"), "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testTrangeWithUnmappedTimestampLoad() {
-        verificationFailure(
-            setUnmappedLoad("FROM test | WHERE trange(1 hour)"),
-            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        verificationFailure(setUnmappedLoad("FROM test | WHERE trange(1 hour)"), "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

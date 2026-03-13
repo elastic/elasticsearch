@@ -367,7 +367,8 @@ public class Verifier {
      * See https://github.com/elastic/elasticsearch/issues/142127
      */
     private static void checkUnmappedTimestamp(LogicalPlan plan, Failures failures) {
-        boolean timestampInIndex = plan.collect(EsRelation.class, r -> r.indexMode() != IndexMode.LOOKUP).stream()
+        boolean timestampInIndex = plan.collect(EsRelation.class, r -> r.indexMode() != IndexMode.LOOKUP)
+            .stream()
             .anyMatch(r -> r.output().stream().anyMatch(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())));
         if (timestampInIndex) {
             return;
@@ -380,7 +381,8 @@ public class Verifier {
                 failures.add(
                     fail(
                         ut,
-                        "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX
+                        "[{}] "
+                            + UnresolvedTimestamp.UNRESOLVED_SUFFIX
                             + "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference",
                         ut.sourceText()
                     )

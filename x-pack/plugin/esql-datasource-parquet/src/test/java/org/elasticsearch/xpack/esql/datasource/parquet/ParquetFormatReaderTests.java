@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -419,7 +419,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         // Read with a row limit of 10 — Parquet reader respects the budget natively
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50, 10)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.builder().batchSize(50).rowLimit(10).build())
+        ) {
             int totalRows = 0;
             while (iterator.hasNext()) {
                 Page page = iterator.next();
@@ -446,7 +448,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         // NO_LIMIT should read all rows
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10, FormatReader.NO_LIMIT)) {
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 10))) {
             int totalRows = 0;
             while (iterator.hasNext()) {
                 totalRows += iterator.next().getPositionCount();
@@ -482,7 +484,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         // Project only "name" column with limit of 5
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("name"), 10, 5)) {
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(List.of("name"), 10).withRowLimit(5))) {
             int totalRows = 0;
             int totalBlocks = 0;
             while (iterator.hasNext()) {

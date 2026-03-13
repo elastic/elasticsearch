@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/144162
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
 
 # Examples:
 #

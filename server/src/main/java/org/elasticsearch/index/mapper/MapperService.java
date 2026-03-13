@@ -623,13 +623,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             // only doing a merge without updating the actual #mapper field, no need to synchronize
-            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, this.mapper);
+            final DocumentMapper currentMapper = this.mapper;
+            Mapping mapping = mergeBuilders(
+                mappingParser,
+                indexSettings,
+                incomingBuilder,
+                MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
+                currentMapper
+            );
             return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
         } else {
             // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
             // TODO: can we even have concurrent updates here?
             synchronized (this) {
-                Mapping mapping = mergeBuilders(incomingBuilder, reason);
+                final DocumentMapper currentMapper = this.mapper;
+                Mapping mapping = mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, currentMapper);
                 DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
                 this.mapper = newMapper;
                 assert assertSerialization(newMapper, reason);
@@ -639,10 +647,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
-        return mergeBuilders(incomingBuilder, reason, this.mapper);
+        return mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, this.mapper);
     }
 
-    private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason, DocumentMapper currentMapper) {
+    private static Mapping mergeBuilders(
+        MappingParser mappingParser,
+        IndexSettings indexSettings,
+        MappingBuilder incomingBuilder,
+        MergeReason reason,
+        DocumentMapper currentMapper
+    ) {
         long newFieldsBudget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason);
         if (currentMapper == null) {
             try {

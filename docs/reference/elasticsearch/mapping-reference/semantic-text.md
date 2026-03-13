@@ -35,6 +35,10 @@ PUT semantic-embeddings
   }
 }
 ```
+:::{important}
+If you don't specify an `inference_id`, like in the example above, and upgrade to a later version, newly created indices might use a different embedding model than existing ones. Queries that target these indices together can produce unexpected ranking results.
+For details, refer to [potential issues when mixing embedding models across indices](./semantic-text-setup-configuration.md#default-endpoint-considerations).
+:::
 
 ## Extended `semantic_text` mapping example
 
@@ -65,7 +69,7 @@ PUT semantic-embeddings
 }
 ```
 
-1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings at index time. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-and-preconfigured-endpoints).
+1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings at index time. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-endpoints).
 2. (Optional) The {{infer}} endpoint used to generate embeddings at query time. If not specified, the endpoint defined by `inference_id` is used at both index and query time.
 3. (Optional) Configures how the underlying vector representation is indexed. In this example, [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk) is selected for dense vectors. You can configure different index options depending on whether the field uses dense or sparse vectors. Learn how to [set `index_options` for `sparse_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-sparse_vectors) and how to [set `index_options` for `dense_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-dense_vectors).
 4. (Optional) Overrides the [chunking settings](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#chunking-behavior) from the {{infer}} endpoint. In this example, the `word` strategy splits text on individual words with a maximum of 120 words per chunk and an overlap of 40 words between chunks. The default chunking strategy is `sentence`.

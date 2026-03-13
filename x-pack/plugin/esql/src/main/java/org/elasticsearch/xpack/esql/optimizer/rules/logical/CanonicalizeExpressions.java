@@ -19,6 +19,6 @@ public class CanonicalizeExpressions extends OptimizerRules.OptimizerExpressionR
     @Override
     protected Expression rule(Expression expression, LogicalOptimizerContext ctx) {
         Expression canonical = expression.canonical();
-        return canonical == expression ? expression : canonical;
+        return canonical.equals(expression) ? expression : canonical;
     }
 }

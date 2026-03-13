@@ -90,6 +90,25 @@ public class MlPlatformArchitecturesUtil {
 
         String architecture = null;
         Iterator<String> architecturesIterator = architectures.iterator();
+        
+        // Check for ELSER models on ARM64 (aarch64) - these are currently incompatible due to intel_extension_for_pytorch
+        // being used unconditionally in the ml-cpp pytorch_inference process
+        if (modelID != null && isElserModel(modelID) && architectures.isEmpty() == false) {
+            for (String arch : architectures) {
+                if (arch != null && arch.contains("aarch64")) {
+                    throw new IllegalArgumentException(
+                        format(
+                            "The ELSER model ([%s]) cannot be deployed on ARM64 (aarch64) architecture. "
+                                + "ELSER currently requires x86_64 architecture due to dependencies on Intel-specific optimizations. "
+                                + "Cluster ML nodes have architecture: %s",
+                            modelID,
+                            architectures
+                        )
+                    );
+                }
+            }
+        }
+        
         // If there are no ML nodes at all in the current cluster we assume that any that are added later will work
         if (modelPlatformArchitecture == null || architectures.isEmpty() || architecturesIterator.hasNext() == false) {
             return;
@@ -121,5 +140,9 @@ public class MlPlatformArchitecturesUtil {
                 )
             );
         }
+    }
+    
+    private static boolean isElserModel(String modelID) {
+        return modelID.startsWith(".elser_model_1") || modelID.startsWith(".elser_model_2");
     }
 }

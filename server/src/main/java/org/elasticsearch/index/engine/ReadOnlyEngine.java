@@ -453,7 +453,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         listener.onResponse(new FlushResult(false, lastCommittedSegmentInfos.getGeneration()));
     }
 

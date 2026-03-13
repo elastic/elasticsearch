@@ -558,7 +558,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // to handle mixed data streams where OCC is disabled for the entire operation.
         if (writeRequest.id() != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
-            if ((targetMetadata != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(targetMetadata.getSettings()))
+            if ((targetMetadata != null && targetMetadata.sequenceNumbersDisabled())
                 || hasAnyBackingIndexWithSeqNoDisabled(dataStream, indexMetadataProvider)) {
                 return;
             }
@@ -577,7 +577,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     static boolean hasAnyBackingIndexWithSeqNoDisabled(DataStream dataStream, Function<Index, IndexMetadata> indexMetadataProvider) {
         for (Index backingIndex : dataStream.getIndices()) {
             IndexMetadata im = indexMetadataProvider.apply(backingIndex);
-            if (im != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(im.getSettings())) {
+            if (im != null && im.sequenceNumbersDisabled()) {
                 return true;
             }
         }

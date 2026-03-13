@@ -272,6 +272,8 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
             .add(prepareIndex(backingIndex).setId(createdId).setSource(Map.of("@timestamp", "2020-01-01", "value", "overwritten")))
             .get();
         assertNoFailures(overwriteResponse);
+        assertThat(overwriteResponse.getItems().length, equalTo(1));
+        assertThat(overwriteResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
 
         // Ensure that the document was overwritten
         indicesAdmin().prepareRefresh(backingIndex).get();

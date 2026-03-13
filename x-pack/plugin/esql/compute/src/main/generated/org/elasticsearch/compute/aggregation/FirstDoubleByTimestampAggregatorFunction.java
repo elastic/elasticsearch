@@ -36,16 +36,10 @@ public final class FirstDoubleByTimestampAggregatorFunction implements Aggregato
 
   private final List<Integer> channels;
 
-  public FirstDoubleByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongDoubleState state) {
+  FirstDoubleByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstDoubleByTimestampAggregatorFunction(driverContext, channels, FirstDoubleByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstDoubleByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

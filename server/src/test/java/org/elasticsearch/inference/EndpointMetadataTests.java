@@ -34,7 +34,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     private static final EndpointMetadata NON_EMPTY_ENDPOINT_METADATA = new EndpointMetadata(
         new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
         new EndpointMetadata.Internal("fingerprint", 1L),
-        new EndpointMetadata.Display("name")
+        new EndpointMetadata.Display("name", "some_creator")
     );
 
     private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
@@ -50,7 +50,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "version": 1
           },
           "display": {
-            "name": "name"
+            "name": "name",
+            "model_creator": "some_creator"
           }
         }
         """;
@@ -64,7 +65,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "end_of_life_date": "2025-12-31"
           },
           "display": {
-            "name": "name"
+            "name": "name",
+            "model_creator": "some_creator"
           }
         }
         """;
@@ -97,13 +99,15 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var version = randomLongBetween(0, Long.MAX_VALUE);
         var internal = new EndpointMetadata.Internal(fingerprint, version);
 
-        var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+        var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
 
         return new EndpointMetadata(heuristics, internal, display);
     }
 
     public static EndpointMetadata.Display randomDisplay() {
-        return randomBoolean() ? EndpointMetadata.Display.EMPTY_INSTANCE : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+        return randomBoolean()
+            ? EndpointMetadata.Display.EMPTY_INSTANCE
+            : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
@@ -291,6 +295,13 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
     @Override
     protected EndpointMetadata mutateInstanceForVersion(EndpointMetadata instance, TransportVersion version) {
+        if (version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
+            return new EndpointMetadata(
+                instance.heuristics(),
+                instance.internal(),
+                new EndpointMetadata.Display(instance.display().name(), null)
+            );
+        }
         return instance;
     }
 }

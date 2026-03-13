@@ -823,15 +823,6 @@
                                 },
                                 "storage_limit": {
                                   "type": "long"
-                                },
-                                "disk_used": {
-                                  "type": "long"
-                                },
-                                "disk_total": {
-                                  "type": "long"
-                                },
-                                "disk_usage_threshold_pct": {
-                                  "type": "float"
                                 }
                               }
                             }
@@ -2317,18 +2308,6 @@
                                 "storage_limit": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.sampling.tail.storage.storage_limit"
-                                },
-                                "disk_used": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_used"
-                                },
-                                "disk_total": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_total"
-                                },
-                                "disk_usage_threshold_pct": {
-                                  "type": "alias",
-                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_usage_threshold_pct"
                                 }
                               }
                             }

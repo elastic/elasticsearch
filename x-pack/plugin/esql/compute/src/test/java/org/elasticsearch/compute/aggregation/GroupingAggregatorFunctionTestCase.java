@@ -917,6 +917,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     )
                     : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
 
+                final boolean wrapVectorAsBlock = randomBoolean();
                 return new BlockHashWrapper(driverContext.blockFactory(), blockHash) {
                     @Override
                     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
@@ -939,7 +940,11 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
-                                add(positionOffset, groupIds.asBlock());
+                                if (wrapVectorAsBlock) {
+                                    add(positionOffset, groupIds.asBlock());
+                                } else {
+                                    addInput.add(positionOffset, groupIds);
+                                }
                             }
 
                             @Override

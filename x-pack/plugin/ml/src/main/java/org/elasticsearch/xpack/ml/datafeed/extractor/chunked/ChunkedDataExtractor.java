@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
@@ -49,7 +49,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     private long chunkSpan;
     private boolean isCancelled;
     private DataExtractor currentExtractor;
-    private List<LinkedProjectState> lastLinkedProjectStates = List.of();
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
@@ -135,8 +135,8 @@ public class ChunkedDataExtractor implements DataExtractor {
 
             Result result = currentExtractor.next();
             lastSearchInterval = result.searchInterval();
-            if (result.linkedProjectStates().isEmpty() == false) {
-                lastLinkedProjectStates = result.linkedProjectStates();
+            if (result.linkedClusterStates().isEmpty() == false) {
+                lastLinkedClusterStates = result.linkedClusterStates();
             }
             if (result.data().isPresent()) {
                 return result;
@@ -164,7 +164,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return new Result(lastSearchInterval, Optional.empty(), lastLinkedProjectStates);
+        return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
     private void advanceTime() {

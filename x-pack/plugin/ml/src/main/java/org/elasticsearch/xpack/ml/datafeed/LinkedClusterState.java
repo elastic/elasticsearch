@@ -12,13 +12,13 @@ import org.elasticsearch.core.Nullable;
 import java.util.Objects;
 
 /**
- * Per-linked-project state for datafeed extraction when querying across multiple projects
- * (e.g. cross-project search). Used to report status, optional error reason, and search
- * latency per cluster/project.
+ * Per-cluster state for datafeed extraction when querying across multiple clusters
+ * (e.g. cross-cluster search). Used to report status, optional error reason, and search
+ * latency per cluster.
  */
-public record LinkedProjectState(String alias, Status status, @Nullable String errorReason, long searchLatencyMs) {
+public record LinkedClusterState(String alias, Status status, @Nullable String errorReason, long searchLatencyMs) {
 
-    public LinkedProjectState {
+    public LinkedClusterState {
         if (alias == null || alias.isBlank()) {
             throw new IllegalArgumentException("[alias] cannot be empty");
         }
@@ -26,15 +26,15 @@ public record LinkedProjectState(String alias, Status status, @Nullable String e
     }
 
     /**
-     * Status of a linked project in the search response, mapped from
+     * Status of a linked cluster in the search response, mapped from
      * {@link org.elasticsearch.action.search.SearchResponse.Cluster.Status}.
      */
     public enum Status {
-        /** Cluster/project search completed successfully (mapped from SUCCESSFUL, or PARTIAL). */
+        /** Cluster search completed successfully (mapped from SUCCESSFUL, RUNNING, or PARTIAL). */
         AVAILABLE,
-        /** Cluster/project was skipped (e.g. skip_unavailable). */
+        /** Cluster was skipped (e.g. skip_unavailable). */
         SKIPPED,
-        /** Cluster/project search failed. */
+        /** Cluster search failed. */
         FAILED
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
@@ -62,7 +62,7 @@ class ScrollDataExtractor implements DataExtractor {
     private Long timestampOnCancel;
     protected Long lastTimestamp;
     private boolean searchHasShardFailure;
-    private volatile List<LinkedProjectState> lastLinkedProjectStates;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
@@ -108,11 +108,7 @@ class ScrollDataExtractor implements DataExtractor {
         if (stream.isPresent() == false) {
             hasNext = false;
         }
-        return new Result(
-            new SearchInterval(context.queryContext.start, context.queryContext.end),
-            stream,
-            lastLinkedProjectStates != null ? lastLinkedProjectStates : List.of()
-        );
+        return new Result(new SearchInterval(context.queryContext.start, context.queryContext.end), stream, lastLinkedClusterStates);
     }
 
     private Optional<InputStream> tryNextStream() throws IOException {
@@ -135,7 +131,7 @@ class ScrollDataExtractor implements DataExtractor {
         try {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {
@@ -252,7 +248,7 @@ class ScrollDataExtractor implements DataExtractor {
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {

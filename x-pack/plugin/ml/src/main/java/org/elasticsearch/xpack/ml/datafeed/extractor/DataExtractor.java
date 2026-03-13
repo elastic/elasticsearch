@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,9 +17,9 @@ import java.util.Optional;
 
 public interface DataExtractor {
 
-    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedProjectState> linkedProjectStates) {
+    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates) {
         public Result {
-            linkedProjectStates = List.copyOf(Objects.requireNonNull(linkedProjectStates));
+            linkedClusterStates = List.copyOf(Objects.requireNonNull(linkedClusterStates));
         }
     }
 

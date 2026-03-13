@@ -1652,10 +1652,9 @@ Lucene [Version](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/ut
 that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
 such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
 
-The `IndexVersion` class
-was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, the node release `Version` 
-was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version, for backwards 
-compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
+The `IndexVersion` class was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, 
+the node release `Version` was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version, 
+for backwards compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
 
 All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
 `SEMANTIC_TEXT_FIELD_TYPE`, or `GENERIC_DENSE_VECTOR_FORMAT`).
@@ -1752,7 +1751,6 @@ to them.
 [CodecService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java
 [TSDBSyntheticIdPostingsFormat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdPostingsFormat.java
 [TSDBSyntheticIdStoredFieldsReader]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdStoredFieldsReader.java
-[AbstractTSDBSyntheticIdCodec]
 
 Lucene's [Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
 lets each field type choose its own on-disk format. A codec is a bundle of format implementations: one for postings,
@@ -1821,7 +1819,7 @@ this base policy with several layers:
 - [PrunePostingsMergePolicy]: drops the _id field postings for deleted documents during segment merges, maintaining
   consistent update performance even when a large number of soft deleted/updated documents are retained.
 - [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
-  documents are not always co-located at the end, to improve time-based queries efficiency.
+  documents are not always co-located at the end, to improve the efficiency of time-based queries.
 
 [MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decides how
 merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the

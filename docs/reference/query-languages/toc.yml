@@ -413,6 +413,7 @@ toc:
             - file: sql/sql-odbc-setup.md
       - file: sql/sql-client-apps.md
         children:
+            - file: sql/sql-client-apps-superset.md
             - file: sql/sql-client-apps-dbeaver.md
             - file: sql/sql-client-apps-dbvis.md
             - file: sql/sql-client-apps-excel.md

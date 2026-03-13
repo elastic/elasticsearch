@@ -327,13 +327,25 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void setDefaultResponseCache() {
+    static boolean setDefaultResponseCache() {
+        var original = ResponseCache.getDefault();
         ResponseCache.setDefault(null);
+        boolean changed = ResponseCache.getDefault() != original;
+        if (changed) {
+            ResponseCache.setDefault(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void setDefaultProxySelector() {
+    static boolean setDefaultProxySelector() {
+        var original = ProxySelector.getDefault();
         ProxySelector.setDefault(null);
+        boolean changed = ProxySelector.getDefault() != original;
+        if (changed) {
+            ProxySelector.setDefault(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
@@ -362,8 +374,14 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void httpURLConnection$$setFollowRedirects() {
-        HttpURLConnection.setFollowRedirects(HttpURLConnection.getFollowRedirects());
+    static boolean httpURLConnection$$setFollowRedirects() {
+        boolean original = HttpURLConnection.getFollowRedirects();
+        HttpURLConnection.setFollowRedirects(original == false);
+        boolean changed = HttpURLConnection.getFollowRedirects() != original;
+        if (changed) {
+            HttpURLConnection.setFollowRedirects(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
@@ -382,8 +400,14 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
-    static void urlConnection$$setFileNameMap() {
+    static boolean urlConnection$$setFileNameMap() {
+        var original = URLConnection.getFileNameMap();
         URLConnection.setFileNameMap(__ -> { throw new IllegalStateException(); });
+        boolean changed = URLConnection.getFileNameMap() != original;
+        if (changed) {
+            URLConnection.setFileNameMap(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

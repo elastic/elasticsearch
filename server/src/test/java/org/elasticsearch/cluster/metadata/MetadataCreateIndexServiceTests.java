@@ -709,26 +709,26 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 false,
                 new IndexSettingProviders(Set.of())
             );
-            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName("index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
-            validateIndexName(checkerService, "index#name", "must not contain '#'");
+            validateIndexName("index#name", "must not contain '#'");
 
-            validateIndexName(checkerService, "_indexname", "must not start with '_', '-', or '+'");
-            validateIndexName(checkerService, "-indexname", "must not start with '_', '-', or '+'");
-            validateIndexName(checkerService, "+indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("_indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("-indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("+indexname", "must not start with '_', '-', or '+'");
 
-            validateIndexName(checkerService, "INDEXNAME", "must be lowercase");
+            validateIndexName("INDEXNAME", "must be lowercase");
 
-            validateIndexName(checkerService, "..", "must not be '.' or '..'");
+            validateIndexName("..", "must not be '.' or '..'");
 
-            validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+            validateIndexName("foo:bar", "must not contain ':'");
 
-            validateIndexName(checkerService, "", "must not be empty");
-            validateIndexName(checkerService, null, "must not be empty");
+            validateIndexName("", "must not be empty");
+            validateIndexName(null, "must not be empty");
         }));
     }
 
-    private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+    private static void validateIndexName(String indexName, String errorMessage) {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,

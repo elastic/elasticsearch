@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -35,12 +36,12 @@ import java.nio.ByteOrder;
  * When shapes of different dimensional types are combined, only the highest dimensional type contributes.
  */
 abstract class CentroidShapeAggregator {
-    public static ShapeCentroidState initSingle() {
-        return new ShapeCentroidState();
+    public static ShapeCentroidState initSingle(CoordinateEncoder encoder) {
+        return new ShapeCentroidState(encoder);
     }
 
-    public static GroupingShapeCentroidState initGrouping(BigArrays bigArrays) {
-        return new GroupingShapeCentroidState(bigArrays);
+    public static GroupingShapeCentroidState initGrouping(BigArrays bigArrays, CoordinateEncoder encoder) {
+        return new GroupingShapeCentroidState(bigArrays, encoder);
     }
 
     public static void combine(
@@ -166,6 +167,11 @@ abstract class CentroidShapeAggregator {
         protected final CompensatedSum ySum = new CompensatedSum(0, 0);
         protected double weight = 0;
         protected DimensionalShapeType shapeType = DimensionalShapeType.POINT;
+        final CoordinateEncoder encoder;
+
+        ShapeCentroidState(CoordinateEncoder encoder) {
+            this.encoder = encoder;
+        }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -212,6 +218,7 @@ abstract class CentroidShapeAggregator {
 
     static class GroupingShapeCentroidState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
+        final CoordinateEncoder encoder;
 
         private DoubleArray xValues;
         private DoubleArray xDeltas;
@@ -220,8 +227,9 @@ abstract class CentroidShapeAggregator {
         private DoubleArray weights;
         private IntArray shapeTypes;
 
-        GroupingShapeCentroidState(BigArrays bigArrays) {
+        GroupingShapeCentroidState(BigArrays bigArrays, CoordinateEncoder encoder) {
             this.bigArrays = bigArrays;
+            this.encoder = encoder;
             boolean success = false;
             try {
                 this.xValues = bigArrays.newDoubleArray(1, true);

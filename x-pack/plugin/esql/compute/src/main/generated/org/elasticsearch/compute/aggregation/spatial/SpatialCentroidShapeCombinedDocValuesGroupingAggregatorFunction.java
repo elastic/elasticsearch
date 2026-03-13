@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidShapeCombinedDocValuesAggregator}.
@@ -43,16 +44,20 @@ public final class SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFuncti
 
   private final DriverContext driverContext;
 
+  private final CoordinateEncoder encoder;
+
   public SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      CentroidShapeAggregator.GroupingShapeCentroidState state, DriverContext driverContext) {
+      CentroidShapeAggregator.GroupingShapeCentroidState state, DriverContext driverContext,
+      CoordinateEncoder encoder) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.encoder = encoder;
   }
 
   public static SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(channels, SpatialCentroidShapeCombinedDocValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      List<Integer> channels, DriverContext driverContext, CoordinateEncoder encoder) {
+    return new SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(channels, SpatialCentroidShapeCombinedDocValuesAggregator.initGrouping(driverContext.bigArrays(), encoder), driverContext, encoder);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

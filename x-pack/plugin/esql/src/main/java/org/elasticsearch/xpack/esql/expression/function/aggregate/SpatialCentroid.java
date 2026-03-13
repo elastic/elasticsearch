@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidShapeCombine
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidShapeDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -122,14 +123,19 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
                 default -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
-                case EXTRACT_SPATIAL_CENTROID -> new SpatialCentroidShapeDocValuesAggregatorFunctionSupplier();
-                case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> new SpatialCentroidShapeCombinedDocValuesAggregatorFunctionSupplier();
-                case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier();
-                case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
-                    "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
-                );
-            };
+            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> {
+                var encoder = DataType.isSpatialGeo(type) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
+                yield switch (fieldExtractPreference) {
+                    case EXTRACT_SPATIAL_CENTROID -> new SpatialCentroidShapeDocValuesAggregatorFunctionSupplier(encoder);
+                    case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> new SpatialCentroidShapeCombinedDocValuesAggregatorFunctionSupplier(
+                        encoder
+                    );
+                    case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier(encoder);
+                    case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
+                        "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
+                    );
+                };
+            }
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

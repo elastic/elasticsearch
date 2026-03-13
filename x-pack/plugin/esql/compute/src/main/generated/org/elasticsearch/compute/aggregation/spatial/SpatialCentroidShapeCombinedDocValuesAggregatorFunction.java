@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SpatialCentroidShapeCombinedDocValuesAggregator}.
@@ -40,16 +41,20 @@ public final class SpatialCentroidShapeCombinedDocValuesAggregatorFunction imple
 
   private final List<Integer> channels;
 
+  private final CoordinateEncoder encoder;
+
   public SpatialCentroidShapeCombinedDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidShapeAggregator.ShapeCentroidState state) {
+      List<Integer> channels, CentroidShapeAggregator.ShapeCentroidState state,
+      CoordinateEncoder encoder) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.encoder = encoder;
   }
 
   public static SpatialCentroidShapeCombinedDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidShapeCombinedDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidShapeCombinedDocValuesAggregator.initSingle());
+      DriverContext driverContext, List<Integer> channels, CoordinateEncoder encoder) {
+    return new SpatialCentroidShapeCombinedDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidShapeCombinedDocValuesAggregator.initSingle(encoder), encoder);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

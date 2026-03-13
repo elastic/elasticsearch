@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -360,6 +361,16 @@ public final class EsqlTestUtils {
      */
     public static class TestSearchStats implements SearchStats {
 
+        private final boolean supportsLoaderConfig;
+
+        public TestSearchStats() {
+            this(true);
+        }
+
+        public TestSearchStats(boolean supportsLoaderConfig) {
+            this.supportsLoaderConfig = supportsLoaderConfig;
+        }
+
         @Override
         public boolean exists(FieldName field) {
             return true;
@@ -386,7 +397,7 @@ public final class EsqlTestUtils {
             BlockLoaderFunctionConfig config,
             MappedFieldType.FieldExtractPreference preference
         ) {
-            return true;
+            return supportsLoaderConfig;
         }
 
         @Override
@@ -507,6 +518,11 @@ public final class EsqlTestUtils {
         private final Map<String, Object> maxValues;
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this(minValues, maxValues, true);
+        }
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
+            super(supportsLoaderConfig);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }
@@ -613,8 +629,12 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
+    public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+
+    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
+
     public static final Verifier TEST_VERIFIER = new Verifier(
-        new Metrics(new EsqlFunctionRegistry(), true, true),
+        new Metrics(TEST_FUNCTION_REGISTRY, true, true),
         new XPackLicenseState(() -> 0L)
     );
 
@@ -1482,7 +1502,7 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()
@@ -1519,7 +1539,7 @@ public final class EsqlTestUtils {
         assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()

@@ -36,7 +36,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;

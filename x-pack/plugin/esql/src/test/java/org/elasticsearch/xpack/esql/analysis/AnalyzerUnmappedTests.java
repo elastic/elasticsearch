@@ -3927,6 +3927,37 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(fork.children(), hasSize(2));
     }
 
+    private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX
+        + "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
+
+    public void testTbucketWithUnmappedTimestampNullify() {
+        verificationFailure(
+            setUnmappedNullify("FROM test | STATS c = COUNT(*) BY tbucket(1 hour)"),
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampLoad() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | STATS c = COUNT(*) BY tbucket(1 hour)"),
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTrangeWithUnmappedTimestampNullify() {
+        verificationFailure(
+            setUnmappedNullify("FROM test | WHERE trange(1 hour)"),
+            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTrangeWithUnmappedTimestampLoad() {
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE trange(1 hour)"),
+            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
     private void verificationFailure(String statement, String expectedFailure) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
         assertThat(e.getMessage(), containsString(expectedFailure));

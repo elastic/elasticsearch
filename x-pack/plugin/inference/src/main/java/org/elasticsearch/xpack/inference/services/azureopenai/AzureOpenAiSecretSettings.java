@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -19,9 +16,8 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -30,111 +26,70 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 
-public class AzureOpenAiSecretSettings implements SecretSettings {
+public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
-    public static final String NAME = "azure_openai_secret_settings";
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
 
-    private final SecureString entraId;
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
+        "[secret_settings] must have exactly one of [%s], [%s], or [%s] field set",
+        API_KEY,
+        ENTRA_ID,
+        CLIENT_SECRET_FIELD
+    );
 
-    private final SecureString apiKey;
+    public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
+        "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
 
-    public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
+    private static final String UNKNOWN_INFERENCE_ID = "unknown";
+
+    protected final String inferenceId;
+
+    protected AzureOpenAiSecretSettings(@Nullable String inferenceId) {
+        this.inferenceId = Objects.requireNonNullElse(inferenceId, UNKNOWN_INFERENCE_ID);
+    }
+
+    /**
+     * Parses the map, validates exactly one auth field, returns the matching secret type.
+     */
+    public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map, String inferenceId) {
         if (map == null) {
             return null;
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractOptionalSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
-        SecureString secureEntraId = extractOptionalSecureString(map, ENTRA_ID, ModelSecrets.SECRET_SETTINGS, validationException);
+        var secureApiToken = extractOptionalSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, ModelSecrets.SECRET_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, ModelSecrets.SECRET_SETTINGS, validationException);
 
-        if (secureApiToken == null && secureEntraId == null) {
-            validationException.addValidationError(
-                format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-            );
+        var provided = new HashMap<String, SecureString>();
+        if (secureApiToken != null) {
+            provided.put(API_KEY, secureApiToken);
+        }
+        if (secureEntraId != null) {
+            provided.put(ENTRA_ID, secureEntraId);
+        }
+        if (clientSecret != null) {
+            provided.put(CLIENT_SECRET_FIELD, clientSecret);
         }
 
-        if (secureApiToken != null && secureEntraId != null) {
-            validationException.addValidationError(
-                format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-            );
+        if (provided.isEmpty()) {
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
+        } else if (provided.size() > 1) {
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + provided.keySet());
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+        validationException.throwIfValidationErrorsExist();
+
+        if (secureApiToken != null) {
+            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, secureApiToken, null);
         }
-
-        return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
-    }
-
-    public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
-        Objects.requireNonNullElse(apiKey, entraId);
-        this.apiKey = apiKey;
-        this.entraId = entraId;
-    }
-
-    public AzureOpenAiSecretSettings(StreamInput in) throws IOException {
-        this(in.readOptionalSecureString(), in.readOptionalSecureString());
-    }
-
-    public SecureString apiKey() {
-        return apiKey;
-    }
-
-    public SecureString entraId() {
-        return entraId;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        if (apiKey != null) {
-            builder.field(API_KEY, apiKey.toString());
+        if (secureEntraId != null) {
+            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, null, secureEntraId);
         }
-
-        if (entraId != null) {
-            builder.field(ENTRA_ID, entraId.toString());
-        }
-
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalSecureString(apiKey);
-        out.writeOptionalSecureString(entraId);
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        AzureOpenAiSecretSettings that = (AzureOpenAiSecretSettings) object;
-        return Objects.equals(entraId, that.entraId) && Objects.equals(apiKey, that.apiKey);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(entraId, apiKey);
-    }
-
-    @Override
-    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+        return new AzureOpenAiOAuth2Secrets(inferenceId, clientSecret);
     }
 
     public static class Configuration {
@@ -148,7 +103,7 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                 configurationMap.put(
                     API_KEY,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription("You must provide either an API key or an Entra ID.")
+                        .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
                         .setLabel("API Key")
                         .setRequired(false)
                         .setSensitive(true)
@@ -159,7 +114,7 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                 configurationMap.put(
                     ENTRA_ID,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription("You must provide either an API key or an Entra ID.")
+                        .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
                         .setLabel("Entra ID")
                         .setRequired(false)
                         .setSensitive(true)
@@ -167,7 +122,13 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
+                configurationMap.putAll(AzureOpenAiOAuth2Secrets.getClientSecretConfiguration());
                 return Collections.unmodifiableMap(configurationMap);
             });
+    }
+
+    @Override
+    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
     }
 }

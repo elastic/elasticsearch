@@ -12,16 +12,26 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link AzureOpenAiEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
 public class AzureOpenAiEmbeddingsModelCreator implements ModelCreator<AzureOpenAiEmbeddingsModel> {
+
+    public final ThreadPool threadPool;
+
+    // TODO pull up into a common base class
+    public AzureOpenAiEmbeddingsModelCreator(ThreadPool threadPool) {
+        this.threadPool = Objects.requireNonNull(threadPool);
+    }
+
     @Override
     public AzureOpenAiEmbeddingsModel createFromMaps(
         String inferenceId,
@@ -41,12 +51,13 @@ public class AzureOpenAiEmbeddingsModelCreator implements ModelCreator<AzureOpen
             taskSettings,
             chunkingSettings,
             secretSettings,
-            context
+            context,
+            threadPool
         );
     }
 
     @Override
     public AzureOpenAiEmbeddingsModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureOpenAiEmbeddingsModel(config, secrets);
+        return new AzureOpenAiEmbeddingsModel(config, secrets, threadPool);
     }
 }

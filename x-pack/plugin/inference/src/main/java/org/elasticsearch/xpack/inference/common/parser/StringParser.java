@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -16,11 +18,34 @@ import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.
 
 public final class StringParser {
 
+    public static List<String> extractStringList(
+        Map<String, Object> map,
+        String field,
+        String root,
+        ValidationException validationException
+    ) {
+        try {
+            return StringParser.extractStringList(map, field, root);
+        } catch (IllegalArgumentException e) {
+            validationException.addValidationError(e.getMessage());
+            return null;
+        }
+    }
+
+    public static List<String> extractStringList(Map<String, Object> map, String key, String root, @Nullable List<String> defaultValue) {
+        var list = extractStringList(map, key, root);
+        if (list == null) {
+            return defaultValue;
+        }
+
+        return list;
+    }
+
     @SuppressWarnings("unchecked")
     public static List<String> extractStringList(Map<String, Object> map, String key, String root) {
         var list = ObjectParserUtils.removeAsType(map, key, root, List.class);
         if (list == null) {
-            return List.of();
+            return null;
         }
 
         for (int i = 0; i < list.size(); i++) {

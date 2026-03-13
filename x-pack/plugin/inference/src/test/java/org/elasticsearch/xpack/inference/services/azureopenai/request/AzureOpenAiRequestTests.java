@@ -9,27 +9,52 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsFactory;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
+import org.junit.After;
+import org.junit.Before;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiRequest.MISSING_AUTHENTICATION_ERROR_MESSAGE;
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class AzureOpenAiRequestTests extends ESTestCase {
+
+    private static final String TEST_INFERENCE_ID = "test-inference-id";
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
 
     public void testDecorateWithAuthHeader_apiKeyPresent() {
         var apiKey = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiSecretSettings(apiKey, null);
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, apiKey, null);
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            secretSettings,
+            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+        );
 
-        AzureOpenAiRequest.decorateWithAuthHeader(httpPost, secretSettings);
+        secretsApplier.applyTo(httpPost, ActionListener.noop());
         var apiKeyHeader = httpPost.getFirstHeader(API_KEY_HEADER);
 
         assertThat(apiKeyHeader.getValue(), equalTo(apiKey.toString()));
@@ -38,25 +63,33 @@ public class AzureOpenAiRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader_entraIdPresent() {
         var entraId = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiSecretSettings(null, entraId);
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, entraId);
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            secretSettings,
+            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+        );
 
-        AzureOpenAiRequest.decorateWithAuthHeader(httpPost, secretSettings);
+        secretsApplier.applyTo(httpPost, ActionListener.noop());
         var authHeader = httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION);
 
         assertThat(authHeader.getValue(), equalTo("Bearer " + entraId));
     }
 
-    public void testDecorateWithAuthHeader_entraIdAndApiKeyMissing_throwMissingAuthValidationException() {
-        var httpPost = new HttpPost();
-        var secretSettingsMock = mock(AzureOpenAiSecretSettings.class);
-
-        when(secretSettingsMock.entraId()).thenReturn(null);
-        when(secretSettingsMock.apiKey()).thenReturn(null);
-
-        ValidationException exception = expectThrows(
+    // TODO fix this one, we should have a test where it does set the header
+    public void testDecorateWithAuthHeader_oauthClientSecret_doesNotSetAuthHeaders() {
+        var secretSettings = new AzureOpenAiOAuth2Secrets(TEST_INFERENCE_ID, randomSecureStringOfLength(10));
+        var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiRequest.decorateWithAuthHeader(httpPost, secretSettingsMock)
+            () -> AzureOpenAiSecretsFactory.createSecretsApplier(
+                TEST_INFERENCE_ID,
+                threadPool,
+                secretSettings,
+                AzureOpenAiCompletionServiceSettingsTests.createRandom()
+            )
         );
-        assertTrue(exception.getMessage().contains(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID)));
+
+        assertThat(thrownException.getMessage(), containsString("OAuth2 requires the fields [client_id, tenant_id, scopes], to be set."));
     }
 }

@@ -14,7 +14,7 @@ import java.util.Objects;
 
 public abstract class AzureOpenAiRequestManager extends BaseRequestManager {
     protected AzureOpenAiRequestManager(ThreadPool threadPool, AzureOpenAiModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.baseServiceSettings().rateLimitSettings());
     }
 
     record RateLimitGrouping(int resourceNameHash, int deploymentIdHash) {
@@ -22,8 +22,8 @@ public abstract class AzureOpenAiRequestManager extends BaseRequestManager {
             Objects.requireNonNull(model);
 
             return new RateLimitGrouping(
-                model.rateLimitServiceSettings().resourceName().hashCode(),
-                model.rateLimitServiceSettings().deploymentId().hashCode()
+                model.baseServiceSettings().resourceName().hashCode(),
+                model.baseServiceSettings().deploymentId().hashCode()
             );
         }
     }

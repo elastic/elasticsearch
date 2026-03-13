@@ -144,10 +144,14 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+
+                assertThat(model.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+                var secrets = (AzureOpenAiEntraIdApiKeySecrets) model.getSecretSettings();
+
                 assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -170,10 +174,12 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+                assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+                var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
                 assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
@@ -198,10 +204,12 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+                assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+                var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
                 assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
@@ -344,10 +352,12 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+                assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+                var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
                 assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -385,13 +395,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -417,6 +429,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
@@ -424,7 +438,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -449,6 +463,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
@@ -456,7 +472,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -514,13 +530,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -548,13 +566,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -580,13 +600,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -620,13 +642,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -654,13 +678,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
             var embeddingsModel = (AzureOpenAiEmbeddingsModel) model;
+            assertThat(embeddingsModel.getSecretSettings(), instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+            var secrets = (AzureOpenAiEntraIdApiKeySecrets) embeddingsModel.getSecretSettings();
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            assertThat(secrets.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -948,7 +974,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -985,7 +1012,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues();
+            var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues(threadPool);
             assertThrows(
                 ElasticsearchStatusException.class,
                 () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
@@ -1017,7 +1044,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10)
+                randomAlphaOfLength(10),
+                threadPool
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
@@ -1052,7 +1080,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1085,7 +1114,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             createRandomChunkingSettings(),
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         testChunkedInfer(model);
@@ -1100,7 +1130,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             null,
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         testChunkedInfer(model);
@@ -1115,7 +1146,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             null,
             API_KEY_VALUE,
             null,
-            INFERENCE_ENTITY_ID_VALUE
+            INFERENCE_ENTITY_ID_VALUE,
+            threadPool
         );
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -1259,7 +1291,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1309,7 +1342,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             var latch = new CountDownLatch(1);
@@ -1376,7 +1410,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1445,7 +1480,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             model.setUri(new URI(getUrl(webServer)));
             var listener = new PlainActionFuture<InferenceServiceResults>();
@@ -1496,76 +1532,119 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = createAzureOpenAiService()) {
             String content = XContentHelper.stripWhitespace(
                 """
-                    {
-                            "service": "azureopenai",
-                            "name": "Azure OpenAI",
-                            "task_types": ["text_embedding", "completion", "chat_completion"],
-                            "configurations": {
-                                "api_key": {
-                                    "description": "You must provide either an API key or an Entra ID.",
-                                    "label": "API Key",
-                                    "required": false,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "dimensions": {
-                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
-                                    "label": "Dimensions",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding"]
-                                },
-                                "entra_id": {
-                                    "description": "You must provide either an API key or an Entra ID.",
-                                    "label": "Entra ID",
-                                    "required": false,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "rate_limit.requests_per_minute": {
-                                    "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
-                                    "label": "Rate Limit",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "deployment_id": {
-                                    "description": "The deployment name of your deployed models.",
-                                    "label": "Deployment ID",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "resource_name": {
-                                    "description": "The name of your Azure OpenAI resource.",
-                                    "label": "Resource Name",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "api_version": {
-                                    "description": "The Azure API version ID to use.",
-                                    "label": "API Version",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                }
-                            }
-                        }
+                        {
+                             "service": "azureopenai",
+                             "name": "Azure OpenAI",
+                             "task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ],
+                             "configurations": {
+                                 "api_key": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "API Key",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "entra_id": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "Entra ID",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "rate_limit.requests_per_minute": {
+                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
+                                     "label": "Rate Limit",
+                                     "required": false,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "int",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "deployment_id": {
+                                     "description": "The deployment name of your deployed models.",
+                                     "label": "Deployment ID",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "client_secret": {
+                                     "description": "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.",
+                                     "label": "OAuth2 Client Secret",
+                                     "required": false,
+                                     "sensitive": true,
+                                     "updatable": true,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "resource_name": {
+                                     "description": "The name of your Azure OpenAI resource.",
+                                     "label": "Resource Name",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "api_version": {
+                                     "description": "The Azure API version ID to use.",
+                                     "label": "API Version",
+                                     "required": true,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "str",
+                                     "supported_task_types": [
+                                         "text_embedding",
+                                         "completion",
+                                         "chat_completion"
+                                     ]
+                                 },
+                                 "dimensions": {
+                                     "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                     "label": "Dimensions",
+                                     "required": false,
+                                     "sensitive": false,
+                                     "updatable": false,
+                                     "type": "int",
+                                     "supported_task_types": [
+                                         "text_embedding"
+                                     ]
+                                 }
+                             }
+                         }
                     """
             );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
@@ -1683,7 +1762,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             case COMPLETION -> AzureOpenAiCompletionModelTests.createCompletionModel(
                 RESOURCE_NAME_VALUE,
@@ -1692,7 +1772,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             case CHAT_COMPLETION -> AzureOpenAiCompletionModelTests.createChatCompletionModel(
                 RESOURCE_NAME_VALUE,
@@ -1701,7 +1782,8 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 ROLE_VALUE,
                 API_KEY_VALUE,
                 null,
-                INFERENCE_ENTITY_ID_VALUE
+                INFERENCE_ENTITY_ID_VALUE,
+                threadPool
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };

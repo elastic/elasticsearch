@@ -23,11 +23,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+import static org.elasticsearch.reindex.remote.RemoteResponseParsers.HIT_PARSER;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.OPEN_PIT_PARSER;
+import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PARSER;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.junit.Assert.assertArrayEquals;
 
 public class RemoteResponseParsersTests extends ESTestCase {
 
@@ -154,6 +156,248 @@ public class RemoteResponseParsersTests extends ESTestCase {
         try (XContentParser parser = createParser(builder)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse field [id]"));
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER parses sort values including integers.
+     */
+    public void testHitParserSortValuesInteger() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .value(12345)
+            .value("sort-key")
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNotNull(hit.getSortValues());
+            assertEquals(2, hit.getSortValues().length);
+            assertEquals(12345, hit.getSortValues()[0]);
+            assertEquals("sort-key", hit.getSortValues()[1]);
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER parses sort values that exceed int range as Long.
+     */
+    public void testHitParserSortValuesLong() throws IOException {
+        long sortValue = 4294967396L; // shard index 1, doc id 100
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .value(sortValue)
+            .value("sort-key")
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNotNull(hit.getSortValues());
+            assertEquals(2, hit.getSortValues().length);
+            assertEquals(sortValue, ((Number) hit.getSortValues()[0]).longValue());
+            assertEquals("sort-key", hit.getSortValues()[1]);
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER parses sort values with mixed types (string, number, boolean, null).
+     */
+    public void testHitParserSortValuesMixedTypes() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .value("string-val")
+            .value(42)
+            .value(true)
+            .nullValue()
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNotNull(hit.getSortValues());
+            assertEquals(4, hit.getSortValues().length);
+            assertEquals("string-val", hit.getSortValues()[0]);
+            assertEquals(42, hit.getSortValues()[1]);
+            assertEquals(true, hit.getSortValues()[2]);
+            assertNull(hit.getSortValues()[3]);
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER returns null sort values when sort array is empty.
+     */
+    public void testHitParserSortValuesEmptyArray() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNull(hit.getSortValues());
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER parses hit without sort field (sort values remain null).
+     */
+    public void testHitParserNoSortField() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNull(hit.getSortValues());
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER throws when sort array contains invalid value type (e.g. object).
+     */
+    public void testHitParserSortValuesInvalidType() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .value(12345)
+            .startObject()
+            .field("nested", "invalid")
+            .endObject()
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            Exception e = expectThrows(Exception.class, () -> HIT_PARSER.parse(parser, XContentType.JSON));
+            assertThat(e.getCause(), Matchers.notNullValue());
+            assertThat(e.getCause().getMessage(), Matchers.containsString("Expected value in sort array"));
+        }
+    }
+
+    /**
+     * Verifies that RESPONSE_PARSER extracts and base64-decodes pit_id from a PIT search response.
+     */
+    public void testResponseParserPitId() throws IOException {
+        byte[] pitIdBytes = "pit-id".getBytes(StandardCharsets.UTF_8);
+        String pitIdBase64 = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("pit_id", pitIdBase64)
+            .field("timed_out", false)
+            .startObject("hits")
+            .field("total", 0)
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            assertNotNull(response.getPitId());
+            assertArrayEquals(pitIdBytes, BytesReference.toBytes(response.getPitId()));
+        }
+    }
+
+    /**
+     * Verifies that RESPONSE_PARSER returns null pitId when pit_id field is missing.
+     */
+    public void testResponseParserPitIdMissing() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("timed_out", false)
+            .startObject("hits")
+            .field("total", 0)
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            assertNull(response.getPitId());
+        }
+    }
+
+    /**
+     * Verifies that RESPONSE_PARSER handles null timed_out (parses successfully with timedOut=false).
+     */
+    public void testResponseParserTimedOutNull() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("hits")
+            .field("total", 0)
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            assertFalse(response.isTimedOut());
+        }
+    }
+
+    /**
+     * Verifies that RESPONSE_PARSER parses a full PIT search response with hits and sort values.
+     */
+    public void testResponseParserFullPitResponse() throws IOException {
+        String pitIdBase64 = Base64.getUrlEncoder().encodeToString("pit-id".getBytes(StandardCharsets.UTF_8));
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("pit_id", pitIdBase64)
+            .field("timed_out", false)
+            .startObject("hits")
+            .field("total", 4)
+            .startArray("hits")
+            .startObject()
+            .field("_index", "test")
+            .field("_id", "AVToMiC250DjIiBO3yJ_")
+            .field("_version", 1)
+            .startObject("_source")
+            .field("test", "test2")
+            .endObject()
+            .startArray("sort")
+            .value(12345)
+            .value("sort-key")
+            .endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .field("total", 5)
+            .field("successful", 5)
+            .field("failed", 0)
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            assertFalse(response.isTimedOut());
+            assertNotNull(response.getPitId());
+            assertArrayEquals("pit-id".getBytes(StandardCharsets.UTF_8), BytesReference.toBytes(response.getPitId()));
+            assertEquals(4, response.getTotalHits());
+            assertThat(response.getHits(), Matchers.hasSize(1));
+            PaginatedHitSource.Hit hit = response.getHits().getFirst();
+            assertEquals("test", hit.getIndex());
+            assertEquals("AVToMiC250DjIiBO3yJ_", hit.getId());
+            assertNotNull(hit.getSortValues());
+            assertEquals(2, hit.getSortValues().length);
+            assertEquals(12345, hit.getSortValues()[0]);
+            assertEquals("sort-key", hit.getSortValues()[1]);
         }
     }
 }

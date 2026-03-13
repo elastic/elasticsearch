@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginationCursor;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -87,7 +88,7 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    protected void doStart(RejectAwareActionListener<Response> searchListener) {
+    protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         if (remoteVersion != null) {
             execute(
                 RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
@@ -110,13 +111,14 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
         }
     }
 
+    // TODO - Can we make this protected?
     @Override
     public void restoreState(WorkerResumeInfo resumeInfo) {
         assert resumeInfo instanceof ScrollWorkerResumeInfo;
         var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
         remoteVersion = scrollResumeInfo.remoteVersion();
         assert remoteVersion != null : "remote cluster version must be set to resume remote reindex";
-        setScroll(scrollResumeInfo.scrollId());
+        setScrollId(scrollResumeInfo.scrollId());
     }
 
     public Optional<Version> remoteVersion() {
@@ -127,20 +129,32 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
     void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
-            doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
+            doNextSearch(PaginationCursor.forScroll(response.getScrollId()), timeValueMillis(0), searchListener);
         } else {
             searchListener.onResponse(response);
         }
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+    protected void doNextSearch(PaginationCursor cursor, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        assert cursor.isScroll() : "RemoteScrollablePaginatedHitSource expects scroll cursor";
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().nanos() + extraKeepAlive.nanos());
-        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener, threadPool, client);
+        execute(
+            RemoteRequestBuilders.scroll(cursor.scrollId(), keepAlive, remoteVersion),
+            RESPONSE_PARSER,
+            searchListener,
+            threadPool,
+            client
+        );
     }
 
     @Override
-    protected void clearScroll(String scrollId, Runnable onCompletion) {
+    protected void releaseSearchContext(Runnable onCompletion) {
+        String scrollId = getScrollId();
+        if (Strings.hasLength(scrollId) == false) {
+            onCompletion.run();
+            return;
+        }
         client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {

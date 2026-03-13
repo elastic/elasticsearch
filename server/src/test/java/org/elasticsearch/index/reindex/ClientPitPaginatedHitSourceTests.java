@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
@@ -16,29 +16,31 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -49,12 +51,17 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
+/**
+ * Unit tests for {@link ClientPitPaginatedHitSource}.
+ */
+public class ClientPitPaginatedHitSourceTests extends ESTestCase {
+
+    private static final BytesReference PIT_ID = new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8));
+    private static final TimeValue KEEP_ALIVE = timeValueMinutes(5);
 
     private ThreadPool threadPool;
 
@@ -68,31 +75,133 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    // ensure we test the happy path on every build.
-    public void testStartScrollDone() throws InterruptedException {
-        dotestBasicsWithRetry(0, 0, 0, e -> fail());
+    /** Verifies the happy path: start, first search, consume batch, next search with search_after. */
+    public void testStartPitDone() throws InterruptedException {
+        doTestBasicsWithRetry(0, 0, 0, e -> fail());
     }
 
+    /** Verifies retries on rejection succeed within the retry limit. */
     public void testRetrySuccess() throws InterruptedException {
         int retries = randomIntBetween(1, 10);
-        dotestBasicsWithRetry(retries, 0, retries, e -> fail());
+        doTestBasicsWithRetry(retries, 0, retries, e -> fail());
     }
 
+    /** Verifies retries on rejection fail when exceeding the retry limit. */
     public void testRetryFail() throws InterruptedException {
         final int retries = randomInt(10);
         final var exceptionRef = new AtomicReference<Exception>();
-        dotestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
+        doTestBasicsWithRetry(retries, retries + 1, retries + 1, exceptionRef::set);
         assertThat(exceptionRef.get(), instanceOf(EsRejectedExecutionException.class));
     }
 
-    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
+    /** Verifies that restoreState resumes from PitWorkerResumeInfo and fetches next batch. */
+    public void testRestoreStateResumesFromPitWorkerResumeInfo() throws InterruptedException {
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        Object[] searchAfterValues = new Object[] { 100L, "sort-key" };
+        ResumeInfo.PitWorkerResumeInfo resumeInfo = new ResumeInfo.PitWorkerResumeInfo(
+            PIT_ID,
+            searchAfterValues,
+            System.currentTimeMillis(),
+            BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+            null
+        );
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            responses::add,
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            createPitSearchRequest()
+        );
+
+        paginatedHitSource.resume(resumeInfo);
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> {
+            assertNotNull(r.source().searchAfter());
+            assertArrayEquals(searchAfterValues, r.source().searchAfter());
+            assertNotNull(r.source().pointInTimeBuilder());
+        });
+        SearchResponse searchResponse = createPitSearchResponse();
+        try {
+            client.respond(TransportSearchAction.TYPE, searchResponse);
+            PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+            assertNotNull(asyncResponse);
+            assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    /** Verifies that an empty (0-hit) response completes without requesting the next batch. */
+    public void testEmptyResponseCompletesWithoutRequestingNextBatch() throws InterruptedException {
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            responses::add,
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            createPitSearchRequest()
+        );
+
+        paginatedHitSource.start();
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertSame(Boolean.FALSE, r.allowPartialSearchResults()));
+        SearchResponse searchResponse = createPitSearchResponse(0);
+        try {
+            client.respond(TransportSearchAction.TYPE, searchResponse);
+            PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+            assertNotNull(asyncResponse);
+            assertTrue(asyncResponse.response().getHits().isEmpty());
+            assertFalse(paginatedHitSource.hasMoreBatches());
+            // Do not call done() - we're at the end, no search_after values for next batch
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    /** Verifies that constructor rejects SearchRequest without pointInTimeBuilder. */
+    public void testConstructorRejectsMissingPointInTime() {
+        MockClient client = new MockClient(threadPool);
+        ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, new TaskId("n", randomInt()));
+        SearchRequest nullSource = new SearchRequest();
+        SearchRequest sourceWithoutPit = new SearchRequest().source(new SearchSourceBuilder());
+        for (SearchRequest request : randomBoolean()
+            ? new SearchRequest[] { nullSource, sourceWithoutPit }
+            : new SearchRequest[] { sourceWithoutPit, nullSource }) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ClientPitPaginatedHitSource(
+                    logger,
+                    BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+                    threadPool,
+                    () -> {},
+                    r -> {},
+                    e -> {},
+                    assigningClient,
+                    request
+                )
+            );
+        }
+    }
+
+    private void doTestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
         throws InterruptedException {
         BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
-        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool,
@@ -100,7 +209,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             responses::add,
             failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
+            createPitSearchRequest()
         );
 
         paginatedHitSource.start();
@@ -112,27 +221,27 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
-        SearchResponse searchResponse = createSearchResponse();
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> assertSame(Boolean.FALSE, r.allowPartialSearchResults()));
+        SearchResponse searchResponse = createPitSearchResponse();
         try {
             client.respond(TransportSearchAction.TYPE, searchResponse);
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
                 PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
                 assertNotNull(asyncResponse);
-                assertEquals(responses.size(), 0);
+                assertEquals(0, responses.size());
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
                 asyncResponse.done(TimeValue.ZERO);
 
                 for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                    client.fail(TransportSearchScrollAction.TYPE, new EsRejectedExecutionException());
+                    client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
                     client.awaitOperation();
                     ++expectedSearchRetries;
                 }
 
                 searchResponse.decRef();
-                searchResponse = createSearchResponse();
-                client.respond(TransportSearchScrollAction.TYPE, searchResponse);
+                searchResponse = createPitSearchResponse();
+                client.respond(TransportSearchAction.TYPE, searchResponse);
             }
 
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);
@@ -141,36 +250,25 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         }
     }
 
-    public void testScrollKeepAlive() {
-        MockClient client = new MockClient(threadPool);
-        TaskId parentTask = new TaskId("thenode", randomInt());
-
-        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
-            logger,
-            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
-            threadPool,
-            () -> fail(),
-            r -> fail(),
-            e -> fail(),
-            new ParentTaskAssigningClient(client, parentTask),
-            // Set the base for the scroll to wait - this is added to the figure we calculate below
-            new SearchRequest().scroll(timeValueSeconds(10))
-        );
-
-        paginatedHitSource.setScrollId("scroll_id");
-        paginatedHitSource.requestNextBatch(timeValueSeconds(100));
-        client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
+    private static SearchRequest createPitSearchRequest() {
+        SearchSourceBuilder source = new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(PIT_ID).setKeepAlive(KEEP_ALIVE));
+        return new SearchRequest().source(source);
     }
 
-    private SearchResponse createSearchResponse() {
-        // create a simulated response.
+    private SearchResponse createPitSearchResponse() {
+        return createPitSearchResponse(randomIntBetween(1, 20));
+    }
+
+    private SearchResponse createPitSearchResponse(int hitCount) {
+        Object[] sortValues = new Object[] { randomLong(), randomAlphaOfLengthBetween(1, 10) };
         SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        hit.sortValues(sortValues, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
+            IntStream.range(0, hitCount).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
+        return SearchResponseUtils.response(hits).pointInTimeId(PIT_ID).shards(5, 4, 0).build();
     }
 
     private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {
@@ -182,7 +280,6 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             assertEquals(actual.get(i).getPrimaryTerm(), expected[i].getPrimaryTerm());
             assertEquals(actual.get(i).getSeqNo(), expected[i].getSeqNo());
             assertEquals(actual.get(i).getId(), expected[i].getId());
-            assertEquals(actual.get(i).getIndex(), expected[i].getIndex());
         }
     }
 

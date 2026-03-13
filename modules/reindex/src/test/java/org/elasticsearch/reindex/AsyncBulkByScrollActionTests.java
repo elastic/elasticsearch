@@ -223,8 +223,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new ParentTaskAssigningClient(client, localNode, testTask),
             testRequest.getSearchRequest()
         );
-        paginatedHitSource.setScroll(scrollId());
-        paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+        paginatedHitSource.setScrollId(scrollId());
+        paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
         assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
         if (listener.isDone()) {
             Object result = listener.get();
@@ -252,8 +252,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 new ParentTaskAssigningClient(client, localNode, testTask),
                 testRequest.getSearchRequest()
             );
-            paginatedHitSource.setScroll(scrollId());
-            paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+            paginatedHitSource.setScrollId(scrollId());
+            paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
             assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
         });
         assertNull("There shouldn't be a scroll attempt pending that we didn't reject", client.lastScroll.get());

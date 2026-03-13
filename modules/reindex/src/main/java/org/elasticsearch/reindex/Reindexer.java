@@ -66,6 +66,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
@@ -73,6 +74,7 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -278,6 +280,9 @@ public class Reindexer {
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
+            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
+            searchRequest.scroll(null);
             ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
                 l,
                 () -> client.execute(
@@ -287,7 +292,6 @@ public class Reindexer {
                 )
             );
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
-            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
         }));
     }
@@ -359,6 +363,9 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
         openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
+            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
+            searchRequest.scroll(null);
             ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
                 listenerWithRelocations,
                 () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
@@ -370,7 +377,6 @@ public class Reindexer {
                 }), threadPool, restClient)
             );
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
-            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
@@ -666,11 +672,6 @@ public class Reindexer {
          */
         private List<Thread> createdThreads = emptyList();
 
-        /**
-         * Version of the remote cluster when reindexing from remote, or null when reindexing locally.
-         */
-        private final Version remoteVersion;
-
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
@@ -700,10 +701,10 @@ public class Reindexer {
                 request,
                 listener,
                 scriptService,
-                sslConfig
+                sslConfig,
+                remoteVersion
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
-            this.remoteVersion = remoteVersion;
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -728,6 +729,21 @@ public class Reindexer {
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
+                if (searchRequest.source() != null && searchRequest.source().pointInTimeBuilder() != null) {
+                    assert remoteVersion != null : "remoteVersion must be set when using remote PIT";
+                    return new RemotePitPaginatedHitSource(
+                        logger,
+                        backoffPolicy,
+                        threadPool,
+                        worker::countSearchRetry,
+                        this::onScrollResponse,
+                        this::finishHim,
+                        restClient,
+                        remoteInfo,
+                        searchRequest,
+                        remoteVersion
+                    );
+                }
                 return new RemoteScrollablePaginatedHitSource(
                     logger,
                     backoffPolicy,

@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +59,7 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -110,6 +112,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -143,6 +146,7 @@ public class AuthorizationService {
     private final AuditTrailService auditTrailService;
     private final IndicesAndAliasesResolver indicesAndAliasesResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
+    private final Executor authorizationExecutor;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final AnonymousUser anonymousUser;
@@ -168,6 +172,7 @@ public class AuthorizationService {
         AuditTrailService auditTrailService,
         AuthenticationFailureHandler authcFailureHandler,
         ThreadPool threadPool,
+        Executor authorizationExecutor,
         AnonymousUser anonymousUser,
         @Nullable AuthorizationEngine authorizationEngine,
         Set<RequestInterceptor> requestInterceptors,
@@ -194,6 +199,7 @@ public class AuthorizationService {
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
+        this.authorizationExecutor = authorizationExecutor;
         this.securityContext = new SecurityContext(settings, this.threadContext);
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
@@ -222,20 +228,25 @@ public class AuthorizationService {
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        authorizationEngine.resolveAuthorizationInfo(
-            subject,
-            wrapPreservingContext(
-                listener.delegateFailure(
-                    (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
-                        authorizationInfo,
-                        privilegesToCheck,
-                        applicationPrivilegeDescriptors,
-                        wrapPreservingContext(delegateListener, threadContext)
-                    )
-                ),
-                threadContext
+
+        assert Transports.assertNotTransportThread("check-privileges is sometimes expensive and is not latency-sensitive");
+
+        SubscribableListener
+
+            .<AuthorizationInfo>newForked(l -> authorizationEngine.resolveAuthorizationInfo(subject, l))
+
+            .<AuthorizationEngine.PrivilegesCheckResult>andThen(
+                authorizationExecutor,
+                threadContext,
+                (l, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                    authorizationInfo,
+                    privilegesToCheck,
+                    applicationPrivilegeDescriptors,
+                    l
+                )
             )
-        );
+
+            .addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
     }
 
     public void retrieveUserPrivileges(
@@ -779,6 +790,10 @@ public class AuthorizationService {
     // pkg-private for testing
     AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
         return getAuthorizationEngineForSubject(authentication.getAuthenticatingSubject());
+    }
+
+    public Executor getAuthorizationExecutor() {
+        return authorizationExecutor;
     }
 
     // pkg-private for testing

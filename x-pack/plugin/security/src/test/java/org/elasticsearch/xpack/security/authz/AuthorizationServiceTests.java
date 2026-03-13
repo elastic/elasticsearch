@@ -109,6 +109,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -360,6 +361,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -1342,6 +1344,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -1406,6 +1409,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -1953,6 +1957,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             anonymousUser,
             null,
             Collections.emptySet(),
@@ -2007,6 +2012,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(settings),
             null,
             Collections.emptySet(),
@@ -3549,6 +3555,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(Settings.EMPTY),
             engine,
             Collections.emptySet(),
@@ -3713,6 +3720,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new AnonymousUser(Settings.EMPTY),
             engine,
             Collections.emptySet(),

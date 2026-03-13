@@ -948,10 +948,6 @@ public class VerifierMetricsTests extends ESTestCase {
         return c.get(FEATURES_PREFIX + FeatureMetric.SUBQUERY);
     }
 
-    private long views(Counters c) {
-        return c.get(FEATURES_PREFIX + VIEWS);
-    }
-
     private long function(String function, Counters c) {
         return c.get(FUNC_PREFIX + function);
     }

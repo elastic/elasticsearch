@@ -167,6 +167,16 @@ public class SemanticTextIndexOptions implements ToXContent {
     ) {
         Object type = map.remove(TYPE_FIELD);
         if (type == null) {
+            if (map.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + TYPE_FIELD
+                        + "] is required when specifying more params than ["
+                        + ExtendedDenseVectorIndexOptions.ELEMENT_TYPE_FIELD
+                        + "]"
+                );
+            }
+
             return null;
         }
 

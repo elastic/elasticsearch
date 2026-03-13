@@ -79,7 +79,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsLookupJoin-Ignore
-// temporarily forbiding "load" with LOOKUP JOIN
+// temporarily forbidding "load" with LOOKUP JOIN
 required_capability: optional_fields_v2
 required_capability: join_lookup_v12
 FROM partial_mapping_sample_data

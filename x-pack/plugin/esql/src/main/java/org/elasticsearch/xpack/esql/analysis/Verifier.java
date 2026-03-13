@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -349,13 +351,21 @@ public class Verifier {
             if (p instanceof Fork) {
                 failures.add(fail(p, "FORK is not supported with unmapped_fields=\"load\""));
             }
-            if (p instanceof Join) {
+            if (p instanceof Join join && isLookupJoin(join)) {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
             if (p instanceof Subquery) {
                 failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
             }
         });
+    }
+
+    private static boolean isLookupJoin(Join join) {
+        LogicalPlan right = join.right();
+        if (right instanceof Filter filter) {
+            right = filter.child();
+        }
+        return right instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

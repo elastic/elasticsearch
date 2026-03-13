@@ -3870,7 +3870,53 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    // ---- nullify mode should allow all branching commands ----
+    // ---- load mode with multiple forbidden commands in the same query ----
+
+    public void testLoadModeDisallowsForkAndLookupJoin() {
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+                """),
+            "FORK is not supported with unmapped_fields=\"load\""
+        );
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+                """),
+            "LOOKUP JOIN is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    public void testLoadModeDisallowsSubqueryAndFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var query = setUnmappedLoad("""
+            FROM test, (FROM languages | WHERE language_code > 1)
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """);
+        verificationFailure(query, "Subqueries and views are not supported with unmapped_fields=\"load\"");
+        verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
+    }
+
+    public void testLoadModeAllowsInlineStats() {
+        analyzeStatement(setUnmappedLoad("""
+            FROM test
+            | INLINE STATS c = COUNT(*) BY emp_no
+            """));
+    }
+
+    public void testLoadModeAllowsInlineStatsWithUnmappedFields() {
+        analyzeStatement(setUnmappedLoad("""
+            FROM test
+            | INLINE STATS s = COUNT(does_not_exist1), c = COUNT(*) BY does_not_exist2, emp_no
+            """));
+    }
 
     public void testNullifyModeAllowsFork() {
         analyzeStatement(setUnmappedNullify("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));

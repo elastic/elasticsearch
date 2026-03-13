@@ -768,7 +768,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
             | EVAL nanos = MV_MIN(nanos)
-            """, STAGES);
+            """);
     }
 
     /**

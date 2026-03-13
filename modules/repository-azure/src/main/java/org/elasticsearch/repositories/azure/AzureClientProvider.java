@@ -38,6 +38,7 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -283,26 +284,30 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
                 @Override
                 public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
-                    assert false : "Should not be called";
-                    throw new IllegalStateException("Should not be called");
+                    AssertionError shouldNotBeCalled = new AssertionError("Should not be called");
+                    ExceptionsHelper.maybeDieOnAnotherThread(shouldNotBeCalled);
+                    throw shouldNotBeCalled;
                 }
 
                 @Override
                 public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
-                    assert false : "Should not be called";
-                    throw new IllegalStateException("Should not be called");
+                    AssertionError shouldNotBeCalled = new AssertionError("Should not be called");
+                    ExceptionsHelper.maybeDieOnAnotherThread(shouldNotBeCalled);
+                    throw shouldNotBeCalled;
                 }
 
                 @Override
                 public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
-                    assert false : "Should not be called";
-                    throw new IllegalStateException("Should not be called");
+                    AssertionError shouldNotBeCalled = new AssertionError("Should not be called");
+                    ExceptionsHelper.maybeDieOnAnotherThread(shouldNotBeCalled);
+                    throw shouldNotBeCalled;
                 }
 
                 @Override
                 public Scheduler newSingle(ThreadFactory threadFactory) {
-                    assert false : "Should not be called";
-                    throw new IllegalStateException("Should not be called");
+                    AssertionError shouldNotBeCalled = new AssertionError("Should not be called");
+                    ExceptionsHelper.maybeDieOnAnotherThread(shouldNotBeCalled);
+                    throw shouldNotBeCalled;
                 }
             });
         }

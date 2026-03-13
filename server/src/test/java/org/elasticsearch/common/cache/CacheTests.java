@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -843,6 +844,7 @@ public class CacheTests extends ESTestCase {
         });
 
         assertEquals("existing-value", result);
+        assertFalse("Cancellation callback should not be registered on already-completed future", callbackCalled.get());
     }
 
     public void testComputeIfAbsentWithCancellationDuringInitialLookupWait() throws Exception {
@@ -892,6 +894,7 @@ public class CacheTests extends ESTestCase {
                 });
                 fail("Expected TaskCancelledException");
             } catch (TaskCancelledException e) {
+                assertThat(e.getMessage(), containsString("future="));
                 wasCancelled.set(true);
             } catch (ExecutionException e) {
                 threadException.set(e);
@@ -910,6 +913,59 @@ public class CacheTests extends ESTestCase {
 
         assertEquals("computed-value", cache.get(1));
         assertNull("No exception should have been thrown by computing thread", threadException.get());
+    }
+
+    public void testComputeIfAbsentPropagatesLoaderExceptionToWaitingThreadWithCancellationRegistrar() throws Exception {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+
+        CountDownLatch computeStarted = new CountDownLatch(1);
+        CountDownLatch allowFailure = new CountDownLatch(1);
+        CountDownLatch cancellationRegistered = new CountDownLatch(1);
+
+        AtomicReference<Throwable> computingThreadResult = new AtomicReference<>();
+        Thread computingThread = new Thread(() -> {
+            try {
+                cache.computeIfAbsent(1, k -> {
+                    computeStarted.countDown();
+                    safeAwait(allowFailure);
+                    throw new IllegalStateException("failed to load");
+                });
+                computingThreadResult.set(new AssertionError("expected ExecutionException"));
+            } catch (ExecutionException e) {
+                computingThreadResult.set(e);
+            }
+        });
+        computingThread.start();
+        safeAwait(computeStarted);
+
+        AtomicReference<Throwable> waitingThreadResult = new AtomicReference<>();
+        Thread waitingThread = new Thread(() -> {
+            try {
+                cache.computeIfAbsent(1, k -> {
+                    throw new IllegalStateException("failed to load");
+                }, cancellationCallback -> cancellationRegistered.countDown());
+                waitingThreadResult.set(new AssertionError("expected ExecutionException"));
+            } catch (ExecutionException | TaskCancelledException e) {
+                waitingThreadResult.set(e);
+            }
+        });
+        waitingThread.start();
+
+        safeAwait(cancellationRegistered);
+        allowFailure.countDown();
+
+        computingThread.join(5000);
+        waitingThread.join(5000);
+
+        assertFalse("Computing thread should have completed", computingThread.isAlive());
+        assertFalse("Waiting thread should have completed", waitingThread.isAlive());
+        assertThat(computingThreadResult.get(), instanceOf(ExecutionException.class));
+        assertThat(computingThreadResult.get().getCause(), instanceOf(IllegalStateException.class));
+        assertEquals("failed to load", computingThreadResult.get().getCause().getMessage());
+
+        assertThat(waitingThreadResult.get(), instanceOf(ExecutionException.class));
+        assertThat(waitingThreadResult.get().getCause(), instanceOf(IllegalStateException.class));
+        assertEquals("failed to load", waitingThreadResult.get().getCause().getMessage());
     }
 
     public void testConcurrentComputeIfAbsentWithCancellation() throws InterruptedException {

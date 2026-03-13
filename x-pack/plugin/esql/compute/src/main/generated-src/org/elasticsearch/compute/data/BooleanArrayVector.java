@@ -160,6 +160,11 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
+    public boolean[] backingBooleanArray() {
+        return values;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
     }

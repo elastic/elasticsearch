@@ -11,6 +11,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
@@ -58,6 +59,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
      * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
+
+    /**
+    * Returns the backing array of this vector if exists. The caller must not modify the returned array,
+    * and should not retain a reference to it beyond the lifetime of this vector.
+    */
+    @Nullable
+    default int[] backingIntArray() {
+        return null;
+    }
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

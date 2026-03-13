@@ -133,6 +133,11 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
+    public double[] backingDoubleArray() {
+        return values;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
     }

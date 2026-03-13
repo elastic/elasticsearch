@@ -133,6 +133,36 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public boolean[] backingBooleanArray() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public double[] backingDoubleArray() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public float[] backingFloatArray() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public int[] backingIntArray() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public long[] backingLongArray() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }
@@ -146,4 +176,5 @@ public final class ConstantNullVector extends AbstractVector
     public long ramBytesUsed() {
         return 0;
     }
+
 }

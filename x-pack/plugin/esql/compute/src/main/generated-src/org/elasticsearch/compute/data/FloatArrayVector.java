@@ -133,6 +133,11 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public float[] backingFloatArray() {
+        return values;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);
     }

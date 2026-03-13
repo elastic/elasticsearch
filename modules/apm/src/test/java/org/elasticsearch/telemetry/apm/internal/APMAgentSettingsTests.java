@@ -235,4 +235,13 @@ public class APMAgentSettingsTests extends ESTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));
         assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown.service_name]"));
     }
+
+    @SuppressForbidden(reason = "Uses System.setProperty")
+    private void restoreSystemProperty(String value, String key) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
 }

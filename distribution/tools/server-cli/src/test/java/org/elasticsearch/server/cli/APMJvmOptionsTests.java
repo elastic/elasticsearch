@@ -208,4 +208,13 @@ public class APMJvmOptionsTests extends ESTestCase {
 
         return tempFile.getParent();
     }
+
+    @SuppressForbidden(reason = "Uses System.setProperty")
+    private void restoreSystemProperty(String value, String key) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
 }

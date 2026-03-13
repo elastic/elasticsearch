@@ -356,12 +356,13 @@ public class LogConfigurator {
             final Level level = Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings);
             Loggers.setLevel(LogManager.getRootLogger(), level);
         }
+        final var context = Loggers.newContext();
         Loggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
             .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false)
             .forEach(s -> {
                 final Level level = s.get(settings);
-                Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
+                Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level, context);
             });
     }
 

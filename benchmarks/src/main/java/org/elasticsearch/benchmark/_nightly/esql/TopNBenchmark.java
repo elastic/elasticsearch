@@ -58,6 +58,10 @@ import java.util.stream.Stream;
 @Fork(1)
 public class TopNBenchmark {
 
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
@@ -76,7 +80,6 @@ public class TopNBenchmark {
     private static final String AND = "_and_";
 
     static {
-        Utils.configureBenchmarkLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
